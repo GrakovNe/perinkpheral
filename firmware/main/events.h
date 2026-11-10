@@ -17,6 +17,7 @@ extern "C" {
  * concurrently with anything else. */
 typedef enum {
     EVENT_BUTTON,
+    EVENT_TIMER,      /* a timer of the scene on the screen ran out */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
 } event_kind_t;
 
@@ -26,6 +27,10 @@ typedef struct {
         uint8_t index; /* 0..3, as the buttons sit on the device */
         bool    long_press;
     } button;
+    struct {
+        uint8_t  id;
+        uint32_t generation; /* see timers_is_current() */
+    } timer;
 } event_t;
 
 void events_start(void);

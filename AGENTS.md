@@ -8,8 +8,9 @@ panel is in `hardware/README.md`.
 ## Recipes
 
 The toolchain is ESP-IDF v5.5 (verified on v5.5.5) with its `export.sh`
-sourced, which also puts a Python with pyserial on the path.
-Applications are built with wasi-sdk 25, found through `WASI_SDK_PATH`.
+sourced, which also puts a Python with pyserial on the path, and
+wasi-sdk (verified with 34) with `WASI_SDK_PATH` pointing at it. The
+firmware build needs both: the image carries wasm applications.
 
 The board is on its native USB-Serial/JTAG (VID 0x303A PID 0x1001):
 `/dev/ttyACM*` on Linux, `/dev/cu.usbmodem*` on macOS. The name changes
@@ -53,7 +54,14 @@ print(buf.decode('utf-8', 'replace'))
 EOF
 ```
 
-Host tests: `cd firmware/test/host && make test`.
+Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`
+set they include `test_app`, which builds a real module
+(`test/host/apps/probe`) and runs it in the real interpreter.
+
+An application: `tools/mkapp/mkapp.py sdk/apps/<name> --out <dir>`
+builds `app.wasm` without a C library, with one page of memory, and
+refuses a module that imports anything `sdk/host_api.h` does not
+declare.
 
 Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
 the window manager and `firmware/main/screens.c` natively and writes a
@@ -94,10 +102,16 @@ Code:
 - `settings_load()` never fails and `reset_early_init()` runs before
   anything opens NVS. Only `settings.c` touches NVS for the host;
   applications get their own namespaces through the host API `kv_*`.
-- `sdk/host_api.h` is the only contract between host and applications;
-  changing a signature means a new `HOST_API_VERSION`. The file is
-  still a draft older than the Host API in `CLAUDE.md`: rewrite it from
-  there before building `appsys`.
+- `sdk/host_api.h` is the only contract between host and applications.
+  An import is added in three places and nowhere else: the header, the
+  `HOST_API` table in `appsys/app.c`, and a case in
+  `test/host/apps/probe` with its check in `test_app.c`. After ABI 1
+  freezes, changing a signature means a new `HOST_API_VERSION`.
+- The application is not trusted: `app.c` checks every offset and
+  length against the module's memory before using it. Keep it free of
+  ESP-IDF; what it needs from the device comes in as `app_services_t`.
+- `components/wasm3/wasm3` is upstream v0.9.0, unmodified. Configure it
+  from the component's `CMakeLists.txt`, do not edit it.
 - `managed_components/` is downloaded; do not edit it.
 - `gfx_text_sq()` draws the square font: `scale` is the stroke in
   pixels and the gap is a fifth wider, so scale 5 gives the 27 px

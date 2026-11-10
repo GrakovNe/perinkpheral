@@ -9,7 +9,7 @@ The name is `perinkpheral` in code, repositories and domains and
 device, ink.
 
 **Status: a working prototype with a test firmware.** The hardware is
-assembled and verified; the firmware today is the host without applications. The
+assembled and verified; the firmware today is the host with one sample application. The
 operating system described below is being built - see
 [Roadmap](#roadmap) for what exists and what does not.
 
@@ -138,7 +138,9 @@ the panel, with the datasheet and the pitfalls, is in
 
 ## Build and flash
 
-You need ESP-IDF 5.5 and the board on USB.
+You need ESP-IDF 5.5, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
+with `WASI_SDK_PATH` pointing at it (the firmware image carries wasm
+applications), and the board on USB.
 
 ```bash
 . "$IDF_PATH/export.sh"
@@ -151,10 +153,11 @@ idf.py -p <port> flash
 The port is `/dev/ttyACM*` on Linux and `/dev/cu.usbmodem*` on macOS.
 If the board does not answer, hold BOOT while plugging it in.
 
-What you get today is the host without applications: a splash screen,
-then a menu (button 1 up, 2 ok, 3 down, 4 back; a long press on button
-4 returns to the menu from anywhere) with two pages - a device page
-with the name, firmware version and free memory, and the splash.
+What you get today: a splash screen, then a menu (button 1 up, 2 ok,
+3 down, 4 back; a long press on button 4 returns to the menu from
+anywhere) with `Hello`, a sample wasm application that counts presses,
+a device page with the name, firmware version and free memory, and the
+splash.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -168,11 +171,38 @@ bitmap font header and needs the `freetype-py` package.
 
 ## Writing applications
 
-Not possible yet: the application runtime is the next milestone. The
-contract between the host and applications will be the single header
-`sdk/host_api.h`; applications are C compiled to WebAssembly with
-wasi-sdk 25 (`WASI_SDK_PATH`). The file in the repository today is an
-early draft and will change before the first application runs.
+An application is C compiled to WebAssembly. Its handlers change its
+state and ask for a redraw; `app_on_draw()` paints the state:
+
+```c
+#include "app_text.h"
+#include "host_api.h"
+
+static int32_t presses;
+
+void app_on_button(int32_t button, int32_t press)
+{
+    if (press == HOST_PRESS_SHORT) {
+        presses++;
+        request_redraw();
+    }
+}
+
+void app_on_draw(void)
+{
+    gfx_text(16, 16, HOST_FONT_TEXT, "Hello from wasm", 15);
+}
+```
+
+The whole contract is one header, `sdk/host_api.h`; `sdk/apps/hello` is
+the complete sample. Build it with
+`tools/mkapp/mkapp.py sdk/apps/hello --out <dir>`. An application has
+64 KB for everything and no C library; `sdk/lib` has what it needs to
+build strings.
+
+Today applications are linked into the firmware image. Installing them
+from a catalog comes later; the contract may still change until it
+freezes at the end of milestone 2.
 
 ## Roadmap
 
@@ -203,13 +233,17 @@ Version 1 is ASCII only; other scripts are a task for version 2.
 ```
 firmware/              the ESP-IDF project
   main/                entry point, host loop, scenes, views, services
-  components/          board, epd (panel and display service), gfx, input, ui, appconf
+  components/          board, epd (panel and display service), gfx, input, ui,
+                       appsys (application runtime), wasm3, appconf
   test/host/           host tests of the pure modules
 sdk/
-  host_api.h           the contract between host and applications (draft)
+  host_api.h           the contract between host and applications
+  lib/                 what applications link instead of a C library
+  apps/hello/          the sample application
 tools/
   preview/             renders the host's screens to PNG without the device
   devshot/             presses buttons on a real device over USB and saves its frame
+  mkapp/               builds an application to app.wasm and checks it
   fontgen/             TTF -> 1-bit bitmap font header
 assets/fonts/          Departure Mono (SIL OFL 1.1), the UI font, and its license
 hardware/              the panel notes, the BOM and assembly page, the case model

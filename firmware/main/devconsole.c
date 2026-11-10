@@ -10,6 +10,7 @@
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -20,6 +21,7 @@ static const char *TAG = "devconsole";
 #define SHORT_PRESS_KEYS "1234"
 #define LONG_PRESS_KEYS  "qwer"
 #define DUMP_FRAME_KEY   'p'
+#define MEMORY_KEY       'm'
 #define READ_RETRY_MS    100
 
 /* The position of key in keys, or -1. */
@@ -44,6 +46,11 @@ static void handle_key(char key)
     if (key == DUMP_FRAME_KEY) {
         event_t event = { .kind = EVENT_DUMP_FRAME };
         events_post(&event);
+    } else if (key == MEMORY_KEY) {
+        /* The host loop is the main task: applications run on its stack. */
+        printf("MEMORY free %u least %u host-stack-least %u\n",
+               (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),
+               (unsigned)uxTaskGetStackHighWaterMark(xTaskGetHandle("main")));
     }
 }
 
@@ -85,5 +92,5 @@ void devconsole_start(void)
 
     BaseType_t ok = xTaskCreate(devconsole_task, "devconsole", 3072, NULL, 2, NULL);
     configASSERT(ok == pdPASS);
-    ESP_LOGW(TAG, "development console is on: 1-4 short, q/w/e/r long, p prints the frame");
+    ESP_LOGW(TAG, "development console is on: 1-4 short, q/w/e/r long, p frame, m memory");
 }

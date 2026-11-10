@@ -1,0 +1,5 @@
+idf_component_register(SRCS "app.c" "app_scene.c"
+                       INCLUDE_DIRS "include"
+                       PRIV_INCLUDE_DIRS "../../../sdk"
+                       REQUIRES gfx ui
+                       PRIV_REQUIRES wasm3)

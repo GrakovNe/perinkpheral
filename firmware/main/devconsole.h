@@ -15,7 +15,9 @@ extern "C" {
  * can be driven and looked at without hands on it.
  *   1 2 3 4   a short press of that button
  *   q w e r   a long press of button 1 2 3 4
- *   p         print the frame the panel shows (see tools/devshot) */
+ *   p         print the frame the panel shows (see tools/devshot)
+ *   m         print the free heap, now and at its lowest since boot, and the
+ *             least stack the host task ever had left */
 void devconsole_start(void);
 
 /* Prints a 1 bpp frame as text, a line of hex per row between two marker

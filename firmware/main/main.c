@@ -20,6 +20,7 @@
 #include "reset.h"
 #include "settings.h"
 #include "sysinfo.h"
+#include "timers.h"
 
 static const char *TAG = "main";
 
@@ -54,6 +55,7 @@ void app_main(void)
     /* The screen and the buttons come first: the device works without a
      * network. */
     events_start();
+    timers_start();
     display_start();
     buttons_start(on_button_pressed);
     sysinfo_start(cfg->device_name);
