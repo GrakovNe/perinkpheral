@@ -20,6 +20,8 @@
 
 #define BUTTON_DRAW_OUTSIDE 3
 #define BUTTON_TRAP         4
+#define BUTTON_SPIN_FOREVER  8 /* not on the device: test_app.c presses these two */
+#define BUTTON_RECURSE       9
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clock answers */
@@ -33,6 +35,20 @@ static int32_t result_outside_draw;
 static void mark(int32_t x, int32_t row)
 {
     gfx_rect(x, row, 1, 1, HOST_RECT_FILLED);
+}
+
+/* Never true, but the compiler cannot know: with it the recursion below
+ * is not provably endless, which the compiler would refuse to build. */
+static volatile int32_t reached_the_bottom;
+
+/* Built so that the compiler cannot turn the recursion into a loop: the
+ * result is multiplied and then added to after the call returns. */
+static int32_t descend_forever(int32_t depth)
+{
+    if (reached_the_bottom) {
+        return depth;
+    }
+    return descend_forever(depth + 1) * depth + 1;
 }
 
 void app_init(void)
@@ -55,6 +71,13 @@ void app_on_button(int32_t button, int32_t press)
     (void)press;
     if (button == BUTTON_TRAP) {
         __builtin_trap();
+    }
+    if (button == BUTTON_SPIN_FOREVER) {
+        for (volatile int32_t turns = 0;; turns++) {
+        }
+    }
+    if (button == BUTTON_RECURSE) {
+        presses = descend_forever(1);
     }
     if (button == BUTTON_DRAW_OUTSIDE) {
         result_outside_draw = gfx_rect(0, 0, 1, 1, HOST_RECT_FILLED);

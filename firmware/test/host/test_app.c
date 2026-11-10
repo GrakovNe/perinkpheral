@@ -4,6 +4,7 @@
  */
 #include "app.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 #include "host_api.h"
@@ -39,9 +40,18 @@ static int64_t fake_unix_time(void)
     return 0;
 }
 
+/* Stands still, so that the probe can check what it reads, unless a test
+ * lets it run: then every look at it is a millisecond later. */
+#define FAKE_UPTIME_MS 1234
+static bool    clock_runs;
+static int64_t clock_ms;
+
 static int64_t fake_uptime_ms(void)
 {
-    return 1234;
+    if (clock_runs) {
+        clock_ms++;
+    }
+    return clock_ms;
 }
 
 static void record_log(int level, const char *text, int length)
@@ -63,6 +73,8 @@ static app_t *load_probe(void)
 {
     logged[0] = '\0';
     timer_set_id = timer_set_ms = -1;
+    clock_runs = false;
+    clock_ms = FAKE_UPTIME_MS;
     app_t *app = NULL;
     CHECK(app_load(probe_wasm, probe_wasm_len, &SERVICES, &app) == APP_OK);
     return app;
@@ -198,6 +210,34 @@ static void test_trap_stops_the_application(void)
     app_unload(app);
 }
 
+static void test_runaway_handlers_are_stopped(void)
+{
+    /* a loop that calls nothing and never ends */
+    app_t *app = load_probe();
+    clock_runs = true;
+    app_button(app, 8, HOST_PRESS_SHORT);
+    CHECK(app_has_stopped(app));
+    CHECK_STR(app_stop_reason(app), "it ran too long");
+    app_unload(app);
+
+    /* recursion without an end: stopped before it runs through the stack,
+     * and by the stack, not by the clock */
+    app = load_probe();
+    clock_runs = true;
+    app_button(app, 9, HOST_PRESS_SHORT);
+    CHECK(app_has_stopped(app));
+    CHECK(strcmp(app_stop_reason(app), "it ran too long") != 0);
+    app_unload(app);
+
+    /* and an application that behaves is not cut short by a slow clock */
+    app = load_probe();
+    clock_runs = true;
+    app_button(app, 1, HOST_PRESS_SHORT);
+    draw(app);
+    CHECK(!app_has_stopped(app));
+    app_unload(app);
+}
+
 static void test_bad_modules(void)
 {
     app_t *app = NULL;
@@ -247,6 +287,7 @@ int main(void)
     test_measures_and_time();
     test_more_refusals();
     test_trap_stops_the_application();
+    test_runaway_handlers_are_stopped();
     test_bad_modules();
     REPORT();
 }

@@ -16,6 +16,17 @@
 
 #define HOST_MODULE "host"
 
+/* How long one handler may run. Drawing a full screen takes an
+ * interpreted application tens of milliseconds; one that is still at it
+ * after this long is stuck. */
+#define HANDLER_BUDGET_MS 3000
+
+/* The clock is looked at once in this many yields of the interpreter,
+ * which yields on every call and every turn of a loop. */
+#define YIELDS_PER_CLOCK_CHECK 1024
+
+static const char STOPPED_TOO_LONG[] = "it ran too long";
+
 struct app {
     IM3Environment        environment;
     IM3Runtime            runtime;
@@ -31,6 +42,38 @@ struct app {
     bool        redraw_requested;
     const char *stop_reason; /* NULL while the application is alive */
 };
+
+/* The application whose handler is running, for m3_Yield() below: the
+ * interpreter calls it without saying for whom. There is one application
+ * and one host task, so one is enough. */
+static struct {
+    const app_services_t *services;
+    int64_t               deadline_ms;
+    uint32_t              yields;
+} s_running;
+
+/* The interpreter's hook: called on every call and every turn of a loop
+ * of the application; a result that is not m3Err_none traps it. */
+M3Result m3_Yield(void)
+{
+    if (s_running.services == NULL || ++s_running.yields % YIELDS_PER_CLOCK_CHECK != 0) {
+        return m3Err_none;
+    }
+    return s_running.services->uptime_ms() > s_running.deadline_ms ? STOPPED_TOO_LONG
+                                                                   : m3Err_none;
+}
+
+static void start_budget(const app_services_t *services)
+{
+    s_running.services = services;
+    s_running.deadline_ms = services->uptime_ms() + HANDLER_BUDGET_MS;
+    s_running.yields = 0;
+}
+
+static void stop_budget(void)
+{
+    s_running.services = NULL;
+}
 
 /* ---- the host API as the application sees it ---- */
 
@@ -424,7 +467,9 @@ static void note_result(app_t *app, M3Result result)
 #define CALL_HANDLER(app, handler, ...)                                  \
     do {                                                                 \
         if ((app)->stop_reason == NULL && (handler) != NULL) {           \
+            start_budget((app)->services);                               \
             note_result((app), m3_CallV((handler), ##__VA_ARGS__));      \
+            stop_budget();                                               \
         }                                                                \
     } while (0)
 

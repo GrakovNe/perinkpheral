@@ -1633,6 +1633,12 @@ d_m3Op  (ContinueLoop)
     // has the potential to increase its native-stack usage. (don't forget ContinueLoopIf too.)
 
     void * loopId = immediate (void *);
+
+    // perinkpheral: a loop that calls nothing must be interruptible too
+    // (see ../README.md).
+    m3ret_t possible_trap = m3_Yield ();
+    if (M3_UNLIKELY(possible_trap)) return possible_trap;
+
     return loopId;
 }
 
@@ -1644,6 +1650,10 @@ d_m3Op  (ContinueLoopIf)
 
     if (condition)
     {
+        // perinkpheral: as in ContinueLoop.
+        m3ret_t possible_trap = m3_Yield ();
+        if (M3_UNLIKELY(possible_trap)) return possible_trap;
+
         return loopId;
     }
     else nextOp ();

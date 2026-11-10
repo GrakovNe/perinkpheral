@@ -114,8 +114,10 @@ Code:
 - The application is not trusted: `app.c` checks every offset and
   length against the module's memory before using it. Keep it free of
   ESP-IDF; what it needs from the device comes in as `app_services_t`.
-- `components/wasm3/wasm3` is upstream v0.9.0, unmodified. Configure it
-  from the component's `CMakeLists.txt`, do not edit it.
+- `components/wasm3/wasm3` is upstream v0.9.0 with one local change,
+  described in `components/wasm3/README.md`: loops yield, so that an
+  application stuck in one can be stopped. Configure the interpreter
+  from the component's `CMakeLists.txt`; do not edit it further.
 - `managed_components/` is downloaded; do not edit it.
 - `gfx_text_sq()` draws the square font: `scale` is the stroke in
   pixels and the gap is a fifth wider, so scale 5 gives the 27 px

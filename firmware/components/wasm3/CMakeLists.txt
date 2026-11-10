@@ -1,6 +1,7 @@
 # Wasm3 v0.9.0 (https://github.com/wasm3/wasm3, MIT), the interpreter core
-# only: no WASI, no libc bindings. The sources in wasm3/ are unmodified;
-# everything the device needs is set from here.
+# only: no WASI, no libc bindings. The sources in wasm3/ carry one local
+# change, described in README.md; everything else the device needs is set
+# from here.
 set(wasm3_dir "wasm3")
 set(wasm3_sources
     "m3_bind.c" "m3_code.c" "m3_compile.c" "m3_core.c" "m3_env.c" "m3_exec.c"
@@ -21,6 +22,10 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
     # An application gets one 64 KB page and can never grow: a module
     # that asks for more does not load.
     d_m3MaxLinearMemoryPages=1
+    # How much of the host task's stack an application may take by calling
+    # itself deeper and deeper; past it the call traps. Off by default on
+    # this platform, which would let recursion run through the stack.
+    d_m3MaxNativeStack=6144
     d_m3VerboseErrorMessages=0
     d_m3LogOutput=0)
 

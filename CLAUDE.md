@@ -184,7 +184,7 @@ app_on_draw()                       // paint the whole picture from the state
 app_on_data(req_id, ptr, len, flags)   // milestone 2
 ```
 - **An application draws only inside `app_on_draw()`.** Handlers change the state and call `request_redraw()`; the host calls `app_on_draw()` when it needs the frame, with a white surface, and the `gfx_*` calls answer with an error anywhere else. The host puts the frame together, compares it with what the panel shows and decides whether and how the panel is refreshed - so there is no `gfx_flush`, no partial-or-full choice in the application's hands, and an application cannot leave a half-drawn screen.
-- **The module is not trusted.** One that imports anything outside the host API is refused before it runs. Every pointer and length it passes is checked against its 64 KB before the host touches it, and coordinates and sizes beyond a few thousand pixels are refused, so that no call can cost more than the surface is large. A handler that traps stops the application, and the screen says so.
+- **The module is not trusted.** One that imports anything outside the host API is refused before it runs. Every pointer and length it passes is checked against its 64 KB before the host touches it, and coordinates and sizes beyond a few thousand pixels are refused, so that no call can cost more than the surface is large. A handler has 3 seconds: one that is still running then - a loop without an end - is stopped, and recursion is stopped before it runs through the host's stack. A handler that traps or is stopped ends the application, and the screen says so.
 - **No C library.** Applications are linked with `-nostdlib` against `sdk/lib`, a few hundred bytes of string building and the `memcpy` family; `printf` alone would take a quarter of the 64 KB. `hello` is 878 bytes.
 - Time: SNTP on every Wi-Fi connection, the time zone is a host setting.
 
@@ -240,7 +240,7 @@ firmware/              the ESP-IDF project (build from this folder)
     ui/                scene interface and the window manager (pure)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            one wasm application in memory, the host API as it sees it, the application as a scene, manifests and the store of installed applications (pure)
-    wasm3/             the interpreter, v0.9.0, vendored unmodified (MIT)
+    wasm3/             the interpreter, v0.9.0 (MIT), with one local change described in its README
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
     store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
     web/               esp_http_server, API, OTA upload, static files (milestone 2/5)
@@ -285,8 +285,7 @@ hardware/              everything about the physical device
 Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` redraws on a timer once a minute, host tests of the pure modules.
 
 Open:
-- An application that loops forever in a handler hangs the host: wasm3 runs it to completion on the host task. It needs a budget of instructions or a watchdog that stops the application, not the device.
-- The host task has 8 KB of stack and applications run on it; `hello` leaves 6.2 KB. Watch it (`m` in the development console) as applications grow.
+- The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
 - The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).
 - There are no down/up button events yet, only short/long.
 - `esp_ota_mark_app_valid_cancel_rollback()` is called right after the hardware is up; with OTA it moves into the probation check, so that an image without a working network rolls back.
