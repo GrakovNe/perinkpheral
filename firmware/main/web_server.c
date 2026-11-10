@@ -1,0 +1,266 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 GrakovNe
+ */
+#include "web_server.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "cJSON.h"
+#include "esp_app_desc.h"
+#include "esp_http_server.h"
+#include "esp_log.h"
+#include "esp_ota_ops.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+
+#include "ota.h"
+#include "settings.h"
+#include "wifi.h"
+
+static const char *TAG = "web";
+
+#define SETTINGS_BODY_MAX     512
+#define UPLOAD_CHUNK_BYTES    4096
+/* Long enough for the answer to reach the browser before the device goes. */
+#define RESTART_DELAY_US      (1500 * 1000)
+#define VALIDATION_TEXT_MAX   128
+
+extern const char index_html_start[] asm("_binary_index_html_start");
+extern const char index_html_end[] asm("_binary_index_html_end");
+
+static appconf_t *s_config;
+static char       s_device_id[5];
+static bool       s_is_up;
+
+static void restart_now(void *arg)
+{
+    (void)arg;
+    esp_restart();
+}
+
+static void restart_soon(void)
+{
+    static esp_timer_handle_t timer;
+    esp_timer_create_args_t args = { .callback = restart_now, .name = "restart" };
+    if (timer == NULL && esp_timer_create(&args, &timer) == ESP_OK) {
+        esp_timer_start_once(timer, RESTART_DELAY_US);
+    }
+}
+
+static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON *json)
+{
+    char *text = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    if (text == NULL) {
+        return httpd_resp_send_500(request);
+    }
+    httpd_resp_set_status(request, http_status);
+    httpd_resp_set_type(request, "application/json");
+    esp_err_t err = httpd_resp_sendstr(request, text);
+    free(text);
+    return err;
+}
+
+static esp_err_t send_error(httpd_req_t *request, const char *message)
+{
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "error", message);
+    return send_json(request, "400 Bad Request", json);
+}
+
+static esp_err_t send_ok(httpd_req_t *request, const char *message)
+{
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "ok", message);
+    return send_json(request, "200 OK", json);
+}
+
+static esp_err_t handle_page(httpd_req_t *request)
+{
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
+    return httpd_resp_send(request, index_html_start, index_html_end - index_html_start);
+}
+
+static const char *phase_name(wifi_phase_t phase)
+{
+    switch (phase) {
+    case WIFI_PHASE_SETUP:
+        return "setup";
+    case WIFI_PHASE_CONNECTING:
+        return "connecting";
+    case WIFI_PHASE_ONLINE:
+        return "online";
+    case WIFI_PHASE_RESCUE:
+        return "rescue";
+    }
+    return "?";
+}
+
+static esp_err_t handle_status(httpd_req_t *request)
+{
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    const esp_partition_t *running = esp_ota_get_running_partition();
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "name", s_config->device_name);
+    cJSON_AddStringToObject(json, "firmware", esp_app_get_description()->version);
+    cJSON_AddStringToObject(json, "slot", running != NULL ? running->label : "?");
+    cJSON_AddBoolToObject(json, "on_probation", ota_is_on_probation());
+    cJSON_AddStringToObject(json, "wifi", phase_name(wifi.phase));
+    cJSON_AddStringToObject(json, "ssid", wifi.ssid);
+    cJSON_AddStringToObject(json, "address", wifi.address);
+    cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
+    return send_json(request, "200 OK", json);
+}
+
+/* The whole body as a terminated string; false when it is missing, too
+ * long or the client went away. */
+static bool read_body(httpd_req_t *request, char *body, size_t body_size)
+{
+    if (request->content_len == 0 || request->content_len >= body_size) {
+        return false;
+    }
+    size_t received = 0;
+    while (received < request->content_len) {
+        int count = httpd_req_recv(request, body + received, request->content_len - received);
+        if (count == HTTPD_SOCK_ERR_TIMEOUT) {
+            continue;
+        }
+        if (count <= 0) {
+            return false;
+        }
+        received += (size_t)count;
+    }
+    body[received] = '\0';
+    return true;
+}
+
+/* False when the field is there and is not a string that fits. A missing
+ * field leaves the value as it is. */
+static bool take_string(const cJSON *json, const char *field, char *value, size_t value_size)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    if (item == NULL) {
+        return true;
+    }
+    if (!cJSON_IsString(item) || strlen(item->valuestring) >= value_size) {
+        return false;
+    }
+    strcpy(value, item->valuestring);
+    return true;
+}
+
+static esp_err_t handle_wifi(httpd_req_t *request)
+{
+    char body[SETTINGS_BODY_MAX];
+    if (!read_body(request, body, sizeof body)) {
+        return send_error(request, "send {\"ssid\": \"...\", \"password\": \"...\"}");
+    }
+    cJSON *json = cJSON_Parse(body);
+    /* Worked on in a copy: the live settings change only if all of it is good. */
+    appconf_t *wanted = malloc(sizeof *wanted);
+    if (json == NULL || wanted == NULL) {
+        cJSON_Delete(json);
+        free(wanted);
+        return send_error(request, "the request is not JSON");
+    }
+    *wanted = *s_config;
+    char problem[VALIDATION_TEXT_MAX] = "";
+    bool fields_fit =
+        take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
+        take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password);
+    cJSON_Delete(json);
+
+    esp_err_t result;
+    if (!fields_fit) {
+        result = send_error(request, "the network name or the password is too long");
+    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
+        result = send_error(request, problem);
+    } else if (settings_save(wanted) != ESP_OK) {
+        result = send_error(request, "the settings could not be stored");
+    } else {
+        *s_config = *wanted;
+        appconf_derive(s_config, s_device_id);
+        ESP_LOGW(TAG, "Wi-Fi settings changed, restarting");
+        result = send_ok(request, "stored, restarting");
+        restart_soon();
+    }
+    free(wanted);
+    return result;
+}
+
+/* The image is the request body:
+ *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
+static esp_err_t handle_ota(httpd_req_t *request)
+{
+    if (request->content_len == 0) {
+        return send_error(request, "send the firmware image as the request body");
+    }
+    const char *error = ota_upload_begin(request->content_len);
+    uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
+    if (error == NULL && chunk == NULL) {
+        ota_upload_abort();
+        error = "not enough memory for the upload";
+    }
+    size_t remaining = request->content_len;
+    while (error == NULL && remaining > 0) {
+        int count = httpd_req_recv(request, (char *)chunk,
+                                   remaining < UPLOAD_CHUNK_BYTES ? remaining : UPLOAD_CHUNK_BYTES);
+        if (count == HTTPD_SOCK_ERR_TIMEOUT) {
+            continue;
+        }
+        if (count <= 0) {
+            /* The sender is gone: there is nobody to answer. */
+            ota_upload_abort();
+            free(chunk);
+            return ESP_FAIL;
+        }
+        error = ota_upload_data(chunk, (size_t)count);
+        remaining -= (size_t)count;
+    }
+    free(chunk);
+    if (error == NULL) {
+        error = ota_upload_end();
+    }
+    if (error != NULL) {
+        return send_error(request, error);
+    }
+    esp_err_t result = send_ok(request, "installed, restarting");
+    restart_soon();
+    return result;
+}
+
+void web_server_start(appconf_t *config, const char device_id[5])
+{
+    s_config = config;
+    memcpy(s_device_id, device_id, sizeof s_device_id);
+
+    httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
+    /* A firmware image takes a while over a weak link. */
+    server_config.recv_wait_timeout = 30;
+    httpd_handle_t server = NULL;
+    esp_err_t err = httpd_start(&server, &server_config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "cannot start: %s", esp_err_to_name(err));
+        return;
+    }
+    static const httpd_uri_t ROUTES[] = {
+        { .uri = "/", .method = HTTP_GET, .handler = handle_page },
+        { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },
+        { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
+        { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
+    };
+    for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
+        ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
+    }
+    s_is_up = true;
+    ESP_LOGI(TAG, "serving on port %d", server_config.server_port);
+}
+
+bool web_server_is_up(void)
+{
+    return s_is_up;
+}

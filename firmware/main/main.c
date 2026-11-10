@@ -5,7 +5,6 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "esp_ota_ops.h"
 #include "esp_system.h"
 
 #include "sdkconfig.h"
@@ -19,11 +18,13 @@
 #include "host.h"
 #include "reset.h"
 #include "net_time.h"
+#include "ota.h"
 #include "settings.h"
 #include "status.h"
 #include "storage.h"
 #include "sysinfo.h"
 #include "timers.h"
+#include "web_server.h"
 #include "wifi.h"
 
 static const char *TAG = "main";
@@ -75,12 +76,13 @@ void app_main(void)
     status_start();
     wifi_start(&wifi);
     net_time_start(cfg->ntp_server, cfg->tz);
+    web_server_start(cfg, device_id);
+    /* An image installed over the network has to prove that the network
+     * still works before it is kept. */
+    ota_start(cfg->wifi_ssid[0] != '\0');
 #ifdef CONFIG_APP_DEV_CONSOLE
     devconsole_start();
 #endif
-
-    /* The image booted and drives its hardware: good enough to keep. */
-    esp_ota_mark_app_valid_cancel_rollback();
 
     host_run();
 }

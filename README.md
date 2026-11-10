@@ -153,6 +153,26 @@ idf.py -p <port> flash
 The port is `/dev/ttyACM*` on Linux and `/dev/cu.usbmodem*` on macOS.
 If the board does not answer, hold BOOT while plugging it in.
 
+### First start
+
+A device with no network stored puts up an open Wi-Fi access point
+named after itself, `Perinkpheral-XXXX`. Join it, open
+<http://192.168.4.1>, enter your network and its password; the device
+restarts and joins. If it cannot - a wrong password - its own access
+point comes back after two minutes. The device page in the menu shows
+where the device is.
+
+### Updating without the cable
+
+Open the device's page and choose the new image under Firmware, or:
+
+```bash
+curl --data-binary @firmware/build/perinkpheral.bin http://<address>/api/ota
+```
+
+The device restarts into the new firmware and keeps it only if it
+comes back reachable; otherwise it returns to the one it ran before.
+
 What you get today: a splash screen, then a menu (button 1 up, 2 ok,
 3 down, 4 back; a long press on button 4 returns to the menu from
 anywhere) listing the installed wasm applications - `Hello` counts

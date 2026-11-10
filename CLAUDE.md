@@ -215,14 +215,21 @@ Not configurable:
 - 1 bit per pixel. Fonts are bitmap, pre-converted (`tools/fontgen`), ASCII; the readable minimum is ~10 px.
 
 ### Web UI (on the device, `esp_http_server`)
-- `GET /` - static files (gzip in LittleFS, no frameworks, target ≤150 KB).
+What exists:
+- `GET /` - the page: what the device is, a form for the Wi-Fi network, a form for a firmware image. One HTML file, no frameworks, in the device's own black and paper.
+- `GET /api/status` - name, firmware, slot, whether the image is on probation, Wi-Fi phase, network, address, free memory.
+- `POST /api/wifi` `{"ssid", "password"}` - validated like every setting, stored, and the device restarts to join.
+- `POST /api/ota` - a firmware image as the request body (`curl --data-binary @build/perinkpheral.bin http://<address>/api/ota`): written into the spare slot, and the device restarts into it.
+
+**Firmware over the network.** The upload is refused before a byte is written unless it is an image of this project (the image and description magic numbers and the project name). The new image starts on probation: it is confirmed only once the way the next update would arrive is open again - the web server is up and the device is on its network, or, with no network stored, its setup access point has stayed up for 20 seconds. An image that is not there within 3 minutes is rolled back by the bootloader. The receiving (`ota_stream.c`) and the verdict (`ota_health.c`) are pure and host-tested; `main/ota.c` writes the slot.
+
+Still to come:
 - `GET /api/apps` - installed ones; `POST /api/apps/install {url}` - download `.wasm` + `manifest.json` from the catalog; `DELETE /api/apps/<name>`.
 - `GET/PUT /api/apps/<name>/settings` - by the `settings` schema from the manifest.
 - `GET /api/catalog` - proxies the catalog's static JSON (the catalog URL is a host setting).
 - `GET /api/log` - the log ring buffer.
 - `POST /api/focus/<name>` - bring onto the scene.
-- `POST /api/ota` - upload a firmware image into the spare OTA slot and reboot into it; the bootloader rolls back if the new image does not confirm itself.
-- Host settings (power profile, e-paper policy, time zone, catalog URL) are edited here too.
+- Host settings (power profile, e-paper policy, time zone, catalog URL).
 
 The catalog is static files (GitHub Pages/Releases): `catalog.json` + `.wasm`/`manifest.json` by URL, no server.
 
@@ -243,7 +250,7 @@ TRMNL is a thin client: once per `refresh_rate` the device does `GET /api/displa
 ## Repository layout
 ```
 firmware/              the ESP-IDF project (build from this folder)
-  main/                entry point, host loop, event queue, scenes, views (screens), services, settings (NVS)
+  main/                entry point, host loop, event queue, scenes, views (screens), services, settings (NVS), the web server and its page, OTA
   components/
     appconf/           the host settings struct, defaults, validate (pure)
     board/             what is not on the header: the antenna switch
@@ -254,10 +261,10 @@ firmware/              the ESP-IDF project (build from this folder)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            one wasm application in memory, the host API as it sees it, the application as a scene, manifests and the store of installed applications (pure)
     wasm3/             the interpreter, v0.9.0 (MIT), with one local change described in its README
-    net/               Wi-Fi (the plan of what to do when is pure, the radio carries it out), the clock from SNTP
+    net/               Wi-Fi (the plan of what to do when is pure, the radio carries it out), the clock from SNTP, receiving a firmware image and judging a fresh one (pure)
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
     store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
-    web/               esp_http_server, API, OTA upload, static files (milestone 2/5)
+    web/               the rest of the web UI: applications, catalog, settings (milestone 5)
   test/host/           host tests of the pure modules (tinytest)
 sdk/
   host_api.h           the only contract; applications and the host's import table are built from it
@@ -299,12 +306,12 @@ hardware/              everything about the physical device
 Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` redraws on a timer once a minute, host tests of the pure modules.
 
 Open:
-- Wi-Fi has been checked only as far as the setup access point coming up: connecting to a real network, SNTP and the date in the header have not been run for lack of credentials during the unattended session.
+- **Nothing that needs a network path to the device has been run**: joining a real network, SNTP and the date in the header, the web page, storing Wi-Fi settings through it, a firmware upload and its probation. All of it was written in an unattended session without Wi-Fi credentials; the rules are host-tested, the device-side glue is not. On the device only this was seen: the setup access point and the web server come up.
+- Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
 Open:
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
 - The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).
 - There are no down/up button events yet, only short/long.
-- `esp_ota_mark_app_valid_cancel_rollback()` is called right after the hardware is up; with OTA it moves into the probation check, so that an image without a working network rolls back.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>perINKpheral</title>
+<style>
+  :root { --ink: #141413; --paper: #e9e7e1; --dim: #6b6862; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font: 16px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+  main { max-width: 34rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.4rem; letter-spacing: .08em; margin: 0 0 1.5rem; }
+  h2 { font-size: 1rem; border-bottom: 1px solid var(--ink); padding-bottom: .25rem;
+       margin: 2rem 0 .75rem; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem 1rem; margin: 0; }
+  dt { color: var(--dim); } dd { margin: 0; text-align: right; }
+  label { display: block; margin: .75rem 0 .2rem; color: var(--dim); }
+  input { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
+          color: var(--ink); background: transparent; border: 1px solid var(--ink);
+          border-radius: 0; }
+  button { margin-top: 1rem; padding: .5rem 1rem; font: inherit; cursor: pointer;
+           color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
+           border-radius: 0; }
+  button:disabled { opacity: .5; cursor: wait; }
+  p.note { color: var(--dim); margin: .5rem 0 0; }
+  p.result { min-height: 1.5rem; margin: .75rem 0 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>perINKpheraL</h1>
+
+<h2>Device</h2>
+<dl id="status"><dt>Loading</dt><dd></dd></dl>
+
+<h2>Wi-Fi</h2>
+<form id="wifi">
+  <label for="ssid">Network name</label>
+  <input id="ssid" name="ssid" maxlength="32" autocomplete="off" required>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" maxlength="64" autocomplete="off">
+  <button>Save and restart</button>
+  <p class="note">The device restarts and joins this network. If it cannot, its own
+  access point comes back after two minutes.</p>
+  <p class="result" id="wifi-result"></p>
+</form>
+
+<h2>Firmware</h2>
+<form id="firmware">
+  <label for="image">Image (perinkpheral.bin)</label>
+  <input id="image" type="file" accept=".bin" required>
+  <button>Install and restart</button>
+  <p class="note">A new image is kept only if the device comes back reachable;
+  otherwise it returns to the one it runs now.</p>
+  <p class="result" id="firmware-result"></p>
+</form>
+</main>
+
+<script>
+const LABELS = { name: "Name", firmware: "Firmware", slot: "Slot", wifi: "Wi-Fi",
+                 ssid: "Network", address: "Address", free_memory: "Free memory" };
+
+function show(element, text) { document.getElementById(element).textContent = text; }
+
+async function loadStatus() {
+  const status = await (await fetch("/api/status")).json();
+  status.free_memory = Math.round(status.free_memory / 1024) + " KB";
+  if (status.on_probation) status.firmware += " (on probation)";
+  const list = document.getElementById("status");
+  list.replaceChildren();
+  for (const key in LABELS) {
+    if (!status[key]) continue;
+    const term = document.createElement("dt"), value = document.createElement("dd");
+    term.textContent = LABELS[key];
+    value.textContent = status[key];
+    list.append(term, value);
+  }
+  document.getElementById("ssid").value ||= status.ssid;
+}
+
+/* Sends the request and puts the device's answer, or what went wrong, on the page. */
+async function send(form, resultId, url, options) {
+  const button = form.querySelector("button");
+  button.disabled = true;
+  show(resultId, "Sending...");
+  try {
+    const answer = await (await fetch(url, options)).json();
+    show(resultId, answer.ok || answer.error);
+  } catch (error) {
+    show(resultId, "No answer from the device.");
+  }
+  button.disabled = false;
+}
+
+document.getElementById("wifi").addEventListener("submit", event => {
+  event.preventDefault();
+  const body = JSON.stringify({ ssid: event.target.ssid.value,
+                                password: event.target.password.value });
+  send(event.target, "wifi-result", "/api/wifi", { method: "POST", body });
+});
+
+document.getElementById("firmware").addEventListener("submit", event => {
+  event.preventDefault();
+  const image = document.getElementById("image").files[0];
+  send(event.target, "firmware-result", "/api/ota", { method: "POST", body: image });
+});
+
+loadStatus();
+</script>
+</body>
+</html>

@@ -87,6 +87,13 @@ are 22 px (the host's text), 44 px and 66 px `--only "0123456789:+-.,%/ "`
 (large text and digits for applications). The generated headers are
 committed.
 
+Firmware without the cable, once the device is on a network:
+`curl --data-binary @firmware/build/perinkpheral.bin
+http://<address>/api/ota`. The device restarts into the new image and
+keeps it only if it comes back reachable; `GET /api/status` says
+whether it is still on probation. The address is on the device page of
+the menu.
+
 `firmware/CMakeLists.txt` takes the version from `APP_VERSION` when it
 is set.
 
@@ -161,6 +168,6 @@ Board and system:
   then stops right after the button pins are reported.
 - `board_init()` drives the antenna switch before anything else.
 - Neither the partition table nor the bootloader can be changed over
-  the air. `main.c` marks the image valid right after the hardware is
-  up; once there is OTA, move that to where the next update could
-  arrive.
+  the air. Only `main/ota.c` calls `esp_ota_*`. A new image is confirmed
+  by the probation task, never at boot: confirming early would keep an
+  image that cannot be reached to replace it.

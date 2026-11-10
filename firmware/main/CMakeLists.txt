@@ -1,5 +1,5 @@
 set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_kv.c"
-         "storage.c" "sysinfo.c" "status.c" "screens.c"
+         "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c"
          "scene_menu.c" "scene_device.c" "scene_splash.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c")
@@ -8,9 +8,11 @@ endif()
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "."
                        PRIV_INCLUDE_DIRS "../../sdk"
+                       EMBED_TXTFILES "web/index.html"
                        REQUIRES appconf appsys board epd gfx input net ui
                               nvs_flash esp_hw_support esp_system esp_timer
-                              app_update esp_app_format esp_driver_usb_serial_jtag)
+                              app_update esp_app_format esp_driver_usb_serial_jtag
+                              esp_http_server json)
 
 # The applications in sdk/apps are built with the SDK and packed into the
 # image of the "apps" partition, which is flashed with the firmware.
