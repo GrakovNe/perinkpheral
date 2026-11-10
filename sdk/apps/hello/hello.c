@@ -4,12 +4,18 @@
  *
  * The smallest application: a greeting and a count of presses. It shows
  * the shape every application has - handlers change the state and ask for
- * a redraw, app_on_draw() paints the state.
+ * a redraw, app_on_draw() paints the state - and where the state waits
+ * while the application is not on the screen: the host unloads it then,
+ * so it reads the count back when it starts and saves it when it leaves.
  */
 #include "app_text.h"
 #include "host_api.h"
 
-#define MARGIN 16
+#define MARGIN      16
+#define BUTTON_BACK 4 /* the host's layout: 1 up, 2 ok, 3 down, 4 back */
+
+static const char PRESSES_KEY[] = "presses";
+#define PRESSES_KEY_LENGTH ((int32_t)sizeof PRESSES_KEY - 1)
 
 static int32_t presses;
 
@@ -19,13 +25,28 @@ static void draw_line(int32_t line, const char *text)
     gfx_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
 }
 
+void app_init(void)
+{
+    /* Nothing stored yet leaves the count at zero. */
+    kv_get(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
+}
+
+void app_on_blur(void)
+{
+    kv_set(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
+}
+
 void app_on_button(int32_t button, int32_t press)
 {
-    (void)button;
-    if (press == HOST_PRESS_SHORT) {
-        presses++;
-        request_redraw();
+    if (press != HOST_PRESS_SHORT) {
+        return;
     }
+    if (button == BUTTON_BACK) {
+        request_exit();
+        return;
+    }
+    presses++;
+    request_redraw();
 }
 
 void app_on_draw(void)

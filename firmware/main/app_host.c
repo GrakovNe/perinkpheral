@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
+#include "app_kv.h"
 #include "host_api.h"
 #include "timers.h"
 
@@ -50,6 +51,8 @@ const app_services_t *app_host_services(void)
         .uptime_ms = uptime_ms,
         .log = log_from_app,
         .timer_set = timers_set,
+        .kv_get = app_kv_get,
+        .kv_set = app_kv_set,
     };
     return &SERVICES;
 }

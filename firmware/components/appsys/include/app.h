@@ -26,6 +26,12 @@ typedef struct {
     void (*log)(int level, const char *text, int length);
     /* A one-shot for the application on the screen; 0 ms cancels it. */
     void (*timer_set)(int id, int32_t milliseconds);
+    /* The application's own store, as kv_get and kv_set of host_api.h
+     * answer: a length or HOST_OK, or a HOST_ERR_*. The key is checked
+     * and terminated; value_length 0 removes it. */
+    int32_t (*kv_get)(const char *app_name, const char *key, void *value, int32_t capacity);
+    int32_t (*kv_set)(const char *app_name, const char *key, const void *value,
+                      int32_t value_length);
 } app_services_t;
 
 typedef struct app app_t;
@@ -37,10 +43,11 @@ typedef enum {
                            the host API does not have */
 } app_load_result_t;
 
-/* wasm must stay where it is until app_unload(). Runs app_init(). On
- * failure *loaded is NULL. */
-app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_services_t *services,
-                           app_t **loaded);
+/* wasm and name must stay where they are until app_unload(); the name is
+ * whose store kv_* reads and writes. Runs app_init(). On failure *loaded
+ * is NULL. */
+app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
+                           const app_services_t *services, app_t **loaded);
 
 /* NULL is fine. */
 void app_unload(app_t *app);
@@ -55,6 +62,9 @@ void app_draw(app_t *app, gfx_t *surface);
 
 /* True once after the application called request_redraw(). */
 bool app_take_redraw_request(app_t *app);
+
+/* The application called request_exit(). */
+bool app_wants_to_exit(const app_t *app);
 
 /* A handler trapped; nothing is called any more. */
 bool app_has_stopped(const app_t *app);

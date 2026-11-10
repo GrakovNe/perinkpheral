@@ -42,7 +42,8 @@ static void app_scene_enter(scene_t *scene)
         self->load_error = "Its file cannot be read.";
         return;
     }
-    switch (app_load(self->module, module_size, self->services, &self->app)) {
+    switch (app_load(self->manifest.name, self->module, module_size, self->services,
+                     &self->app)) {
     case APP_OK:
         app_focus(self->app);
         return;
@@ -76,10 +77,13 @@ static bool is_running(const app_scene_t *self)
     return self->app != NULL && !app_has_stopped(self->app);
 }
 
-static scene_reaction_t redraw_if_requested(app_scene_t *self)
+/* What the application asked for while its handler ran. */
+static scene_reaction_t reaction_of(app_scene_t *self)
 {
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
-    if (app_take_redraw_request(self->app)) {
+    if (app_wants_to_exit(self->app)) {
+        reaction.kind = SCENE_BACK;
+    } else if (app_take_redraw_request(self->app)) {
         reaction.kind = SCENE_REDRAW;
     }
     return reaction;
@@ -97,7 +101,7 @@ static scene_reaction_t app_scene_button(scene_t *scene, scene_button_t button,
     /* Applications count buttons 1..4, as they sit on the device. */
     app_button(self->app, (int)button + 1,
                press == SCENE_PRESS_LONG ? HOST_PRESS_LONG : HOST_PRESS_SHORT);
-    return redraw_if_requested(self);
+    return reaction_of(self);
 }
 
 static scene_reaction_t app_scene_timer(scene_t *scene, int timer_id)
@@ -108,7 +112,7 @@ static scene_reaction_t app_scene_timer(scene_t *scene, int timer_id)
         return ignored;
     }
     app_timer(self->app, timer_id);
-    return redraw_if_requested(self);
+    return reaction_of(self);
 }
 
 static void draw_message(gfx_t *surface, const char *title, const char *first, const char *second)

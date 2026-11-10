@@ -28,7 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SDK = os.path.join(ROOT, "sdk")
 
 # As in firmware/components/appsys/include/app_manifest.h.
-NAME_MAX = 15
+NAME_MAX = 13
 TITLE_MAX = 23
 VERSION_MAX = 15
 

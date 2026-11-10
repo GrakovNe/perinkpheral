@@ -53,6 +53,14 @@ void app_on_focus(void)
     wake_at_next_minute();
 }
 
+void app_on_button(int32_t button, int32_t press)
+{
+    (void)button;
+    if (press == HOST_PRESS_SHORT) {
+        request_exit();
+    }
+}
+
 void app_on_timer(int32_t id)
 {
     (void)id;

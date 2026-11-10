@@ -98,7 +98,7 @@ const char *app_manifest_result_text(app_manifest_result_t result)
     case APP_MANIFEST_NOT_JSON:
         return "not a JSON object";
     case APP_MANIFEST_BAD_NAME:
-        return "\"name\" is missing or is not 1-15 of a-z, 0-9, - and _";
+        return "\"name\" is missing or is not 1-13 of a-z, 0-9, - and _";
     case APP_MANIFEST_BAD_TITLE:
         return "\"title\" is missing, empty or longer than 23";
     case APP_MANIFEST_BAD_FIELD:

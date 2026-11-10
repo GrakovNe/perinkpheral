@@ -51,8 +51,8 @@ static void test_name(void)
     CHECK(parse("{\"name\":\"../x\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_BAD_NAME);
     CHECK(parse("{\"name\":\"a b\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_BAD_NAME);
 
-    CHECK(parse("{\"name\":\"a23456789012345\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_OK);
-    CHECK(parse("{\"name\":\"a234567890123456\",\"title\":\"T\",\"abi\":1}") ==
+    CHECK(parse("{\"name\":\"a234567890123\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a2345678901234\",\"title\":\"T\",\"abi\":1}") ==
           APP_MANIFEST_BAD_NAME);
     CHECK(parse("{\"name\":\"my-app_2\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_OK);
 }

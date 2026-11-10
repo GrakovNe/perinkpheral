@@ -95,7 +95,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ## Architecture
 
 ### Application
-`/apps/<name>/app.wasm` + `/apps/<name>/manifest.json` on the LittleFS partition. The host reads `name`, `title`, `version`, `abi` and `fullscreen` today and skips what it does not know yet, so a manifest with `polls` and `hosts` already loads. `name` is 1-15 of `a-z`, `0-9`, `-`, `_`: it is the folder, the key in the catalog and the NVS namespace of the settings, and it must be the folder's name. `title` is at most 23 bytes. The module is at most 48 KB. The applications in `sdk/apps` are built and packed into the partition image with the firmware (`APP_BUNDLE_APPS`). The full manifest, as it will be:
+`/apps/<name>/app.wasm` + `/apps/<name>/manifest.json` on the LittleFS partition. The host reads `name`, `title`, `version`, `abi` and `fullscreen` today and skips what it does not know yet, so a manifest with `polls` and `hosts` already loads. `name` is 1-13 of `a-z`, `0-9`, `-`, `_`: it is the folder, the key in the catalog and, as `a.<name>`, the NVS namespace of the application's store, and it must be the folder's name. `title` is at most 23 bytes. The module is at most 48 KB. The applications in `sdk/apps` are built and packed into the partition image with the firmware (`APP_BUNDLE_APPS`). The full manifest, as it will be:
 ```json
 {
   "name": "plex",
@@ -167,12 +167,15 @@ gfx_rect(x, y, w, h, fill)
 gfx_line(x0, y0, x1, y1)
 gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit is ink
 request_redraw()                       // the picture is out of date
+request_exit()                         // done: give the screen back, as BACK does in the host's pages
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
+kv_get(key, key_len, buf, cap) -> len  // the application's own store
+kv_set(key, key_len, buf, len)         // len 0 removes the key
 time_now() -> unix seconds             // 0 while the time is unknown
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
-Still to come with milestone 2: `http_request`, `request_focus`, `time_tz_offset`, `kv_get` / `kv_set` (NVS, namespace = application name).
+Still to come with milestone 2: `http_request`, `request_focus`, `time_tz_offset`.
 
 There are no pointer callbacks. An application exports functions with fixed names (the host skips the missing ones):
 ```
@@ -185,6 +188,7 @@ app_on_data(req_id, ptr, len, flags)   // milestone 2
 ```
 - **An application draws only inside `app_on_draw()`.** Handlers change the state and call `request_redraw()`; the host calls `app_on_draw()` when it needs the frame, with a white surface, and the `gfx_*` calls answer with an error anywhere else. The host puts the frame together, compares it with what the panel shows and decides whether and how the panel is refreshed - so there is no `gfx_flush`, no partial-or-full choice in the application's hands, and an application cannot leave a half-drawn screen.
 - **The module is not trusted.** One that imports anything outside the host API is refused before it runs. Every pointer and length it passes is checked against its 64 KB before the host touches it, and coordinates and sizes beyond a few thousand pixels are refused, so that no call can cost more than the surface is large. A handler has 3 seconds: one that is still running then - a loop without an end - is stopped, and recursion is stopped before it runs through the host's stack. A handler that traps or is stopped ends the application, and the screen says so.
+- **State lives in the store.** An application is unloaded whenever it leaves the screen, so what must survive goes through `kv_get` / `kv_set`: up to 256 bytes per key, keys of up to 15 characters, in NVS. The namespace is `a.<name>` and an application's name cannot hold a dot, so no application can reach the host's settings or another application's values. `hello` reads its count when it starts and saves it in `app_on_blur()`.
 - **No C library.** Applications are linked with `-nostdlib` against `sdk/lib`, a few hundred bytes of string building and the `memcpy` family; `printf` alone would take a quarter of the 64 KB. `hello` is 878 bytes.
 - Time: SNTP on every Wi-Fi connection, the time zone is a host setting.
 

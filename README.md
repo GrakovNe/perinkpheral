@@ -198,7 +198,9 @@ The whole contract is one header, `sdk/host_api.h`; `sdk/apps/hello` is
 the complete sample. Build it with
 `tools/mkapp/mkapp.py sdk/apps/hello --out <dir>`. An application has
 64 KB for everything and no C library; `sdk/lib` has what it needs to
-build strings.
+build strings. It is unloaded whenever it leaves the screen, so what
+must survive goes into its own small store with `kv_set` and comes
+back with `kv_get`.
 
 An application is a folder with `app.wasm` and `manifest.json`. Today
 the ones in `sdk/apps` are packed into the device's file system when

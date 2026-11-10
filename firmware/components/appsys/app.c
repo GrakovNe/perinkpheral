@@ -31,6 +31,7 @@ struct app {
     IM3Environment        environment;
     IM3Runtime            runtime;
     const app_services_t *services;
+    const char           *name;
 
     IM3Function on_focus;
     IM3Function on_blur;
@@ -40,6 +41,7 @@ struct app {
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
+    bool        exit_requested;
     const char *stop_reason; /* NULL while the application is alive */
 };
 
@@ -268,6 +270,12 @@ HOST_FUNCTION(host_request_redraw)
     m3ApiSuccess();
 }
 
+HOST_FUNCTION(host_request_exit)
+{
+    APP_OF(runtime)->exit_requested = true;
+    m3ApiSuccess();
+}
+
 HOST_FUNCTION(host_timer_set)
 {
     m3ApiReturnType(int32_t);
@@ -278,6 +286,62 @@ HOST_FUNCTION(host_timer_set)
     }
     APP_OF(runtime)->services->timer_set(id, milliseconds);
     m3ApiReturn(HOST_OK);
+}
+
+/* The key as a terminated string; false when it is not a key at all. */
+static bool copy_key(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                     char key[HOST_KV_KEY_MAX + 1])
+{
+    const uint8_t *bytes = in_app_memory(runtime, memory, offset, length);
+    if (bytes == NULL || length < 1 || length > HOST_KV_KEY_MAX) {
+        return false;
+    }
+    for (int32_t i = 0; i < length; i++) {
+        bool printable = bytes[i] > ' ' && bytes[i] <= '~';
+        if (!printable) {
+            return false;
+        }
+        key[i] = (char)bytes[i];
+    }
+    key[length] = '\0';
+    return true;
+}
+
+HOST_FUNCTION(host_kv_get)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, key_offset);
+    m3ApiGetArg(int32_t, key_length);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    app_t *app = APP_OF(runtime);
+    char key[HOST_KV_KEY_MAX + 1];
+    /* The application's memory is written straight into: the cast drops a
+     * const that only says the host does not write elsewhere. */
+    void *value = (void *)in_app_memory(runtime, _mem, value_offset, capacity);
+    if (value == NULL || !copy_key(runtime, _mem, key_offset, key_length, key)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->kv_get(app->name, key, value, capacity));
+}
+
+HOST_FUNCTION(host_kv_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, key_offset);
+    m3ApiGetArg(int32_t, key_length);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, length);
+
+    app_t *app = APP_OF(runtime);
+    char key[HOST_KV_KEY_MAX + 1];
+    const uint8_t *value = in_app_memory(runtime, _mem, value_offset, length);
+    if (value == NULL || length > HOST_KV_VALUE_MAX ||
+        !copy_key(runtime, _mem, key_offset, key_length, key)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->kv_set(app->name, key, value, length));
 }
 
 HOST_FUNCTION(host_time_now)
@@ -320,7 +384,10 @@ static const struct {
     { "gfx_line", "i(iiii)", host_gfx_line },
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
     { "request_redraw", "v()", host_request_redraw },
+    { "request_exit", "v()", host_request_exit },
     { "timer_set", "i(ii)", host_timer_set },
+    { "kv_get", "i(*i*i)", host_kv_get },
+    { "kv_set", "i(*i*i)", host_kv_set },
     { "time_now", "I()", host_time_now },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
     { "log", "v(i*i)", host_log },
@@ -498,8 +565,8 @@ static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t was
     return link_host_api(module) ? APP_OK : APP_ERR_BAD_MODULE;
 }
 
-app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_services_t *services,
-                           app_t **loaded)
+app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
+                           const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
     if (!imports_only_host_api(wasm, wasm_size)) {
@@ -510,6 +577,7 @@ app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_serv
         return APP_ERR_NO_MEMORY;
     }
     app->services = services;
+    app->name = name;
     app_load_result_t result = load_module(app, wasm, wasm_size);
     if (result != APP_OK) {
         app_unload(app);
@@ -573,6 +641,11 @@ bool app_take_redraw_request(app_t *app)
     bool requested = app->redraw_requested;
     app->redraw_requested = false;
     return requested;
+}
+
+bool app_wants_to_exit(const app_t *app)
+{
+    return app->exit_requested;
 }
 
 bool app_has_stopped(const app_t *app)

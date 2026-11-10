@@ -1,4 +1,4 @@
-set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c"
+set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_kv.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c"
          "scene_menu.c" "scene_device.c" "scene_splash.c")
 if(CONFIG_APP_DEV_CONSOLE)

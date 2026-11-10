@@ -16,11 +16,14 @@
 #define ROW_MORE_REFUSALS   10 /* pixels 0..10: see refusals[] in app_on_draw */
 #define ROW_BITMAP         12
 #define ROW_LINE           14
+#define ROW_STORE          16 /* pixels 0..12: see app_on_draw; pixel 20: a value from an earlier life */
 #define ROW_TEXT           20
 
 #define BUTTON_DRAW_OUTSIDE 3
 #define BUTTON_TRAP         4
-#define BUTTON_SPIN_FOREVER  8 /* not on the device: test_app.c presses these two */
+/* Not on the device: test_app.c presses these three. */
+#define BUTTON_EXIT          7
+#define BUTTON_SPIN_FOREVER  8
 #define BUTTON_RECURSE       9
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
@@ -31,6 +34,7 @@
 static int32_t presses;
 static int32_t fired_timer = -1;
 static int32_t result_outside_draw;
+static int32_t found_on_start;
 
 static void mark(int32_t x, int32_t row)
 {
@@ -51,8 +55,43 @@ static int32_t descend_forever(int32_t depth)
     return descend_forever(depth + 1) * depth + 1;
 }
 
+/* One pixel of ROW_STORE for every answer of the store that is right. */
+static void draw_store_checks(void)
+{
+    static const uint8_t written[] = { 1, 2, 3, 4, 5 };
+    uint8_t read_back[8] = { 0 };
+    uint8_t too_small[2];
+    static uint8_t too_large[HOST_KV_VALUE_MAX + 1];
+
+    if (found_on_start) {
+        mark(20, ROW_STORE);
+    }
+    kv_set("fresh", 5, written, 0); /* so that every life starts the same */
+    const int32_t answers[] = {
+        kv_get("fresh", 5, read_back, sizeof read_back) == HOST_ERR_NOT_FOUND,
+        kv_set("fresh", 5, written, sizeof written) == HOST_OK &&
+            kv_get("fresh", 5, read_back, sizeof read_back) == (int32_t)sizeof written &&
+            read_back[0] == 1 && read_back[4] == 5,
+        kv_get("fresh", 5, too_small, sizeof too_small) == HOST_ERR_NO_SPACE,
+        kv_set("fresh", 5, written, 0) == HOST_OK &&
+            kv_get("fresh", 5, read_back, sizeof read_back) == HOST_ERR_NOT_FOUND,
+        kv_set("", 0, written, 1) == HOST_ERR_ARGUMENT,
+        kv_set("a key with gaps!", 16, written, 1) == HOST_ERR_ARGUMENT,
+        kv_set("large", 5, too_large, sizeof too_large) == HOST_ERR_ARGUMENT,
+    };
+    for (int32_t i = 0; i < (int32_t)(sizeof answers / sizeof answers[0]); i++) {
+        if (answers[i]) {
+            mark(2 * i, ROW_STORE);
+        }
+    }
+    static const uint8_t for_the_next_life[] = { 7 };
+    kv_set("kept", 4, for_the_next_life, sizeof for_the_next_life);
+}
+
 void app_init(void)
 {
+    uint8_t kept;
+    found_on_start = kv_get("kept", 4, &kept, sizeof kept) == 1 && kept == 7;
     host_log(HOST_LOG_INFO, "init", 4);
 }
 
@@ -71,6 +110,10 @@ void app_on_button(int32_t button, int32_t press)
     (void)press;
     if (button == BUTTON_TRAP) {
         __builtin_trap();
+    }
+    if (button == BUTTON_EXIT) {
+        request_exit();
+        return;
     }
     if (button == BUTTON_SPIN_FOREVER) {
         for (volatile int32_t turns = 0;; turns++) {
@@ -148,6 +191,8 @@ void app_on_draw(void)
         HOST_TEXT_MAX * one_glyph) {
         mark(12, ROW_MORE_REFUSALS);
     }
+
+    draw_store_checks();
 
     static const uint8_t ink_at_0_and_2[] = { 0xA0 };
     gfx_bitmap(0, ROW_BITMAP, 3, 1, ink_at_0_and_2);

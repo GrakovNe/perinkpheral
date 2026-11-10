@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /* What this device gives an application beyond drawing: the clock, the
- * log, the timers. */
+ * log, the timers, a store of its own. */
 const app_services_t *app_host_services(void);
 
 #ifdef __cplusplus

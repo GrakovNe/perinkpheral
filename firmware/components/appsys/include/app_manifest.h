@@ -18,9 +18,10 @@ extern "C" {
  * Fields the host does not know yet are skipped, so a manifest written
  * for a later host still loads. Pure, host-tested. */
 
-/* The name is the application's folder, its key in the catalog and the
- * namespace of its settings, which is what limits its length. */
-#define APP_NAME_MAX    15
+/* The name is the application's folder, its key in the catalog and, after
+ * a prefix that keeps applications apart from the host, the NVS namespace
+ * of its store - which is what limits its length. */
+#define APP_NAME_MAX    13
 #define APP_TITLE_MAX   23
 #define APP_VERSION_MAX 15
 

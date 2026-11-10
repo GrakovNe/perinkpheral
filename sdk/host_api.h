@@ -32,6 +32,8 @@
 #define HOST_OK               0
 #define HOST_ERR_NOT_DRAWING -1 /* a gfx_* call outside app_on_draw() */
 #define HOST_ERR_ARGUMENT    -2 /* a pointer outside the memory, an unknown font or timer */
+#define HOST_ERR_NOT_FOUND   -3 /* kv_get: nothing is stored under the key */
+#define HOST_ERR_NO_SPACE    -4 /* kv_get: the value is larger than the buffer; kv_set: the storage is full */
 
 /* ---- The application's side: exports, every one optional ---- */
 
@@ -96,11 +98,34 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
 /* The picture is out of date: call app_on_draw() soon. */
 HOST_IMPORT(request_redraw, void request_redraw(void));
 
+/* The application is done: give the screen back, as BACK does in the
+ * host's own pages. The host's layout has it on a short press of button 4;
+ * a long press of button 4 leaves any application without asking it. */
+HOST_IMPORT(request_exit, void request_exit(void));
+
 /* One shot after `milliseconds`, then app_on_timer(id); 0 cancels. Setting
  * a running timer restarts it. id: 0..HOST_TIMER_COUNT-1. Timers stop
  * when the application leaves the screen. */
 #define HOST_TIMER_COUNT 4
 HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
+
+/* ---- Storage ---- */
+
+/* A few small values that outlive the application: it is unloaded every
+ * time it leaves the screen, and this is where its state waits. Every
+ * application has a store of its own. Writing wears the flash, so save
+ * when something worth keeping changed - in app_on_blur(), say - not on
+ * every tick. */
+#define HOST_KV_KEY_MAX   15  /* 1..15 bytes of printable ASCII */
+#define HOST_KV_VALUE_MAX 256
+
+/* Returns the length of the value, which is then in `value`. */
+HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,
+                                   int32_t capacity));
+
+/* A length of 0 removes the key. */
+HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const void *value,
+                                   int32_t length));
 
 /* ---- Time ---- */
 
