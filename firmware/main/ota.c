@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sdkconfig.h"
 
 #include "ota_health.h"
 #include "ota_stream.h"
@@ -25,11 +26,18 @@ static const char *TAG = "ota";
 #define HEALTH_CHECK_PERIOD_MS 1000
 #define MICROSECONDS_PER_SECOND 1000000
 
+#ifndef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+#error "Updates over the network rely on the bootloader's rollback: without it a new image is never on probation and a bad one stays."
+#endif
+
 /* ota_stream.c finds the application description by these numbers. */
 _Static_assert(sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) == 24 + 8,
                "the application description is not where ota_stream looks for it");
 _Static_assert(offsetof(esp_app_desc_t, project_name) == 48 && sizeof(esp_app_desc_t) == 256,
                "the application description is not laid out as ota_stream expects");
+
+/* True from start until a freshly installed image has proved itself. */
+static volatile bool s_on_probation;
 
 /* ---- writing an uploaded image into the spare slot ---- */
 
@@ -95,6 +103,11 @@ const char *ota_upload_begin(size_t image_size)
     if (s_upload.in_progress) {
         return "another upload is in progress";
     }
+    if (s_on_probation) {
+        /* The spare slot holds the image to return to if this one fails:
+         * writing over it now could leave no good image at all. */
+        return "the running firmware is still on probation, try again in a few minutes";
+    }
     s_upload.slot = esp_ota_get_next_update_partition(NULL);
     if (s_upload.slot == NULL) {
         return "there is no spare firmware slot";
@@ -131,8 +144,7 @@ void ota_upload_abort(void)
 
 /* ---- the probation of a freshly installed image ---- */
 
-static bool          s_network_stored;
-static volatile bool s_on_probation;
+static bool s_network_stored;
 
 static void probation_task(void *arg)
 {

@@ -26,6 +26,9 @@ static const char *TAG = "web";
 /* Long enough for the answer to reach the browser before the device goes. */
 #define RESTART_DELAY_US      (1500 * 1000)
 #define VALIDATION_TEXT_MAX   128
+/* How long a sender may say nothing in the middle of a request. */
+#define RECEIVE_TIMEOUT_S     10
+#define QUIET_PERIODS_MAX     3
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
@@ -44,9 +47,11 @@ static void restart_soon(void)
 {
     static esp_timer_handle_t timer;
     esp_timer_create_args_t args = { .callback = restart_now, .name = "restart" };
-    if (timer == NULL && esp_timer_create(&args, &timer) == ESP_OK) {
-        esp_timer_start_once(timer, RESTART_DELAY_US);
+    if (timer == NULL && esp_timer_create(&args, &timer) != ESP_OK) {
+        esp_restart(); /* no way to wait: the answer may be lost, the restart not */
     }
+    /* Already counting down is fine: the device restarts either way. */
+    esp_timer_start_once(timer, RESTART_DELAY_US);
 }
 
 static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON *json)
@@ -116,6 +121,21 @@ static esp_err_t handle_status(httpd_req_t *request)
     return send_json(request, "200 OK", json);
 }
 
+/* The next bytes of the request body; 0 or less when the client is gone
+ * or has stopped sending. One handler runs at a time, so a client that
+ * goes quiet must not be waited for without end: it would hold the server
+ * and, in an upload, the firmware slot. */
+static int receive(httpd_req_t *request, char *buffer, size_t length)
+{
+    for (int quiet_periods = 0; quiet_periods < QUIET_PERIODS_MAX; quiet_periods++) {
+        int count = httpd_req_recv(request, buffer, length);
+        if (count != HTTPD_SOCK_ERR_TIMEOUT) {
+            return count;
+        }
+    }
+    return 0;
+}
+
 /* The whole body as a terminated string; false when it is missing, too
  * long or the client went away. */
 static bool read_body(httpd_req_t *request, char *body, size_t body_size)
@@ -125,10 +145,7 @@ static bool read_body(httpd_req_t *request, char *body, size_t body_size)
     }
     size_t received = 0;
     while (received < request->content_len) {
-        int count = httpd_req_recv(request, body + received, request->content_len - received);
-        if (count == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
-        }
+        int count = receive(request, body + received, request->content_len - received);
         if (count <= 0) {
             return false;
         }
@@ -207,11 +224,8 @@ static esp_err_t handle_ota(httpd_req_t *request)
     }
     size_t remaining = request->content_len;
     while (error == NULL && remaining > 0) {
-        int count = httpd_req_recv(request, (char *)chunk,
-                                   remaining < UPLOAD_CHUNK_BYTES ? remaining : UPLOAD_CHUNK_BYTES);
-        if (count == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
-        }
+        int count = receive(request, (char *)chunk,
+                            remaining < UPLOAD_CHUNK_BYTES ? remaining : UPLOAD_CHUNK_BYTES);
         if (count <= 0) {
             /* The sender is gone: there is nobody to answer. */
             ota_upload_abort();
@@ -239,8 +253,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
     memcpy(s_device_id, device_id, sizeof s_device_id);
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
-    /* A firmware image takes a while over a weak link. */
-    server_config.recv_wait_timeout = 30;
+    server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &server_config);
     if (err != ESP_OK) {

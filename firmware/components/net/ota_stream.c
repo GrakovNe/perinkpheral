@@ -47,8 +47,12 @@ bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *wr
     memset(stream, 0, sizeof *stream);
     stream->writer = writer;
     stream->writer_context = writer_context;
-    strncpy(stream->project_name, project_name, OTA_PROJECT_NAME_MAX);
     stream->image_size = image_size;
+    if (strlen(project_name) > OTA_PROJECT_NAME_MAX) {
+        /* Cut short it would match images of another name. */
+        return fail(stream, "the project name is too long to check images against");
+    }
+    strcpy(stream->project_name, project_name);
     if (image_size < OTA_HEAD_BYTES) {
         return fail(stream, "too small to be a firmware image");
     }

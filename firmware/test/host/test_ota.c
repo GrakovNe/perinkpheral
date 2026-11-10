@@ -156,6 +156,33 @@ static void test_sizes(void)
     CHECK_STR(ota_stream_error(&stream), "the image was cut short");
 }
 
+static void test_edges(void)
+{
+    /* an image that is nothing but its head */
+    make_image("perinkpheral");
+    memset(&flash, 0, sizeof flash);
+    CHECK(ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", OTA_HEAD_BYTES, SLOT_BYTES));
+    CHECK(ota_stream_feed(&stream, image, OTA_HEAD_BYTES));
+    CHECK(ota_stream_end(&stream));
+    CHECK(flash.length == OTA_HEAD_BYTES && flash.finished == 1);
+
+    /* a piece of nothing changes nothing */
+    CHECK(start(IMAGE_BYTES));
+    CHECK(ota_stream_feed(&stream, image, 0));
+    CHECK(feed_all(250));
+    CHECK(ota_stream_feed(&stream, image, 0));
+    CHECK(ota_stream_end(&stream) && flash.length == IMAGE_BYTES);
+
+    /* a project name too long to compare is refused, not cut to a prefix
+     * that another project's image could match */
+    memset(&flash, 0, sizeof flash);
+    CHECK(ota_stream_start(&stream, &WRITER, NULL, "a-project-name-of-31-characters",
+                           IMAGE_BYTES, SLOT_BYTES));
+    CHECK(!ota_stream_start(&stream, &WRITER, NULL, "a-project-name-of-32-characters!",
+                            IMAGE_BYTES, SLOT_BYTES));
+    CHECK(!ota_stream_feed(&stream, image, 10));
+}
+
 static void test_writer_failures(void)
 {
     make_image("perinkpheral");
@@ -225,6 +252,7 @@ int main(void)
     test_good_image_in_any_pieces();
     test_foreign_images_never_reach_the_flash();
     test_sizes();
+    test_edges();
     test_writer_failures();
     test_health();
     REPORT();

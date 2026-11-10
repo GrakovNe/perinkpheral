@@ -19,7 +19,6 @@
 static const char *TAG = "wifi";
 
 #define PASSWORD_MAX            64
-#define HOSTNAME_MAX            64
 #define ACCESS_POINT_CHANNEL    1
 #define ACCESS_POINT_CLIENTS    4
 #define EVENT_QUEUE_LENGTH      8
@@ -78,6 +77,16 @@ static void on_station_disconnected(void *arg, esp_event_base_t base, int32_t id
     post(WIFI_EVENT_DISCONNECTED);
 }
 
+/* The radio is running: only now can it be told to connect. */
+static void on_station_started(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg;
+    (void)base;
+    (void)id;
+    (void)data;
+    post(WIFI_EVENT_STARTED);
+}
+
 static void on_retry_timer(void *arg)
 {
     (void)arg;
@@ -92,15 +101,27 @@ static void start_access_point(void)
     config.ap.channel = ACCESS_POINT_CHANNEL;
     config.ap.authmode = WIFI_AUTH_OPEN;
     config.ap.max_connection = ACCESS_POINT_CLIENTS;
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &config));
+    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+    if (err == ESP_OK) {
+        err = esp_wifi_set_config(WIFI_IF_AP, &config);
+    }
+    if (err != ESP_OK) {
+        /* Without it the device cannot be set up, but it must not go
+         * into a restart loop over that either. */
+        ESP_LOGE(TAG, "cannot bring the setup access point up: %s", esp_err_to_name(err));
+        return;
+    }
     s_wifi.access_point_up = true;
     ESP_LOGI(TAG, "setup access point \"%s\" is up", s_wifi.access_point_name);
 }
 
 static void stop_access_point(void)
 {
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "cannot take the setup access point down: %s", esp_err_to_name(err));
+        return;
+    }
     s_wifi.access_point_up = false;
     ESP_LOGI(TAG, "setup access point is down");
 }
@@ -118,6 +139,9 @@ static void connect(void)
     }
     if (err == ESP_OK) {
         err = esp_wifi_connect();
+    }
+    if (err == ESP_ERR_WIFI_CONN) {
+        return; /* an attempt is under way already: its outcome will come */
     }
     if (err != ESP_OK) {
         /* The plan hears of it as of any other failed attempt. */
@@ -161,12 +185,13 @@ static void publish_phase(void)
 static void wifi_task(void *arg)
 {
     (void)arg;
-    wifi_plan_event_t event = WIFI_EVENT_STARTED;
     for (;;) {
+        /* The first event is the radio saying it has started. */
+        wifi_plan_event_t event;
+        xQueueReceive(s_wifi.events, &event, portMAX_DELAY);
         wifi_plan_actions_t actions = wifi_plan_step(&s_wifi.plan, event, now_ms());
         carry_out(&actions);
         publish_phase();
-        xQueueReceive(s_wifi.events, &event, portMAX_DELAY);
     }
 }
 
@@ -190,10 +215,18 @@ void wifi_start(const wifi_config_in_t *config)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_ap();
     esp_netif_t *station = esp_netif_create_default_wifi_sta();
-    ESP_ERROR_CHECK(esp_netif_set_hostname(station, config->hostname));
+    /* A name the network stack will not take is not worth refusing to
+     * start over: the device then goes by its default name. */
+    esp_err_t hostname_result = esp_netif_set_hostname(station, config->hostname);
+    if (hostname_result != ESP_OK) {
+        ESP_LOGW(TAG, "hostname \"%s\" not taken: %s", config->hostname,
+                 esp_err_to_name(hostname_result));
+    }
 
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&init));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_STA_START,
+                                                        on_station_started, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, on_station_disconnected, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
@@ -201,10 +234,10 @@ void wifi_start(const wifi_config_in_t *config)
     /* The settings are the host's to keep, not the Wi-Fi library's. */
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
+    /* The task first, so that it is there to take the start event. */
     BaseType_t ok = xTaskCreate(wifi_task, "wifi", TASK_STACK_BYTES, NULL, 5, NULL);
     configASSERT(ok == pdPASS);
+    ESP_ERROR_CHECK(esp_wifi_start());
 }
 
 void wifi_get_status(wifi_status_t *status)

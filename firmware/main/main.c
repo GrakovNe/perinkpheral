@@ -31,6 +31,16 @@ static const char *TAG = "main";
 
 static appconf_t s_cfg;
 
+/* Runs in the Wi-Fi task whenever the connection comes or goes. */
+static void on_wifi_changed(void)
+{
+    if (wifi_is_online()) {
+        /* The clock was asked before there was a network to answer. */
+        net_time_sync_now();
+    }
+    status_check();
+}
+
 /* Runs in the buttons task: only hands the press over to the host. */
 static void on_button_pressed(uint8_t index, btn_event_t press)
 {
@@ -77,7 +87,7 @@ void app_main(void)
         .password = cfg->wifi_password,
         .hostname = cfg->hostname,
         .access_point_name = cfg->device_name,
-        .on_change = status_check,
+        .on_change = on_wifi_changed,
     };
     status_start();
     wifi_start(&wifi);

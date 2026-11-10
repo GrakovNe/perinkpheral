@@ -18,6 +18,9 @@ extern "C" {
 /* time_zone is a POSIX TZ string, "CET-1CEST,M3.5.0,M10.5.0/3". */
 void net_time_start(const char *ntp_server, const char *time_zone);
 
+/* The network just came up: ask now, not when the next poll is due. */
+void net_time_sync_now(void);
+
 bool net_time_is_known(void);
 
 /* Unix seconds; 0 while the time is not known. */

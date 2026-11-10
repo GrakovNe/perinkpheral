@@ -29,6 +29,11 @@ void net_time_start(const char *ntp_server, const char *time_zone)
     esp_sntp_init();
 }
 
+void net_time_sync_now(void)
+{
+    esp_sntp_restart();
+}
+
 int64_t net_time_now(void)
 {
     time_t now = time(NULL);
