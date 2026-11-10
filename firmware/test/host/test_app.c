@@ -76,16 +76,17 @@ static void record_timer(int id, int32_t milliseconds)
 /* One application's store, in memory: a few keys, small values. */
 #define FAKE_KV_SLOTS 4
 static struct {
+    char    app_name[16];
     char    key[HOST_KV_KEY_MAX + 1];
     uint8_t value[HOST_KV_VALUE_MAX];
     int32_t length;
 } kv_slots[FAKE_KV_SLOTS];
-static char kv_last_app[16];
 
-static int kv_slot_of(const char *key)
+static int kv_slot_of(const char *app_name, const char *key)
 {
     for (int slot = 0; slot < FAKE_KV_SLOTS; slot++) {
-        if (kv_slots[slot].length > 0 && strcmp(kv_slots[slot].key, key) == 0) {
+        if (kv_slots[slot].length > 0 && strcmp(kv_slots[slot].app_name, app_name) == 0 &&
+            strcmp(kv_slots[slot].key, key) == 0) {
             return slot;
         }
     }
@@ -94,8 +95,7 @@ static int kv_slot_of(const char *key)
 
 static int32_t fake_kv_get(const char *app_name, const char *key, void *value, int32_t capacity)
 {
-    strcpy(kv_last_app, app_name);
-    int slot = kv_slot_of(key);
+    int slot = kv_slot_of(app_name, key);
     if (slot < 0) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -109,8 +109,7 @@ static int32_t fake_kv_get(const char *app_name, const char *key, void *value, i
 static int32_t fake_kv_set(const char *app_name, const char *key, const void *value,
                            int32_t value_length)
 {
-    strcpy(kv_last_app, app_name);
-    int slot = kv_slot_of(key);
+    int slot = kv_slot_of(app_name, key);
     if (value_length == 0) {
         if (slot >= 0) {
             kv_slots[slot].length = 0;
@@ -125,6 +124,7 @@ static int32_t fake_kv_set(const char *app_name, const char *key, const void *va
     if (slot < 0) {
         return HOST_ERR_NO_SPACE;
     }
+    strcpy(kv_slots[slot].app_name, app_name);
     strcpy(kv_slots[slot].key, key);
     memcpy(kv_slots[slot].value, value, (size_t)value_length);
     kv_slots[slot].length = value_length;
@@ -141,15 +141,20 @@ static const app_services_t SERVICES = {
     .kv_set = fake_kv_set,
 };
 
-static app_t *load_probe(void)
+static app_t *load_probe_as(const char *name)
 {
     logged[0] = '\0';
     timer_set_id = timer_set_ms = -1;
     clock_runs = false;
     clock_ms = FAKE_UPTIME_MS;
     app_t *app = NULL;
-    CHECK(app_load("probe", probe_wasm, probe_wasm_len, &SERVICES, &app) == APP_OK);
+    CHECK(app_load(name, probe_wasm, probe_wasm_len, &SERVICES, &app) == APP_OK);
     return app;
+}
+
+static app_t *load_probe(void)
+{
+    return load_probe_as("probe");
 }
 
 static void draw(app_t *app)
@@ -200,9 +205,10 @@ static void test_buttons_and_redraw(void)
 static void test_exit(void)
 {
     app_t *app = load_probe();
-    CHECK(!app_wants_to_exit(app));
+    CHECK(!app_take_exit_request(app));
     app_button(app, 7, HOST_PRESS_SHORT);
-    CHECK(app_wants_to_exit(app));
+    CHECK(app_take_exit_request(app));
+    CHECK(!app_take_exit_request(app)); /* asked once, told once */
     app_unload(app);
 }
 
@@ -284,14 +290,18 @@ static void test_store(void)
      * too small is refused; a removed key is gone; keys that are not keys
      * and a value too large are refused */
     CHECK(black_in_row(ROW_STORE) == 7);
-    /* it is this application's store that was asked */
-    CHECK_STR(kv_last_app, "probe");
     app_unload(app);
 
-    /* what one life of the application left, the next one finds */
+    /* what one life of the application left, the next one finds... */
     app = load_probe();
     draw(app);
     CHECK(gfx_get(&surface, 20, ROW_STORE));
+    app_unload(app);
+
+    /* ...and another application does not: each has a store of its own */
+    app = load_probe_as("other");
+    draw(app);
+    CHECK(!gfx_get(&surface, 20, ROW_STORE));
     app_unload(app);
 }
 

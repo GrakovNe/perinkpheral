@@ -81,7 +81,7 @@ static bool is_running(const app_scene_t *self)
 static scene_reaction_t reaction_of(app_scene_t *self)
 {
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
-    if (app_wants_to_exit(self->app)) {
+    if (app_take_exit_request(self->app)) {
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {
         reaction.kind = SCENE_REDRAW;

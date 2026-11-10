@@ -99,6 +99,14 @@ static const uint8_t *in_app_memory(IM3Runtime runtime, void *memory, uint32_t o
     return inside ? (const uint8_t *)memory + offset : NULL;
 }
 
+/* The same for memory the host is about to fill for the application. */
+static uint8_t *in_app_memory_to_fill(IM3Runtime runtime, void *memory, uint32_t offset,
+                                      int32_t capacity)
+{
+    return in_app_memory(runtime, memory, offset, capacity) != NULL ? (uint8_t *)memory + offset
+                                                                    : NULL;
+}
+
 /* The application's bytes as a terminated string the drawing code takes.
  * False when they are not the application's to give. */
 static bool copy_text(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
@@ -301,8 +309,8 @@ static bool copy_key(IM3Runtime runtime, void *memory, uint32_t offset, int32_t 
         return false;
     }
     for (int32_t i = 0; i < length; i++) {
-        bool printable = bytes[i] > ' ' && bytes[i] <= '~';
-        if (!printable) {
+        bool allowed = bytes[i] >= '!' && bytes[i] <= '~';
+        if (!allowed) {
             return false;
         }
         key[i] = (char)bytes[i];
@@ -321,9 +329,7 @@ HOST_FUNCTION(host_kv_get)
 
     app_t *app = APP_OF(runtime);
     char key[HOST_KV_KEY_MAX + 1];
-    /* The application's memory is written straight into: the cast drops a
-     * const that only says the host does not write elsewhere. */
-    void *value = (void *)in_app_memory(runtime, _mem, value_offset, capacity);
+    uint8_t *value = in_app_memory_to_fill(runtime, _mem, value_offset, capacity);
     if (value == NULL || !copy_key(runtime, _mem, key_offset, key_length, key)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -601,6 +607,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_timer = find_export(app, "app_on_timer");
     app->on_draw = find_export(app, "app_on_draw");
     CALL_HANDLER(app, find_export(app, "app_init"));
+    app->exit_requested = false;
 
     *loaded = app;
     return APP_OK;
@@ -623,6 +630,7 @@ void app_unload(app_t *app)
 void app_focus(app_t *app)
 {
     CALL_HANDLER(app, app->on_focus);
+    app->exit_requested = false; /* only a button or a timer may ask to leave */
 }
 
 void app_blur(app_t *app)
@@ -645,6 +653,7 @@ void app_draw(app_t *app, gfx_t *surface)
     app->surface = surface;
     CALL_HANDLER(app, app->on_draw);
     app->surface = NULL;
+    app->exit_requested = false;
 }
 
 bool app_take_redraw_request(app_t *app)
@@ -654,9 +663,11 @@ bool app_take_redraw_request(app_t *app)
     return requested;
 }
 
-bool app_wants_to_exit(const app_t *app)
+bool app_take_exit_request(app_t *app)
 {
-    return app->exit_requested;
+    bool requested = app->exit_requested;
+    app->exit_requested = false;
+    return requested;
 }
 
 bool app_has_stopped(const app_t *app)

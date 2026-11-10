@@ -64,8 +64,9 @@ void app_draw(app_t *app, gfx_t *surface);
 /* True once after the application called request_redraw(). */
 bool app_take_redraw_request(app_t *app);
 
-/* The application called request_exit(). */
-bool app_wants_to_exit(const app_t *app);
+/* True once after the application called request_exit() in a button or
+ * timer handler; a call from anywhere else is dropped. */
+bool app_take_exit_request(app_t *app);
 
 /* A handler trapped; nothing is called any more. */
 bool app_has_stopped(const app_t *app);

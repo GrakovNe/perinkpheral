@@ -77,7 +77,7 @@ static void draw_store_checks(void)
         kv_set("fresh", 5, written, 0) == HOST_OK &&
             kv_get("fresh", 5, read_back, sizeof read_back) == HOST_ERR_NOT_FOUND,
         kv_set("", 0, written, 1) == HOST_ERR_ARGUMENT,
-        kv_set("a key with gaps!", 16, written, 1) == HOST_ERR_ARGUMENT,
+        kv_set("with a gap", 10, written, 1) == HOST_ERR_ARGUMENT,
         kv_set("large", 5, too_large, sizeof too_large) == HOST_ERR_ARGUMENT,
     };
     for (int32_t i = 0; i < (int32_t)(sizeof answers / sizeof answers[0]); i++) {

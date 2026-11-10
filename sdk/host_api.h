@@ -34,6 +34,7 @@
 #define HOST_ERR_ARGUMENT    -2 /* a pointer outside the memory, an unknown font or timer */
 #define HOST_ERR_NOT_FOUND   -3 /* kv_get: nothing is stored under the key */
 #define HOST_ERR_NO_SPACE    -4 /* kv_get: the value is larger than the buffer; kv_set: the storage is full */
+#define HOST_ERR_FAILED      -5 /* the storage itself failed; nothing was read or written */
 
 /* ---- The application's side: exports, every one optional ---- */
 
@@ -102,8 +103,10 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
 HOST_IMPORT(request_redraw, void request_redraw(void));
 
 /* The application is done: give the screen back, as BACK does in the
- * host's own pages. The host's layout has it on a short press of button 4;
- * a long press of button 4 leaves any application without asking it. */
+ * host's own pages. It takes effect when app_on_button() or app_on_timer()
+ * returns, and is ignored anywhere else. The host's layout has it on a
+ * short press of button 4; a long press of button 4 leaves any
+ * application without asking it. */
 HOST_IMPORT(request_exit, void request_exit(void));
 
 /* One shot after `milliseconds`, then app_on_timer(id); 0 cancels. Setting
@@ -119,7 +122,7 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * application has a store of its own. Writing wears the flash, so save
  * when something worth keeping changed - in app_on_blur(), say - not on
  * every tick. */
-#define HOST_KV_KEY_MAX   15  /* 1..15 bytes of printable ASCII */
+#define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~': no spaces */
 #define HOST_KV_VALUE_MAX 256
 
 /* Returns the length of the value, which is then in `value`. */

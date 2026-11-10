@@ -20,6 +20,12 @@ _Static_assert(sizeof NAMESPACE_PREFIX - 1 + APP_NAME_MAX <= NVS_NS_NAME_MAX_SIZ
                "an application's namespace has to fit NVS");
 _Static_assert(HOST_KV_KEY_MAX <= NVS_KEY_NAME_MAX_SIZE - 1, "a key has to fit NVS");
 
+static int32_t storage_failed(const char *app_name, const char *key, esp_err_t err)
+{
+    ESP_LOGW(TAG, "%s: \"%s\": %s", app_name, key, esp_err_to_name(err));
+    return HOST_ERR_FAILED;
+}
+
 static esp_err_t open_store(const char *app_name, nvs_open_mode_t mode, nvs_handle_t *store)
 {
     char namespace[NVS_NS_NAME_MAX_SIZE];
@@ -30,21 +36,25 @@ static esp_err_t open_store(const char *app_name, nvs_open_mode_t mode, nvs_hand
 int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t capacity)
 {
     nvs_handle_t store;
-    /* A namespace nobody wrote to yet does not exist. */
-    if (open_store(app_name, NVS_READONLY, &store) != ESP_OK) {
-        return HOST_ERR_NOT_FOUND;
+    esp_err_t err = open_store(app_name, NVS_READONLY, &store);
+    if (err != ESP_OK) {
+        /* A namespace nobody wrote to yet does not exist. Anything else
+         * is the storage failing, and an application must not take that
+         * for "nothing stored" and write a blank state over its own. */
+        return err == ESP_ERR_NVS_NOT_FOUND ? HOST_ERR_NOT_FOUND : storage_failed(app_name, key, err);
     }
     size_t stored_length = 0;
-    esp_err_t err = nvs_get_blob(store, key, NULL, &stored_length);
+    err = nvs_get_blob(store, key, NULL, &stored_length);
     int32_t result;
-    if (err != ESP_OK) {
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
         result = HOST_ERR_NOT_FOUND;
+    } else if (err != ESP_OK) {
+        result = storage_failed(app_name, key, err);
     } else if (stored_length > (size_t)capacity) {
         result = HOST_ERR_NO_SPACE;
-    } else if (nvs_get_blob(store, key, value, &stored_length) != ESP_OK) {
-        result = HOST_ERR_NOT_FOUND;
     } else {
-        result = (int32_t)stored_length;
+        err = nvs_get_blob(store, key, value, &stored_length);
+        result = err == ESP_OK ? (int32_t)stored_length : storage_failed(app_name, key, err);
     }
     nvs_close(store);
     return result;
@@ -65,9 +75,9 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
         }
         nvs_close(store);
     }
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "%s: cannot store \"%s\": %s", app_name, key, esp_err_to_name(err));
+    if (err == ESP_ERR_NVS_NOT_ENOUGH_SPACE || err == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_LOGW(TAG, "%s: no room for \"%s\"", app_name, key);
         return HOST_ERR_NO_SPACE;
     }
-    return HOST_OK;
+    return err == ESP_OK ? HOST_OK : storage_failed(app_name, key, err);
 }
