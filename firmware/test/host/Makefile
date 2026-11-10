@@ -20,7 +20,7 @@ TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
-TESTS   += test_app_manifest test_app_store
+TESTS   += test_app_manifest test_app_store test_polls
 else
 $(info IDF_PATH is not set: skipping test_app_manifest and test_app_store)
 endif
@@ -95,6 +95,10 @@ build/cJSON.o: $(CJSON)/cJSON.c
 
 test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/include/app_manifest.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm
+
+test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $(APPSYS)/poll_schedule.c $(wildcard $(APPSYS)/include/*.h)
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_polls.c $(MANIFEST_SRCS) $(APPSYS)/text_template.c \
+		$(APPSYS)/poll_schedule.c -lm
 
 # mkdtemp and friends are POSIX, not C11.
 test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)

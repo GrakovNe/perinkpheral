@@ -38,10 +38,14 @@ struct app {
     IM3Function on_button;
     IM3Function on_timer;
     IM3Function on_draw;
+    IM3Function on_data;
+    uint32_t    data_buffer_offset; /* where in its memory the application takes data */
+    bool        has_data_buffer;
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
     bool        exit_requested;
+    bool        focus_requested;
     const char *stop_reason; /* NULL while the application is alive */
 };
 
@@ -282,6 +286,12 @@ HOST_FUNCTION(host_request_redraw)
     m3ApiSuccess();
 }
 
+HOST_FUNCTION(host_request_focus)
+{
+    APP_OF(runtime)->focus_requested = true;
+    m3ApiSuccess();
+}
+
 HOST_FUNCTION(host_request_exit)
 {
     APP_OF(runtime)->exit_requested = true;
@@ -400,6 +410,7 @@ static const struct {
     { "gfx_line", "i(iiii)", host_gfx_line },
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
     { "request_redraw", "v()", host_request_redraw },
+    { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },
     { "timer_set", "i(ii)", host_timer_set },
     { "kv_get", "i(*i*i)", host_kv_get },
@@ -582,6 +593,31 @@ static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t was
     return link_host_api(module) ? APP_OK : APP_ERR_BAD_MODULE;
 }
 
+/* Asks the application where it takes data. Without a sound answer it
+ * simply gets none. */
+static void find_data_buffer(app_t *app)
+{
+    IM3Function data_buffer = find_export(app, "app_data_buffer");
+    uint32_t offset = 0;
+    if (data_buffer == NULL) {
+        return;
+    }
+    /* It is the application's code like any handler: on the same budget. */
+    start_budget(app->services);
+    M3Result result = m3_CallV(data_buffer);
+    stop_budget();
+    if (result != m3Err_none) {
+        note_result(app, result);
+        return;
+    }
+    if (m3_GetResultsV(data_buffer, &offset) != m3Err_none) {
+        return;
+    }
+    uint32_t memory_size = m3_GetMemorySize(app->runtime);
+    app->has_data_buffer = offset <= memory_size && HOST_DATA_CHUNK_MAX <= memory_size - offset;
+    app->data_buffer_offset = offset;
+}
+
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
                            const app_services_t *services, app_t **loaded)
 {
@@ -606,6 +642,8 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_button = find_export(app, "app_on_button");
     app->on_timer = find_export(app, "app_on_timer");
     app->on_draw = find_export(app, "app_on_draw");
+    app->on_data = find_export(app, "app_on_data");
+    find_data_buffer(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
     app->exit_requested = false;
 
@@ -654,6 +692,29 @@ void app_draw(app_t *app, gfx_t *surface)
     CALL_HANDLER(app, app->on_draw);
     app->surface = NULL;
     app->exit_requested = false;
+}
+
+void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
+              int http_status)
+{
+    if (app->on_data == NULL || !app->has_data_buffer || length > HOST_DATA_CHUNK_MAX) {
+        return;
+    }
+    /* Looked up again every time: the interpreter may move the memory. */
+    uint8_t *memory = m3_GetMemory(app->runtime, NULL, 0);
+    if (memory == NULL || app->stop_reason != NULL) {
+        return;
+    }
+    memcpy(memory + app->data_buffer_offset, data, length);
+    CALL_HANDLER(app, app->on_data, (int32_t)request, (int32_t)app->data_buffer_offset,
+                 (int32_t)length, (int32_t)flags, (int32_t)http_status);
+}
+
+bool app_take_focus_request(app_t *app)
+{
+    bool requested = app->focus_requested;
+    app->focus_requested = false;
+    return requested;
 }
 
 bool app_take_redraw_request(app_t *app)

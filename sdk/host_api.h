@@ -57,6 +57,30 @@ APP_EXPORT(app_on_button, void app_on_button(int32_t button, int32_t press));
 /* A timer set with timer_set() ran out. */
 APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 
+/* The answer to one of the polls in the manifest, a piece at a time: the
+ * host does not keep a whole response in memory. `request` is the poll's
+ * number in the manifest. The first piece has HOST_DATA_FIRST and the
+ * HTTP status, the last one HOST_DATA_LAST; a short answer is one piece
+ * with both. HOST_DATA_FAILED comes alone, with no data: the request
+ * could not be made, or broke off. The data is in the buffer the
+ * application gave with app_data_buffer() and is only there until the
+ * handler returns.
+ *
+ * It is called whether the application is on the screen or not; off the
+ * screen it is loaded for the delivery and unloaded after it, so what it
+ * learns goes into the store, and request_focus() asks for the screen. */
+#define HOST_DATA_FIRST     1
+#define HOST_DATA_LAST      2
+#define HOST_DATA_FAILED    4
+#define HOST_DATA_CHUNK_MAX 1024
+APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
+                                         int32_t flags, int32_t http_status));
+
+/* Where the host may put a piece of data: HOST_DATA_CHUNK_MAX bytes of the
+ * application's memory. sdk/lib has one ready; an application does not
+ * write this itself. */
+APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
+
 /* Paint the whole picture from the application's state. The surface
  * arrives white; gfx_* calls work only in here. The host calls it when
  * the frame is needed, which is after request_redraw() and whenever the
@@ -101,6 +125,10 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
 
 /* The picture is out of date: call app_on_draw() soon. */
 HOST_IMPORT(request_redraw, void request_redraw(void));
+
+/* From app_on_data() off the screen: what arrived is worth showing now.
+ * The host decides; on the screen it means nothing. */
+HOST_IMPORT(request_focus, void request_focus(void));
 
 /* The application is done: give the screen back, as BACK does in the
  * host's own pages. It takes effect when app_on_button() or app_on_timer()

@@ -27,6 +27,7 @@
 #define ROW_BITMAP        12
 #define ROW_STORE         16
 #define ROW_LINE          14
+#define ROW_DATA          18
 #define ROW_TEXT          20
 
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
@@ -305,6 +306,36 @@ static void test_store(void)
     app_unload(app);
 }
 
+static void test_data(void)
+{
+    app_t *app = load_probe();
+    static uint8_t response[2500];
+    memset(response, 3, sizeof response);
+
+    /* a response of two and a half kilobytes, the way the host cuts it */
+    CHECK(!app_take_focus_request(app));
+    app_data(app, 1, response, HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 200);
+    app_data(app, 1, response + 1024, HOST_DATA_CHUNK_MAX, 0, 0);
+    CHECK(!app_take_focus_request(app));
+    app_data(app, 1, response + 2048, 2500 - 2048, HOST_DATA_LAST, 0);
+    /* the probe asks for the screen once it has all of it */
+    CHECK(app_take_focus_request(app));
+    CHECK(!app_take_focus_request(app));
+
+    /* a request that could not be made */
+    app_data(app, 2, NULL, 0, HOST_DATA_FAILED, 0);
+
+    draw(app);
+    CHECK(gfx_get(&surface, 0, ROW_DATA) && gfx_get(&surface, 2, ROW_DATA));
+
+    /* a piece larger than the buffer is not delivered, let alone written */
+    static uint8_t too_large[HOST_DATA_CHUNK_MAX + 1];
+    app_data(app, 1, too_large, sizeof too_large, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
+    CHECK(!app_take_focus_request(app));
+    CHECK(!app_has_stopped(app));
+    app_unload(app);
+}
+
 static void test_trap_stops_the_application(void)
 {
     app_t *app = load_probe();
@@ -400,6 +431,7 @@ int main(void)
     test_measures_and_time();
     test_more_refusals();
     test_store();
+    test_data();
     test_trap_stops_the_application();
     test_runaway_handlers_are_stopped();
     test_bad_modules();

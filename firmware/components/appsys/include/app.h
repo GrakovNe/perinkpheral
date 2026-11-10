@@ -61,6 +61,15 @@ void app_button(app_t *app, int button, int press); /* as in host_api.h */
 void app_timer(app_t *app, int id);
 void app_draw(app_t *app, gfx_t *surface);
 
+/* A piece of the answer to a poll, as app_on_data() of host_api.h takes
+ * it: at most HOST_DATA_CHUNK_MAX bytes, copied into the application's
+ * own buffer. An application without the handler is left alone. */
+void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
+              int http_status);
+
+/* True once after the application called request_focus(). */
+bool app_take_focus_request(app_t *app);
+
 /* True once after the application called request_redraw(). */
 bool app_take_redraw_request(app_t *app);
 

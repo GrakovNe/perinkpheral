@@ -27,10 +27,11 @@ static void test_defaults_and_unknown_fields(void)
 {
     /* no version, no fullscreen, and fields of a later host */
     CHECK(parse("{\"name\":\"plex\",\"title\":\"Now Playing\",\"abi\":1,"
-                "\"polls\":[{\"id\":\"now\",\"every\":15}],\"hosts\":[\"192.168.1.10\"]}") ==
-          APP_MANIFEST_OK);
+                "\"hosts\":[\"192.168.1.10\"],"
+                "\"settings\":[{\"key\":\"token\",\"type\":\"secret\"}]}") == APP_MANIFEST_OK);
     CHECK_STR(manifest.version, "");
     CHECK(!manifest.fullscreen);
+    CHECK(manifest.poll_count == 0);
 }
 
 static void test_not_json(void)

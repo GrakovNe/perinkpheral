@@ -17,6 +17,7 @@
 #define ROW_BITMAP         12
 #define ROW_LINE           14
 #define ROW_STORE          16 /* pixels 0..12: see app_on_draw; pixel 20: a value from an earlier life */
+#define ROW_DATA           18 /* pixel 0: a response arrived whole and in order; pixel 2: a failed one was told apart */
 #define ROW_TEXT           20
 
 #define BUTTON_DRAW_OUTSIDE 3
@@ -36,6 +37,10 @@ static int32_t presses;
 static int32_t fired_timer = -1;
 static int32_t result_outside_draw;
 static int32_t found_on_start;
+
+/* What app_on_data saw of request 1: the lengths add up, the bytes too. */
+static int32_t data_bytes, data_sum, data_pieces, data_status;
+static int32_t data_began, data_ended, data_failed;
 
 static void mark(int32_t x, int32_t row)
 {
@@ -131,6 +136,31 @@ void app_on_button(int32_t button, int32_t press)
     request_redraw();
 }
 
+void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
+                 int32_t http_status)
+{
+    if (flags & HOST_DATA_FAILED) {
+        data_failed = request;
+        return;
+    }
+    if (request != 1) {
+        return;
+    }
+    if (flags & HOST_DATA_FIRST) {
+        data_began++;
+        data_status = http_status;
+    }
+    for (int32_t i = 0; i < length; i++) {
+        data_sum += data[i];
+    }
+    data_bytes += length;
+    data_pieces++;
+    if (flags & HOST_DATA_LAST) {
+        data_ended++;
+        request_focus();
+    }
+}
+
 void app_on_timer(int32_t id)
 {
     fired_timer = id;
@@ -198,6 +228,15 @@ void app_on_draw(void)
     }
 
     draw_store_checks();
+
+    /* test_app.c sends 2500 bytes, each 3, in three pieces, with status 200 */
+    if (data_began == 1 && data_ended == 1 && data_pieces == 3 && data_bytes == 2500 &&
+        data_sum == 7500 && data_status == 200) {
+        mark(0, ROW_DATA);
+    }
+    if (data_failed == 2) {
+        mark(2, ROW_DATA);
+    }
 
     static const uint8_t ink_at_0_and_2[] = { 0xA0 };
     gfx_bitmap(0, ROW_BITMAP, 3, 1, ink_at_0_and_2);

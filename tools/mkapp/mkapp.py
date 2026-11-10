@@ -31,6 +31,13 @@ SDK = os.path.join(ROOT, "sdk")
 NAME_MAX = 13
 TITLE_MAX = 23
 VERSION_MAX = 15
+POLLS_MAX = 4
+POLL_EVERY_MIN_S = 10
+POLL_EVERY_MAX_S = 24 * 60 * 60
+URL_MAX = 255
+HEADERS_MAX = 4
+HEADER_NAME_MAX = 31
+HEADER_VALUE_MAX = 127
 
 WASM_PAGE = 65536
 APP_STACK = 8192
@@ -162,6 +169,29 @@ def unique_keys(pairs):
     return dict(pairs)
 
 
+def check_poll(path, number, poll):
+    where = "%s: poll %d" % (path, number)
+    if not isinstance(poll, dict):
+        sys.exit("%s must be an object" % where)
+    url = poll.get("url")
+    if (not isinstance(url, str) or len(url.encode()) > URL_MAX
+            or not url.startswith(("http://", "https://"))):
+        sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes" % (where, URL_MAX))
+    every = poll.get("every")
+    if (isinstance(every, bool) or not isinstance(every, (int, float))
+            or not POLL_EVERY_MIN_S <= every <= POLL_EVERY_MAX_S):
+        sys.exit("%s: \"every\" must be %d to %d seconds"
+                 % (where, POLL_EVERY_MIN_S, POLL_EVERY_MAX_S))
+    headers = poll.get("headers", {})
+    if not isinstance(headers, dict) or len(headers) > HEADERS_MAX:
+        sys.exit("%s: \"headers\" must be an object of at most %d" % (where, HEADERS_MAX))
+    for name, value in headers.items():
+        if (not name or len(name.encode()) > HEADER_NAME_MAX or not isinstance(value, str)
+                or len(value.encode()) > HEADER_VALUE_MAX):
+            sys.exit("%s: header \"%s\" has a name over %d bytes or a value that is not a "
+                     "string of at most %d" % (where, name, HEADER_NAME_MAX, HEADER_VALUE_MAX))
+
+
 def check_manifest(app_dir):
     """The rules of firmware/components/appsys/app_manifest.c, before the device sees it."""
     path = os.path.join(app_dir, "manifest.json")
@@ -186,6 +216,11 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    polls = manifest.get("polls", [])
+    if not isinstance(polls, list) or len(polls) > POLLS_MAX:
+        sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))
+    for number, poll in enumerate(polls):
+        check_poll(path, number, poll)
     abi = manifest.get("abi")
     # True == 1 in Python, and the device wants a number.
     if isinstance(abi, bool) or abi != host_api_version():
