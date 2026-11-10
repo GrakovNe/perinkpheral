@@ -8,9 +8,10 @@ The name is `perinkpheral` in code, repositories and domains and
 `perINKpheral` in prose and on the logo: peripheral vision, peripheral
 device, ink.
 
-**Status: a working prototype with a test firmware.** The hardware is
-assembled and verified; the firmware today is the host with one sample application. The
-operating system described below is being built - see
+**Status: a working prototype.** The hardware is assembled and
+verified. The firmware runs wasm applications from its own file
+system, sets itself up over Wi-Fi and takes firmware updates over the
+network; fetching data for applications is half built. See
 [Roadmap](#roadmap) for what exists and what does not.
 
 ## Vision
@@ -173,11 +174,12 @@ curl --data-binary @firmware/build/perinkpheral.bin http://<address>/api/ota
 The device restarts into the new firmware and keeps it only if it
 comes back reachable; otherwise it returns to the one it ran before.
 
-What you get today: a splash screen, then a menu (button 1 up, 2 ok,
-3 down, 4 back; a long press on button 4 returns to the menu from
-anywhere) listing the installed wasm applications - `Hello` counts
-presses, `Clock` redraws once a minute - a device page with the name, firmware version and free memory, and the
-splash.
+What you get today: a splash, then - on a device with no network yet -
+a screen that says how to set it up. A press leads to the menu (button
+1 up, 2 ok, 3 down, 4 back; a long press on button 4 returns to the
+menu from anywhere), which lists the installed wasm applications -
+`Hello` counts presses and keeps the count, `Clock` redraws once a
+minute - and the host's own pages: the device and the splash.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -229,21 +231,18 @@ contract may still change until it freezes at the end of milestone 2.
 
 ## Roadmap
 
-Done: the display driver, the refresh policy, buttons with short and
-long presses, drawing and fonts, the host kernel with a menu and built-in pages, host
-tests.
-
-1. **Applications without the network.** The wasm runtime, the host
-   API, a minimal host menu, two sample applications (`hello`,
-   `clock`), running from the battery.
-2. **Drivers and the SDK.** Everything the host offers an application:
-   Wi-Fi with setup from a browser, the screen, buttons, storage, time,
-   timers, polling and requests; the tool that builds applications and
-   the first real one (Plex "now playing"). Firmware updates over the
-   network arrive here, right after Wi-Fi, so the cable is no longer
-   needed.
-3. **Host screens.** The operating system's own interface: the menu,
-   first start and Wi-Fi setup, status and error screens.
+1. **Applications without the network - done.** The host kernel
+   (display service, window manager, scenes), the wasm runtime, the
+   host API, applications on the device's file system, two samples
+   (`hello`, `clock`). Left: a run from the battery without USB.
+2. **Drivers and the SDK - in progress.** Done: Wi-Fi with setup from a
+   browser, firmware updates over the network, time, timers, a store
+   for applications, fonts, and the half of data delivery that needs no
+   network. Not yet run on a real network. Left: the poller that
+   fetches, requests from applications, the first real application
+   (Plex "now playing"), button down and up events.
+3. **Host screens - started.** Done: the menu, power-up, the Wi-Fi
+   setup screen. Left: status and error screens, a second font.
 4. **Power.** Sleep between polls, measured current and real battery
    life numbers, then extreme power saving.
 5. **Web UI and catalog.** Installing applications from a catalog,
