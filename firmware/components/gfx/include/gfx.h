@@ -58,7 +58,7 @@ int gfx_text_sq_ex(gfx_t *g, int x, int y, const char *utf8, int scale, bool bla
 
 int gfx_text_sq_width_ex(const char *utf8, int scale, int tracking);
 
-/* Bitmap fonts rasterized by tools/fontgen (Tektur for everything but
+/* Bitmap fonts rasterized by tools/fontgen (Departure Mono for everything but
  * the logo). Glyph bits: 1 = ink, MSB left, rows padded to a byte. The
  * pen sits on the baseline; `top` is the glyph's rise above it. */
 typedef struct {

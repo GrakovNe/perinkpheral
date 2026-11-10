@@ -14,8 +14,8 @@ extern "C" {
 /* When the panel may be refreshed and how, after Waveshare's rules for
  * the 4.2" V2: at least min_data_ms between data-driven updates, a full
  * refresh after full_every partial ones, at least one refresh per
- * keepalive_ms. A button is the user looking at the device: it may redraw
- * sooner (min_button_ms). A switch of the application on the scene is
+ * keepalive_ms. A button is the user looking at the device: it redraws
+ * at once (min_button_ms is 0 unless the user asks for more). A switch of the application on the scene is
  * always a full refresh. Pure, host-tested. */
 typedef enum {
     REFRESH_FOR_DATA,      /* a poll result, a clock tick */

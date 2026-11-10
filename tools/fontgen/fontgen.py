@@ -3,9 +3,9 @@
 # Copyright (c) 2026 GrakovNe
 """TTF/OTF -> 1-bit bitmap font as a C header for gfx_text_font().
 
-    tools/fontgen/fontgen.py assets/fonts/Tektur-VF.ttf --var wght=400,wdth=100 \
-        --px 24 --name tektur_24 --out firmware/components/gfx/fonts/tektur_24.h \
-        --preview tektur_24.png --sample "ver 1.234.5 (c) 2026 Max Grakov"
+    tools/fontgen/fontgen.py assets/fonts/DepartureMono-Regular.otf \
+        --px 22 --name departure_22 --out firmware/components/gfx/fonts/departure_22.h \
+        --preview departure_22.png --sample "ver 1.234.5 (c) 2026 Max Grakov"
 
 Rasterizes with FreeType in monochrome mode (no antialiasing: the panel
 is 1-bit). Character set: printable ASCII and whatever `--chars`

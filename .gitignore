@@ -4,6 +4,8 @@
 *.pyc
 __pycache__/
 render/
+ROADMAP.md
+CHANGELOG.md
 hardware/render
 build.log
 build*/

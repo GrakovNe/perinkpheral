@@ -55,8 +55,11 @@ menu "perINKpheral"
 
         config APP_EPD_MIN_BUTTON_MS
             int "Least milliseconds between refreshes caused by a button"
-            range 100 60000
-            default 2000
+            range 0 60000
+            default 0
+            help
+                A press is the user looking at the device: it is redrawn at
+                once. The panel's own refresh time is the only limit.
 
         config APP_EPD_FULL_EVERY_N
             int "Full refresh after this many partial ones"

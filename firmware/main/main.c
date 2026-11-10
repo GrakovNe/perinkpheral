@@ -48,5 +48,5 @@ void app_main(void)
     /* The image booted and drives its hardware: good enough to keep. */
     esp_ota_mark_app_valid_cancel_rollback();
 
-    demo_run();
+    demo_run(cfg->device_name);
 }

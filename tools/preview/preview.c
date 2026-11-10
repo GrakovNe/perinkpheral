@@ -50,8 +50,34 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const uint32_t counts[4] = { 12, 3, 0, 1048 };
-    screens_counters(&g, counts);
-    snprintf(path, sizeof path, "%s/counters.pbm", argv[1]);
+    const screens_menu_item_t items[] = {
+        { "Device", "name, firmware" },
+        { "About", "logo, license" },
+    };
+    const screens_header_t online = { true, "Wed 11 Nov" };
+    screens_menu(&g, items, 2, 0, &online);
+    snprintf(path, sizeof path, "%s/menu.pbm", argv[1]);
+    if (write_pbm(path)) {
+        return 1;
+    }
+
+    /* As the device shows it before there is a network: no Wi-Fi, no date. */
+    const screens_header_t offline = { false, NULL };
+    screens_menu(&g, items, 2, 1, &offline);
+    snprintf(path, sizeof path, "%s/menu-offline.pbm", argv[1]);
+    if (write_pbm(path)) {
+        return 1;
+    }
+
+    const screens_field_t fields[] = {
+        { "Name", "Perinkpheral-1A2B" },
+        { "Firmware", "v0.1.0" },
+        { "ESP-IDF", "v5.5.5" },
+        { "Slot", "ota_0" },
+        { "Free memory", "412 KB" },
+        { "Uptime", "3 h 12 min" },
+    };
+    screens_fields(&g, fields, 6, &online);
+    snprintf(path, sizeof path, "%s/device.pbm", argv[1]);
     return write_pbm(path);
 }

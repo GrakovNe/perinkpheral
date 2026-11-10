@@ -64,9 +64,10 @@ Fonts: `tools/fontgen/fontgen.py <ttf> --px N --name <id> --out
 firmware/components/gfx/fonts/<id>.h --preview <file>.png` rasterizes a
 TTF with FreeType in monochrome (printable ASCII) into a `gfx_font_t`
 for `gfx_text_font()`. It needs the `freetype-py` package. The UI font
-is `assets/fonts/Tektur-VF.ttf`; regenerate with
-`--var wght=400,wdth=100` at 20 and 24 px, and 64 px
-`--only 0123456789` for the counters. The generated headers are
+is `assets/fonts/DepartureMono-Regular.otf`, a pixel font: rasterize it
+only at multiples of 11 px, where it lands on its own grid. The headers
+is 22 px, used for all text; larger sizes (33, 44, 66) are generated
+when a screen needs them. The generated headers are
 committed.
 
 `firmware/CMakeLists.txt` takes the version from `APP_VERSION` when it

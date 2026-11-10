@@ -86,7 +86,7 @@ Pebble; everything you see is an application.
   and its own. The page is on the device; nothing leaves your network.
 - **The screen is treated with care.** E-ink ages when it is refreshed
   too often, so data-driven updates are spaced minutes apart, a button
-  press is answered within seconds, and there are no animations. The
+  press is answered at once, and there are no animations. The
   intervals are yours to change.
 
 ### Power
@@ -151,9 +151,10 @@ idf.py -p <port> flash
 The port is `/dev/ttyACM*` on Linux and `/dev/cu.usbmodem*` on macOS.
 If the board does not answer, hold BOOT while plugging it in.
 
-What you get today is the bench demo: a splash screen, then four
-counters, one per button; a long press on button 4 brings the splash
-back.
+What you get today is the built-in demo: a splash screen, then a menu
+(button 1 up, 3 down, 2 open; a long press on button 4 returns to it
+from anywhere) with two pages - a device page with the name, firmware
+version and free memory, and the splash.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -180,15 +181,20 @@ long presses, drawing and fonts, the splash and the bench demo, host
 tests.
 
 1. **Applications without the network.** The wasm runtime, the host
-   API, the host menu, two sample applications (`hello`, `clock`),
-   running from the battery.
-2. **Network and delivery.** Wi-Fi setup from a browser, time, polling,
-   requests from applications, the first real application (Plex "now
-   playing").
-3. **Battery.** Sleep between polls, measured current, then extreme
-   power saving.
-4. **Web UI and catalog.** Installing applications from a catalog,
-   settings, the log, firmware updates over the air.
+   API, a minimal host menu, two sample applications (`hello`,
+   `clock`), running from the battery.
+2. **Drivers and the SDK.** Everything the host offers an application:
+   Wi-Fi with setup from a browser, the screen, buttons, storage, time,
+   timers, polling and requests; the tool that builds applications and
+   the first real one (Plex "now playing"). Firmware updates over the
+   network arrive here, right after Wi-Fi, so the cable is no longer
+   needed.
+3. **Host screens.** The operating system's own interface: the menu,
+   first start and Wi-Fi setup, status and error screens.
+4. **Power.** Sleep between polls, measured current and real battery
+   life numbers, then extreme power saving.
+5. **Web UI and catalog.** Installing applications from a catalog,
+   settings, the log, firmware updates from releases.
 
 Version 1 is ASCII only; other scripts are a task for version 2.
 
@@ -204,7 +210,7 @@ sdk/
 tools/
   preview/             renders the host's screens to PNG without the device
   fontgen/             TTF -> 1-bit bitmap font header
-assets/fonts/          Tektur (SIL OFL 1.1), the UI font, and its license
+assets/fonts/          Departure Mono (SIL OFL 1.1), the UI font, and its license
 hardware/              the panel notes, the BOM and assembly page, the case model
 CLAUDE.md              the specification: architecture, decisions, milestones, state
 AGENTS.md              bench notes and constraints for coding agents
@@ -212,5 +218,5 @@ AGENTS.md              bench notes and constraints for coding agents
 
 ## License
 
-MIT, see `LICENSE`. The Tektur font in `assets/fonts/` is under the SIL
+MIT, see `LICENSE`. The Departure Mono font in `assets/fonts/` is under the SIL
 Open Font License 1.1.

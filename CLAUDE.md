@@ -78,7 +78,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ## Stack
 - ESP-IDF 5.5, C. No Arduino, ESPHome, LVGL, GxEPD2.
 - Application runtime: **wasm3** (interpreter, sandbox). Applications are built with wasi-sdk 25 (found through `WASI_SDK_PATH`).
-- Fonts: the square one (code, `font_square.c`) for the logo; Tektur as bitmaps from `tools/fontgen` (20 px labels, 24 px text, 64 px digits) for everything else. ASCII only in version 1.
+- Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, as bitmaps from `tools/fontgen` (22 px) for everything else. ASCII only in version 1.
 - FS: LittleFS (partition `apps`, 1 MB). NVS for the applications' `kv_*` and the host settings.
 - Network: `esp_http_client` (TLS through mbedTLS), `esp_http_server` for the web UI.
 - The display driver is our own, on top of `spi_master`: init, full refresh, partial refresh, panel deep sleep after every update. **SPI 2 MHz**, mode 0, CS toggled per byte - otherwise the refresh never finishes (see `AGENTS.md`).
@@ -107,6 +107,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
       "every": 15 }
   ],
   "hosts": ["192.168.1.10"],
+  "fullscreen": false,
   "settings": [
     { "key": "token", "type": "secret", "title": "Plex token" }
   ],
@@ -123,8 +124,17 @@ User settings (`settings`) are edited in the web UI, stored in NVS, substituted 
   - on the scene - the call is made right away;
   - not on the scene - unload the scene (`app_on_blur`) → load the owner → deliver → if it called `request_focus()` it stays as the scene, otherwise unload it and bring the previous scene back (`app_on_focus`).
 - **State** - every application must restore itself from `kv_*`: the host unloads it on every scene change and background delivery. The framebuffer is not touched during the swap (the screen is not redrawn); the host remembers the scene's timers and restarts them after the return.
-- **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2). All other button events go to the application on the scene.
+- **Buttons** - the layout is the same everywhere in the host: 1 up, 2 ok, 3 down, 4 back. Applications are encouraged to keep it.
+- **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2, button 4 goes back to where the menu was opened from). All other button events go to the application on the scene.
 - **Preemption** - `request_focus()` from an application that received data in the background. Protection against a war for the screen: no more than one preemption per N seconds (30 by default), priority from the manifest on a conflict, a long press on button 4 always returns control to the user.
+
+### Header
+The host draws a header above its own screens and above every application that does not ask for the full screen:
+- On the left the Wi-Fi icon in one of two states - connected, or not connected (the icon with a cross). It shows the outcome of the last connection attempt, which is what matters in the profiles where Wi-Fi is off between polls.
+- On the right the date (`Wed 11 Nov`), blank while the time is unknown.
+- Nothing else: no application title, no network name, no clock - the date changes once a day, so the header never asks for a refresh of its own. There is no footer.
+- An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×257 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.
+- The network name and the address are on the device page of the menu, not in the header.
 
 ### Host API (wasm imports, a stable ABI after the first third-party application)
 The only contract is `sdk/host_api.h`; applications and the host's import table are built from it. Summary:
@@ -158,7 +168,7 @@ app_on_data(req_id, ptr, len, flags)
 ### E-paper policy
 Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings** (host, web UI, NVS); today they are still in menuconfig, the defaults are Waveshare's recommendations for the 4.2" V2:
 - data-driven updates (`app_on_data`, the clock) - no more often than once per **180 s**;
-- reaction to a button - the user is looking at the device - **2 s** after the previous update;
+- reaction to a button - the user is looking at the device - **at once**, no pause by default; the panel's own partial refresh (about a second) is the only limit;
 - full refresh - after **5** partial ones;
 - at least one update per **24 hours** (the host's keep-alive task).
 
@@ -175,6 +185,7 @@ Not configurable:
 - `GET /api/catalog` - proxies the catalog's static JSON (the catalog URL is a host setting).
 - `GET /api/log` - the log ring buffer.
 - `POST /api/focus/<name>` - bring onto the scene.
+- `POST /api/ota` - upload a firmware image into the spare OTA slot and reboot into it; the bootloader rolls back if the new image does not confirm itself.
 - Host settings (power profile, e-paper policy, time zone, catalog URL) are edited here too.
 
 The catalog is static files (GitHub Pages/Releases): `catalog.json` + `.wasm`/`manifest.json` by URL, no server.
@@ -201,13 +212,13 @@ firmware/              the ESP-IDF project (build from this folder)
     appconf/           the host settings struct, defaults, validate (pure)
     board/             what is not on the header: the antenna switch
     epd/               SSD1683 driver + framebuffer + partial/full policy
-    gfx/               primitives, the square font, Tektur bitmaps (fonts/) (pure)
+    gfx/               primitives, the square font, Departure Mono bitmaps (fonts/) (pure)
     input/             buttons, debounce, short/long press, event queue
-    power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 3)
+    power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            wasm3 loader, arena, lifecycle, host API, focus (milestone 1)
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
-    store/             catalog, install/remove in LittleFS, settings in NVS (milestone 4)
-    web/               esp_http_server, API, static files (milestone 2/4)
+    store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
+    web/               esp_http_server, API, OTA upload, static files (milestone 2/5)
   test/host/           host tests of the pure modules (tinytest)
 sdk/
   host_api.h           the only contract; applications and the host's import table are built from it
@@ -220,9 +231,9 @@ tools/
   fontgen/             TTF → bitmap (ASCII)
   preview/             renders the host's screens to PNG on the development machine - look before flashing
   mkapp/               builds .wasm (wasi-sdk/clang) + validates the manifest (milestone 1)
-  catalog/             generates catalog.json (milestone 4)
+  catalog/             generates catalog.json (milestone 5)
 assets/
-  fonts/               Tektur-VF.ttf (OFL), its license
+  fonts/               DepartureMono-Regular.otf (OFL), its license
 hardware/              everything about the physical device
   README.md            panel, datasheet, bench notes
   bom/                 the "hardware and assembly" page (links into render/ and step/)
@@ -232,20 +243,26 @@ hardware/              everything about the physical device
 `power`, `appsys`, `poller`, `store`, `web`, `sdk/apps/*`, `tools/mkapp`, `tools/catalog` do not exist yet.
 
 ## Milestones
-1. **No network, no store.** The host loads `hello.wasm` from LittleFS; the application draws text and reacts to a button; `clock.wasm` is switched to through the menu (long press 4). A check of running on battery without USB. Host API of the milestone: `gfx_clear`, `gfx_text`, `gfx_rect`, `gfx_bitmap`, `gfx_text_width`, `gfx_flush`, `timer_set`, `time_now`, `log`; exports `app_init`, `app_on_button`, `app_on_timer`, `app_on_focus`, `app_on_blur`. Start with `sdk/host_api.h` and `components/appsys`.
-2. **Network and delivery.** Wi-Fi (provisioning through the web UI in AP mode on first start), SNTP, `poller`, `http_request`, streamed `app_on_data`, `request_focus`, scene swap on background delivery. The `plex` application. The `plugged` profile.
-3. **The battery profile.** Light sleep between polls, wake-up by timer and button, current measurement, rounding of `every`, switching profiles by the setting. Then "extreme power saving" on deep sleep.
-4. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, host OTA (`esp_https_ota`).
+1. **Applications without the network.** The host loads `hello.wasm` from LittleFS; the application draws text and reacts to a button; `clock.wasm` is switched to through a minimal host menu (long press 4). A check of running on battery without USB. Host API of the milestone: `gfx_clear`, `gfx_text`, `gfx_rect`, `gfx_bitmap`, `gfx_text_width`, `gfx_flush`, `timer_set`, `time_now`, `log`; exports `app_init`, `app_on_button`, `app_on_timer`, `app_on_focus`, `app_on_blur`. Start with `sdk/host_api.h` and `components/appsys`.
+2. **Drivers and the SDK.** Everything the host offers an application, finished and frozen as ABI 1, each piece with its side of `host_api.h`:
+   - **Wi-Fi** - provisioning through the web UI in AP mode on first start, reconnects, SNTP. **OTA comes right after it**: the firmware is uploaded to the device over the network (`POST /api/ota`, the image goes into the spare slot). An image that is not a perinkpheral build is refused before it is written; a new image is on probation until the network and the web server are up, and is rolled back if they do not come up, so that from this point on nobody needs the cable to flash.
+   - **Screen** - the whole `gfx_*` set with fonts by id, `gfx_line`, `gfx_font_height`, the flush policy as seen by an application.
+   - **Buttons** - down/up events next to short/long.
+   - **Host services** - `kv_*`, `time_now`/`time_tz_offset`, timers with ids, `log` and the log ring buffer, `poller`, `http_request`, streamed `app_on_data`, `request_focus` and the scene swap on background delivery.
+   - **SDK** - `tools/mkapp`, the samples, and the first real application, `plex`, as the proof that the API is enough.
+3. **Host screens.** The operating system's own interface, designed and drawn: the menu and application list, the first-start and Wi-Fi setup screens, status and error screens, what the device shows while it updates or has nothing to show.
+4. **Power.** The `battery` profile on light sleep (wake-up by timer and button, rounding of `every`, switching profiles by the setting), measured current and real battery life numbers, then "extreme power saving" on deep sleep.
+5. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, firmware updates pulled from releases (`esp_https_ota`).
 
 ## State
-Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the splash and the bench demo (a short press → counters, a long press on button 4 → the splash, a stub for the host menu), host tests of the pure modules.
+Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the splash and the built-in demo (`demo.c`: a menu over a device page and the splash; 1 up, 3 down, 2 open, a long press on button 4 returns to the menu - it stands in for the host menu until applications exist), host tests of the pure modules.
 
 Open:
 - `sdk/host_api.h` is an old draft (a timer without an id, `host_log`, button events 0/1, `on_data` with the whole body). Rewrite it to the Host API of this file before the first line of `appsys`.
 - wasm3 is not wired in as a component: it is not in Espressif's registry, take it from github.com/wasm3/wasm3 (`platforms/embedded/esp32-idf`).
 - The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).
 - There are no down/up button events yet, only short/long.
-- `esp_ota_mark_app_valid_cancel_rollback()` is called right after the hardware is up; once there is OTA, move it to where the next update could arrive.
+- `esp_ota_mark_app_valid_cancel_rollback()` is called right after the hardware is up; with OTA it moves into the probation check, so that an image without a working network rolls back.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
@@ -261,7 +278,7 @@ Next step - milestone 1: `host_api.h` → wasm3 → `components/appsys` → `too
 - **The logo is the word `perINKpheraL` set in the device's square font: lower case `per` and `phera`, capital `INK` and a capital `L` at the end, all of one height in the same squares, with no plate, frames or dots.** The mix of capitals and lower case inside one word is the mark itself. On the panel - black on white, scale 5 (27 px squares), 357 px.
 - The square font: every glyph is a square on a grid of 3 strokes × 2 gaps (5+6+5+6+5 = 27 px), no ascenders or descenders, diagonals allowed. Implementation: `firmware/components/gfx/font_square.c`.
 - Under the mark on the splash: `ver 1.234.5` (a prototype string, hard-coded), `(c) 2026 Max Grakov`, `MIT License`.
-- **The square font is for the word `perINKpheraL` only.** All other text on the device (splash, menu, host applications) is set in **Tektur** (SIL OFL 1.1, https://github.com/hyvyys/Tektur, variable: `wght` 400-900, `wdth` 75-100), the Regular instance (wght 400, wdth 100), rasterized to bitmaps by `tools/fontgen`. The file is `assets/fonts/Tektur-VF.ttf` with `OFL-Tektur.txt`. Fonts are OFL/CC0 only.
+- **The square font is for the word `perINKpheraL` only.** All other text on the device (splash, menu, host applications) is set in **Departure Mono** (SIL OFL 1.1, https://github.com/rektdeckard/departure-mono), a monospaced pixel font. It is rasterized to bitmaps by `tools/fontgen` only at multiples of 11 px, where it lands on its own pixel grid: 22 for all text and 66 for large digits. It was chosen on the panel against Jersey 20, Jersey 25 and Terminus. **Jersey 25** (SIL OFL 1.1, heavier, proportional) comes later as an optional second font the user can pick in the host settings; it is not in the firmware yet. The file is `assets/fonts/DepartureMono-Regular.otf` with `OFL-DepartureMono.txt`. Outline fonts rasterized to 1 bit (Tektur was the first try) come out thin and ragged at this pixel density - use fonts drawn for the pixel grid. Fonts are OFL/CC0 only.
 - Palette: black #141413 and paper #E9E7E1 (on the device - the panel's native grey-white). Every host screen is black on white. No halftones, dithering or gradients.
 - Do not propose: a plate or frame around `INK`, dithered letters, white on black, decorations on the splash, other typefaces.
 
