@@ -32,6 +32,9 @@ static void cancel_timers(const app_services_t *services)
 static void app_scene_enter(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
+    if (self->module != NULL) {
+        return; /* already on the screen: nothing to load twice */
+    }
     self->load_error = NULL;
     size_t module_size;
     self->module = app_store_read_module(self->store_root, self->manifest.name, &module_size);

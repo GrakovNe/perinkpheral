@@ -68,7 +68,10 @@ static void test_broken_ones_are_passed_over(void)
     /* a manifest that claims another application's name */
     install("impostor", "good", "Impostor");
     /* a stray file in the root is not an application */
-    FILE *stray = fopen("/dev/null", "r");
+    char stray_path[96];
+    snprintf(stray_path, sizeof stray_path, "%s/README.txt", root);
+    FILE *stray = fopen(stray_path, "w");
+    fputs("not an application", stray);
     fclose(stray);
 
     app_manifest_t apps[8];

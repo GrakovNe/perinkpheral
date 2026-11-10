@@ -73,6 +73,12 @@ static void test_other_fields(void)
           APP_MANIFEST_BAD_FIELD);
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"version\":7}") ==
           APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"version\":\"123456789012345\"}") ==
+          APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"version\":\"1234567890123456\"}") ==
+          APP_MANIFEST_BAD_FIELD);
+    /* a zero inside a string would cut it short unnoticed */
+    CHECK(parse("{\"name\":\"good\\u0000x\",\"title\":\"T\",\"abi\":1}") != APP_MANIFEST_OK);
 }
 
 static void test_abi(void)

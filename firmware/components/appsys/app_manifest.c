@@ -74,8 +74,16 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     return APP_MANIFEST_OK;
 }
 
+/* A zero written as an escape ends a C string in the middle, and the
+ * parser gives no length to notice it by: "good\u0000x" would be read
+ * as "good". No manifest needs one, so the text itself is refused. */
+#define ESCAPED_ZERO "\\u0000"
+
 app_manifest_result_t app_manifest_parse(const char *json, app_manifest_t *manifest)
 {
+    if (strstr(json, ESCAPED_ZERO) != NULL) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
     cJSON *root = cJSON_Parse(json);
     app_manifest_result_t result = read_fields(root, manifest);
     cJSON_Delete(root);

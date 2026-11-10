@@ -147,7 +147,19 @@ def check(wasm_path):
 
 def host_api_version():
     with open(os.path.join(SDK, "host_api.h")) as f:
-        return int(re.search(r"#define HOST_API_VERSION (\d+)", f.read()).group(1))
+        found = re.search(r"#define\s+HOST_API_VERSION\s+(\d+)", f.read())
+    if not found:
+        sys.exit("sdk/host_api.h does not define HOST_API_VERSION as a number")
+    return int(found.group(1))
+
+
+def unique_keys(pairs):
+    """For json.load: the device reads the first of two equal keys, Python the last."""
+    keys = [key for key, _ in pairs]
+    for key in keys:
+        if keys.count(key) > 1:
+            raise ValueError("\"%s\" is there more than once" % key)
+    return dict(pairs)
 
 
 def check_manifest(app_dir):
@@ -155,9 +167,12 @@ def check_manifest(app_dir):
     path = os.path.join(app_dir, "manifest.json")
     try:
         with open(path) as f:
-            manifest = json.load(f)
+            text = f.read()
+        manifest = json.loads(text, object_pairs_hook=unique_keys)
     except (OSError, ValueError) as error:
         sys.exit("%s: %s" % (path, error))
+    if "\\u0000" in text:
+        sys.exit("%s: a string must not contain \\u0000" % path)
     name = manifest.get("name")
     if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9_-]{1,%d}" % NAME_MAX, name):
         sys.exit("%s: \"name\" must be 1-%d of a-z, 0-9, - and _" % (path, NAME_MAX))
@@ -171,7 +186,9 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
-    if manifest.get("abi") != host_api_version():
+    abi = manifest.get("abi")
+    # True == 1 in Python, and the device wants a number.
+    if isinstance(abi, bool) or abi != host_api_version():
         sys.exit("%s: \"abi\" must be %d, the version of sdk/host_api.h"
                  % (path, host_api_version()))
     return path

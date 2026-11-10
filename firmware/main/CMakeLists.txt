@@ -17,6 +17,10 @@ idf_component_register(SRCS ${srcs}
 set(repo_dir "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(apps_image_dir "${CMAKE_BINARY_DIR}/apps_image")
 set(built_apps "")
+if(NOT CONFIG_APP_BUNDLE_APPS)
+    # Or the applications of an earlier build would still be packed.
+    file(REMOVE_RECURSE "${apps_image_dir}")
+endif()
 file(MAKE_DIRECTORY "${apps_image_dir}")
 if(CONFIG_APP_BUNDLE_APPS)
     if(NOT DEFINED ENV{WASI_SDK_PATH})
@@ -24,12 +28,14 @@ if(CONFIG_APP_BUNDLE_APPS)
                             "needs wasi-sdk; set it, or turn APP_BUNDLE_APPS off in menuconfig "
                             "to build the firmware without applications.")
     endif()
-    file(GLOB app_dirs "${repo_dir}/sdk/apps/*")
-    file(GLOB sdk_sources "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
-                          "${repo_dir}/tools/mkapp/mkapp.py")
+    # CONFIGURE_DEPENDS: a new application or source file is picked up by
+    # the next build without anyone remembering to reconfigure.
+    file(GLOB app_dirs CONFIGURE_DEPENDS "${repo_dir}/sdk/apps/*")
+    file(GLOB sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+                                            "${repo_dir}/tools/mkapp/mkapp.py")
     foreach(app_dir ${app_dirs})
         get_filename_component(app_name "${app_dir}" NAME)
-        file(GLOB app_sources "${app_dir}/*")
+        file(GLOB app_sources CONFIGURE_DEPENDS "${app_dir}/*")
         add_custom_command(OUTPUT "${apps_image_dir}/${app_name}/app.wasm"
                            COMMAND "${repo_dir}/tools/mkapp/mkapp.py" "${app_dir}"
                                    --out "${apps_image_dir}/${app_name}"
