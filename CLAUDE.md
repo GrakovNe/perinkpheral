@@ -212,7 +212,7 @@ app_data_buffer() -> ptr            // where the host puts that piece: 1 KB, sdk
 - Time: SNTP on every Wi-Fi connection, the time zone is a host setting.
 
 ### E-paper policy
-Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings** (host, web UI, NVS); today they are still in menuconfig, the defaults start from Waveshare's recommendations for the 4.2" V2:
+Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings**: fields of the host's settings with a range each, stored in NVS and handed to the display service at start. The form for them in the web UI is still to come. The defaults start from Waveshare's recommendations for the 4.2" V2:
 - data-driven updates (`app_on_data`, a timer, the clock) - no more often than once per **60 s**, counted from the start of a refresh, so that a clock can show minutes. Waveshare's own advice is 180 s and the panel is rated for a million refreshes; a user who wants the panel to last longer raises the number;
 - reaction to a button - the user is looking at the device - **at once**, no pause by default; the panel's own partial refresh (about a second) is the only limit;
 - full refresh - after **5** partial ones;
@@ -321,7 +321,6 @@ Open:
 - Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
 Open:
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
-- The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).
 - There are no down/up button events yet, only short/long.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.

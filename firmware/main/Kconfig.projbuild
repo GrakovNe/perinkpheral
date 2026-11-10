@@ -64,40 +64,6 @@ menu "perINKpheral"
                 2 MHz is what the bench was verified at. Faster has not
                 been tried with the per-byte CS the panel needs.
 
-        config APP_EPD_MIN_DATA_S
-            int "Least seconds between data-driven refreshes"
-            range 1 3600
-            default 60
-            help
-                How often the panel may be refreshed when nobody pressed
-                anything: a poll result, a clock. 60 lets a clock show
-                minutes. Waveshare's own advice is 180 and every refresh
-                wears the panel (it is rated for a million), so raise this
-                to trade a livelier screen for a longer-lived one.
-
-        config APP_EPD_MIN_BUTTON_MS
-            int "Least milliseconds between refreshes caused by a button"
-            range 0 60000
-            default 0
-            help
-                A press is the user looking at the device: it is redrawn at
-                once. The panel's own refresh time is the only limit.
-
-        config APP_EPD_FULL_EVERY_N
-            int "Full refresh after this many partial ones"
-            range 1 50
-            default 5
-            help
-                Partial refreshes leave ghosts. Waveshare: a full refresh
-                after "several" partial ones; their FAQ clears after 5.
-
-        config APP_EPD_KEEPALIVE_H
-            int "Hours without a refresh before one is forced"
-            range 1 168
-            default 24
-            help
-                Waveshare: refresh at least once every 24 hours.
-
     endmenu
 
     menu "Buttons"

@@ -19,8 +19,9 @@ extern "C" {
 /* The panel as a service. It keeps a copy of the frame the panel shows,
  * so whoever draws needs a buffer of its own and hands it over whole;
  * the service decides whether the panel is touched at all and how. A
- * keep-alive task does the daily refresh. */
-void display_start(void);
+ * keep-alive task does the refresh that is due when nothing else was.
+ * `policy` is how the panel is to be treated; it is copied. */
+void display_start(const refresh_policy_cfg_t *policy);
 
 typedef enum {
     DISPLAY_SHOWN,     /* the panel was refreshed with the frame */

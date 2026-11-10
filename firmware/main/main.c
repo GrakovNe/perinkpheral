@@ -61,7 +61,13 @@ void app_main(void)
      * network. */
     events_start();
     timers_start();
-    display_start();
+    const refresh_policy_cfg_t refresh_policy = {
+        .min_data_ms = cfg->refresh_min_data_s * 1000u,
+        .min_button_ms = cfg->refresh_min_button_ms,
+        .full_every = cfg->refresh_full_every,
+        .keepalive_ms = cfg->refresh_keepalive_h * 3600u * 1000u,
+    };
+    display_start(&refresh_policy);
     buttons_start(on_button_pressed);
     sysinfo_start(cfg->device_name);
     storage_start();

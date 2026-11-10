@@ -31,12 +31,7 @@ static bool              s_shown_is_on_panel;
 static refresh_policy_t  s_policy;
 static SemaphoreHandle_t s_lock;
 
-static const refresh_policy_cfg_t s_cfg = {
-    .min_data_ms = CONFIG_APP_EPD_MIN_DATA_S * 1000u,
-    .min_button_ms = CONFIG_APP_EPD_MIN_BUTTON_MS,
-    .full_every = CONFIG_APP_EPD_FULL_EVERY_N,
-    .keepalive_ms = CONFIG_APP_EPD_KEEPALIVE_H * 3600u * 1000u,
-};
+static refresh_policy_cfg_t s_cfg;
 
 static int64_t now_ms(void)
 {
@@ -83,8 +78,9 @@ static void keepalive_task(void *arg)
     }
 }
 
-void display_start(void)
+void display_start(const refresh_policy_cfg_t *policy)
 {
+    s_cfg = *policy;
     memset(s_shown, WHITE_BYTE, sizeof s_shown);
     s_shown_is_on_panel = false;
     refresh_policy_init(&s_policy);

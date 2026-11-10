@@ -122,6 +122,10 @@ void appconf_defaults(appconf_t *c, const char device_id[5])
     appconf_default_name(device_id, c->device_name, sizeof c->device_name);
     snprintf(c->ntp_server, sizeof c->ntp_server, "%s", APPCONF_NTP_DEFAULT);
     snprintf(c->tz, sizeof c->tz, "%s", APPCONF_TZ_DEFAULT);
+    c->refresh_min_data_s = APPCONF_REFRESH_MIN_DATA_S_DEFAULT;
+    c->refresh_min_button_ms = APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT;
+    c->refresh_full_every = APPCONF_REFRESH_FULL_EVERY_DEFAULT;
+    c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;
     appconf_derive(c, device_id);
 }
 
@@ -180,6 +184,26 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
 
     if (!str_fits(c->tz, APPCONF_TZ_MAX) || !tz_ok(c->tz)) {
         BAD("Time zone must be a POSIX TZ string (max %d).", APPCONF_TZ_MAX);
+    }
+
+    if (c->refresh_min_data_s < APPCONF_REFRESH_MIN_DATA_S_LEAST ||
+        c->refresh_min_data_s > APPCONF_REFRESH_MIN_DATA_S_MOST) {
+        BAD("Seconds between refreshes must be %d-%d.", APPCONF_REFRESH_MIN_DATA_S_LEAST,
+            APPCONF_REFRESH_MIN_DATA_S_MOST);
+    }
+    if (c->refresh_min_button_ms > APPCONF_REFRESH_MIN_BUTTON_MS_MOST) {
+        BAD("The pause before answering a press must be at most %d ms.",
+            APPCONF_REFRESH_MIN_BUTTON_MS_MOST);
+    }
+    if (c->refresh_full_every < APPCONF_REFRESH_FULL_EVERY_LEAST ||
+        c->refresh_full_every > APPCONF_REFRESH_FULL_EVERY_MOST) {
+        BAD("Partial refreshes before a full one must be %d-%d.",
+            APPCONF_REFRESH_FULL_EVERY_LEAST, APPCONF_REFRESH_FULL_EVERY_MOST);
+    }
+    if (c->refresh_keepalive_h < APPCONF_REFRESH_KEEPALIVE_H_LEAST ||
+        c->refresh_keepalive_h > APPCONF_REFRESH_KEEPALIVE_H_MOST) {
+        BAD("Hours before a forced refresh must be %d-%d.", APPCONF_REFRESH_KEEPALIVE_H_LEAST,
+            APPCONF_REFRESH_KEEPALIVE_H_MOST);
     }
 
     return true;

@@ -148,8 +148,46 @@ static void test_validate_ntp_tz(void)
     CHECK(!appconf_validate(&c, err, sizeof err));
 }
 
+static void test_refresh_policy_settings(void)
+{
+    appconf_t c;
+    char err[128];
+    appconf_defaults(&c, ID);
+    CHECK(c.refresh_min_data_s == 60 && c.refresh_min_button_ms == 0);
+    CHECK(c.refresh_full_every == 5 && c.refresh_keepalive_h == 24);
+    CHECK(appconf_validate(&c, err, sizeof err));
+
+    /* each number has a range, and its ends are inside it */
+    c.refresh_min_data_s = 9;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_min_data_s = 10;
+    CHECK(appconf_validate(&c, err, sizeof err));
+    c.refresh_min_data_s = 3601;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_min_data_s = 3600;
+
+    c.refresh_min_button_ms = 10001;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_min_button_ms = 10000;
+    CHECK(appconf_validate(&c, err, sizeof err));
+
+    c.refresh_full_every = 0;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_full_every = 51;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_full_every = 50;
+
+    c.refresh_keepalive_h = 0;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_keepalive_h = 169;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_keepalive_h = 168;
+    CHECK(appconf_validate(&c, err, sizeof err));
+}
+
 int main(void)
 {
+    test_refresh_policy_settings();
     test_device_id();
     test_hostname();
     test_defaults();

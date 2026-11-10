@@ -21,6 +21,21 @@ extern "C" {
 #define APPCONF_NTP_DEFAULT     "pool.ntp.org"
 #define APPCONF_TZ_DEFAULT      "UTC0"
 
+/* The panel's defaults and the range a user may move them in. 60 s lets a
+ * clock show minutes; Waveshare's own advice is 180, and every refresh
+ * wears the panel, which is rated for a million. */
+#define APPCONF_REFRESH_MIN_DATA_S_DEFAULT    60
+#define APPCONF_REFRESH_MIN_DATA_S_LEAST      10
+#define APPCONF_REFRESH_MIN_DATA_S_MOST       3600
+#define APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT 0
+#define APPCONF_REFRESH_MIN_BUTTON_MS_MOST    10000
+#define APPCONF_REFRESH_FULL_EVERY_DEFAULT    5
+#define APPCONF_REFRESH_FULL_EVERY_LEAST      1
+#define APPCONF_REFRESH_FULL_EVERY_MOST       50
+#define APPCONF_REFRESH_KEEPALIVE_H_DEFAULT   24
+#define APPCONF_REFRESH_KEEPALIVE_H_LEAST     1
+#define APPCONF_REFRESH_KEEPALIVE_H_MOST      168
+
 /* Everything a user can set. Pure: no ESP-IDF, host-tested. The network
  * fields are here from day one so that NVS keys never have to move. */
 typedef struct {
@@ -29,6 +44,12 @@ typedef struct {
     char wifi_password[APPCONF_PASS_MAX + 1];
     char ntp_server[APPCONF_HOST_MAX + 1];
     char tz[APPCONF_TZ_MAX + 1]; /* POSIX TZ string, "MSK-3" */
+
+    /* How the panel is treated: see refresh_policy.h. */
+    uint16_t refresh_min_data_s;    /* least seconds between refreshes nobody asked for */
+    uint16_t refresh_min_button_ms; /* least pause before answering a press */
+    uint8_t  refresh_full_every;    /* partial refreshes before a full one */
+    uint8_t  refresh_keepalive_h;   /* hours without a refresh before one is forced */
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

@@ -21,6 +21,10 @@ static const char *TAG = "settings";
 #define KEY_NTP     "ntp"
 #define KEY_TZ      "tz"
 #define KEY_LAST_APP "last_app"
+#define KEY_REFRESH_DATA   "rf_data"
+#define KEY_REFRESH_BUTTON "rf_button"
+#define KEY_REFRESH_FULL   "rf_full"
+#define KEY_REFRESH_KEEP   "rf_keep"
 
 void settings_nvs_init(void)
 {
@@ -73,6 +77,11 @@ void settings_load(appconf_t *c, const char device_id[5])
     get_str(h, KEY_WPASS, c->wifi_password, sizeof c->wifi_password);
     get_str(h, KEY_NTP, c->ntp_server, sizeof c->ntp_server);
     get_str(h, KEY_TZ, c->tz, sizeof c->tz);
+    /* A key that is not there leaves the default in place. */
+    nvs_get_u16(h, KEY_REFRESH_DATA, &c->refresh_min_data_s);
+    nvs_get_u16(h, KEY_REFRESH_BUTTON, &c->refresh_min_button_ms);
+    nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
+    nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -104,6 +113,10 @@ esp_err_t settings_save(const appconf_t *c)
     PUT(nvs_set_str(h, KEY_WPASS, c->wifi_password));
     PUT(nvs_set_str(h, KEY_NTP, c->ntp_server));
     PUT(nvs_set_str(h, KEY_TZ, c->tz));
+    PUT(nvs_set_u16(h, KEY_REFRESH_DATA, c->refresh_min_data_s));
+    PUT(nvs_set_u16(h, KEY_REFRESH_BUTTON, c->refresh_min_button_ms));
+    PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
+    PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
     PUT(nvs_commit(h));
 #undef PUT
 
