@@ -138,7 +138,7 @@ void host_run(void)
             on_button(&wm, event.button.index, event.button.long_press);
             break;
         case EVENT_TIMER:
-            if (timers_is_current(event.timer.id, event.timer.generation)) {
+            if (timers_take_due(event.timer.id)) {
                 wm_timer(&wm, event.timer.id);
             }
             break;

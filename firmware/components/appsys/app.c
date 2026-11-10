@@ -67,6 +67,15 @@ static bool copy_text(IM3Runtime runtime, void *memory, uint32_t offset, int32_t
     return true;
 }
 
+/* Far beyond any surface, and small enough that sums of two of them
+ * cannot overflow: a coordinate or a size outside it is refused. */
+#define COORDINATE_LIMIT 4096
+
+static bool is_drawable(int32_t coordinate)
+{
+    return coordinate >= -COORDINATE_LIMIT && coordinate <= COORDINATE_LIMIT;
+}
+
 #define APP_OF(runtime) ((app_t *)m3_GetUserData(runtime))
 
 /* An import the way wasm3 calls it, for the m3Api* macros to work on. Not
@@ -105,7 +114,8 @@ HOST_FUNCTION(host_gfx_text)
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
-    if (font == NULL || !copy_text(runtime, _mem, text, length, terminated)) {
+    if (font == NULL || !is_drawable(x) || !is_drawable(y) ||
+        !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(gfx_text_font(app->surface, x, y + font->ascent, font, terminated, true));
@@ -147,6 +157,9 @@ HOST_FUNCTION(host_gfx_rect)
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
+    if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || !is_drawable(height)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
     if (fill == HOST_RECT_FILLED) {
         gfx_fill(app->surface, x, y, width, height, true);
     } else {
@@ -167,6 +180,9 @@ HOST_FUNCTION(host_gfx_line)
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
+    if (!is_drawable(x0) || !is_drawable(y0) || !is_drawable(x1) || !is_drawable(y1)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
     gfx_line(app->surface, x0, y0, x1, y1);
     m3ApiReturn(HOST_OK);
 }
@@ -185,7 +201,8 @@ HOST_FUNCTION(host_gfx_bitmap)
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
     /* Bounded by the surface first, so that the size below cannot overflow. */
-    if (width <= 0 || height <= 0 || width > app->surface->w || height > app->surface->h) {
+    if (!is_drawable(x) || !is_drawable(y) || width <= 0 || height <= 0 ||
+        width > app->surface->w || height > app->surface->h) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     int32_t bytes_per_row = (width + 7) / 8;
@@ -267,6 +284,111 @@ static const struct {
 };
 #define HOST_API_COUNT (sizeof HOST_API / sizeof HOST_API[0])
 
+static bool is_offered(const uint8_t *module_name, uint32_t module_length,
+                       const uint8_t *field_name, uint32_t field_length)
+{
+    if (module_length != strlen(HOST_MODULE) ||
+        memcmp(module_name, HOST_MODULE, module_length) != 0) {
+        return false;
+    }
+    for (size_t i = 0; i < HOST_API_COUNT; i++) {
+        if (field_length == strlen(HOST_API[i].name) &&
+            memcmp(field_name, HOST_API[i].name, field_length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* A reader over the module's bytes that cannot run off their end: past
+ * it everything reads as zero and `failed` is set. */
+typedef struct {
+    const uint8_t *next;
+    const uint8_t *end;
+    bool           failed;
+} wasm_reader_t;
+
+static uint8_t read_byte(wasm_reader_t *reader)
+{
+    if (reader->next >= reader->end) {
+        reader->failed = true;
+        return 0;
+    }
+    return *reader->next++;
+}
+
+#define LEB_PAYLOAD_BITS 7
+#define LEB_MORE_FLAG    0x80
+#define LEB_U32_MAX_BYTES 5
+
+static uint32_t read_leb_u32(wasm_reader_t *reader)
+{
+    uint32_t value = 0;
+    for (int index = 0; index < LEB_U32_MAX_BYTES; index++) {
+        uint8_t byte = read_byte(reader);
+        value |= (uint32_t)(byte & ~LEB_MORE_FLAG) << (index * LEB_PAYLOAD_BITS);
+        if ((byte & LEB_MORE_FLAG) == 0) {
+            return value;
+        }
+    }
+    reader->failed = true;
+    return 0;
+}
+
+/* A length-prefixed name; NULL when it does not fit in what is left. */
+static const uint8_t *read_name(wasm_reader_t *reader, uint32_t *length)
+{
+    *length = read_leb_u32(reader);
+    if (reader->failed || *length > (size_t)(reader->end - reader->next)) {
+        reader->failed = true;
+        return NULL;
+    }
+    const uint8_t *name = reader->next;
+    reader->next += *length;
+    return name;
+}
+
+#define WASM_HEADER_BYTES    8
+#define WASM_SECTION_IMPORT  2
+#define WASM_IMPORT_FUNCTION 0
+
+/* True when everything the module imports is a function of the host API.
+ * The interpreter would load a module that imports something else and
+ * trap only when it is called; an application that does not keep to the
+ * contract is refused before it runs at all. */
+static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size)
+{
+    if (wasm_size < WASM_HEADER_BYTES) {
+        return false;
+    }
+    wasm_reader_t reader = { wasm + WASM_HEADER_BYTES, wasm + wasm_size, false };
+    while (reader.next < reader.end) {
+        uint8_t section = read_byte(&reader);
+        uint32_t section_size = read_leb_u32(&reader);
+        if (reader.failed || section_size > (size_t)(reader.end - reader.next)) {
+            return false;
+        }
+        if (section != WASM_SECTION_IMPORT) {
+            reader.next += section_size;
+            continue;
+        }
+        uint32_t import_count = read_leb_u32(&reader);
+        for (uint32_t i = 0; i < import_count && !reader.failed; i++) {
+            uint32_t module_length, field_length;
+            const uint8_t *module_name = read_name(&reader, &module_length);
+            const uint8_t *field_name = read_name(&reader, &field_length);
+            uint8_t kind = read_byte(&reader);
+            read_leb_u32(&reader); /* the function's type */
+            if (reader.failed || kind != WASM_IMPORT_FUNCTION ||
+                !is_offered(module_name, module_length, field_name, field_length)) {
+                return false;
+            }
+        }
+        return !reader.failed;
+    }
+    return true;
+}
+
 /* False when the module declares one of these with another signature. A
  * function the module does not import is simply not linked. */
 static bool link_host_api(IM3Module module)
@@ -306,38 +428,47 @@ static void note_result(app_t *app, M3Result result)
         }                                                                \
     } while (0)
 
-app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_services_t *services,
-                           app_t **loaded)
+/* Builds the runtime and loads the module into it; the application is
+ * left for app_unload() whatever happens. */
+static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t wasm_size)
 {
-    app_t *app = calloc(1, sizeof *app);
-    if (app == NULL) {
-        return APP_ERR_NO_MEMORY;
-    }
-    app->services = services;
     app->environment = m3_NewEnvironment();
     app->runtime = app->environment != NULL
                        ? m3_NewRuntime(app->environment, INTERPRETER_STACK_BYTES, app)
                        : NULL;
     if (app->runtime == NULL) {
-        app_unload(app);
         return APP_ERR_NO_MEMORY;
     }
 
     IM3Module module = NULL;
     if (m3_ParseModule(app->environment, &module, wasm, (uint32_t)wasm_size) != m3Err_none) {
-        app_unload(app);
         return APP_ERR_BAD_MODULE;
     }
     M3Result load_result = m3_LoadModule(app->runtime, module);
     if (load_result != m3Err_none) {
         /* Until it is loaded the module is ours to free. */
         m3_FreeModule(module);
-        app_unload(app);
         return load_result == m3Err_mallocFailed ? APP_ERR_NO_MEMORY : APP_ERR_BAD_MODULE;
     }
-    if (!link_host_api(module)) {
-        app_unload(app);
+    return link_host_api(module) ? APP_OK : APP_ERR_BAD_MODULE;
+}
+
+app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_services_t *services,
+                           app_t **loaded)
+{
+    *loaded = NULL;
+    if (!imports_only_host_api(wasm, wasm_size)) {
         return APP_ERR_BAD_MODULE;
+    }
+    app_t *app = calloc(1, sizeof *app);
+    if (app == NULL) {
+        return APP_ERR_NO_MEMORY;
+    }
+    app->services = services;
+    app_load_result_t result = load_module(app, wasm, wasm_size);
+    if (result != APP_OK) {
+        app_unload(app);
+        return result;
     }
 
     app->on_focus = find_export(app, "app_on_focus");
@@ -353,6 +484,9 @@ app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_serv
 
 void app_unload(app_t *app)
 {
+    if (app == NULL) {
+        return;
+    }
     if (app->runtime != NULL) {
         m3_FreeRuntime(app->runtime);
     }

@@ -33,13 +33,16 @@ typedef struct app app_t;
 typedef enum {
     APP_OK,
     APP_ERR_NO_MEMORY,
-    APP_ERR_BAD_MODULE, /* not wasm, or it wants more than one page of memory */
+    APP_ERR_BAD_MODULE, /* not wasm, more than one page of memory, or an import
+                           the host API does not have */
 } app_load_result_t;
 
-/* wasm must stay where it is until app_unload(). Runs app_init(). */
+/* wasm must stay where it is until app_unload(). Runs app_init(). On
+ * failure *loaded is NULL. */
 app_load_result_t app_load(const uint8_t *wasm, size_t wasm_size, const app_services_t *services,
                            app_t **loaded);
 
+/* NULL is fine. */
 void app_unload(app_t *app);
 
 /* The application's handlers. A missing export is skipped. One that traps

@@ -184,7 +184,7 @@ app_on_draw()                       // paint the whole picture from the state
 app_on_data(req_id, ptr, len, flags)   // milestone 2
 ```
 - **An application draws only inside `app_on_draw()`.** Handlers change the state and call `request_redraw()`; the host calls `app_on_draw()` when it needs the frame, with a white surface, and the `gfx_*` calls answer with an error anywhere else. The host puts the frame together, compares it with what the panel shows and decides whether and how the panel is refreshed - so there is no `gfx_flush`, no partial-or-full choice in the application's hands, and an application cannot leave a half-drawn screen.
-- **The module is not trusted.** Every pointer and length it passes is checked against its 64 KB before the host touches it; a handler that traps stops the application, and the screen says so.
+- **The module is not trusted.** One that imports anything outside the host API is refused before it runs. Every pointer and length it passes is checked against its 64 KB before the host touches it, and coordinates and sizes beyond a few thousand pixels are refused, so that no call can cost more than the surface is large. A handler that traps stops the application, and the screen says so.
 - **No C library.** Applications are linked with `-nostdlib` against `sdk/lib`, a few hundred bytes of string building and the `memcpy` family; `printf` alone would take a quarter of the 64 KB. `hello` is 878 bytes.
 - Time: SNTP on every Wi-Fi connection, the time zone is a host setting.
 

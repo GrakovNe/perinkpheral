@@ -106,9 +106,15 @@ bool gfx_get(const gfx_t *g, int x, int y)
 
 void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black)
 {
-    for (int j = y; j < y + h; j++) {
-        for (int i = x; i < x + w; i++) {
-            gfx_pixel(g, i, j, black);
+    /* Cut to what can be seen first: the cost is then the surface's, not
+     * the rectangle's, however large a caller makes it. */
+    int left = imax(x, g->clip_x0 - g->origin_x);
+    int top = imax(y, g->clip_y0 - g->origin_y);
+    int right = imin(x + w, g->clip_x1 - g->origin_x);
+    int bottom = imin(y + h, g->clip_y1 - g->origin_y);
+    for (int row = top; row < bottom; row++) {
+        for (int column = left; column < right; column++) {
+            gfx_pixel(g, column, row, black);
         }
     }
 }

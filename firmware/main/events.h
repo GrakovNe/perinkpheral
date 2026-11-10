@@ -28,8 +28,7 @@ typedef struct {
         bool    long_press;
     } button;
     struct {
-        uint8_t  id;
-        uint32_t generation; /* see timers_is_current() */
+        uint8_t id;
     } timer;
 } event_t;
 

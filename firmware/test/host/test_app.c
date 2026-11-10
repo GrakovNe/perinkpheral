@@ -21,6 +21,8 @@
 #define ROW_TIMER         2
 #define ROW_NOT_DRAWING   4
 #define ROW_BAD_ARGUMENTS 6
+#define ROW_MEASURES      8
+#define ROW_MORE_REFUSALS 10
 #define ROW_BITMAP        12
 #define ROW_LINE          14
 #define ROW_TEXT          20
@@ -157,6 +159,28 @@ static void test_refusals(void)
     app_unload(app);
 }
 
+static void test_measures_and_time(void)
+{
+    app_t *app = load_probe();
+    draw(app);
+    /* text width adds up, a font has a height, both clocks answer */
+    CHECK(black_in_row(ROW_MEASURES) == 4);
+    app_unload(app);
+}
+
+static void test_more_refusals(void)
+{
+    app_t *app = load_probe();
+    draw(app);
+    /* a timer that does not exist, a negative delay, bits outside the
+     * memory, a negative length, a rectangle and a line of two thousand
+     * million pixels: six refusals; and text too long is cut to the limit */
+    CHECK(black_in_row(ROW_MORE_REFUSALS) == 7);
+    /* none of the refused timers reached the device */
+    CHECK(timer_set_id == -1);
+    app_unload(app);
+}
+
 static void test_trap_stops_the_application(void)
 {
     app_t *app = load_probe();
@@ -189,6 +213,28 @@ static void test_bad_modules(void)
                                          0x05, 0x03, 0x01, 0x00, 0x02 };
     CHECK(app_load(two_pages, sizeof two_pages, &SERVICES, &app) == APP_ERR_BAD_MODULE);
     CHECK(app == NULL);
+
+    /* (module (type (func)) (import "host" "evil" (func (type 0)))) */
+    static const uint8_t unknown_import[] = { 0x00, 'a',  's',  'm',  0x01, 0x00, 0x00, 0x00,
+                                              0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x02, 0x0D,
+                                              0x01, 0x04, 'h',  'o',  's',  't',  0x04, 'e',
+                                              'v',  'i',  'l',  0x00, 0x00 };
+    CHECK(app_load(unknown_import, sizeof unknown_import, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+
+    /* a name the host has, asked of another module */
+    static const uint8_t other_module[] = { 0x00, 'a',  's',  'm',  0x01, 0x00, 0x00, 0x00,
+                                            0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x02, 0x12,
+                                            0x01, 0x03, 'e',  'n',  'v',  0x0A, 'g',  'f',
+                                            'x',  '_',  'h',  'e',  'i',  'g',  'h',  't',
+                                            0x00, 0x00 };
+    CHECK(app_load(other_module, sizeof other_module, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+
+    /* an import section that says it is longer than the file */
+    static const uint8_t lying_section[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00,
+                                             0x02, 0x7F, 0x01 };
+    CHECK(app_load(lying_section, sizeof lying_section, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+
+    app_unload(NULL); /* allowed */
 }
 
 int main(void)
@@ -198,6 +244,8 @@ int main(void)
     test_timer();
     test_drawing();
     test_refusals();
+    test_measures_and_time();
+    test_more_refusals();
     test_trap_stops_the_application();
     test_bad_modules();
     REPORT();
