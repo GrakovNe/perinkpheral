@@ -49,6 +49,11 @@ refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
                                      const refresh_policy_cfg_t *cfg,
                                      refresh_reason_t why, int64_t now_ms);
 
+/* How long until refresh_policy_decide() stops answering REFRESH_NONE for
+ * this reason; 0 when it would refresh now. */
+uint32_t refresh_policy_wait_ms(const refresh_policy_t *p, const refresh_policy_cfg_t *cfg,
+                                refresh_reason_t why, int64_t now_ms);
+
 /* Call with what was actually done. */
 void refresh_policy_note(refresh_policy_t *p, refresh_kind_t kind, int64_t now_ms);
 

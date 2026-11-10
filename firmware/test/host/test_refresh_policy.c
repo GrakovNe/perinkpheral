@@ -94,8 +94,29 @@ static void test_keepalive(void)
     CHECK(go(&p, REFRESH_FOR_KEEPALIVE, 2 * day) == REFRESH_NONE);
 }
 
+static void test_wait(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    /* nothing shown yet: any reason goes out at once */
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_DATA, 0) == 0);
+    go(&p, REFRESH_FOR_DATA, 10000);
+
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_DATA, 10000) == 180 * 1000);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_DATA, 70000) == 120 * 1000);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_BUTTON, 11000) == 1000);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_SWITCH, 10001) == 0);
+
+    /* it agrees with the decision on both sides of the moment */
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_DATA, 189999) == 1);
+    CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_DATA, 189999) == REFRESH_NONE);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_DATA, 190000) == 0);
+    CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_DATA, 190000) != REFRESH_NONE);
+}
+
 int main(void)
 {
+    test_wait();
     test_first_is_full();
     test_data_interval();
     test_button_interval();

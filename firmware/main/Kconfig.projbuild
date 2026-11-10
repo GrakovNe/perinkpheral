@@ -1,5 +1,13 @@
 menu "perINKpheral"
 
+    config APP_DEV_CONSOLE
+        bool "Development console on USB (presses and frame dumps)"
+        default y
+        help
+            Single characters typed into the USB console press buttons and
+            print the frame the panel shows, so the device can be driven
+            and looked at without hands on it. Turn it off for a release.
+
     menu "Board"
 
         config APP_ANTENNA_EXTERNAL

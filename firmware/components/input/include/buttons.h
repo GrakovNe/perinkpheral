@@ -15,15 +15,11 @@ extern "C" {
 
 #define BUTTONS_COUNT 4
 
-typedef struct {
-    uint8_t     index; /* 0..3 */
-    btn_event_t event; /* BTN_SHORT or BTN_LONG */
-} buttons_event_t;
+/* Called from the buttons task for every press: index 0..3, BTN_SHORT or
+ * BTN_LONG. It must not block. */
+typedef void (*buttons_sink_fn)(uint8_t index, btn_event_t event);
 
-void buttons_start(void);
-
-/* Blocks up to timeout_ms (UINT32_MAX: forever) for the next event. */
-bool buttons_wait(buttons_event_t *ev, uint32_t timeout_ms);
+void buttons_start(buttons_sink_fn sink);
 
 #ifdef __cplusplus
 }

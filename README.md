@@ -9,7 +9,7 @@ The name is `perinkpheral` in code, repositories and domains and
 device, ink.
 
 **Status: a working prototype with a test firmware.** The hardware is
-assembled and verified; the firmware today is a bench demo. The
+assembled and verified; the firmware today is the host without applications. The
 operating system described below is being built - see
 [Roadmap](#roadmap) for what exists and what does not.
 
@@ -151,10 +151,10 @@ idf.py -p <port> flash
 The port is `/dev/ttyACM*` on Linux and `/dev/cu.usbmodem*` on macOS.
 If the board does not answer, hold BOOT while plugging it in.
 
-What you get today is the built-in demo: a splash screen, then a menu
-(button 1 up, 3 down, 2 open; a long press on button 4 returns to it
-from anywhere) with two pages - a device page with the name, firmware
-version and free memory, and the splash.
+What you get today is the host without applications: a splash screen,
+then a menu (button 1 up, 2 ok, 3 down, 4 back; a long press on button
+4 returns to the menu from anywhere) with two pages - a device page
+with the name, firmware version and free memory, and the splash.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -177,7 +177,7 @@ early draft and will change before the first application runs.
 ## Roadmap
 
 Done: the display driver, the refresh policy, buttons with short and
-long presses, drawing and fonts, the splash and the bench demo, host
+long presses, drawing and fonts, the host kernel with a menu and built-in pages, host
 tests.
 
 1. **Applications without the network.** The wasm runtime, the host
@@ -202,13 +202,14 @@ Version 1 is ASCII only; other scripts are a task for version 2.
 
 ```
 firmware/              the ESP-IDF project
-  main/                entry point, settings, the bench demo
-  components/          board, epd (panel driver), gfx, input, appconf
+  main/                entry point, host loop, scenes, views, services
+  components/          board, epd (panel and display service), gfx, input, ui, appconf
   test/host/           host tests of the pure modules
 sdk/
   host_api.h           the contract between host and applications (draft)
 tools/
   preview/             renders the host's screens to PNG without the device
+  devshot/             presses buttons on a real device over USB and saves its frame
   fontgen/             TTF -> 1-bit bitmap font header
 assets/fonts/          Departure Mono (SIL OFL 1.1), the UI font, and its license
 hardware/              the panel notes, the BOM and assembly page, the case model

@@ -4,6 +4,8 @@
  */
 #include "display.h"
 
+#include <string.h>
+
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -13,12 +15,19 @@
 
 #include "epd.h"
 
+_Static_assert(DISPLAY_WIDTH == EPD_W && DISPLAY_HEIGHT == EPD_H,
+               "the display service is sized for this panel");
+
 static const char *TAG = "display";
 
 #define KEEPALIVE_CHECK_MS (60 * 1000)
+#define WHITE_BYTE         0xFF
 
-static uint8_t           s_fb[EPD_FB_SIZE];
-static gfx_t             s_gfx;
+static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
+/* False after a reset and after a failed refresh: the panel holds
+ * something else than s_shown, so the next frame goes out even when it
+ * looks unchanged. */
+static bool              s_shown_is_on_panel;
 static refresh_policy_t  s_policy;
 static SemaphoreHandle_t s_lock;
 
@@ -34,19 +43,47 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
+/* Asks the policy and drives the panel. REFRESH_NONE: the policy said
+ * not now. Call with the lock held. */
+static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, esp_err_t *err)
+{
+    int64_t started_ms = now_ms();
+    refresh_kind_t kind = refresh_policy_decide(&s_policy, &s_cfg, why, started_ms);
+    if (kind == REFRESH_NONE) {
+        return kind;
+    }
+    *err = kind == REFRESH_FULL ? epd_show_full(frame) : epd_show_partial(frame);
+    int64_t finished_ms = now_ms();
+    refresh_policy_note(&s_policy, kind, finished_ms);
+
+    const char *kind_name = kind == REFRESH_FULL ? "full" : "partial";
+    long long took_ms = (long long)(finished_ms - started_ms);
+    if (*err == ESP_OK) {
+        ESP_LOGI(TAG, "%s refresh, %lld ms", kind_name, took_ms);
+    } else {
+        ESP_LOGW(TAG, "%s refresh: %s after %lld ms", kind_name, esp_err_to_name(*err), took_ms);
+    }
+    return kind;
+}
+
 static void keepalive_task(void *arg)
 {
     (void)arg;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(KEEPALIVE_CHECK_MS));
-        display_present(REFRESH_FOR_KEEPALIVE);
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        esp_err_t err = ESP_OK;
+        if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
+            s_shown_is_on_panel = err == ESP_OK;
+        }
+        xSemaphoreGive(s_lock);
     }
 }
 
 void display_start(void)
 {
-    gfx_init(&s_gfx, s_fb, EPD_W, EPD_H);
-    gfx_clear(&s_gfx, false);
+    memset(s_shown, WHITE_BYTE, sizeof s_shown);
+    s_shown_is_on_panel = false;
     refresh_policy_init(&s_policy);
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
@@ -66,31 +103,38 @@ void display_start(void)
     configASSERT(ok == pdPASS);
 }
 
-gfx_t *display_gfx(void)
+display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
 {
-    return &s_gfx;
+    display_result_t result;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (s_shown_is_on_panel && memcmp(s_shown, frame, sizeof s_shown) == 0) {
+        result = DISPLAY_UNCHANGED;
+    } else {
+        esp_err_t err = ESP_OK;
+        if (refresh_panel(frame, why, &err) == REFRESH_NONE) {
+            result = DISPLAY_DEFERRED;
+        } else if (err != ESP_OK) {
+            s_shown_is_on_panel = false;
+            result = DISPLAY_FAILED;
+        } else {
+            memcpy(s_shown, frame, sizeof s_shown);
+            s_shown_is_on_panel = true;
+            result = DISPLAY_SHOWN;
+        }
+    }
+    xSemaphoreGive(s_lock);
+    return result;
 }
 
-bool display_present(refresh_reason_t why)
+uint32_t display_wait_ms(refresh_reason_t why)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    int64_t t0 = now_ms();
-    refresh_kind_t kind = refresh_policy_decide(&s_policy, &s_cfg, why, t0);
-    if (kind == REFRESH_NONE) {
-        xSemaphoreGive(s_lock);
-        return false;
-    }
-    esp_err_t err = kind == REFRESH_FULL ? epd_show_full(s_fb) : epd_show_partial(s_fb);
-    int64_t t1 = now_ms();
-    refresh_policy_note(&s_policy, kind, t1);
+    uint32_t wait_ms = refresh_policy_wait_ms(&s_policy, &s_cfg, why, now_ms());
     xSemaphoreGive(s_lock);
+    return wait_ms;
+}
 
-    const char *name = kind == REFRESH_FULL ? "full" : "partial";
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "%s refresh, %lld ms", name, (long long)(t1 - t0));
-    } else {
-        ESP_LOGW(TAG, "%s refresh: %s after %lld ms", name, esp_err_to_name(err),
-                 (long long)(t1 - t0));
-    }
-    return true;
+const uint8_t *display_shown_frame(void)
+{
+    return s_shown;
 }

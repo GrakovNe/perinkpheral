@@ -21,10 +21,11 @@ SRCS = [
     os.path.join(ROOT, "tools", "preview", "preview.c"),
     os.path.join(FW, "components", "gfx", "gfx.c"),
     os.path.join(FW, "components", "gfx", "font_square.c"),
+    os.path.join(FW, "components", "ui", "wm.c"),
     os.path.join(FW, "main", "screens.c"),
 ]
 INCS = [os.path.join(FW, "components", "gfx", "include"), os.path.join(FW, "components", "gfx", "fonts"),
-        os.path.join(FW, "main")]
+        os.path.join(FW, "components", "ui", "include"), os.path.join(FW, "main")]
 SCALE = 2
 
 

@@ -8,17 +8,28 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
+#include "sdkconfig.h"
+
 #include "appconf.h"
 #include "board.h"
 #include "buttons.h"
-#include "demo.h"
+#include "devconsole.h"
 #include "display.h"
+#include "events.h"
+#include "host.h"
 #include "reset.h"
 #include "settings.h"
+#include "sysinfo.h"
 
 static const char *TAG = "main";
 
 static appconf_t s_cfg;
+
+/* Runs in the buttons task: only hands the press over to the host. */
+static void on_button_pressed(uint8_t index, btn_event_t press)
+{
+    events_post_button(index, press == BTN_LONG);
+}
 
 void app_main(void)
 {
@@ -42,11 +53,16 @@ void app_main(void)
 
     /* The screen and the buttons come first: the device works without a
      * network. */
+    events_start();
     display_start();
-    buttons_start();
+    buttons_start(on_button_pressed);
+    sysinfo_start(cfg->device_name);
+#ifdef CONFIG_APP_DEV_CONSOLE
+    devconsole_start();
+#endif
 
     /* The image booted and drives its hardware: good enough to keep. */
     esp_ota_mark_app_valid_cancel_rollback();
 
-    demo_run(cfg->device_name);
+    host_run();
 }

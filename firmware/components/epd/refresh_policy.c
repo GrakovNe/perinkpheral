@@ -40,6 +40,19 @@ refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
     return p->partials >= cfg->full_every ? REFRESH_FULL : REFRESH_PARTIAL;
 }
 
+uint32_t refresh_policy_wait_ms(const refresh_policy_t *p, const refresh_policy_cfg_t *cfg,
+                                refresh_reason_t why, int64_t now_ms)
+{
+    if (!p->shown || why == REFRESH_FOR_SWITCH) {
+        return 0;
+    }
+    int64_t least_gap_ms = why == REFRESH_FOR_KEEPALIVE ? (int64_t)cfg->keepalive_ms
+                           : why == REFRESH_FOR_BUTTON  ? (int64_t)cfg->min_button_ms
+                                                        : (int64_t)cfg->min_data_ms;
+    int64_t allowed_at_ms = p->last_ms + least_gap_ms;
+    return allowed_at_ms > now_ms ? (uint32_t)(allowed_at_ms - now_ms) : 0;
+}
+
 void refresh_policy_note(refresh_policy_t *p, refresh_kind_t kind, int64_t now_ms)
 {
     if (kind == REFRESH_NONE) {

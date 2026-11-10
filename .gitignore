@@ -15,9 +15,8 @@ firmware/managed_components/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/test/host/*.dSYM/
-firmware/test/host/test_appconf
-firmware/test/host/test_gfx
-firmware/test/host/test_btn_core
-firmware/test/host/test_refresh_policy
+firmware/test/host/test_*
+!firmware/test/host/test_*.c
+firmware/test/host/build/
 sdk/apps/*/*.wasm
 .DS_Store

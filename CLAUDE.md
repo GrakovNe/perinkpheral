@@ -90,7 +90,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 - A wasm application's arena is **exactly 64 KB** (one wasm page, there is nothing smaller), fixed for everyone. Build: `-Wl,--initial-memory=65536 -Wl,--max-memory=65536 -Wl,-z,stack-size=8192`; the host does not load a module with any other memory size.
 - **One** wasm instance in memory at any moment. Delivering data to an application that is not on the scene = unload the scene → load the owner → deliver → bring the scene back (100-300 ms).
 - An HTTP response body goes to the application as a stream, in 1-2 KB chunks, while TLS is open; the host never holds it whole. Peak budget: TLS ~45 KB + one instance ~80 KB + the host.
-- Framebuffer 400×300×1 bit = 15 KB, a single one, owned by the host (`components/epd/display.c`).
+- Two frames of 400×300×1 bit = 15 KB each: the back buffer the host draws into and the display service's copy of what the panel shows.
 
 ## Architecture
 
@@ -127,6 +127,26 @@ User settings (`settings`) are edited in the web UI, stored in NVS, substituted 
 - **Buttons** - the layout is the same everywhere in the host: 1 up, 2 ok, 3 down, 4 back. Applications are encouraged to keep it.
 - **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2, button 4 goes back to where the menu was opened from). All other button events go to the application on the scene.
 - **Preemption** - `request_focus()` from an application that received data in the background. Protection against a war for the screen: no more than one preemption per N seconds (30 by default), priority from the manifest on a conflict, a long press on button 4 always returns control to the user.
+
+### Host kernel
+The host is layers, and each knows only the ones under it:
+
+| Layer | Where | What it does |
+|---|---|---|
+| Drivers | `components/epd` (`epd.c`), `components/input`, `components/board` | the panel, the buttons, the antenna switch |
+| Display service | `components/epd` (`display.c`, `refresh_policy.c`) | keeps a copy of the frame the panel shows; given a new frame it leaves the panel alone if nothing changed, refreshes it, or says "too soon" |
+| Graphics | `components/gfx` | draws on a surface: the whole frame or a viewport into it with its own origin and clipping |
+| Window manager | `components/ui` (`wm.c`) | which scene has the screen, how the user moves between scenes, how a frame is put together from the header and the scene's picture |
+| Scenes | `main/scene_*.c`, later the wasm application | tie a model to a view and decide what the buttons do, all behind one interface (`scene.h`): enter, leave, button, draw |
+| Views | `main/screens.c` | a struct in, pixels out; no hardware, rendered by `tools/preview` |
+| Services | `main/sysinfo.c`, `main/status.c`, settings; later network, time, polling | the data, with no idea that a screen exists |
+
+- **Two frames.** The back buffer (`host.c`) is where frames are put together; the display service holds the front copy of what the panel shows. Drawing never touches the panel, an unchanged frame costs no refresh, and a scene cannot spoil the screen halfway.
+- **Layers are areas of one frame**, not buffers of their own: the header and the content do not overlap. A scene that is not full-screen gets a viewport under the header and cannot draw outside it.
+- **A scene never refreshes anything.** It reports that its picture changed and draws when asked; the window manager passes on why the frame changed (a switch, a press, data), and the display service decides what the panel does.
+- **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
+- **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
+- **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons and print the frame the panel shows; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
 
 ### Header
 The host draws a header above its own screens and above every application that does not ask for the full screen:
@@ -207,13 +227,14 @@ TRMNL is a thin client: once per `refresh_rate` the device does `GET /api/displa
 ## Repository layout
 ```
 firmware/              the ESP-IDF project (build from this folder)
-  main/                entry point, settings (NVS), reset, screens (host screens), demo (bench)
+  main/                entry point, host loop, event queue, scenes, views (screens), services, settings (NVS)
   components/
     appconf/           the host settings struct, defaults, validate (pure)
     board/             what is not on the header: the antenna switch
-    epd/               SSD1683 driver + framebuffer + partial/full policy
+    epd/               SSD1683 driver + display service + partial/full policy
     gfx/               primitives, the square font, Departure Mono bitmaps (fonts/) (pure)
-    input/             buttons, debounce, short/long press, event queue
+    input/             buttons, debounce, short/long press
+    ui/                scene interface and the window manager (pure)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            wasm3 loader, arena, lifecycle, host API, focus (milestone 1)
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
@@ -229,7 +250,8 @@ sdk/
     trmnl/             TRMNL BYOS client: polls /api/display, parses JSON, downloads the picture, draws with gfx_bitmap
 tools/
   fontgen/             TTF → bitmap (ASCII)
-  preview/             renders the host's screens to PNG on the development machine - look before flashing
+  preview/             renders the host's views to PNG on the development machine - look before flashing
+  devshot/             presses buttons on a real device over USB and saves the frame its panel shows
   mkapp/               builds .wasm (wasi-sdk/clang) + validates the manifest (milestone 1)
   catalog/             generates catalog.json (milestone 5)
 assets/
@@ -255,7 +277,7 @@ hardware/              everything about the physical device
 5. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, firmware updates pulled from releases (`esp_https_ota`).
 
 ## State
-Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the splash and the built-in demo (`demo.c`: a menu over a device page and the splash; 1 up, 3 down, 2 open, a long press on button 4 returns to the menu - it stands in for the host menu until applications exist), host tests of the pure modules.
+Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with three built-in scenes - the menu, a device page and the splash; the menu lists them until there are applications to list, host tests of the pure modules.
 
 Open:
 - `sdk/host_api.h` is an old draft (a timer without an id, `host_log`, button events 0/1, `on_data` with the whole body). Rewrite it to the Host API of this file before the first line of `appsys`.
@@ -266,7 +288,7 @@ Open:
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-Next step - milestone 1: `host_api.h` → wasm3 → `components/appsys` → `tools/mkapp` + `sdk/apps/hello` → the host menu and `clock` (the splash and `demo.c` become host screens) → a check on battery without USB.
+Next step - milestone 1: `host_api.h` → wasm3 → `components/appsys` → `tools/mkapp` + `sdk/apps/hello` → a wasm scene behind the scene interface, `clock`, the menu listing installed applications → a check on battery without USB.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.

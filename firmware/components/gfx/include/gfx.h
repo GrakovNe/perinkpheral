@@ -51,6 +51,9 @@ void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black);
 /* A black rectangle outline of the given thickness, inside x,y,w,h. */
 void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness);
 
+/* A black line one pixel wide, both ends included. */
+void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1);
+
 /* A 1 bpp bitmap in the framebuffer's own format (row-major, MSB left,
  * 1 = white, rows padded to a byte). */
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits);
@@ -99,6 +102,9 @@ typedef struct {
 int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black);
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
+
+/* The host's text font, Departure Mono at 22 px. */
+const gfx_font_t *gfx_font_system(void);
 
 static inline int gfx_font_height(const gfx_font_t *font)
 {

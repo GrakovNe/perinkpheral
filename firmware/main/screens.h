@@ -13,40 +13,48 @@
 extern "C" {
 #endif
 
-/* The host's own screens, drawn into a framebuffer. Pure: no ESP-IDF, so
- * tools/preview can render them on the host. */
+/* The host's views: each turns a small struct into pixels on the surface
+ * it is given and lays out against that surface's own size, so the same
+ * view works on the whole screen and under the header. They know nothing
+ * about where the data came from. Pure: tools/preview renders them
+ * without the device. */
 
-/* The brand splash. */
+/* The brand splash, for the whole screen. */
 void screens_splash(gfx_t *g);
 
-/* The header the host draws above its own screens and above every
- * application that is not full-screen: the Wi-Fi state as of the last
- * attempt on the left, the date on the right. */
+/* The host's header: the Wi-Fi state as of the last attempt on the left,
+ * the date on the right, a rule along the bottom edge. */
 typedef struct {
     bool        wifi; /* the last connection attempt succeeded */
     const char *date; /* "Wed 11 Nov"; NULL while the time is unknown */
 } screens_header_t;
 
-void screens_header(gfx_t *g, const screens_header_t *h);
+void screens_header(gfx_t *g, const screens_header_t *header);
 
 typedef struct {
     const char *title;
     const char *hint; /* a few words on the right, may be NULL */
 } screens_menu_item_t;
 
-/* The host menu: a list with a square marker on the selected row. The
- * list scrolls when it is longer than the screen. */
-void screens_menu(gfx_t *g, const screens_menu_item_t *items, int count, int selected,
-                  const screens_header_t *header);
+/* The view asks for the rows it is about to draw, so a list can be of any
+ * length and live anywhere. */
+typedef void (*screens_menu_item_fn)(void *context, int index, screens_menu_item_t *item);
+
+/* A list with a square marker on the selected row; it scrolls when it is
+ * longer than the surface. */
+void screens_menu(gfx_t *g, screens_menu_item_fn item_at, void *context, int count, int selected);
+
+/* The index of the top row shown: the window keeps the selection in the
+ * middle and stops at both ends of the list. */
+int screens_menu_first_row(int count, int selected, int visible_rows);
 
 typedef struct {
     const char *label;
     const char *value;
 } screens_field_t;
 
-/* A table of label / value rows, for "about this device". */
-void screens_fields(gfx_t *g, const screens_field_t *fields, int count,
-                    const screens_header_t *header);
+/* A table of label / value rows. */
+void screens_fields(gfx_t *g, const screens_field_t *fields, int count);
 
 #ifdef __cplusplus
 }

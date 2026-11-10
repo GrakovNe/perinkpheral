@@ -53,12 +53,17 @@ print(buf.decode('utf-8', 'replace'))
 EOF
 ```
 
-Host tests: `cd firmware/test/host && make test` (appconf, gfx,
-btn_core, refresh_policy).
+Host tests: `cd firmware/test/host && make test`.
 
-Screens before flashing: `tools/preview/preview.py [dir]` compiles
-`gfx` and `firmware/main/screens.c` natively and writes a PNG per
-screen. Look at them; the panel shows exactly that.
+Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
+the window manager and `firmware/main/screens.c` natively and writes a
+PNG per screen. Look at them; the panel shows exactly that.
+
+The device without hands on it: `tools/devshot/devshot.py $PORT --keys
+3,2 --out shot.png` types keys into the development console (`1`-`4` a
+short press of that button, `q` `w` `e` `r` a long press of button 1-4),
+then saves the frame the panel shows. Verify a change to the host on
+the real device this way, not only in the preview.
 
 Fonts: `tools/fontgen/fontgen.py <ttf> --px N --name <id> --out
 firmware/components/gfx/fonts/<id>.h --preview <file>.png` rasterizes a
@@ -114,10 +119,11 @@ Display:
     sleep (`0x10`) BUSY stays high for good; the next show always
     starts with a hardware reset, which is also how the panel wakes.
 - SPI is 2 MHz; nothing faster has been tried with the per-byte CS.
-- Only `display.c` touches the panel and the framebuffer belongs to it;
-  everything draws through `display_gfx()` and asks with
-  `display_present(reason)`, which may say no. Keep the frame dirty and
-  ask again later; `demo.c` shows how.
+- Only `display.c` touches the panel. Whoever draws owns a buffer of its
+  own and hands the whole frame to `display_show(frame, reason)`; the
+  service keeps a copy of what the panel shows, leaves the panel alone
+  when the frame is the same, and may answer "deferred" - then offer
+  the frame again later.
 - The first image after boot is full: it fills the RAM 0x26 that
   partial updates compare against. `epd.c` sleeps the panel at the end
   of every show, mode 1 so that RAM is kept. The 24 h keep-alive is the

@@ -121,6 +121,19 @@ void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness)
     gfx_fill(g, x + w - thickness, y, thickness, h, true);
 }
 
+void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1)
+{
+    int delta_x = x1 - x0, delta_y = y1 - y0;
+    int steps = imax(delta_x < 0 ? -delta_x : delta_x, delta_y < 0 ? -delta_y : delta_y);
+    if (steps == 0) {
+        gfx_pixel(g, x0, y0, true);
+        return;
+    }
+    for (int step = 0; step <= steps; step++) {
+        gfx_pixel(g, x0 + delta_x * step / steps, y0 + delta_y * step / steps, true);
+    }
+}
+
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits)
 {
     int stride = (w + 7) / 8;
@@ -357,4 +370,11 @@ int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
         }
     }
     return w;
+}
+
+#include "departure_22.h"
+
+const gfx_font_t *gfx_font_system(void)
+{
+    return &departure_22;
 }

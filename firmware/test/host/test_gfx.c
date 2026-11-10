@@ -56,6 +56,31 @@ static void test_clear_and_pixel(void)
     CHECK(count_black() == W * H);
 }
 
+static void test_line(void)
+{
+    fresh();
+    gfx_line(&g, 2, 3, 9, 3);
+    CHECK(count_black() == 8); /* both ends are drawn */
+    CHECK(gfx_get(&g, 2, 3) && gfx_get(&g, 9, 3));
+
+    fresh();
+    gfx_line(&g, 5, 10, 5, 4); /* backwards works the same */
+    CHECK(count_black() == 7 && gfx_get(&g, 5, 4) && gfx_get(&g, 5, 10));
+
+    fresh();
+    gfx_line(&g, 0, 0, 7, 7);
+    CHECK(count_black() == 8 && gfx_get(&g, 3, 3));
+
+    fresh();
+    gfx_line(&g, 4, 4, 4, 4);
+    CHECK(count_black() == 1);
+
+    /* a line that leaves the surface is cut, not wrapped */
+    fresh();
+    gfx_line(&g, W - 3, 0, W + 20, 0);
+    CHECK(count_black() == 3);
+}
+
 static void test_viewport(void)
 {
     fresh();
@@ -228,6 +253,7 @@ int main(void)
     test_clear_and_pixel();
     test_fill_frame();
     test_viewport();
+    test_line();
     test_bitmap();
     test_text_square();
     test_text_font();

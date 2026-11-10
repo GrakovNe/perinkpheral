@@ -7,7 +7,6 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
@@ -26,7 +25,7 @@ static const btn_core_cfg_t s_cfg = {
     .long_ms = CONFIG_APP_BTN_LONG_MS,
 };
 
-static QueueHandle_t s_queue;
+static buttons_sink_fn s_sink;
 
 static void buttons_task(void *arg)
 {
@@ -38,22 +37,19 @@ static void buttons_task(void *arg)
     for (;;) {
         uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
         for (int i = 0; i < BUTTONS_COUNT; i++) {
-            btn_event_t e = btn_core_feed(&core[i], gpio_get_level(s_gpio[i]), now_ms, &s_cfg);
-            if (e == BTN_NONE) {
+            btn_event_t event = btn_core_feed(&core[i], gpio_get_level(s_gpio[i]), now_ms, &s_cfg);
+            if (event == BTN_NONE) {
                 continue;
             }
-            buttons_event_t ev = { .index = (uint8_t)i, .event = e };
-            if (xQueueSend(s_queue, &ev, 0) != pdTRUE) {
-                ESP_LOGW(TAG, "button %d %s dropped, queue full", i + 1,
-                         e == BTN_LONG ? "long" : "short");
-            }
+            s_sink((uint8_t)i, event);
         }
         vTaskDelay(pdMS_TO_TICKS(SAMPLE_MS));
     }
 }
 
-void buttons_start(void)
+void buttons_start(buttons_sink_fn sink)
 {
+    s_sink = sink;
     uint64_t mask = 0;
     for (int i = 0; i < BUTTONS_COUNT; i++) {
         mask |= 1ULL << s_gpio[i];
@@ -70,14 +66,6 @@ void buttons_start(void)
                  gpio_get_level(s_gpio[i]));
     }
 
-    s_queue = xQueueCreate(32, sizeof(buttons_event_t));
-    configASSERT(s_queue != NULL);
     BaseType_t ok = xTaskCreate(buttons_task, "buttons", 2048, NULL, 10, NULL);
     configASSERT(ok == pdPASS);
-}
-
-bool buttons_wait(buttons_event_t *ev, uint32_t timeout_ms)
-{
-    TickType_t ticks = timeout_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-    return xQueueReceive(s_queue, ev, ticks) == pdTRUE;
 }
