@@ -11,24 +11,39 @@
 extern "C" {
 #endif
 
-/* 1 bpp framebuffer: row-major, MSB is the left pixel, 1 = white, the
- * format the SSD1683 takes. Pure, host-tested. */
+/* A drawing surface over a 1 bpp framebuffer: row-major, MSB is the left
+ * pixel, 1 = white, the format the SSD1683 takes. A surface is either the
+ * whole buffer or a viewport into it: its own origin and size, and
+ * nothing drawn through it lands outside. Pure, host-tested. */
 typedef struct {
     uint8_t *bits;
-    int      w;
+    int      stride; /* bytes per row of the buffer */
+    int      w;      /* the surface's own size: lay out against these */
     int      h;
-    int      stride; /* bytes per row */
+    int      origin_x;     /* where the surface's 0,0 is in the buffer */
+    int      origin_y;
+    /* The writable part of the buffer, x1/y1 exclusive. Always inside the
+     * buffer and never inverted: set only by gfx_init and gfx_viewport. */
+    int      clip_x0;
+    int      clip_y0;
+    int      clip_x1;
+    int      clip_y1;
 } gfx_t;
 
-/* w must be a multiple of 8; bits holds w / 8 * h bytes. */
+/* The whole buffer. w must be a multiple of 8; bits holds w / 8 * h bytes. */
 void gfx_init(gfx_t *g, uint8_t *bits, int w, int h);
 
+/* A w x h surface whose 0,0 is at x,y of the parent. It shares the
+ * parent's buffer and can never draw outside the parent. */
+void gfx_viewport(const gfx_t *parent, gfx_t *view, int x, int y, int w, int h);
+
+/* Fills the surface, not the buffer under it. */
 void gfx_clear(gfx_t *g, bool black);
 
-/* Out-of-range pixels are ignored. */
+/* Pixels outside the surface are ignored. */
 void gfx_pixel(gfx_t *g, int x, int y, bool black);
 
-/* True for black; false outside the frame. */
+/* True for black; false outside the surface. */
 bool gfx_get(const gfx_t *g, int x, int y);
 
 void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black);

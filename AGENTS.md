@@ -78,7 +78,11 @@ is set.
 Code:
 
 - SPDX header in every source file, C11, 4 spaces, `snake_case`.
-  Comments only for what the code does not say. Commit bodies say why.
+  Commit bodies say why.
+- Code is written to be read by a person. Names carry the meaning:
+  `buffer_x`, `row_height`, not `a`, `b`, `t`. Numbers that mean
+  something are named constants. Comments only for what cannot be read
+  off the code: why, not what.
 - Logic that does not need hardware is pure and host-tested: `gfx`,
   `btn_core`, `refresh_policy`, `appconf`. `display.c` and `buttons.c`
   only move it onto SPI, GPIO and tasks.

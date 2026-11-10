@@ -56,6 +56,68 @@ static void test_clear_and_pixel(void)
     CHECK(count_black() == W * H);
 }
 
+static void test_viewport(void)
+{
+    fresh();
+    gfx_t v;
+    gfx_viewport(&g, &v, 8, 4, 16, 8);
+    CHECK(v.w == 16 && v.h == 8);
+
+    /* its 0,0 is the parent's 8,4 */
+    gfx_pixel(&v, 0, 0, true);
+    CHECK(gfx_get(&g, 8, 4) && gfx_get(&v, 0, 0));
+    CHECK(count_black() == 1);
+
+    /* nothing lands outside it, on any side */
+    gfx_pixel(&v, -1, 0, true);
+    gfx_pixel(&v, 0, -1, true);
+    gfx_pixel(&v, 16, 0, true);
+    gfx_pixel(&v, 0, 8, true);
+    CHECK(count_black() == 1);
+
+    /* nor is anything outside it read through it */
+    gfx_pixel(&g, 7, 4, true);
+    gfx_pixel(&g, 24, 4, true);
+    CHECK(!gfx_get(&v, -1, 0) && !gfx_get(&v, 16, 0));
+    gfx_pixel(&g, 7, 4, false);
+    gfx_pixel(&g, 24, 4, false);
+
+    /* a fill larger than the viewport is cut to it */
+    gfx_fill(&v, -100, -100, 1000, 1000, true);
+    CHECK(count_black() == 16 * 8);
+    CHECK(gfx_get(&g, 23, 11) && !gfx_get(&g, 24, 11) && !gfx_get(&g, 23, 12));
+
+    /* clear is the viewport's, the rest of the buffer stays */
+    gfx_clear(&g, true);
+    gfx_clear(&v, false);
+    CHECK(count_black() == W * H - 16 * 8);
+
+    /* a viewport in a viewport: origins add up, the outer one still clips */
+    fresh();
+    gfx_t inner;
+    gfx_viewport(&v, &inner, 12, 4, 100, 100);
+    gfx_clear(&inner, true);
+    CHECK(count_black() == 4 * 4);
+    CHECK(gfx_get(&g, 20, 8) && gfx_get(&g, 23, 11) && !gfx_get(&g, 19, 8));
+
+    /* hanging over the parent's top left: only the part inside exists,
+     * and the view's 0,0 is off the buffer */
+    fresh();
+    gfx_t corner;
+    gfx_viewport(&g, &corner, -4, -2, 12, 6);
+    gfx_clear(&corner, true);
+    CHECK(count_black() == 8 * 4);
+    CHECK(gfx_get(&g, 0, 0) && gfx_get(&g, 7, 3) && !gfx_get(&g, 8, 0) && !gfx_get(&g, 0, 4));
+    CHECK(!gfx_get(&corner, 0, 0) && gfx_get(&corner, 4, 2));
+
+    /* entirely outside the parent: draws nothing */
+    fresh();
+    gfx_t gone;
+    gfx_viewport(&g, &gone, W + 10, 0, 8, 8);
+    gfx_clear(&gone, true);
+    CHECK(count_black() == 0);
+}
+
 static void test_fill_frame(void)
 {
     fresh();
@@ -165,6 +227,7 @@ int main(void)
 {
     test_clear_and_pixel();
     test_fill_frame();
+    test_viewport();
     test_bitmap();
     test_text_square();
     test_text_font();

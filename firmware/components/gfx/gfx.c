@@ -12,36 +12,96 @@
 void gfx_init(gfx_t *g, uint8_t *bits, int w, int h)
 {
     g->bits = bits;
+    g->stride = w / 8;
     g->w = w;
     g->h = h;
-    g->stride = w / 8;
+    g->origin_x = 0;
+    g->origin_y = 0;
+    g->clip_x0 = 0;
+    g->clip_y0 = 0;
+    g->clip_x1 = w;
+    g->clip_y1 = h;
+}
+
+static int imax(int a, int b)
+{
+    return a > b ? a : b;
+}
+
+static int imin(int a, int b)
+{
+    return a < b ? a : b;
+}
+
+void gfx_viewport(const gfx_t *parent, gfx_t *view, int x, int y, int w, int h)
+{
+    *view = *parent;
+    view->w = w;
+    view->h = h;
+    view->origin_x = parent->origin_x + x;
+    view->origin_y = parent->origin_y + y;
+    view->clip_x0 = imax(parent->clip_x0, view->origin_x);
+    view->clip_y0 = imax(parent->clip_y0, view->origin_y);
+    /* A view that misses its parent gets an empty clip, never an inverted one. */
+    view->clip_x1 = imax(view->clip_x0, imin(parent->clip_x1, view->origin_x + w));
+    view->clip_y1 = imax(view->clip_y0, imin(parent->clip_y1, view->origin_y + h));
+}
+
+static bool covers_whole_buffer(const gfx_t *g)
+{
+    return g->origin_x == 0 && g->origin_y == 0 && g->clip_x0 == 0 && g->clip_y0 == 0 &&
+           g->clip_x1 == g->w && g->clip_y1 == g->h && g->stride * 8 == g->w;
 }
 
 void gfx_clear(gfx_t *g, bool black)
 {
-    memset(g->bits, black ? 0x00 : 0xFF, (size_t)g->stride * (size_t)g->h);
+    if (covers_whole_buffer(g)) {
+        memset(g->bits, black ? 0x00 : 0xFF, (size_t)g->stride * (size_t)g->h);
+    } else {
+        gfx_fill(g, 0, 0, g->w, g->h, black);
+    }
+}
+
+/* Surface coordinates to a place in the buffer; false when clipped. */
+static bool locate(const gfx_t *g, int x, int y, int *buffer_x, int *buffer_y)
+{
+    *buffer_x = x + g->origin_x;
+    *buffer_y = y + g->origin_y;
+    return *buffer_x >= g->clip_x0 && *buffer_y >= g->clip_y0 &&
+           *buffer_x < g->clip_x1 && *buffer_y < g->clip_y1;
+}
+
+static uint8_t pixel_mask(int buffer_x)
+{
+    return (uint8_t)(0x80 >> (buffer_x & 7));
+}
+
+static uint8_t *pixel_byte(const gfx_t *g, int buffer_x, int buffer_y)
+{
+    return &g->bits[buffer_y * g->stride + (buffer_x >> 3)];
 }
 
 void gfx_pixel(gfx_t *g, int x, int y, bool black)
 {
-    if (x < 0 || y < 0 || x >= g->w || y >= g->h) {
+    int buffer_x, buffer_y;
+    if (!locate(g, x, y, &buffer_x, &buffer_y)) {
         return;
     }
-    uint8_t m = (uint8_t)(0x80 >> (x & 7));
-    uint8_t *b = &g->bits[y * g->stride + (x >> 3)];
+    uint8_t *byte = pixel_byte(g, buffer_x, buffer_y);
     if (black) {
-        *b &= (uint8_t)~m;
+        *byte &= (uint8_t)~pixel_mask(buffer_x);
     } else {
-        *b |= m;
+        *byte |= pixel_mask(buffer_x);
     }
 }
 
 bool gfx_get(const gfx_t *g, int x, int y)
 {
-    if (x < 0 || y < 0 || x >= g->w || y >= g->h) {
+    int buffer_x, buffer_y;
+    if (!locate(g, x, y, &buffer_x, &buffer_y)) {
         return false;
     }
-    return (g->bits[y * g->stride + (x >> 3)] & (0x80 >> (x & 7))) == 0;
+    return (*pixel_byte(g, buffer_x, buffer_y) & pixel_mask(buffer_x)) == 0;
 }
 
 void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black)
