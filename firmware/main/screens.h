@@ -48,6 +48,9 @@ void screens_menu(gfx_t *g, screens_menu_item_fn item_at, void *context, int cou
  * middle and stops at both ends of the list. */
 int screens_menu_first_row(int count, int selected, int visible_rows);
 
+/* What to do to give the device a Wi-Fi network. */
+void screens_setup(gfx_t *g, const char *access_point_name, const char *address);
+
 typedef struct {
     const char *label;
     const char *value;

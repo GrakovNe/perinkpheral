@@ -96,8 +96,45 @@ static void test_splash(void)
     CHECK(splash->ops->button(splash, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
 }
 
+static int timer_set_id, timer_set_ms;
+
+static void record_timer(int id, int32_t milliseconds)
+{
+    timer_set_id = id;
+    timer_set_ms = milliseconds;
+}
+
+static void test_boot_splash(void)
+{
+    scene_t *boot = scene_boot_splash(&first_target, record_timer);
+    CHECK(boot->fullscreen);
+
+    /* it asks to be woken, and then moves on by itself */
+    timer_set_ms = 0;
+    boot->ops->enter(boot);
+    CHECK(timer_set_ms > 0);
+    scene_reaction_t on_timer = boot->ops->timer(boot, timer_set_id);
+    CHECK(on_timer.kind == SCENE_OPEN && on_timer.open == &first_target);
+
+    /* a press does not wait for the timer */
+    scene_reaction_t on_press = press(boot, SCENE_BUTTON_OK);
+    CHECK(on_press.kind == SCENE_OPEN && on_press.open == &first_target);
+
+    /* leaving cancels the timer, or it would fire into the next scene */
+    boot->ops->leave(boot);
+    CHECK(timer_set_ms == 0);
+
+    /* the splash opened from the menu has no timer and goes back */
+    scene_t *about = scene_splash();
+    timer_set_ms = -1;
+    about->ops->enter(about);
+    CHECK(timer_set_ms == -1);
+    CHECK(press(about, SCENE_BUTTON_OK).kind == SCENE_BACK);
+}
+
 int main(void)
 {
+    test_boot_splash();
     test_menu_moves_and_wraps();
     test_menu_back_and_long();
     test_empty_menu();

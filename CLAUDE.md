@@ -137,7 +137,7 @@ The host is layers, and each knows only the ones under it:
 | Display service | `components/epd` (`display.c`, `refresh_policy.c`) | keeps a copy of the frame the panel shows; given a new frame it leaves the panel alone if nothing changed, refreshes it, or says "too soon" |
 | Graphics | `components/gfx` | draws on a surface: the whole frame or a viewport into it with its own origin and clipping |
 | Window manager | `components/ui` (`wm.c`) | which scene has the screen, how the user moves between scenes, how a frame is put together from the header and the scene's picture |
-| Scenes | `main/scene_*.c`, later the wasm application | tie a model to a view and decide what the buttons do, all behind one interface (`scene.h`): enter, leave, button, draw |
+| Scenes | `main/scene_*.c`, `components/appsys/app_scene.c` | tie a model to a view and decide what the buttons do, all behind one interface (`scene.h`): enter, leave, button, draw |
 | Views | `main/screens.c` | a struct in, pixels out; no hardware, rendered by `tools/preview` |
 | Services | `main/sysinfo.c`, `main/status.c`, settings, `components/net` (Wi-Fi, the clock); later polling | the data, with no idea that a screen exists |
 
@@ -147,6 +147,13 @@ The host is layers, and each knows only the ones under it:
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
 - **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons and print the frame the panel shows; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
+
+### Power-up
+The splash is drawn once and the device moves on by itself after a few seconds (a press does it at once):
+- **no network stored** - to the setup screen: the name of its access point and the address to open;
+- **otherwise** - back to the application that was on the screen last (its name is kept in NVS), or to the menu when there was none.
+
+A device on a shelf has to come back from a restart showing what it showed, without a press.
 
 ### Wi-Fi
 - **No network stored** - the device puts up an open access point named after itself (`Perinkpheral-XXXX`) and waits to be set up at `192.168.4.1`.
@@ -306,6 +313,7 @@ hardware/              everything about the physical device
 Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` redraws on a timer once a minute, host tests of the pure modules.
 
 Open:
+- Returning to the last application after a restart has not been seen on the device: it needs a stored network, and without one the device goes to the setup screen, which was seen.
 - **Nothing that needs a network path to the device has been run**: joining a real network, SNTP and the date in the header, the web page, storing Wi-Fi settings through it, a firmware upload and its probation. All of it was written in an unattended session without Wi-Fi credentials; the rules are host-tested, the device-side glue is not. On the device only this was seen: the setup access point and the web server come up.
 - Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
 Open:

@@ -103,5 +103,11 @@ int main(int argc, char **argv)
     };
     start_screen(&online, &content);
     screens_fields(&content, fields, 6);
-    return save(dir, "device");
+    if (save(dir, "device")) {
+        return 1;
+    }
+
+    start_screen(&offline, &content);
+    screens_setup(&content, "Perinkpheral-1A2B", "192.168.4.1");
+    return save(dir, "setup");
 }

@@ -20,6 +20,7 @@ static const char *TAG = "settings";
 #define KEY_WPASS   "wpass"
 #define KEY_NTP     "ntp"
 #define KEY_TZ      "tz"
+#define KEY_LAST_APP "last_app"
 
 void settings_nvs_init(void)
 {
@@ -111,4 +112,32 @@ esp_err_t settings_save(const appconf_t *c)
         ESP_LOGE(TAG, "save failed: %s", esp_err_to_name(err));
     }
     return err;
+}
+
+void settings_load_last_app(char *name, size_t name_size)
+{
+    name[0] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(CFG_NS, NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    get_str(h, KEY_LAST_APP, name, name_size);
+    nvs_close(h);
+}
+
+void settings_save_last_app(const char *name)
+{
+    char stored[32];
+    settings_load_last_app(stored, sizeof stored);
+    if (strcmp(stored, name) == 0) {
+        return; /* nothing to wear the flash for */
+    }
+    nvs_handle_t h;
+    if (nvs_open(CFG_NS, NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    if (nvs_set_str(h, KEY_LAST_APP, name) == ESP_OK) {
+        nvs_commit(h);
+    }
+    nvs_close(h);
 }

@@ -134,3 +134,25 @@ void screens_fields(gfx_t *g, const screens_field_t *fields, int count)
         right_aligned(g, baseline, gfx_font_system(), fields[i].value);
     }
 }
+
+#define SETUP_LINE_HEIGHT 32
+#define SETUP_INDENT      40
+
+void screens_setup(gfx_t *g, const char *access_point_name, const char *address)
+{
+    const struct {
+        int         indent;
+        const char *text;
+    } lines[] = {
+        { 0, "Set up Wi-Fi" },
+        { 0, "" },
+        { 0, "1. Join the network" },
+        { SETUP_INDENT, access_point_name },
+        { 0, "2. Open in a browser" },
+        { SETUP_INDENT, address },
+    };
+    for (int line = 0; line < (int)(sizeof lines / sizeof lines[0]); line++) {
+        gfx_text_font(g, MARGIN + lines[line].indent, (line + 1) * SETUP_LINE_HEIGHT,
+                      gfx_font_system(), lines[line].text, true);
+    }
+}

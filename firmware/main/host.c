@@ -7,17 +7,17 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 
-#include "app_host.h"
-#include "app_scene.h"
-#include "app_store.h"
+#include "app_manifest.h"
 #include "devconsole.h"
 #include "display.h"
 #include "events.h"
+#include "launcher.h"
 #include "scenes.h"
 #include "screens.h"
+#include "settings.h"
 #include "status.h"
-#include "storage.h"
 #include "timers.h"
+#include "wifi.h"
 #include "wm.h"
 
 static const char *TAG = "host";
@@ -91,40 +91,43 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     return NOTHING_TO_SHOW;
 }
 
-#define INSTALLED_APPS_MAX 24
-#define BUILT_IN_PAGES     2
-
-/* What the menu opens: the installed applications, then the host's own
- * pages. Returns how many entries it filled. */
-static int list_menu_entries(menu_entry_t *entries)
+/* Where the device goes after the splash at power-up: to be set up when
+ * it has no network, else back to the application it showed last, else to
+ * the menu. */
+static scene_t *scene_after_boot(scene_t *menu)
 {
-    /* Titles are shown for as long as the menu lives. */
-    static app_manifest_t installed[INSTALLED_APPS_MAX];
-    int installed_count = app_store_list(STORAGE_APPS_ROOT, installed, INSTALLED_APPS_MAX);
-    ESP_LOGI(TAG, "%d applications installed", installed_count);
-
-    int count = 0;
-    for (int i = 0; i < installed_count; i++) {
-        scene_t *scene = app_scene_create(&installed[i], STORAGE_APPS_ROOT, app_host_services());
-        if (scene != NULL) {
-            entries[count++] = (menu_entry_t){ installed[i].title, installed[i].version, scene };
-        }
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    if (wifi.ssid[0] == '\0') {
+        return scene_setup();
     }
-    entries[count++] = (menu_entry_t){ "Device", "name, firmware", scene_device() };
-    entries[count++] = (menu_entry_t){ "About", "logo, license", scene_splash() };
-    return count;
+    char last_app[APP_NAME_MAX + 1];
+    settings_load_last_app(last_app, sizeof last_app);
+    scene_t *last_scene = launcher_app_scene(last_app);
+    return last_scene != NULL ? last_scene : menu;
+}
+
+/* An application took the screen: that is where to return after a restart. */
+static void remember_current_app(const wm_t *wm)
+{
+    const char *app_name = launcher_app_name(wm->current);
+    if (app_name != NULL) {
+        settings_save_last_app(app_name);
+    }
 }
 
 void host_run(void)
 {
-    static menu_entry_t menu_entries[INSTALLED_APPS_MAX + BUILT_IN_PAGES];
-    int menu_entry_count = list_menu_entries(menu_entries);
+    launcher_start();
+    int menu_entry_count;
+    const menu_entry_t *menu_entries = launcher_entries(&menu_entry_count);
+    scene_t *menu = scene_menu(menu_entries, menu_entry_count);
 
     gfx_t screen;
     gfx_init(&screen, s_frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     wm_t wm;
-    wm_init(&wm, scene_menu(menu_entries, menu_entry_count), scene_splash(), draw_header, NULL);
+    wm_init(&wm, menu, scene_boot_splash(scene_after_boot(menu), timers_set), draw_header, NULL);
 
     for (;;) {
         uint32_t wait_ms = show_pending_frame(&wm, &screen);
@@ -133,6 +136,7 @@ void host_run(void)
         if (!events_wait(&event, wait_ms)) {
             continue;
         }
+        const scene_t *scene_before = wm.current;
         switch (event.kind) {
         case EVENT_BUTTON:
             on_button(&wm, event.button.index, event.button.long_press);
@@ -150,6 +154,9 @@ void host_run(void)
             devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #endif
             break;
+        }
+        if (wm.current != scene_before) {
+            remember_current_app(&wm);
         }
     }
 }

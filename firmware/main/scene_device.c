@@ -13,9 +13,6 @@
 
 #define MINUTES_PER_HOUR 60
 
-/* The device's own address on its setup access point. */
-#define SETUP_ADDRESS "192.168.4.1"
-
 static void format_uptime(uint32_t minutes, char *text, size_t text_size)
 {
     if (minutes >= MINUTES_PER_HOUR) {
@@ -64,7 +61,7 @@ static void device_draw(scene_t *scene, gfx_t *surface)
     const screens_field_t fields[] = {
         { "Name", info.device_name },
         { "Wi-Fi", network },
-        { "Address", on_network ? wifi.address : SETUP_ADDRESS },
+        { "Address", on_network ? wifi.address : WIFI_SETUP_ADDRESS },
         { "Firmware", info.firmware_version },
         { "Slot", info.running_slot },
         { "Free memory", free_memory },

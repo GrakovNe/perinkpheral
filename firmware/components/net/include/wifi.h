@@ -18,6 +18,10 @@ extern "C" {
 
 #define WIFI_SSID_MAX 32
 
+/* The device's own address on its setup access point: where its page is
+ * before it has a network. */
+#define WIFI_SETUP_ADDRESS "192.168.4.1"
+
 typedef struct {
     const char *ssid;              /* empty: no network is stored */
     const char *password;          /* empty: an open network */
