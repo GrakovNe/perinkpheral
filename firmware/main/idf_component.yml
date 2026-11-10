@@ -1,0 +1,4 @@
+dependencies:
+  # The file system of the "apps" partition, and the build step that packs
+  # the bundled applications into its image.
+  joltwallet/littlefs: "^1.14"

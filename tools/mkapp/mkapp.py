@@ -5,19 +5,32 @@
 
     tools/mkapp/mkapp.py sdk/apps/hello --out build/apps/hello
 
+The result is build/apps/hello/app.wasm and manifest.json, ready for the
+device's /apps/hello.
+
 Compiles every .c file of the application together with the SDK's small
 library (sdk/lib) for wasm32, without a C library, with exactly one page
 of memory, and checks that the module asks the host only for what the
-host API offers. Needs wasi-sdk: set WASI_SDK_PATH to where it is.
+host API offers. The application's manifest.json is checked by the rules
+the host applies and put next to the module. Needs wasi-sdk: set
+WASI_SDK_PATH to where it is.
 """
 import argparse
 import glob
+import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SDK = os.path.join(ROOT, "sdk")
+
+# As in firmware/components/appsys/include/app_manifest.h.
+NAME_MAX = 15
+TITLE_MAX = 23
+VERSION_MAX = 15
 
 WASM_PAGE = 65536
 APP_STACK = 8192
@@ -132,6 +145,38 @@ def check(wasm_path):
     return imports
 
 
+def host_api_version():
+    with open(os.path.join(SDK, "host_api.h")) as f:
+        return int(re.search(r"#define HOST_API_VERSION (\d+)", f.read()).group(1))
+
+
+def check_manifest(app_dir):
+    """The rules of firmware/components/appsys/app_manifest.c, before the device sees it."""
+    path = os.path.join(app_dir, "manifest.json")
+    try:
+        with open(path) as f:
+            manifest = json.load(f)
+    except (OSError, ValueError) as error:
+        sys.exit("%s: %s" % (path, error))
+    name = manifest.get("name")
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9_-]{1,%d}" % NAME_MAX, name):
+        sys.exit("%s: \"name\" must be 1-%d of a-z, 0-9, - and _" % (path, NAME_MAX))
+    if name != os.path.basename(os.path.normpath(app_dir)):
+        sys.exit("%s: \"name\" must be the name of the application's folder" % path)
+    title = manifest.get("title")
+    if not isinstance(title, str) or not 0 < len(title.encode()) <= TITLE_MAX:
+        sys.exit("%s: \"title\" must be 1-%d bytes" % (path, TITLE_MAX))
+    version = manifest.get("version", "")
+    if not isinstance(version, str) or len(version.encode()) > VERSION_MAX:
+        sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
+    if not isinstance(manifest.get("fullscreen", False), bool):
+        sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    if manifest.get("abi") != host_api_version():
+        sys.exit("%s: \"abi\" must be %d, the version of sdk/host_api.h"
+                 % (path, host_api_version()))
+    return path
+
+
 def main():
     args = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -139,10 +184,12 @@ def main():
     args.add_argument("--out", required=True, help="directory for app.wasm")
     options = args.parse_args()
 
+    manifest_path = check_manifest(options.app_dir)
     os.makedirs(options.out, exist_ok=True)
     wasm_path = os.path.join(options.out, "app.wasm")
     build(options.app_dir, wasm_path)
     imports = check(wasm_path)
+    shutil.copy(manifest_path, os.path.join(options.out, "manifest.json"))
     print("%s: %d bytes, %d host calls" % (wasm_path, os.path.getsize(wasm_path), len(imports)))
 
 

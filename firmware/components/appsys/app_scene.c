@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 
+#include "app_store.h"
 #include "host_api.h"
 
 #define MESSAGE_MARGIN      16
@@ -13,10 +14,12 @@
 
 typedef struct {
     scene_t               scene;
-    const app_image_t    *image;
+    app_manifest_t        manifest;
+    const char           *store_root;
     const app_services_t *services;
-    app_t                *app;         /* NULL while not on the screen or not loadable */
-    const char           *load_error;  /* why app is NULL although the scene is on the screen */
+    uint8_t              *module;     /* the file's bytes, kept while the application runs */
+    app_t                *app;        /* NULL while not on the screen or not loadable */
+    const char           *load_error; /* why app is NULL although the scene is on the screen */
 } app_scene_t;
 
 static void cancel_timers(const app_services_t *services)
@@ -30,10 +33,16 @@ static void app_scene_enter(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
     self->load_error = NULL;
-    switch (app_load(self->image->wasm, self->image->wasm_size, self->services, &self->app)) {
+    size_t module_size;
+    self->module = app_store_read_module(self->store_root, self->manifest.name, &module_size);
+    if (self->module == NULL) {
+        self->load_error = "Its file cannot be read.";
+        return;
+    }
+    switch (app_load(self->module, module_size, self->services, &self->app)) {
     case APP_OK:
         app_focus(self->app);
-        break;
+        return;
     case APP_ERR_NO_MEMORY:
         self->load_error = "Not enough memory.";
         break;
@@ -41,6 +50,8 @@ static void app_scene_enter(scene_t *scene)
         self->load_error = "Not a valid application.";
         break;
     }
+    free(self->module);
+    self->module = NULL;
 }
 
 static void app_scene_leave(scene_t *scene)
@@ -53,6 +64,8 @@ static void app_scene_leave(scene_t *scene)
     cancel_timers(self->services);
     app_unload(self->app);
     self->app = NULL;
+    free(self->module);
+    self->module = NULL;
 }
 
 static bool is_running(const app_scene_t *self)
@@ -109,7 +122,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (self->app == NULL) {
-        draw_message(surface, self->image->title, "Cannot start.", self->load_error);
+        draw_message(surface, self->manifest.title, "Cannot start.", self->load_error);
         return;
     }
     if (!app_has_stopped(self->app)) {
@@ -120,7 +133,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
     if (app_has_stopped(self->app)) {
         /* Over whatever it managed to draw before it stopped. */
         gfx_clear(surface, false);
-        draw_message(surface, self->image->title, "Stopped:", app_stop_reason(self->app));
+        draw_message(surface, self->manifest.title, "Stopped:", app_stop_reason(self->app));
     }
 }
 
@@ -132,15 +145,17 @@ static const scene_ops_t APP_SCENE_OPS = {
     .draw = app_scene_draw,
 };
 
-scene_t *app_scene_create(const app_image_t *image, const app_services_t *services)
+scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root,
+                          const app_services_t *services)
 {
     app_scene_t *self = calloc(1, sizeof *self);
     if (self == NULL) {
         return NULL;
     }
     self->scene.ops = &APP_SCENE_OPS;
-    self->scene.fullscreen = image->fullscreen;
-    self->image = image;
+    self->scene.fullscreen = manifest->fullscreen;
+    self->manifest = *manifest;
+    self->store_root = store_root;
     self->services = services;
     return &self->scene;
 }

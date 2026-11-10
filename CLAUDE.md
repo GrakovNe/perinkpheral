@@ -95,7 +95,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ## Architecture
 
 ### Application
-`/apps/<name>/app.wasm` + `/apps/<name>/manifest.json`:
+`/apps/<name>/app.wasm` + `/apps/<name>/manifest.json` on the LittleFS partition. The host reads `name`, `title`, `version`, `abi` and `fullscreen` today and skips what it does not know yet, so a manifest with `polls` and `hosts` already loads. `name` is 1-15 of `a-z`, `0-9`, `-`, `_`: it is the folder, the key in the catalog and the NVS namespace of the settings, and it must be the folder's name. `title` is at most 23 bytes. The module is at most 48 KB. The applications in `sdk/apps` are built and packed into the partition image with the firmware (`APP_BUNDLE_APPS`). The full manifest, as it will be:
 ```json
 {
   "name": "plex",
@@ -189,8 +189,8 @@ app_on_data(req_id, ptr, len, flags)   // milestone 2
 - Time: SNTP on every Wi-Fi connection, the time zone is a host setting.
 
 ### E-paper policy
-Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings** (host, web UI, NVS); today they are still in menuconfig, the defaults are Waveshare's recommendations for the 4.2" V2:
-- data-driven updates (`app_on_data`, the clock) - no more often than once per **180 s**;
+Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings** (host, web UI, NVS); today they are still in menuconfig, the defaults start from Waveshare's recommendations for the 4.2" V2:
+- data-driven updates (`app_on_data`, a timer, the clock) - no more often than once per **60 s**, counted from the start of a refresh, so that a clock can show minutes. Waveshare's own advice is 180 s and the panel is rated for a million refreshes; a user who wants the panel to last longer raises the number;
 - reaction to a button - the user is looking at the device - **at once**, no pause by default; the panel's own partial refresh (about a second) is the only limit;
 - full refresh - after **5** partial ones;
 - at least one update per **24 hours** (the host's keep-alive task).
@@ -239,7 +239,7 @@ firmware/              the ESP-IDF project (build from this folder)
     input/             buttons, debounce, short/long press
     ui/                scene interface and the window manager (pure)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
-    appsys/            one wasm application in memory, the host API as it sees it, the application as a scene (pure)
+    appsys/            one wasm application in memory, the host API as it sees it, the application as a scene, manifests and the store of installed applications (pure)
     wasm3/             the interpreter, v0.9.0, vendored unmodified (MIT)
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
     store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
@@ -267,7 +267,7 @@ hardware/              everything about the physical device
   step/                the STEP model of the case
   render/              case renders from Blender (not in git)
 ```
-`power`, `poller`, `store`, `web`, the `clock`, `plex` and `trmnl` applications and `tools/catalog` do not exist yet.
+`power`, `poller`, `store`, `web`, the `plex` and `trmnl` applications and `tools/catalog` do not exist yet.
 
 ## Milestones
 1. **Applications without the network.** The host loads `hello.wasm` from LittleFS; the application draws text and reacts to a button; `clock.wasm` is switched to through a minimal host menu (long press 4). A check of running on battery without USB. Host API of the milestone: `gfx_clear`, `gfx_text`, `gfx_rect`, `gfx_bitmap`, `gfx_text_width`, `gfx_flush`, `timer_set`, `time_now`, `log`; exports `app_init`, `app_on_button`, `app_on_timer`, `app_on_focus`, `app_on_blur`. Start with `sdk/host_api.h` and `components/appsys`.
@@ -282,10 +282,10 @@ hardware/              everything about the physical device
 5. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, firmware updates pulled from releases (`esp_https_ota`).
 
 ## State
-Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and the first wasm application, `hello`, running on the device from the menu, host tests of the pure modules.
+Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` redraws on a timer once a minute, host tests of the pure modules.
 
 Open:
-- Applications are linked into the firmware image for now (`hello`); storage for installed ones on LittleFS, with `manifest.json`, is the rest of milestone 1.
+- An application that loops forever in a handler hangs the host: wasm3 runs it to completion on the host task. It needs a budget of instructions or a watchdog that stops the application, not the device.
 - The host task has 8 KB of stack and applications run on it; `hello` leaves 6.2 KB. Watch it (`m` in the development console) as applications grow.
 - The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).
 - There are no down/up button events yet, only short/long.
@@ -293,7 +293,7 @@ Open:
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-Next step - the rest of milestone 1: applications on LittleFS with `manifest.json`, the menu listing what is installed, `clock`, a check on battery without USB.
+Milestone 1 is done on USB power; what is left of it needs hands: a check on battery without USB. Next - milestone 2, starting with Wi-Fi and OTA.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.

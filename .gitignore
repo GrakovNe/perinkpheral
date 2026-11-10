@@ -10,7 +10,6 @@ hardware/render
 build.log
 build*/
 firmware/build*/
-firmware/dependencies.lock
 firmware/managed_components/
 firmware/sdkconfig
 firmware/sdkconfig.old

@@ -56,12 +56,16 @@ EOF
 
 Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`
 set they include `test_app`, which builds a real module
-(`test/host/apps/probe`) and runs it in the real interpreter.
+(`test/host/apps/probe`) and runs it in the real interpreter; with
+`IDF_PATH` set, the manifest and store tests, which need its cJSON.
 
 An application: `tools/mkapp/mkapp.py sdk/apps/<name> --out <dir>`
-builds `app.wasm` without a C library, with one page of memory, and
+builds `app.wasm` without a C library, with one page of memory,
 refuses a module that imports anything `sdk/host_api.h` does not
-declare.
+declare, and checks `manifest.json` by the host's rules. Everything in
+`sdk/apps` is built this way by the firmware build and packed into the
+image of the `apps` partition; `idf.py flash` writes it with the
+firmware.
 
 Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
 the window manager and `firmware/main/screens.c` natively and writes a

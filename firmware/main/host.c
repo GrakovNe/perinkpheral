@@ -5,17 +5,18 @@
 #include "host.h"
 
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
 #include "app_host.h"
 #include "app_scene.h"
+#include "app_store.h"
 #include "devconsole.h"
 #include "display.h"
 #include "events.h"
 #include "scenes.h"
 #include "screens.h"
 #include "status.h"
+#include "storage.h"
 #include "timers.h"
 #include "wm.h"
 
@@ -90,28 +91,34 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     return NOTHING_TO_SHOW;
 }
 
-/* The one application so far is linked into the firmware; the storage for
- * installed ones comes with the next step. */
-extern const uint8_t hello_wasm_start[] asm("_binary_app_wasm_start");
-extern const uint8_t hello_wasm_end[] asm("_binary_app_wasm_end");
+#define INSTALLED_APPS_MAX 24
+#define BUILT_IN_PAGES     2
 
-static scene_t *hello_scene(void)
+/* What the menu opens: the installed applications, then the host's own
+ * pages. Returns how many entries it filled. */
+static int list_menu_entries(menu_entry_t *entries)
 {
-    static app_image_t image = { .title = "Hello", .fullscreen = false };
-    image.wasm = hello_wasm_start;
-    image.wasm_size = (size_t)(hello_wasm_end - hello_wasm_start);
-    scene_t *scene = app_scene_create(&image, app_host_services());
-    configASSERT(scene != NULL);
-    return scene;
+    /* Titles are shown for as long as the menu lives. */
+    static app_manifest_t installed[INSTALLED_APPS_MAX];
+    int installed_count = app_store_list(STORAGE_APPS_ROOT, installed, INSTALLED_APPS_MAX);
+    ESP_LOGI(TAG, "%d applications installed", installed_count);
+
+    int count = 0;
+    for (int i = 0; i < installed_count; i++) {
+        scene_t *scene = app_scene_create(&installed[i], STORAGE_APPS_ROOT, app_host_services());
+        if (scene != NULL) {
+            entries[count++] = (menu_entry_t){ installed[i].title, installed[i].version, scene };
+        }
+    }
+    entries[count++] = (menu_entry_t){ "Device", "name, firmware", scene_device() };
+    entries[count++] = (menu_entry_t){ "About", "logo, license", scene_splash() };
+    return count;
 }
 
 void host_run(void)
 {
-    static menu_entry_t menu_entries[3];
-    menu_entries[0] = (menu_entry_t){ "Hello", "sample app", hello_scene() };
-    menu_entries[1] = (menu_entry_t){ "Device", "name, firmware", scene_device() };
-    menu_entries[2] = (menu_entry_t){ "About", "logo, license", scene_splash() };
-    const int menu_entry_count = (int)(sizeof menu_entries / sizeof menu_entries[0]);
+    static menu_entry_t menu_entries[INSTALLED_APPS_MAX + BUILT_IN_PAGES];
+    int menu_entry_count = list_menu_entries(menu_entries);
 
     gfx_t screen;
     gfx_init(&screen, s_frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);

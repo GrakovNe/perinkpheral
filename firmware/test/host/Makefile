@@ -17,6 +17,13 @@ GFX_SRCS := $(GFX)/gfx.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
 TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes
 
+# The manifest is JSON; the parser comes with ESP-IDF.
+ifdef IDF_PATH
+TESTS   += test_app_manifest test_app_store
+else
+$(info IDF_PATH is not set: skipping test_app_manifest and test_app_store)
+endif
+
 # Running a real application needs wasi-sdk to build it.
 ifdef WASI_SDK_PATH
 TESTS   += test_app
@@ -57,7 +64,7 @@ build/wasm3/%.o: $(WASM3)/%.c
 	@mkdir -p build/wasm3
 	$(CC) $(WASM3_FLAGS) -c -o $@ $<
 
-build/probe/app.wasm: apps/probe/probe.c $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(MKAPP)
+build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(MKAPP)
 	$(MKAPP) apps/probe --out build/probe
 
 build/probe_wasm.h: build/probe/app.wasm
@@ -67,6 +74,22 @@ build/probe_wasm.h: build/probe/app.wasm
 test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) \
 		-Dd_m3MaxLinearMemoryPages=1 -o $@ test_app.c $(APPSYS)/app.c $(GFX)/gfx.c $(GFX)/font_square.c $(WASM3_OBJS)
+
+CJSON := $(IDF_PATH)/components/json/cJSON
+MANIFEST_SRCS := $(APPSYS)/app_manifest.c build/cJSON.o
+MANIFEST_FLAGS := -I$(APPSYS)/include -I$(CJSON) -I$(SDK)
+
+build/cJSON.o: $(CJSON)/cJSON.c
+	@mkdir -p build
+	$(CC) -std=c11 -w -c -o $@ $<
+
+test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/include/app_manifest.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm
+
+# mkdtemp and friends are POSIX, not C11.
+test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
+	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -o $@ test_app_store.c \
+		$(APPSYS)/app_store.c $(MANIFEST_SRCS) -lm
 
 clean:
 	rm -rf build

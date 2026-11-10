@@ -19,6 +19,7 @@
 #include "host.h"
 #include "reset.h"
 #include "settings.h"
+#include "storage.h"
 #include "sysinfo.h"
 #include "timers.h"
 
@@ -59,6 +60,7 @@ void app_main(void)
     display_start();
     buttons_start(on_button_pressed);
     sysinfo_start(cfg->device_name);
+    storage_start();
 #ifdef CONFIG_APP_DEV_CONSOLE
     devconsole_start();
 #endif

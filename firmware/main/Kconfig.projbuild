@@ -8,6 +8,16 @@ menu "perINKpheral"
             print the frame the panel shows, so the device can be driven
             and looked at without hands on it. Turn it off for a release.
 
+    config APP_BUNDLE_APPS
+        bool "Build the applications in sdk/apps into the image"
+        default y
+        help
+            The applications are compiled to wasm with wasi-sdk
+            (WASI_SDK_PATH) and packed into the image of the "apps"
+            partition. Turn it off to build the firmware without wasi-sdk:
+            the partition is then written empty and the menu has only the
+            host's own pages.
+
     menu "Board"
 
         config APP_ANTENNA_EXTERNAL
@@ -57,9 +67,13 @@ menu "perINKpheral"
         config APP_EPD_MIN_DATA_S
             int "Least seconds between data-driven refreshes"
             range 1 3600
-            default 180
+            default 60
             help
-                Waveshare recommends at least 180 s between refreshes.
+                How often the panel may be refreshed when nobody pressed
+                anything: a poll result, a clock. 60 lets a clock show
+                minutes. Waveshare's own advice is 180 and every refresh
+                wears the panel (it is rated for a million), so raise this
+                to trade a livelier screen for a longer-lived one.
 
         config APP_EPD_MIN_BUTTON_MS
             int "Least milliseconds between refreshes caused by a button"

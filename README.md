@@ -155,8 +155,8 @@ If the board does not answer, hold BOOT while plugging it in.
 
 What you get today: a splash screen, then a menu (button 1 up, 2 ok,
 3 down, 4 back; a long press on button 4 returns to the menu from
-anywhere) with `Hello`, a sample wasm application that counts presses,
-a device page with the name, firmware version and free memory, and the
+anywhere) listing the installed wasm applications - `Hello` counts
+presses, `Clock` redraws once a minute - a device page with the name, firmware version and free memory, and the
 splash.
 
 Host tests of the hardware-independent modules need only a C compiler:
@@ -200,9 +200,10 @@ the complete sample. Build it with
 64 KB for everything and no C library; `sdk/lib` has what it needs to
 build strings.
 
-Today applications are linked into the firmware image. Installing them
-from a catalog comes later; the contract may still change until it
-freezes at the end of milestone 2.
+An application is a folder with `app.wasm` and `manifest.json`. Today
+the ones in `sdk/apps` are packed into the device's file system when
+the firmware is built; installing from a catalog comes later, and the
+contract may still change until it freezes at the end of milestone 2.
 
 ## Roadmap
 
@@ -239,7 +240,7 @@ firmware/              the ESP-IDF project
 sdk/
   host_api.h           the contract between host and applications
   lib/                 what applications link instead of a C library
-  apps/hello/          the sample application
+  apps/                the sample applications: hello, clock
 tools/
   preview/             renders the host's screens to PNG without the device
   devshot/             presses buttons on a real device over USB and saves its frame
