@@ -1,0 +1,106 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 GrakovNe
+ */
+#include "refresh_policy.h"
+
+#include "tinytest.h"
+
+static const refresh_policy_cfg_t CFG = {
+    .min_data_ms = 180 * 1000,
+    .min_button_ms = 2000,
+    .full_every = 5,
+    .keepalive_ms = 24u * 3600u * 1000u,
+};
+
+static refresh_kind_t go(refresh_policy_t *p, refresh_reason_t why, int64_t now)
+{
+    refresh_kind_t k = refresh_policy_decide(p, &CFG, why, now);
+    refresh_policy_note(p, k, now);
+    return k;
+}
+
+static void test_first_is_full(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_DATA, 0) == REFRESH_FULL);
+    CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_BUTTON, 0) == REFRESH_FULL);
+    CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_KEEPALIVE, 0) == REFRESH_FULL);
+    CHECK(go(&p, REFRESH_FOR_DATA, 1000) == REFRESH_FULL);
+    CHECK(p.shown && p.partials == 0 && p.last_ms == 1000);
+}
+
+static void test_data_interval(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    CHECK(go(&p, REFRESH_FOR_DATA, 179 * 1000) == REFRESH_NONE);
+    CHECK(p.last_ms == 0);                     /* a refusal changes nothing */
+    CHECK(go(&p, REFRESH_FOR_DATA, 180 * 1000) == REFRESH_PARTIAL);
+    CHECK(go(&p, REFRESH_FOR_DATA, 181 * 1000) == REFRESH_NONE);
+}
+
+static void test_button_interval(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    CHECK(go(&p, REFRESH_FOR_BUTTON, 1999) == REFRESH_NONE);
+    CHECK(go(&p, REFRESH_FOR_BUTTON, 2000) == REFRESH_PARTIAL);
+    CHECK(go(&p, REFRESH_FOR_BUTTON, 3000) == REFRESH_NONE);
+    CHECK(go(&p, REFRESH_FOR_BUTTON, 4000) == REFRESH_PARTIAL);
+}
+
+static void test_full_after_n_partials(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    int64_t t = 0;
+    for (int i = 0; i < 5; i++) {
+        t += 10 * 1000;
+        CHECK(go(&p, REFRESH_FOR_BUTTON, t) == REFRESH_PARTIAL);
+    }
+    CHECK(p.partials == 5);
+    t += 10 * 1000;
+    CHECK(go(&p, REFRESH_FOR_BUTTON, t) == REFRESH_FULL);
+    CHECK(p.partials == 0);
+}
+
+static void test_switch_always_full(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    go(&p, REFRESH_FOR_BUTTON, 5000);
+    CHECK(p.partials == 1);
+    CHECK(go(&p, REFRESH_FOR_SWITCH, 5001) == REFRESH_FULL); /* no interval */
+    CHECK(p.partials == 0);
+}
+
+static void test_keepalive(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    int64_t day = 24LL * 3600 * 1000;
+    CHECK(go(&p, REFRESH_FOR_KEEPALIVE, day - 1) == REFRESH_NONE);
+    CHECK(go(&p, REFRESH_FOR_KEEPALIVE, day) == REFRESH_FULL);
+    CHECK(go(&p, REFRESH_FOR_KEEPALIVE, day + 1) == REFRESH_NONE);
+    /* any refresh in between postpones it */
+    go(&p, REFRESH_FOR_DATA, day + 1000 * 1000);
+    CHECK(go(&p, REFRESH_FOR_KEEPALIVE, 2 * day) == REFRESH_NONE);
+}
+
+int main(void)
+{
+    test_first_is_full();
+    test_data_interval();
+    test_button_interval();
+    test_full_after_n_partials();
+    test_switch_always_full();
+    test_keepalive();
+    REPORT();
+}

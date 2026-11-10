@@ -1,0 +1,20 @@
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+
+# GPIO16/17 are UART0 TX/RX on the C6 and here they are the display's
+# BUSY and CS. Nothing but the ROM may print there.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# 100 Hz makes pdMS_TO_TICKS(5) zero: a polling task then never sleeps.
+CONFIG_FREERTOS_HZ=1000
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Two OTA slots and rollback from day one: neither the bootloader nor the
+# partition table can be changed over the air later.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

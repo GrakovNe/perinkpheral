@@ -1,0 +1,108 @@
+menu "perINKpheral"
+
+    menu "Board"
+
+        config APP_ANTENNA_EXTERNAL
+            bool "Use the external (U.FL) antenna instead of the ceramic one"
+            default n
+
+    endmenu
+
+    menu "e-Paper"
+
+        config APP_EPD_MOSI_GPIO
+            int "DIN (MOSI) GPIO"
+            default 18
+
+        config APP_EPD_SCLK_GPIO
+            int "CLK GPIO"
+            default 19
+
+        config APP_EPD_CS_GPIO
+            int "CS GPIO"
+            default 17
+
+        config APP_EPD_DC_GPIO
+            int "DC GPIO"
+            default 23
+
+        config APP_EPD_RST_GPIO
+            int "RST GPIO"
+            default 22
+
+        config APP_EPD_BUSY_GPIO
+            int "BUSY GPIO"
+            default 16
+            help
+                GPIO16 is UART0 TX on the ESP32-C6: the ROM prints its
+                boot log into this line at every reset. The console must
+                stay on USB-JTAG.
+
+        config APP_EPD_SPI_HZ
+            int "SPI clock, Hz"
+            range 100000 20000000
+            default 2000000
+            help
+                2 MHz is what the bench was verified at. Faster has not
+                been tried with the per-byte CS the panel needs.
+
+        config APP_EPD_MIN_DATA_S
+            int "Least seconds between data-driven refreshes"
+            range 1 3600
+            default 180
+            help
+                Waveshare recommends at least 180 s between refreshes.
+
+        config APP_EPD_MIN_BUTTON_MS
+            int "Least milliseconds between refreshes caused by a button"
+            range 100 60000
+            default 2000
+
+        config APP_EPD_FULL_EVERY_N
+            int "Full refresh after this many partial ones"
+            range 1 50
+            default 5
+            help
+                Partial refreshes leave ghosts. Waveshare: a full refresh
+                after "several" partial ones; their FAQ clears after 5.
+
+        config APP_EPD_KEEPALIVE_H
+            int "Hours without a refresh before one is forced"
+            range 1 168
+            default 24
+            help
+                Waveshare: refresh at least once every 24 hours.
+
+    endmenu
+
+    menu "Buttons"
+
+        config APP_BTN1_GPIO
+            int "Button 1 GPIO (active low)"
+            default 0
+
+        config APP_BTN2_GPIO
+            int "Button 2 GPIO (active low)"
+            default 1
+
+        config APP_BTN3_GPIO
+            int "Button 3 GPIO (active low)"
+            default 2
+
+        config APP_BTN4_GPIO
+            int "Button 4 GPIO (active low)"
+            default 21
+
+        config APP_BTN_DEBOUNCE_MS
+            int "Debounce, ms (sampled every 5 ms)"
+            range 5 100
+            default 20
+
+        config APP_BTN_LONG_MS
+            int "A press this long is a long press, ms"
+            range 200 5000
+            default 600
+
+    endmenu
+
+endmenu
