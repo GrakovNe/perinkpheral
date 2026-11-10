@@ -241,6 +241,44 @@ static void test_timer(void)
     CHECK(wm_pending_change(&wm) == WM_CLEAN);
 }
 
+static void test_suspend_and_resume(void)
+{
+    start(&app.scene);
+    wm_shown(&wm);
+
+    /* the scene lets go, and nothing reaches it meanwhile */
+    wm_suspend(&wm);
+    CHECK(app.left == 1 && wm.current == &app.scene);
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    wm_timer(&wm, 0);
+    CHECK(app.presses == 0 && app.last_timer == 0);
+    wm_suspend(&wm); /* twice is once */
+    CHECK(app.left == 1);
+
+    /* it comes back as from a fresh start, and is drawn again */
+    wm_resume(&wm);
+    CHECK(app.entered == 2 && app.left == 1);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_DATA);
+    wm_resume(&wm);
+    CHECK(app.entered == 2);
+
+    /* suspended, the screen goes to another scene: the old one is not
+     * asked to leave a second time */
+    wm_shown(&wm);
+    wm_suspend(&wm);
+    wm_show(&wm, &page.scene);
+    CHECK(wm.current == &page.scene && app.left == 2 && page.entered == 1);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_SWITCH);
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(page.presses == 1);
+
+    /* suspended, and the screen is given back to the very same scene */
+    wm_shown(&wm);
+    wm_suspend(&wm);
+    wm_show(&wm, &page.scene);
+    CHECK(page.entered == 2 && page.left == 1);
+}
+
 static int black_pixels(int x0, int y0, int x1, int y1)
 {
     int count = 0;
@@ -290,6 +328,7 @@ int main(void)
     test_back_from_the_menu();
     test_stronger_change_wins();
     test_timer();
+    test_suspend_and_resume();
     test_frame_with_header();
     test_fullscreen_frame();
     REPORT();

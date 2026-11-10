@@ -18,12 +18,16 @@ static void mark_changed(wm_t *wm, wm_change_t change)
 
 static void give_screen_to(wm_t *wm, scene_t *next)
 {
-    if (next == NULL || next == wm->current) {
+    /* The scene that is there already stays - unless it was suspended:
+     * then it has to enter again. */
+    if (next == NULL || (next == wm->current && !wm->suspended)) {
         return;
     }
-    if (wm->current != NULL && wm->current->ops->leave != NULL) {
+    /* A suspended scene has left already. */
+    if (wm->current != NULL && !wm->suspended && wm->current->ops->leave != NULL) {
         wm->current->ops->leave(wm->current);
     }
+    wm->suspended = false;
     wm->current = next;
     if (next->ops->enter != NULL) {
         next->ops->enter(next);
@@ -60,6 +64,7 @@ void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_hea
     wm->current = NULL;
     wm->before_home = NULL;
     wm->change = WM_CLEAN;
+    wm->suspended = false;
     wm->draw_header = draw_header;
     wm->header_context = header_context;
     give_screen_to(wm, first);
@@ -85,6 +90,9 @@ static void react(wm_t *wm, scene_reaction_t reaction, wm_change_t cause)
 
 void wm_button(wm_t *wm, scene_button_t button, scene_press_t press)
 {
+    if (wm->suspended) {
+        return;
+    }
     /* The one press no scene can take away from the user. */
     if (button == SCENE_BUTTON_BACK && press == SCENE_PRESS_LONG) {
         open_home_over_current(wm);
@@ -96,9 +104,41 @@ void wm_button(wm_t *wm, scene_button_t button, scene_press_t press)
 
 void wm_timer(wm_t *wm, int timer_id)
 {
-    if (wm->current->ops->timer != NULL) {
+    if (!wm->suspended && wm->current->ops->timer != NULL) {
         react(wm, wm->current->ops->timer(wm->current, timer_id), WM_CHANGED_BY_DATA);
     }
+}
+
+void wm_suspend(wm_t *wm)
+{
+    if (wm->suspended) {
+        return;
+    }
+    if (wm->current->ops->leave != NULL) {
+        wm->current->ops->leave(wm->current);
+    }
+    wm->suspended = true;
+}
+
+void wm_resume(wm_t *wm)
+{
+    if (!wm->suspended) {
+        return;
+    }
+    wm->suspended = false;
+    if (wm->current->ops->enter != NULL) {
+        wm->current->ops->enter(wm->current);
+    }
+    /* The scene starts from what it stored: the frame may be another. */
+    mark_changed(wm, WM_CHANGED_BY_DATA);
+}
+
+void wm_show(wm_t *wm, scene_t *scene)
+{
+    if (scene != wm->home && wm->current != scene) {
+        wm->before_home = NULL;
+    }
+    give_screen_to(wm, scene);
 }
 
 void wm_invalidate(wm_t *wm, wm_change_t change)

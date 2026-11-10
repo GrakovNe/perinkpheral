@@ -34,6 +34,7 @@ typedef struct {
     scene_t *current;
     scene_t *before_home; /* the scene the menu was opened over, if it was */
     wm_change_t change;
+    bool     suspended;   /* the current scene has left, see wm_suspend() */
 
     wm_draw_header_fn draw_header;
     void             *header_context;
@@ -48,6 +49,18 @@ void wm_button(wm_t *wm, scene_button_t button, scene_press_t press);
 
 /* A timer ran out; it goes to the scene on the screen, if that takes timers. */
 void wm_timer(wm_t *wm, int timer_id);
+
+/* The scene on the screen has to let go of what it holds for a moment -
+ * there is room for one application in memory, and another one is about
+ * to be loaded to take its data. The scene leaves, the frame stays as it
+ * is; wm_resume() lets it enter again. Between the two nothing reaches
+ * the scene. */
+void wm_suspend(wm_t *wm);
+void wm_resume(wm_t *wm);
+
+/* Gives the screen to `scene` at once: an application asked for it and
+ * the host agreed. Ends a suspension without bringing the old scene back. */
+void wm_show(wm_t *wm, scene_t *scene);
 
 /* Something outside the scene changed what the frame shows. */
 void wm_invalidate(wm_t *wm, wm_change_t change);
