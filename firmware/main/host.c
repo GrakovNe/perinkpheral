@@ -142,6 +142,9 @@ void host_run(void)
                 wm_timer(&wm, event.timer.id);
             }
             break;
+        case EVENT_STATUS_CHANGED:
+            wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+            break;
         case EVENT_DUMP_FRAME:
 #ifdef CONFIG_APP_DEV_CONSOLE
             devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);

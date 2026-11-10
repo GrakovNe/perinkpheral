@@ -135,6 +135,10 @@ HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const vo
 /* Unix seconds; 0 while the device does not know the time. */
 HOST_IMPORT(time_now, int64_t time_now(void));
 
+/* Seconds to add to time_now() for the user's local time, daylight saving
+ * included; 0 while the time is not known. */
+HOST_IMPORT(time_zone_offset, int32_t time_zone_offset(void));
+
 /* Milliseconds since the device started; always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));
 

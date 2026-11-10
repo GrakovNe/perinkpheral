@@ -14,14 +14,20 @@ extern "C" {
 
 /* What the header shows, as data. */
 typedef struct {
-    bool wifi_connected;             /* the last connection attempt succeeded */
+    bool wifi_connected; /* the device is on its network now */
     bool date_known;
     char date[STATUS_DATE_MAX + 1];
 } status_t;
 
-/* There is no network and no clock yet: Wi-Fi is down and the date is
- * unknown until those services exist and report here. */
+/* Watches for what the header shows to change - the network coming or
+ * going, the date turning - and posts EVENT_STATUS_CHANGED when it does. */
+void status_start(void);
+
 void status_read(status_t *status);
+
+/* Something the header shows may have changed: look, and tell the host
+ * if it did. Safe from any task. */
+void status_check(void);
 
 #ifdef __cplusplus
 }

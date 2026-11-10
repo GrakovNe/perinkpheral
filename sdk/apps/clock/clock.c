@@ -28,7 +28,8 @@ static bool time_is_known(void)
 static int64_t minutes_to_show(void)
 {
     if (time_is_known()) {
-        return time_now() / SECONDS_PER_MINUTE % (MINUTES_PER_HOUR * HOURS_PER_DAY);
+        int64_t local_seconds = time_now() + time_zone_offset();
+        return local_seconds / SECONDS_PER_MINUTE % (MINUTES_PER_HOUR * HOURS_PER_DAY);
     }
     return time_uptime_ms() / MS_PER_SECOND / SECONDS_PER_MINUTE;
 }
@@ -83,5 +84,5 @@ void app_on_draw(void)
     int32_t top = (gfx_height() - digits_height - LINE_GAP - caption_height) / 2;
     draw_centered(top, HOST_FONT_DIGITS, time_buffer);
     draw_centered(top + digits_height + LINE_GAP, HOST_FONT_TEXT,
-                  time_is_known() ? "UTC" : "since start");
+                  time_is_known() ? "" : "since start");
 }

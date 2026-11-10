@@ -9,8 +9,12 @@
 
 #include "screens.h"
 #include "sysinfo.h"
+#include "wifi.h"
 
 #define MINUTES_PER_HOUR 60
+
+/* The device's own address on its setup access point. */
+#define SETUP_ADDRESS "192.168.4.1"
 
 static void format_uptime(uint32_t minutes, char *text, size_t text_size)
 {
@@ -48,10 +52,20 @@ static void device_draw(scene_t *scene, gfx_t *surface)
     snprintf(free_memory, sizeof free_memory, "%" PRIu32 " KB", info.free_memory_kb);
     format_uptime(info.uptime_minutes, uptime, sizeof uptime);
 
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    /* On its network, or still waiting to be told one: then it is found on
+     * its own access point, which carries the device's name. */
+    bool on_network = wifi.phase == WIFI_PHASE_ONLINE;
+    const char *network = on_network                           ? wifi.ssid
+                          : wifi.phase == WIFI_PHASE_CONNECTING ? "connecting"
+                                                                : "setup mode";
+
     const screens_field_t fields[] = {
         { "Name", info.device_name },
+        { "Wi-Fi", network },
+        { "Address", on_network ? wifi.address : SETUP_ADDRESS },
         { "Firmware", info.firmware_version },
-        { "ESP-IDF", info.idf_version },
         { "Slot", info.running_slot },
         { "Free memory", free_memory },
         { "Uptime", uptime },

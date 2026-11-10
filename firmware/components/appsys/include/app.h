@@ -22,6 +22,7 @@ extern "C" {
 /* What the device offers an application beyond drawing. */
 typedef struct {
     int64_t (*unix_time)(void); /* 0 while the time is unknown */
+    int32_t (*time_zone_offset)(void); /* seconds east of UTC, 0 while unknown */
     int64_t (*uptime_ms)(void);
     void (*log)(int level, const char *text, int length);
     /* A one-shot for the application on the screen; 0 ms cancels it. */

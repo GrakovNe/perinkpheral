@@ -88,7 +88,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 - SRAM 512 KB, about 250-300 KB free after Wi-Fi + TLS. There is no PSRAM and there will be none.
 - Flash 4 MB: two OTA slots of 0x170000 (~1.44 MB) + LittleFS 1 MB (applications, fonts, gzipped web UI). A firmware larger than a slot means no OTA. The partition table is fixed - it cannot be changed over the air.
 - A wasm application's arena is **exactly 64 KB** (one wasm page, there is nothing smaller), fixed for everyone. Build: `-Wl,--initial-memory=65536 -Wl,--max-memory=65536 -Wl,-z,stack-size=8192` (`tools/mkapp` does it); the interpreter is built with a limit of one page, so a module that asks for more does not load and none can grow.
-- **One** wasm instance in memory at any moment; measured on the device, a loaded application costs 77 KB (the 64 KB page plus the interpreter) and all of it comes back when it leaves the screen. Free heap without the network: 391 KB idle, 314 KB with an application on the screen. Delivering data to an application that is not on the scene = unload the scene → load the owner → deliver → bring the scene back (100-300 ms).
+- **One** wasm instance in memory at any moment; measured on the device, a loaded application costs 77 KB (the 64 KB page plus the interpreter) and all of it comes back when it leaves the screen. Free heap: 391 KB idle and 314 KB with an application on the screen before Wi-Fi was in the firmware; with Wi-Fi up as a setup access point, 236 KB idle - the radio costs about 155 KB, more than was budgeted, and its buffers have not been tuned yet. Delivering data to an application that is not on the scene = unload the scene → load the owner → deliver → bring the scene back (100-300 ms).
 - An HTTP response body goes to the application as a stream, in 1-2 KB chunks, while TLS is open; the host never holds it whole. Peak budget: TLS ~45 KB + one instance ~80 KB + the host.
 - Two frames of 400×300×1 bit = 15 KB each: the back buffer the host draws into and the display service's copy of what the panel shows.
 
@@ -139,7 +139,7 @@ The host is layers, and each knows only the ones under it:
 | Window manager | `components/ui` (`wm.c`) | which scene has the screen, how the user moves between scenes, how a frame is put together from the header and the scene's picture |
 | Scenes | `main/scene_*.c`, later the wasm application | tie a model to a view and decide what the buttons do, all behind one interface (`scene.h`): enter, leave, button, draw |
 | Views | `main/screens.c` | a struct in, pixels out; no hardware, rendered by `tools/preview` |
-| Services | `main/sysinfo.c`, `main/status.c`, settings; later network, time, polling | the data, with no idea that a screen exists |
+| Services | `main/sysinfo.c`, `main/status.c`, settings, `components/net` (Wi-Fi, the clock); later polling | the data, with no idea that a screen exists |
 
 - **Two frames.** The back buffer (`host.c`) is where frames are put together; the display service holds the front copy of what the panel shows. Drawing never touches the panel, an unchanged frame costs no refresh, and a scene cannot spoil the screen halfway.
 - **Layers are areas of one frame**, not buffers of their own: the header and the content do not overlap. A scene that is not full-screen gets a viewport under the header and cannot draw outside it.
@@ -147,6 +147,13 @@ The host is layers, and each knows only the ones under it:
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
 - **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons and print the frame the panel shows; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
+
+### Wi-Fi
+- **No network stored** - the device puts up an open access point named after itself (`Perinkpheral-XXXX`) and waits to be set up at `192.168.4.1`.
+- **A network stored** - it connects; a lost or failed connection is tried again after 2, 4, 8 ... at most 30 seconds.
+- **Two minutes without success** - rescue: the setup access point comes up as well and the device keeps trying once a minute, so a wrong password never needs the cable. Connected again, the access point goes away.
+- The rules are `components/net/wifi_plan.c`, pure and host-tested; `wifi.c` only carries them out. The Wi-Fi library keeps nothing in flash: the credentials are the host's settings.
+- Time comes from SNTP whenever there is a network, in the user's time zone (a POSIX TZ string in the settings). Until the first answer the device does not know the time: the header shows no date and `time_now()` is 0.
 
 ### Header
 The host draws a header above its own screens and above every application that does not ask for the full screen:
@@ -173,10 +180,11 @@ timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_time
 kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
 time_now() -> unix seconds             // 0 while the time is unknown
+time_zone_offset() -> seconds          // add to time_now() for the user's local time
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
-Still to come with milestone 2: `http_request`, `request_focus`, `time_tz_offset`.
+Still to come with milestone 2: `http_request`, `request_focus`.
 
 There are no pointer callbacks. An application exports functions with fixed names (the host skips the missing ones):
 ```
@@ -246,6 +254,7 @@ firmware/              the ESP-IDF project (build from this folder)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            one wasm application in memory, the host API as it sees it, the application as a scene, manifests and the store of installed applications (pure)
     wasm3/             the interpreter, v0.9.0 (MIT), with one local change described in its README
+    net/               Wi-Fi (the plan of what to do when is pure, the radio carries it out), the clock from SNTP
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
     store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
     web/               esp_http_server, API, OTA upload, static files (milestone 2/5)
@@ -289,6 +298,8 @@ hardware/              everything about the physical device
 ## State
 Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` redraws on a timer once a minute, host tests of the pure modules.
 
+Open:
+- Wi-Fi has been checked only as far as the setup access point coming up: connecting to a real network, SNTP and the date in the header have not been run for lack of credentials during the unattended session.
 Open:
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
 - The e-paper policy numbers are in menuconfig; move them into the host settings (`appconf` + NVS).

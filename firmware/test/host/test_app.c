@@ -41,6 +41,11 @@ static int64_t fake_unix_time(void)
     return 0;
 }
 
+static int32_t fake_time_zone_offset(void)
+{
+    return 3600;
+}
+
 /* Stands still, so that the probe can check what it reads, unless a test
  * lets it run: then every look at it is a millisecond later. */
 #define FAKE_UPTIME_MS 1234
@@ -128,6 +133,7 @@ static int32_t fake_kv_set(const char *app_name, const char *key, const void *va
 
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
+    .time_zone_offset = fake_time_zone_offset,
     .uptime_ms = fake_uptime_ms,
     .log = record_log,
     .timer_set = record_timer,

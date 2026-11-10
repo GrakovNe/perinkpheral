@@ -9,17 +9,13 @@
 
 #include "app_kv.h"
 #include "host_api.h"
+#include "net_time.h"
 #include "timers.h"
 
 static const char *TAG = "app";
 
 _Static_assert(HOST_TIMER_COUNT == TIMERS_COUNT, "an application gets every timer of the host");
 
-/* There is no clock to ask until the network milestone. */
-static int64_t unix_time(void)
-{
-    return 0;
-}
 
 static int64_t uptime_ms(void)
 {
@@ -47,7 +43,8 @@ static void log_from_app(int level, const char *text, int length)
 const app_services_t *app_host_services(void)
 {
     static const app_services_t SERVICES = {
-        .unix_time = unix_time,
+        .unix_time = net_time_now,
+        .time_zone_offset = net_time_zone_offset,
         .uptime_ms = uptime_ms,
         .log = log_from_app,
         .timer_set = timers_set,

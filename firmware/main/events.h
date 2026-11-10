@@ -18,6 +18,7 @@ extern "C" {
 typedef enum {
     EVENT_BUTTON,
     EVENT_TIMER,      /* a timer of the scene on the screen ran out */
+    EVENT_STATUS_CHANGED, /* what the header shows is different now */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
 } event_kind_t;
 

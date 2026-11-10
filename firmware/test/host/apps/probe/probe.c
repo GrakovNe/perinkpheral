@@ -27,7 +27,8 @@
 #define BUTTON_RECURSE       9
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
-#define FAKE_UPTIME_MS      1234 /* what test_app.c's clock answers */
+#define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
+#define FAKE_ZONE_OFFSET    3600
 #define OFF_THE_SURFACE     300
 #define HUGE                2000000000
 
@@ -164,7 +165,7 @@ void app_on_draw(void)
     if (time_uptime_ms() == FAKE_UPTIME_MS) {
         mark(4, ROW_MEASURES);
     }
-    if (time_now() == 0) {
+    if (time_now() == 0 && time_zone_offset() == FAKE_ZONE_OFFSET) {
         mark(6, ROW_MEASURES);
     }
     if (gfx_font_height(HOST_FONT_DIGITS) > gfx_font_height(HOST_FONT_LARGE) &&

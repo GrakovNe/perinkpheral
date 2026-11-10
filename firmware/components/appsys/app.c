@@ -354,6 +354,12 @@ HOST_FUNCTION(host_time_now)
     m3ApiReturn(APP_OF(runtime)->services->unix_time());
 }
 
+HOST_FUNCTION(host_time_zone_offset)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiReturn(APP_OF(runtime)->services->time_zone_offset());
+}
+
 HOST_FUNCTION(host_time_uptime_ms)
 {
     m3ApiReturnType(int64_t);
@@ -393,6 +399,7 @@ static const struct {
     { "kv_get", "i(*i*i)", host_kv_get },
     { "kv_set", "i(*i*i)", host_kv_set },
     { "time_now", "I()", host_time_now },
+    { "time_zone_offset", "i()", host_time_zone_offset },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
     { "log", "v(i*i)", host_log },
 };

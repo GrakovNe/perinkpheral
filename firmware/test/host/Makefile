@@ -7,6 +7,7 @@ INPUT   := $(COMP)/input
 EPD     := $(COMP)/epd
 UI      := $(COMP)/ui
 APPSYS  := $(COMP)/appsys
+NET     := $(COMP)/net
 WASM3   := $(COMP)/wasm3/wasm3
 SDK     := ../../../sdk
 MKAPP   := ../../../tools/mkapp/mkapp.py
@@ -15,7 +16,7 @@ MAIN    := ../../main
 # Whatever draws is rebuilt when the drawing code changes.
 GFX_SRCS := $(GFX)/gfx.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes
+TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -77,6 +78,9 @@ build/probe_wasm.h: build/probe/app.wasm
 test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) \
 		-Dd_m3MaxLinearMemoryPages=1 -o $@ test_app.c $(APPSYS)/app.c $(GFX)/gfx.c $(GFX)/font_square.c $(WASM3_OBJS)
+
+test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
+	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
 
 CJSON := $(IDF_PATH)/components/json/cJSON
 MANIFEST_SRCS := $(APPSYS)/app_manifest.c build/cJSON.o

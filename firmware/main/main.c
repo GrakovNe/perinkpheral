@@ -18,10 +18,13 @@
 #include "events.h"
 #include "host.h"
 #include "reset.h"
+#include "net_time.h"
 #include "settings.h"
+#include "status.h"
 #include "storage.h"
 #include "sysinfo.h"
 #include "timers.h"
+#include "wifi.h"
 
 static const char *TAG = "main";
 
@@ -61,6 +64,17 @@ void app_main(void)
     buttons_start(on_button_pressed);
     sysinfo_start(cfg->device_name);
     storage_start();
+
+    wifi_config_in_t wifi = {
+        .ssid = cfg->wifi_ssid,
+        .password = cfg->wifi_password,
+        .hostname = cfg->hostname,
+        .access_point_name = cfg->device_name,
+        .on_change = status_check,
+    };
+    status_start();
+    wifi_start(&wifi);
+    net_time_start(cfg->ntp_server, cfg->tz);
 #ifdef CONFIG_APP_DEV_CONSOLE
     devconsole_start();
 #endif
