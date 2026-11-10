@@ -103,7 +103,18 @@ int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *ut
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
 
-/* The host's text font, Departure Mono at 22 px. */
+/* The fonts in the firmware, all Departure Mono, which lands on its own
+ * pixel grid only at multiples of 11. */
+typedef enum {
+    GFX_FONT_TEXT,   /* 22 px, printable ASCII: the host's text */
+    GFX_FONT_LARGE,  /* 44 px, printable ASCII */
+    GFX_FONT_DIGITS, /* 66 px: digits, space and : + - . , % / */
+} gfx_font_id_t;
+
+/* NULL for an id that is not one of the above. */
+const gfx_font_t *gfx_font(gfx_font_id_t id);
+
+/* GFX_FONT_TEXT, for the host's own screens. */
 const gfx_font_t *gfx_font_system(void);
 
 static inline int gfx_font_height(const gfx_font_t *font)

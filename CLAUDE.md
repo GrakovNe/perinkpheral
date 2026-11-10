@@ -78,7 +78,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ## Stack
 - ESP-IDF 5.5, C. No Arduino, ESPHome, LVGL, GxEPD2.
 - Application runtime: **wasm3** v0.9.0 (interpreter, sandbox). Applications are built with wasi-sdk (found through `WASI_SDK_PATH`; verified with 34); the firmware build needs it too, since the image carries applications.
-- Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, as bitmaps from `tools/fontgen` (22 px) for everything else. ASCII only in version 1.
+- Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, as bitmaps from `tools/fontgen` for everything else: 22 px for the host and for text, 44 px and 66 px digits for applications. ASCII only in version 1.
 - FS: LittleFS (partition `apps`, 1 MB). NVS for the applications' `kv_*` and the host settings.
 - Network: `esp_http_client` (TLS through mbedTLS), `esp_http_server` for the web UI.
 - The display driver is our own, on top of `spi_master`: init, full refresh, partial refresh, panel deep sleep after every update. **SPI 2 MHz**, mode 0, CS toggled per byte - otherwise the refresh never finishes (see `AGENTS.md`).
@@ -161,6 +161,7 @@ The only contract is `sdk/host_api.h`; applications and the host's import table 
 ```
 gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x257 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
+                                       // fonts: 0 text 22 px, 1 large 44 px, 2 digits 66 px (digits and : + - . , % /)
 gfx_text_width(font_id, str_ptr, len) -> px
 gfx_font_height(font_id) -> px
 gfx_rect(x, y, w, h, fill)

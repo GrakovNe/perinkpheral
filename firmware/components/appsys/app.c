@@ -79,9 +79,13 @@ static void stop_budget(void)
 
 /* ---- the host API as the application sees it ---- */
 
+_Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_LARGE == GFX_FONT_LARGE &&
+                   HOST_FONT_DIGITS == GFX_FONT_DIGITS,
+               "applications name the fonts by the numbers gfx gives them");
+
 static const gfx_font_t *font_by_id(int32_t font)
 {
-    return font == HOST_FONT_TEXT ? gfx_font_system() : NULL;
+    return gfx_font((gfx_font_id_t)font);
 }
 
 /* An offset and a length from the application, which is not trusted, as

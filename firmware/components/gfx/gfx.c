@@ -379,6 +379,21 @@ int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
 }
 
 #include "departure_22.h"
+#include "departure_44.h"
+#include "departure_66_digits.h"
+
+const gfx_font_t *gfx_font(gfx_font_id_t id)
+{
+    switch (id) {
+    case GFX_FONT_TEXT:
+        return &departure_22;
+    case GFX_FONT_LARGE:
+        return &departure_44;
+    case GFX_FONT_DIGITS:
+        return &departure_66_digits;
+    }
+    return NULL;
+}
 
 const gfx_font_t *gfx_font_system(void)
 {

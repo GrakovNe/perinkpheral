@@ -250,8 +250,9 @@ static void test_measures_and_time(void)
 {
     app_t *app = load_probe();
     draw(app);
-    /* text width adds up, a font has a height, both clocks answer */
-    CHECK(black_in_row(ROW_MEASURES) == 4);
+    /* text width adds up, a font has a height, both clocks answer, the
+     * three fonts are three sizes */
+    CHECK(black_in_row(ROW_MEASURES) == 5);
     app_unload(app);
 }
 

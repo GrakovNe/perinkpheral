@@ -71,7 +71,10 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 
-#define HOST_FONT_TEXT 0 /* Departure Mono, 22 px: the host's own font */
+/* All Departure Mono. A character a font does not have is drawn as '?'. */
+#define HOST_FONT_TEXT   0 /* 22 px, printable ASCII: the host's own text */
+#define HOST_FONT_LARGE  1 /* 44 px, printable ASCII */
+#define HOST_FONT_DIGITS 2 /* 66 px: digits, space and : + - . , % / */
 
 /* y is the top of the line, not the baseline. Text longer than
  * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */

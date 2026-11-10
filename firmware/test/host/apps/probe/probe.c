@@ -12,7 +12,7 @@
 #define ROW_TIMER          2  /* timer id + 1 pixels, once a timer fired */
 #define ROW_NOT_DRAWING    4  /* one pixel: drawing outside app_on_draw was refused */
 #define ROW_BAD_ARGUMENTS  6  /* pixel 0: a wild pointer refused; pixel 2: an unknown font */
-#define ROW_MEASURES       8  /* pixels 0 2 4 6: text width, font height, uptime, wall time */
+#define ROW_MEASURES       8  /* pixels 0 2 4 6 8: text width, font height, uptime, wall time, three font sizes */
 #define ROW_MORE_REFUSALS   10 /* pixels 0..10: see refusals[] in app_on_draw */
 #define ROW_BITMAP         12
 #define ROW_LINE           14
@@ -166,6 +166,10 @@ void app_on_draw(void)
     }
     if (time_now() == 0) {
         mark(6, ROW_MEASURES);
+    }
+    if (gfx_font_height(HOST_FONT_DIGITS) > gfx_font_height(HOST_FONT_LARGE) &&
+        gfx_font_height(HOST_FONT_LARGE) > gfx_font_height(HOST_FONT_TEXT)) {
+        mark(8, ROW_MEASURES);
     }
 
     /* Longer than the host takes at once: cut, not refused. */
