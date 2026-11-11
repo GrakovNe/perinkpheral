@@ -23,6 +23,7 @@
 #include "log_capture.h"
 #include "net_time.h"
 #include "events.h"
+#include "host.h"
 #include "ota.h"
 #include "poller.h"
 #include "power.h"
@@ -37,7 +38,6 @@ static const char *TAG = "web";
 #define SETTINGS_BODY_MAX     512
 #define UPLOAD_CHUNK_BYTES    4096
 /* Long enough for the answer to reach the browser before the device goes. */
-#define RESTART_DELAY_US      (1500 * 1000)
 #define VALIDATION_TEXT_MAX   128
 /* How long a sender may say nothing in the middle of a request. */
 #define RECEIVE_TIMEOUT_S     10
@@ -52,23 +52,6 @@ extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
 static bool       s_is_up;
-
-static void restart_now(void *arg)
-{
-    (void)arg;
-    esp_restart();
-}
-
-void web_server_restart_soon(void)
-{
-    static esp_timer_handle_t timer;
-    esp_timer_create_args_t args = { .callback = restart_now, .name = "restart" };
-    if (timer == NULL && esp_timer_create(&args, &timer) != ESP_OK) {
-        esp_restart(); /* no way to wait: the answer may be lost, the restart not */
-    }
-    /* Already counting down is fine: the device restarts either way. */
-    esp_timer_start_once(timer, RESTART_DELAY_US);
-}
 
 /* A page of some other site, open in a browser on the same network, can
  * make that browser post to the device. The browser then says where the
@@ -308,7 +291,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     if (restarts) {
         ESP_LOGW(TAG, "settings changed, restarting");
         esp_err_t result = send_ok(request, "Saved. Restarting.");
-        web_server_restart_soon();
+        host_stop_soon(HOST_STOP_RESTART);
         return result;
     }
     return send_ok(request, command.needs_restart ? "Saved. Restart to apply." : "Saved.");
@@ -422,7 +405,7 @@ static esp_err_t handle_restart(httpd_req_t *request)
     }
     ESP_LOGW(TAG, "restart asked for");
     esp_err_t result = send_ok(request, "Restarting.");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return result;
 }
 
@@ -435,9 +418,8 @@ static esp_err_t handle_reset(httpd_req_t *request)
         return ESP_OK;
     }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
-    reset_mark_factory();
     esp_err_t result = send_ok(request, "Reset. Restarting.");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_FACTORY_RESET);
     return result;
 }
 
@@ -499,7 +481,7 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
         return send_error(request, error);
     }
     esp_err_t result = send_ok(request, "Installed. Restarting.");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return result;
 }
 
@@ -538,7 +520,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
         return send_error(request, error);
     }
     esp_err_t result = send_ok(request, "Installed. Restarting.");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return result;
 }
 

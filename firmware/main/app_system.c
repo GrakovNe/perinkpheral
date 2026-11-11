@@ -12,18 +12,17 @@
 
 #include "app_store.h"
 #include "display.h"
+#include "host.h"
 #include "events.h"
 #include "host_api.h"
 #include "launcher.h"
 #include "net_time.h"
 #include "poller.h"
 #include "power.h"
-#include "reset.h"
 #include "settings.h"
 #include "status.h"
 #include "storage.h"
 #include "sysinfo.h"
-#include "web_server.h"
 #include "wifi.h"
 #include "wifi_qr.h"
 
@@ -243,12 +242,11 @@ int32_t app_system_do(int action)
         break;
     }
     case SYS_DO_FACTORY_RESET:
-        ESP_LOGW(TAG, "factory reset asked for, restarting");
-        reset_mark_factory();
-        break;
+        host_stop_soon(HOST_STOP_FACTORY_RESET);
+        return HOST_OK;
     default:
         return HOST_ERR_ARGUMENT;
     }
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return HOST_OK;
 }

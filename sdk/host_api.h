@@ -49,6 +49,14 @@ APP_EXPORT(app_init, void app_init(void));
 APP_EXPORT(app_on_focus, void app_on_focus(void));
 APP_EXPORT(app_on_blur, void app_on_blur(void));
 
+/* The last call an instance gets: it is about to be unloaded, whatever
+ * the reason - it left the screen, an answer in the background is taken,
+ * the device restarts or sleeps, the application is being removed. This is
+ * where what must survive is put into the store; app_on_blur() comes
+ * first when the application was on the screen, and is not called for one
+ * that was not. */
+APP_EXPORT(app_on_terminate, void app_on_terminate(void));
+
 /* The four buttons, by what they do in the host's own screens; they sit
  * on the device in this order, and applications are encouraged to keep
  * the meaning. */
@@ -287,8 +295,8 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
 /* A few small values that outlive the application: it is unloaded every
  * time it leaves the screen, and this is where its state waits. Every
  * application has a store of its own. Writing wears the flash, so save
- * when something worth keeping changed - in app_on_blur(), say - not on
- * every tick. */
+ * when something worth keeping changed - in app_on_terminate(), say - not
+ * on every tick. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~': no spaces */
 #define HOST_KV_VALUE_MAX 256
 

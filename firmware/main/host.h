@@ -15,6 +15,16 @@ extern "C" {
  * to the display when it changed. Never returns. */
 void host_run(void) __attribute__((noreturn));
 
+/* The device restarts, or is reset to what it was when new: about a second
+ * from now - an answer to whoever asked has to leave it first - and in the
+ * host loop, which tells the loaded application before it goes. From any
+ * task. */
+typedef enum {
+    HOST_STOP_RESTART,
+    HOST_STOP_FACTORY_RESET, /* the settings and what applications stored are erased on the way up */
+} host_stop_t;
+void host_stop_soon(host_stop_t why);
+
 /* For what runs in the host loop - a handler of events_call() - and
  * nothing else.
  *

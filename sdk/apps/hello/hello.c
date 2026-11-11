@@ -6,7 +6,8 @@
  * the shape every application has - handlers change the state and ask for
  * a redraw, app_on_draw() paints the state - and where the state waits
  * while the application is not on the screen: the host unloads it then,
- * so it reads the count back when it starts and saves it when it leaves.
+ * so it reads the count back when it starts and saves it when it is about
+ * to be unloaded.
  */
 #include "app_text.h"
 #include "host_api.h"
@@ -30,7 +31,7 @@ void app_init(void)
     kv_get(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
 }
 
-void app_on_blur(void)
+void app_on_terminate(void)
 {
     kv_set(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
 }

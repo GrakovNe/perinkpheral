@@ -17,6 +17,7 @@
 #include "events.h"
 #include "launcher.h"
 #include "poller.h"
+#include "reset.h"
 #include "power.h"
 #include "scenes.h"
 #include "screens.h"
@@ -185,6 +186,59 @@ static void drop_app_scene(scene_t *scene, void *context)
     }
 }
 
+/* ---- stopping ----
+ *
+ * The device does not just restart: whatever is loaded is told and
+ * unloaded, nothing more is asked of the network, and then it goes. Every
+ * step is done when its call returns; nothing is waited for on the off
+ * chance. */
+
+#define STOP_DELAY_US (1000 * 1000) /* for the answer to whoever asked to leave the device */
+#define STOP_RETRY_US (200 * 1000)
+
+static esp_timer_handle_t s_stop_timer;
+static host_stop_t        s_stop_reason;
+
+static void stop(host_stop_t why)
+{
+    ESP_LOGW(TAG, "stopping: %s", why == HOST_STOP_FACTORY_RESET ? "factory reset" : "restart");
+    /* The application on the screen: app_on_blur(), app_on_terminate(). */
+    wm_suspend(&wm);
+    /* And one that was taking an answer off the screen. */
+    if (delivery_state.in_background != NULL) {
+        app_scene_end_background(delivery_state.in_background);
+    }
+    poller_hold(); /* and never let go: nothing more is asked */
+    if (why == HOST_STOP_FACTORY_RESET) {
+        reset_mark_factory();
+    }
+    esp_restart();
+}
+
+static void on_stop_timer(void *arg)
+{
+    (void)arg;
+    event_t event = { .kind = EVENT_STOP, .stop = s_stop_reason };
+    if (!events_post(&event)) {
+        /* The queue is full now; it will not be for long. */
+        esp_timer_start_once(s_stop_timer, STOP_RETRY_US);
+    }
+}
+
+void host_stop_soon(host_stop_t why)
+{
+    esp_timer_create_args_t args = { .callback = on_stop_timer, .name = "stop" };
+    if (s_stop_timer == NULL && esp_timer_create(&args, &s_stop_timer) != ESP_OK) {
+        esp_restart(); /* no way to do it properly: the restart is not lost */
+    }
+    /* A reset asked for is not turned into a restart by a later request. */
+    if (s_stop_reason != HOST_STOP_FACTORY_RESET) {
+        s_stop_reason = why;
+    }
+    esp_timer_stop(s_stop_timer); /* not running is fine */
+    esp_timer_start_once(s_stop_timer, STOP_DELAY_US);
+}
+
 void host_reload_apps(void)
 {
     reload_context_t context = { &wm, &delivery_state };
@@ -278,6 +332,9 @@ void host_run(void)
             break;
         case EVENT_CALL:
             events_answer_call(event.call);
+            break;
+        case EVENT_STOP:
+            stop((host_stop_t)event.stop);
             break;
         case EVENT_DEV_REQUEST:
 #ifdef CONFIG_APP_DEV_CONSOLE

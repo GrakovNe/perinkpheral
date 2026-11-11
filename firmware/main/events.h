@@ -24,6 +24,7 @@ typedef enum {
     EVENT_APP_DELIVERY, /* an answer from the network for an application, see poller.h */
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
+    EVENT_STOP,       /* the device is to stop: see host_stop_soon() */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -47,6 +48,7 @@ typedef struct {
     void *dev_request; /* a devtools request, see devtools.h */
     void *delivery;    /* a poller_delivery_t */
     void *call;        /* of events_call() */
+    int   stop;        /* a host_stop_t */
 } event_t;
 
 void events_start(void);

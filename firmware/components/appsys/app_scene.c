@@ -98,6 +98,12 @@ static bool load(app_scene_t *self)
 
 static void unload(app_scene_t *self)
 {
+    /* The one place an instance ends, and so the one place it is told:
+     * it left the screen, its answer in the background is taken, the
+     * device is stopping, the application is being removed. */
+    if (self->app != NULL) {
+        app_terminate(self->app);
+    }
     app_unload(self->app);
     self->app = NULL;
     release_module(self);

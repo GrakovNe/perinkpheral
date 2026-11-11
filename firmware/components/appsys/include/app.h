@@ -106,6 +106,8 @@ void app_unload(app_t *app);
  * stops the application for good: see app_has_stopped(). */
 void app_focus(app_t *app);
 void app_blur(app_t *app);
+/* The instance is about to be unloaded, whatever the reason: its last word. */
+void app_terminate(app_t *app);
 void app_button(app_t *app, int button, int press); /* as in host_api.h */
 void app_timer(app_t *app, int id);
 void app_draw(app_t *app, gfx_t *surface);

@@ -37,6 +37,7 @@ struct app {
 
     IM3Function on_focus;
     IM3Function on_blur;
+    IM3Function on_terminate;
     IM3Function on_button;
     IM3Function on_timer;
     IM3Function on_draw;
@@ -1212,6 +1213,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
 
     app->on_focus = find_export(app, "app_on_focus");
     app->on_blur = find_export(app, "app_on_blur");
+    app->on_terminate = find_export(app, "app_on_terminate");
     app->on_button = find_export(app, "app_on_button");
     app->on_timer = find_export(app, "app_on_timer");
     app->on_draw = find_export(app, "app_on_draw");
@@ -1250,6 +1252,11 @@ void app_focus(app_t *app)
 void app_blur(app_t *app)
 {
     CALL_HANDLER(app, app->on_blur);
+}
+
+void app_terminate(app_t *app)
+{
+    CALL_HANDLER(app, app->on_terminate);
 }
 
 void app_button(app_t *app, int button, int press)

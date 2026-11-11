@@ -17,6 +17,7 @@
 #include "display.h"
 #include "events.h"
 #include "host_api.h"
+#include "host.h"
 #include "launcher.h"
 #include "settings.h"
 #include "storage.h"
@@ -324,7 +325,7 @@ static esp_err_t handle_run(httpd_req_t *http)
     settings_save_last_app(name);
     ESP_LOGW(TAG, "restarting into \"%s\"", name);
     esp_err_t err = send_text(http, "200 OK", "restarting");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return err;
 }
 
@@ -364,7 +365,7 @@ static esp_err_t handle_restart(httpd_req_t *http)
     }
     ESP_LOGW(TAG, "restart asked for");
     esp_err_t err = send_text(http, "200 OK", "restarting");
-    web_server_restart_soon();
+    host_stop_soon(HOST_STOP_RESTART);
     return err;
 }
 
