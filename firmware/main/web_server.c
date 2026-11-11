@@ -24,6 +24,7 @@
 #include "net_time.h"
 #include "events.h"
 #include "host.h"
+#include "m3_area.h"
 #include "ota.h"
 #include "poller.h"
 #include "power.h"
@@ -158,6 +159,9 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
     cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
+    /* Of the application area, the most the application loaded now has had. */
+    cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
+    cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);
     cJSON_AddNumberToObject(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
     return send_json(request, "200 OK", json);

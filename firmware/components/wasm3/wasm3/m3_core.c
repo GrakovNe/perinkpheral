@@ -124,6 +124,19 @@ void *  m3_Realloc_Impl  (void * i_ptr, size_t i_newSize, size_t i_oldSize)
 
 #else
 
+// perinkpheral: with d_m3ApplicationArea defined, all of the interpreter's
+// memory - a module's linear memory, its compiled code, its own records -
+// comes from an area of its own (m3_area.c) and never from the heap of the
+// host: an application cannot fragment or exhaust what the host lives in.
+#ifdef d_m3ApplicationArea
+void *  m3_Area_Alloc    (size_t i_size);
+void    m3_Area_Free     (void * i_ptr);
+void *  m3_Area_Realloc  (void * i_ptr, size_t i_newSize);
+#   define calloc(SIZE, ONE)    m3_Area_Alloc (SIZE)
+#   define free(PTR)            m3_Area_Free (PTR)
+#   define realloc(PTR, SIZE)   m3_Area_Realloc (PTR, SIZE)
+#endif
+
 void *  m3_Malloc_Impl  (size_t i_size)
 {
     return calloc (i_size, 1);
@@ -137,7 +150,6 @@ void  m3_Free_Impl  (void * io_ptr)
 void *  m3_Realloc_Impl  (void * i_ptr, size_t i_newSize, size_t i_oldSize)
 {
     if (M3_UNLIKELY(i_newSize == i_oldSize)) return i_ptr;
-
 
     void * newPtr = realloc (i_ptr, i_newSize);
 

@@ -14,11 +14,10 @@ interrupted, and one such loop in an application would hang the host.
 The lines are marked `perinkpheral`. When updating Wasm3, carry them
 over or check whether upstream has closed its own TODO at that spot.
 
-`wasm3/m3_env.c`, where a module's linear memory is allocated
-(`ResizeMemory`) and released: with `d_m3ReservedBlockBytes` defined it is
-taken from `m3_reserve.c` instead of the heap, and given back there. That
-file is ours: it keeps one block of 64 KB for as long as the device runs,
-because a heap that has the bytes may not have them in one piece after a
-TLS session, and the application on the screen then could not be loaded
-again. Only linear memory goes there, and the block is never resized. The
-lines are marked `perinkpheral`.
+`wasm3/m3_core.c`, the allocator: with `d_m3ApplicationArea` defined the
+interpreter's `calloc`, `free` and `realloc` are those of `m3_area.c`,
+which is ours - a heap of its own inside one block of memory taken at
+start. Nothing an application needs comes from the heap of the host, so
+an application can neither fragment nor exhaust it, and the area is made
+whole again every time an application is unloaded. The lines are marked
+`perinkpheral`.

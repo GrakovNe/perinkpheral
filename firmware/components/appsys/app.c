@@ -8,6 +8,9 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef d_m3ApplicationArea
+#include "m3_area.h"
+#endif
 #include "host_api.h"
 #include "qrcodegen.h"
 #include "wasm3.h"
@@ -1237,6 +1240,10 @@ void app_unload(app_t *app)
         m3_FreeEnvironment(app->environment);
     }
     free(app);
+#ifdef d_m3ApplicationArea
+    /* The next application starts in an area nobody has been in. */
+    m3_area_reset();
+#endif
 }
 
 void app_focus(app_t *app)

@@ -11,7 +11,7 @@
 
 #include "app_host.h"
 #include "app_system.h"
-#include "m3_reserve.h"
+#include "m3_area.h"
 #include "poller.h"
 #include "power.h"
 #include "appconf.h"
@@ -68,7 +68,7 @@ void app_main(void)
 
     reset_early_init();
     /* First of all: the heap will not be this whole again. */
-    m3_reserve();
+    m3_area_start();
 
     settings_nvs_init();
     board_init();

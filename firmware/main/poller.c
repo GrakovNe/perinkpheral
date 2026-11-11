@@ -358,7 +358,7 @@ static void run_poll(const char *app_name, int poll_number)
 
 /* ---- requests the applications make themselves ---- */
 
-#define PENDING_MAX 4 /* for the whole device */
+#define PENDING_MAX         2 /* for the whole device */
 
 typedef struct {
     bool         is_waiting;

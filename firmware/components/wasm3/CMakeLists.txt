@@ -8,12 +8,14 @@ set(wasm3_sources
     "m3_function.c" "m3_info.c" "m3_module.c" "m3_parse.c" "m3_validate.c")
 list(TRANSFORM wasm3_sources PREPEND "${wasm3_dir}/")
 
-idf_component_register(SRCS ${wasm3_sources} "m3_reserve.c"
-                       INCLUDE_DIRS "${wasm3_dir}" ".")
+idf_component_register(SRCS ${wasm3_sources} "m3_area.c"
+                       INCLUDE_DIRS "${wasm3_dir}" "."
+                       PRIV_REQUIRES heap)
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
-    # A module's linear memory comes from m3_reserve.c, not from the heap.
-    d_m3ReservedBlockBytes=65536
+    # All of the interpreter's memory comes from the application area
+    # (m3_area.c), not from the host's heap.
+    d_m3ApplicationArea=1
     # Selects wasm3's defaults for small devices.
     ESP32
     # Keeps wasm3 from pinning every operation into RAM: on the C6 code
