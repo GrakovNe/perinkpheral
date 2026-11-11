@@ -11,8 +11,10 @@ device, ink.
 **Status: a working prototype.** The hardware is assembled and
 verified. The firmware runs wasm applications from its own file
 system, sets itself up over Wi-Fi and takes firmware updates over the
-network; fetching data for applications is half built. See
-[Roadmap](#roadmap) for what exists and what does not.
+network, fetches data for them and installs them from a catalog; its
+own settings are on the device and on its web page. Running from the
+battery for months is not built yet. See [Roadmap](#roadmap) for what
+exists and what does not.
 
 ## Vision
 
@@ -177,9 +179,10 @@ comes back reachable; otherwise it returns to the one it ran before.
 What you get today: a splash, then - on a device with no network yet -
 a screen that says how to set it up. A press leads to the menu (button
 1 up, 2 ok, 3 down, 4 back; a long press on button 4 returns to the
-menu from anywhere), which lists the installed wasm applications -
-`Hello` counts presses and keeps the count, `Clock` redraws once a
-minute - and the host's own pages: Device and About.
+menu from anywhere), which lists the installed applications and the
+host's own: Settings, Device and About. Those three, the splash and the
+setup screen are applications too, written with the same SDK and built
+into the firmware.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -233,6 +236,12 @@ An application is a folder with `app.wasm` and `manifest.json`. The
 contract is not frozen yet: it changes while the first applications are
 written.
 
+The host's own pages are written the same way, with a part of the
+contract that reaches into the device: its settings, its clock, its
+applications. It is open to any application that asks for it -
+`"system": true` in the manifest - and the page says so before it
+installs one.
+
 Applications reach a device from a **catalog**: a folder of static files
 with an index, served from anywhere over HTTPS, the way a Debian
 repository is. The device's page lists what its catalogs hold and
@@ -268,14 +277,16 @@ the rest: the log, the status, flashing the firmware itself.
    requests of an application's own, delivery to an application that is
    not on the screen, files, an alarm, settings through the device's
    page. The contract is not frozen.
-3. **Host screens - started.** Done: the menu, power-up, the Wi-Fi
-   setup screen with a QR code. Left: icons of applications in the
-   menu, status and error screens, a second font.
+3. **Host screens - mostly done.** Done: the menu with icons, power-up,
+   the Wi-Fi setup screen with a QR code, and the host's own pages as
+   system applications - Settings with four buttons and no keyboard,
+   Device, About. Left: a second font.
 4. **Power.** Sleep between polls, measured current and real battery
    life numbers, then extreme power saving.
 5. **Web UI and catalog - mostly done.** Done: installing from
-   catalogs, settings of applications, the log. Left: the host's own
-   settings on the page, firmware updates from releases.
+   catalogs, settings of applications and of the host, the log. Left:
+   firmware updates pulled from releases, and the API asking who is
+   there.
 
 Version 1 is ASCII only; other scripts are a task for version 2.
 
@@ -284,6 +295,8 @@ Version 1 is ASCII only; other scripts are a task for version 2.
 ```
 firmware/              the ESP-IDF project
   main/                entry point, host loop, scenes, views, services
+  system/              the host's own applications, built into the firmware:
+                       settings, device, about, setup
   components/          board, epd (panel and display service), gfx, input, ui,
                        appsys (application runtime), wasm3, appconf
   test/host/           host tests of the pure modules
