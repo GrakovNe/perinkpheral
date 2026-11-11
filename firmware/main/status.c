@@ -13,6 +13,7 @@
 
 #include "events.h"
 #include "net_time.h"
+#include "poller.h"
 #include "wifi.h"
 
 /* The date turns once a day, but nobody says when the clock gets set. */
@@ -29,8 +30,10 @@ void status_read(status_t *status)
      * went: that is all there is to know. */
     wifi_status_t wifi;
     wifi_get_status(&wifi);
-    status->wifi_connected = wifi.is_radio_off ? wifi.was_reached
-                                               : wifi.phase == WIFI_PHASE_ONLINE;
+    bool has_network = wifi.is_radio_off ? wifi.was_reached : wifi.phase == WIFI_PHASE_ONLINE;
+    /* And being on a network is not yet having one that answers: the icon
+     * is about the last time the network was needed. */
+    status->wifi_connected = has_network && !poller_last_use_failed();
     status->date_known = net_time_is_known();
     if (status->date_known) {
         time_t now = (time_t)net_time_now();

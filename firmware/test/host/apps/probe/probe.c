@@ -363,7 +363,7 @@ void app_on_draw(void)
     if (calls_through_pointers()) {
         mark(8, ROW_VALUES);
     }
-    if (net_is_online() == 1 && poll_now(1) == HOST_OK && poll_now(2) == HOST_ERR_ARGUMENT &&
+    if (poll_now(1) == HOST_OK && poll_now(2) == HOST_ERR_ARGUMENT &&
         poll_now(-1) == HOST_ERR_ARGUMENT) {
         mark(12, ROW_VALUES);
     }
@@ -380,16 +380,23 @@ void app_on_draw(void)
     static const char HEADERS[] = "Accept: application/json\nX-Token: {{token}}\n";
     static const char BODY[] = "{\"a\":1}";
     static const char FIVE_HEADERS[] = "A: 1\nB: 2\nC: 3\nD: 4\nE: 5";
-    if (http_request(HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1, BODY,
-                     sizeof BODY - 1) == HOST_REQUEST_FIRST + 3 &&
-        http_request(7, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "", 0) ==
+    enum { REQUEST_ACTION = HOST_REQUEST_FIRST + 3 };
+    if (http_request(REQUEST_ACTION, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS,
+                     sizeof HEADERS - 1, BODY, sizeof BODY - 1) == HOST_OK &&
+        /* a tag that could be taken for a poll, and one past the last */
+        http_request(HOST_REQUEST_FIRST - 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
-        http_request(HOST_HTTP_GET, URL, sizeof URL - 1, FIVE_HEADERS, sizeof FIVE_HEADERS - 1,
-                     "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(HOST_HTTP_GET, URL, 0, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(HOST_HTTP_GET, (const char *)0xFFFFFF00u, 8, "", 0, "", 0) ==
+        http_request(HOST_REQUEST_LAST + 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
+            HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, 7, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) ==
+            HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "",
+                     0) == HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, FIVE_HEADERS,
+                     sizeof FIVE_HEADERS - 1, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, 0, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_GET, (const char *)0xFFFFFF00u, 8, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT) {
         mark(18, ROW_VALUES);
     }

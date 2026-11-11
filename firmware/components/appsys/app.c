@@ -566,12 +566,6 @@ HOST_FUNCTION(host_file_read)
     m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
 }
 
-HOST_FUNCTION(host_net_is_online)
-{
-    m3ApiReturnType(int32_t);
-    m3ApiReturn(APP_OF(runtime)->services->is_online() ? 1 : 0);
-}
-
 HOST_FUNCTION(host_poll_now)
 {
     m3ApiReturnType(int32_t);
@@ -632,6 +626,7 @@ static bool is_request_text(const uint8_t *text, int32_t length, bool allow_line
 HOST_FUNCTION(host_http_request)
 {
     m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, tag);
     m3ApiGetArg(int32_t, method);
     m3ApiGetArg(uint32_t, url_offset);
     m3ApiGetArg(int32_t, url_length);
@@ -647,7 +642,8 @@ HOST_FUNCTION(host_http_request)
     bool is_sound = url != NULL && headers != NULL && body != NULL && url_length >= 1 &&
                     url_length <= APP_URL_MAX && headers_length <= HOST_HTTP_HEADERS_MAX &&
                     body_length <= HOST_HTTP_BODY_MAX && method >= HOST_HTTP_GET &&
-                    method <= HOST_HTTP_DELETE && is_request_text(url, url_length, false) &&
+                    method <= HOST_HTTP_DELETE && tag >= HOST_REQUEST_FIRST &&
+                    tag <= HOST_REQUEST_LAST && is_request_text(url, url_length, false) &&
                     is_request_text(headers, headers_length, true);
     /* Too large for the stack an application runs on. */
     app_request_t *request = is_sound ? malloc(sizeof *request) : NULL;
@@ -656,6 +652,7 @@ HOST_FUNCTION(host_http_request)
     }
     int32_t result = HOST_ERR_ARGUMENT;
     if (parse_headers((const char *)headers, headers_length, request)) {
+        request->tag = tag;
         request->method = method;
         memcpy(request->url, url, (size_t)url_length);
         request->url[url_length] = '\0';
@@ -948,9 +945,8 @@ static const struct {
     { "kv_set", "i(*i*i)", host_kv_set },
     { "file_size", "i(ii)", host_file_size },
     { "file_read", "i(iiiii)", host_file_read },
-    { "net_is_online", "i()", host_net_is_online },
     { "poll_now", "i(i)", host_poll_now },
-    { "http_request", "i(iiiiiii)", host_http_request },
+    { "http_request", "i(iiiiiiii)", host_http_request },
     { "poll_set_interval", "i(ii)", host_poll_set_interval },
     { "alarm_set", "i(i)", host_alarm_set },
     { "file_write", "i(iiiii)", host_file_write },

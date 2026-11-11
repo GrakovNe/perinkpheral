@@ -120,7 +120,8 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * number in the manifest. The first piece has HOST_DATA_FIRST and the
  * HTTP status, the last one HOST_DATA_LAST; a short answer is one piece
  * with both. HOST_DATA_FAILED comes alone, with no data: the request
- * could not be made, or broke off. The data is in the buffer the
+ * could not be made, or broke off, and `http_status` says which - a
+ * HOST_FAILED_* below, where a status would be. The data is in the buffer the
  * application gave with app_data_buffer() and is only there until the
  * handler returns.
  *
@@ -131,6 +132,11 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 #define HOST_DATA_LAST      2
 #define HOST_DATA_FAILED    4
 #define HOST_DATA_CHUNK_MAX 1024
+/* Why there is no answer, where the HTTP status would be - in
+ * app_on_data() with HOST_DATA_FAILED, and in app_on_values(). */
+#define HOST_FAILED_NO_NETWORK (-1) /* the device is not on a network */
+#define HOST_FAILED_NO_ANSWER  (-2) /* it is, and the server did not answer, or not to the end */
+#define HOST_FAILED_NOT_READY  (-3) /* a {{setting}} the request needs is not set */
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 
@@ -310,9 +316,9 @@ HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const vo
 
 /* ---- The network ---- */
 
-/* 1 while the device is on its network, 0 otherwise: the difference
- * between "nothing new" and "no way to know". */
-HOST_IMPORT(net_is_online, int32_t net_is_online(void));
+/* There is no asking whether the network is there: an application asks
+ * for what it wants, and "there is no network" is one of the answers
+ * (HOST_FAILED_NO_NETWORK). The radio may well be off between requests. */
 
 /* Fetch poll number `poll` of the manifest now instead of when it is due
  * - the user pressed "refresh". The answer arrives the usual way. The
@@ -324,16 +330,22 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  * second step after an answer. Only to the hosts the manifest lists
  * under "hosts". The host makes one request at a time for the whole
  * device and keeps at most HOST_HTTP_PENDING_MAX of an application's
- * waiting; the answer comes through app_on_data() in pieces, under the
- * number this returns - HOST_REQUEST_FIRST or more, so that it cannot be
- * taken for a poll - whether the application is on the screen by then or
- * not.
+ * waiting; the answer comes through app_on_data() in pieces, under
+ * `tag` - whether the application is on the screen by then or not. The
+ * tag is the application's own name for the request, a number from
+ * HOST_REQUEST_FIRST to HOST_REQUEST_LAST, so that it cannot be taken for
+ * a poll:
+ *
+ *     enum { REQUEST_TOKEN = HOST_REQUEST_FIRST, REQUEST_EVENTS };
+ *
+ * The instance that gets the answer is not the one that asked - that one
+ * was unloaded - and the tag is how it knows what the answer is to.
  *
  * `headers` is lines of "Name: value" separated by '\n', at most four.
  * {{key}} in the URL and in a header value is replaced by the setting of
- * that name, as in a poll. Returns HOST_ERR_ARGUMENT for a URL outside
- * the manifest's hosts or anything malformed, HOST_ERR_NO_SPACE when too
- * many are waiting already. */
+ * that name, as in a poll. Returns HOST_OK, HOST_ERR_ARGUMENT for a URL
+ * outside the manifest's hosts or anything malformed, HOST_ERR_NO_SPACE
+ * when too many are waiting already. */
 #define HOST_HTTP_GET    0
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
@@ -342,8 +354,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 #define HOST_HTTP_BODY_MAX    512
 #define HOST_HTTP_PENDING_MAX 2
 #define HOST_REQUEST_FIRST    16
+#define HOST_REQUEST_LAST     255
 HOST_IMPORT(http_request,
-            int32_t http_request(int32_t method, const char *url, int32_t url_length,
+            int32_t http_request(int32_t tag, int32_t method, const char *url, int32_t url_length,
                                  const char *headers, int32_t headers_length,
                                  const void *body, int32_t body_length));
 

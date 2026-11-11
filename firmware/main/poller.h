@@ -39,6 +39,11 @@ void poller_start(void);
 /* The installed applications are about to change: nothing of the poller
  * looks at them between these two. The second takes the new list and
  * schedules its polls; requests and alarms of the old one are dropped. */
+/* Whether the last time the network was needed it was not there; and the
+ * network saying it is there again. For the header's icon. */
+bool poller_last_use_failed(void);
+void poller_network_is_back(void);
+
 void poller_hold(void);
 
 /* The pace of polls may be another now - the power profile changed: they

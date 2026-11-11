@@ -34,7 +34,6 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
     (void)app; (void)key; (void)value; (void)length;
     return HOST_OK;
 }
-static bool offline(void) { return false; }
 static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
 static bool no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return false; }
 static bool no_alarm(const char *app, uint32_t s) { (void)app; (void)s; return false; }
@@ -64,7 +63,7 @@ static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
     .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
-    .dithers = always_dithers, .is_online = offline, .poll_now = no_poll_now, .poll_set_interval = no_interval,
+    .dithers = always_dithers, .poll_now = no_poll_now, .poll_set_interval = no_interval,
     .alarm_set = no_alarm, .http_request = no_request, .file_write = no_file_write,
     .file_size = no_file_size, .file_read = no_file_read,
 };

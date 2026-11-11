@@ -12,6 +12,7 @@
 #include "app_host.h"
 #include "app_system.h"
 #include "m3_reserve.h"
+#include "poller.h"
 #include "power.h"
 #include "appconf.h"
 #include "board.h"
@@ -41,6 +42,7 @@ static void on_wifi_changed(void)
     if (wifi_is_online()) {
         /* The clock was asked before there was a network to answer. */
         net_time_sync_now();
+        poller_network_is_back();
     }
     status_check();
 }

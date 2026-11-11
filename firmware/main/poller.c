@@ -25,6 +25,7 @@
 #include "storage.h"
 #include "text_template.h"
 #include "power.h"
+#include "status.h"
 #include "wifi.h"
 
 static const char *TAG = "poller";
@@ -223,7 +224,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     if (length < 0 || !is_whole) {
         /* Broke off, too long, or not JSON: what was read so far is not
          * an answer, and half of one must not pass for a whole one. */
-        http_status = 0;
+        http_status = HOST_FAILED_NO_ANSWER;
     }
     for (int i = 0; i < path_count; i++) {
         request->values[i] = json_pick_value(&request->pick, i);
@@ -259,18 +260,39 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         next = swapped;
         length = next_length;
     }
-    hand_over_piece(app_name, poll_number, 0, NULL, 0, HOST_DATA_FAILED);
+    hand_over_piece(app_name, poll_number, HOST_FAILED_NO_ANSWER, NULL, 0, HOST_DATA_FAILED);
 }
 
-static void tell_failure(const request_t *request, const char *app_name, int poll_number,
-                         bool wants_values)
+/* `why` is a HOST_FAILED_*, where the HTTP status would have been. */
+static void tell_failure(const char *app_name, int poll_number, bool wants_values, int why)
 {
     if (wants_values) {
-        hand_over_values(app_name, poll_number, 0, NULL, 0);
+        hand_over_values(app_name, poll_number, why, NULL, 0);
     } else {
-        hand_over_piece(app_name, poll_number, 0, NULL, 0, HOST_DATA_FAILED);
+        hand_over_piece(app_name, poll_number, why, NULL, 0, HOST_DATA_FAILED);
     }
-    (void)request;
+}
+
+/* Whether the last time the network was needed it was there: what the
+ * header's icon says. Unknown until something was asked. */
+static volatile bool s_last_use_failed;
+
+static void note_network_use(bool worked)
+{
+    if (s_last_use_failed == worked) {
+        s_last_use_failed = !worked;
+        status_check();
+    }
+}
+
+bool poller_last_use_failed(void)
+{
+    return s_last_use_failed;
+}
+
+void poller_network_is_back(void)
+{
+    note_network_use(true);
 }
 
 /* Makes the request that request->poll describes and hands the answer
@@ -284,7 +306,7 @@ static void perform(request_t *request, const char *app_name, int number, int me
         /* Most likely a setting that is not there yet: the application is
          * told, so that it can say what it is waiting for. */
         ESP_LOGI(TAG, "%s/%d: cannot be asked yet", app_name, number);
-        tell_failure(request, app_name, number, wants_values);
+        tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_READY);
         return;
     }
     int64_t   started_ms = now_ms();
@@ -300,8 +322,12 @@ static void perform(request_t *request, const char *app_name, int number, int me
     }
     if (err != ESP_OK || http_status == 0) {
         ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, number, esp_err_to_name(err));
-        tell_failure(request, app_name, number, wants_values);
+        bool has_network = wifi_is_online();
+        note_network_use(false);
+        tell_failure(app_name, number, wants_values,
+                     has_network ? HOST_FAILED_NO_ANSWER : HOST_FAILED_NO_NETWORK);
     } else {
+        note_network_use(true);
         if (wants_values) {
             fetch_values(request, client, app_name, number, http_status);
         } else {
@@ -334,7 +360,9 @@ static void run_poll(const char *app_name, int poll_number)
 typedef struct {
     bool         is_waiting;
     int          app;
-    int          number; /* what the answer is delivered under */
+    int          number; /* what the answer is delivered under: the application's tag */
+    uint32_t     order;  /* the oldest goes first */
+    int64_t      queued_ms;
     int          method;
     char         url[APP_URL_MAX + 1];
     app_header_t headers[APP_HEADERS_MAX];
@@ -344,7 +372,7 @@ typedef struct {
 } pending_t;
 
 static pending_t s_pending[PENDING_MAX];
-static int       s_next_number = HOST_REQUEST_FIRST;
+static uint32_t  s_next_order;
 
 static void lock(void)
 {
@@ -379,7 +407,7 @@ static bool run_pending_request(void)
     lock();
     pending_t *oldest = NULL;
     for (int i = 0; i < PENDING_MAX; i++) {
-        if (s_pending[i].is_waiting && (oldest == NULL || s_pending[i].number < oldest->number)) {
+        if (s_pending[i].is_waiting && (oldest == NULL || s_pending[i].order < oldest->order)) {
             oldest = &s_pending[i];
         }
     }
@@ -432,7 +460,9 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
     }
     if (free_slot != NULL && own_waiting < HOST_HTTP_PENDING_MAX) {
         free_slot->app = app;
-        free_slot->number = s_next_number++;
+        free_slot->number = asked->tag;
+        free_slot->order = s_next_order++;
+        free_slot->queued_ms = now_ms();
         free_slot->method = asked->method;
         strcpy(free_slot->url, asked->url);
         memcpy(free_slot->headers, asked->headers, sizeof free_slot->headers);
@@ -440,7 +470,7 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
         free_slot->body_length = asked->body_length;
         memcpy(free_slot->body, asked->body, (size_t)asked->body_length);
         free_slot->is_waiting = true;
-        result = free_slot->number;
+        result = HOST_OK;
     }
     unlock();
     return result;
@@ -559,6 +589,34 @@ static bool ring_due_alarm(void)
     return true;
 }
 
+/* A request waits for the network only so long: then the application is
+ * told there is none, and decides what to show. */
+static bool fail_request_without_network(void)
+{
+    if (wifi_is_online()) {
+        return false;
+    }
+    char app_name[APP_NAME_MAX + 1];
+    int  number = 0;
+    bool found = false;
+    lock();
+    for (int i = 0; i < PENDING_MAX && !found; i++) {
+        if (s_pending[i].is_waiting && now_ms() - s_pending[i].queued_ms > RADIO_WAIT_MS) {
+            strcpy(app_name, s_apps[s_pending[i].app].name);
+            number = s_pending[i].number;
+            s_pending[i].is_waiting = false;
+            found = true;
+        }
+    }
+    unlock();
+    if (found) {
+        ESP_LOGW(TAG, "%s/%d: no network", app_name, number);
+        note_network_use(false);
+        tell_failure(app_name, number, false, HOST_FAILED_NO_NETWORK);
+    }
+    return found;
+}
+
 /* Whether anything is waiting for the network now. */
 static bool wants_network(void)
 {
@@ -610,6 +668,9 @@ static void poller_task(void *arg)
         }
         bool can_ask = wifi_is_online() && esp_get_free_heap_size() >= FREE_HEAP_NEEDED;
         if (can_ask && run_pending_request()) {
+            continue;
+        }
+        if (fail_request_without_network()) {
             continue;
         }
         lock();

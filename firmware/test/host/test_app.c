@@ -163,11 +163,6 @@ static int32_t fake_file_read(const char *app_name, const char *file, int32_t of
     return count;
 }
 
-static bool fake_is_online(void)
-{
-    return true;
-}
-
 /* The application has polls 0 and 1. */
 static int polled_now = -1;
 static bool fake_poll_now(const char *app_name, int poll)
@@ -181,14 +176,16 @@ static bool fake_poll_now(const char *app_name, int poll)
 }
 
 static char asked_request[160];
+static int  asked_tag;
 static int32_t fake_http_request(const char *app_name, const app_request_t *request)
 {
     (void)app_name;
+    asked_tag = request->tag;
     snprintf(asked_request, sizeof asked_request, "%d %s|%d:%s=%s,%s=%s|%.*s", request->method,
              request->url, request->header_count, request->headers[0].name,
              request->headers[0].value, request->headers[1].name, request->headers[1].value,
              (int)request->body_length, (const char *)request->body);
-    return HOST_REQUEST_FIRST + 3;
+    return HOST_OK;
 }
 
 static uint32_t paced_seconds, alarm_seconds = 99;
@@ -228,7 +225,7 @@ static const app_services_t SERVICES = {
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
     .kv_set = fake_kv_set,
-    .dithers = always_dithers, .is_online = fake_is_online,
+    .dithers = always_dithers,
     .poll_now = fake_poll_now,
     .http_request = fake_http_request,
     .poll_set_interval = fake_poll_set_interval,

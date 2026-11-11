@@ -99,7 +99,6 @@ const app_services_t *app_host_services(void)
         .kv_get = app_kv_get,
         .kv_set = app_kv_set,
         .dithers = dithers,
-        .is_online = wifi_is_online,
         .poll_now = poller_poll_now,
         .http_request = poller_request,
         .poll_set_interval = poller_set_interval,

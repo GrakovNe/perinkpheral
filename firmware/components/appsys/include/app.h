@@ -24,6 +24,7 @@ extern "C" {
  * takes it. The body is the application's memory: whoever keeps the
  * request copies it. */
 typedef struct {
+    int            tag;    /* what the answer is delivered under: the application's choice */
     int            method; /* HOST_HTTP_* */
     char           url[APP_URL_MAX + 1];
     app_header_t   headers[APP_HEADERS_MAX];
@@ -49,12 +50,10 @@ typedef struct {
     /* Whether greys are dithered; when not, a grey is black or white,
      * whichever is nearer. */
     bool (*dithers)(void);
-    /* Whether the device is on its network now. */
-    bool (*is_online)(void);
     /* Fetch the application's poll number `poll` now instead of when it is
      * due; false when it has no such poll. */
     bool (*poll_now)(const char *app_name, int poll);
-    /* Queues the request; the number its answer will carry, or a HOST_ERR_*. */
+    /* Queues the request: HOST_OK or a HOST_ERR_*. */
     int32_t (*http_request)(const char *app_name, const app_request_t *request);
     /* Another pace for a poll; false when there is no such poll. */
     bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
