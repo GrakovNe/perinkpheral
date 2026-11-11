@@ -15,6 +15,11 @@ typedef struct {
     int                 selected;
 } menu_scene_t;
 
+/* Stepping through the rows is a row of pictures: none of them is a full
+ * refresh, or the screen seems to rewind every few presses. Coming here
+ * and leaving are full ones anyway. */
+#define MOVED SCENE_REDRAW_NO_BLINK
+
 static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene_press_t press)
 {
     menu_scene_t *menu = (menu_scene_t *)scene;
@@ -32,11 +37,11 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
     switch (button) {
     case SCENE_BUTTON_UP:
         menu->selected = (menu->selected + menu->count - 1) % menu->count;
-        reaction.kind = SCENE_REDRAW;
+        reaction.kind = MOVED;
         break;
     case SCENE_BUTTON_DOWN:
         menu->selected = (menu->selected + 1) % menu->count;
-        reaction.kind = SCENE_REDRAW;
+        reaction.kind = MOVED;
         break;
     case SCENE_BUTTON_OK:
         reaction.kind = SCENE_OPEN;

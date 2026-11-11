@@ -37,7 +37,7 @@ static void test_menu_moves_and_wraps(void)
     CHECK(!menu->fullscreen);
     CHECK(opened_by_ok(menu) == &first_target);
 
-    CHECK(press(menu, SCENE_BUTTON_DOWN).kind == SCENE_REDRAW);
+    CHECK(press(menu, SCENE_BUTTON_DOWN).kind == SCENE_REDRAW_NO_BLINK);
     CHECK(opened_by_ok(menu) == &second_target);
 
     press(menu, SCENE_BUTTON_DOWN);
