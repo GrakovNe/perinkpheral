@@ -90,20 +90,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const screens_field_t fields[] = {
-        { "Name", "Perinkpheral-1A2B" },
-        { "Firmware", "v0.1.0" },
-        { "ESP-IDF", "v5.5.5" },
-        { "Slot", "ota_0" },
-        { "Free memory", "412 KB" },
-        { "Uptime", "3 h 12 min" },
-    };
-    start_screen(&online, &content);
-    screens_fields(&content, fields, 6);
-    if (save(dir, "device")) {
-        return 1;
-    }
-
     start_screen(&offline, &content);
     screens_setup(&content, "Perinkpheral-C7B0", "192.168.4.1");
     return save(dir, "setup");

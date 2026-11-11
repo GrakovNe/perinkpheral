@@ -1,6 +1,6 @@
 set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_kv.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
-         "scene_menu.c" "scene_device.c" "scene_splash.c" "scene_setup.c" "launcher.c" "poller.c")
+         "scene_menu.c" "scene_splash.c" "scene_setup.c" "launcher.c" "poller.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c" "devtools.c")
 endif()
@@ -58,21 +58,28 @@ endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
 file(GLOB system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
                                                "${repo_dir}/tools/mkapp/mkapp.py")
-foreach(system_app about)
+foreach(system_app about device)
     set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
     set(system_app_out "${system_apps_dir}/${system_app}")
+    # What is embedded is named after the application: the file's name is
+    # what the build names the embedded data by.
+    set(system_app_wasm "${system_apps_dir}/system_${system_app}.wasm")
+    set(system_app_manifest "${system_apps_dir}/system_${system_app}.manifest")
     file(GLOB system_app_sources CONFIGURE_DEPENDS "${system_app_dir}/*")
-    add_custom_command(OUTPUT "${system_app_out}/app.wasm" "${system_app_out}/manifest.json"
+    add_custom_command(OUTPUT "${system_app_wasm}" "${system_app_manifest}"
                        COMMAND "${repo_dir}/tools/mkapp/mkapp.py" "${system_app_dir}"
                                --out "${system_app_out}"
+                       COMMAND "${CMAKE_COMMAND}" -E copy "${system_app_out}/app.wasm"
+                               "${system_app_wasm}"
+                       COMMAND "${CMAKE_COMMAND}" -E copy "${system_app_out}/manifest.json"
+                               "${system_app_manifest}"
                        DEPENDS ${system_app_sources} ${system_sdk_sources}
                        VERBATIM)
     add_custom_target(system_app_${system_app}
-                      DEPENDS "${system_app_out}/app.wasm" "${system_app_out}/manifest.json")
-    target_add_binary_data(${COMPONENT_LIB} "${system_app_out}/app.wasm" BINARY
-                           RENAME_TO system_${system_app}_wasm DEPENDS system_app_${system_app})
-    target_add_binary_data(${COMPONENT_LIB} "${system_app_out}/manifest.json" TEXT
-                           RENAME_TO system_${system_app}_manifest
+                      DEPENDS "${system_app_wasm}" "${system_app_manifest}")
+    target_add_binary_data(${COMPONENT_LIB} "${system_app_wasm}" BINARY
+                           DEPENDS system_app_${system_app})
+    target_add_binary_data(${COMPONENT_LIB} "${system_app_manifest}" TEXT
                            DEPENDS system_app_${system_app})
 endforeach()
 littlefs_create_partition_image(apps "${apps_image_dir}" FLASH_IN_PROJECT DEPENDS bundled_apps)

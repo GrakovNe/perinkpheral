@@ -426,7 +426,14 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define SYS_INFO_VERSION 0 /* of the firmware, as it was built */
 #define SYS_INFO_NAME    1 /* "Perinkpheral-C7B0" */
 #define SYS_INFO_NETWORK 2 /* the Wi-Fi network it is set up for */
-#define SYS_INFO_ADDRESS 3 /* its address there */
+#define SYS_INFO_ADDRESS 3 /* where its page is: its address on the network, or on its own
+                              access point while it is not there */
+#define SYS_INFO_WIFI    4 /* one of SYS_WIFI_* */
+#define SYS_INFO_SLOT    5 /* the firmware slot it runs from: "ota_0" */
+#define SYS_INFO_FREE_MEMORY 6 /* of the host, in KB, as digits */
+#define SYS_WIFI_ONLINE     "online"
+#define SYS_WIFI_CONNECTING "connecting"
+#define SYS_WIFI_SETUP      "setup" /* waiting on its own access point to be told a network */
 HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t capacity));
 
 /* The mark, "perINKpheraL" in its square font, its top left corner at

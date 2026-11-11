@@ -4,6 +4,8 @@
  */
 #include "app_host.h"
 
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -84,6 +86,7 @@ static int32_t system_info(int what, char *text, int32_t capacity)
     sysinfo_t     info;
     wifi_status_t wifi;
     const char   *known;
+    char          number[12];
     switch (what) {
     case SYS_INFO_VERSION:
         sysinfo_read(&info);
@@ -99,7 +102,22 @@ static int32_t system_info(int what, char *text, int32_t capacity)
         break;
     case SYS_INFO_ADDRESS:
         wifi_get_status(&wifi);
-        known = wifi.address;
+        known = wifi.phase == WIFI_PHASE_ONLINE ? wifi.address : WIFI_SETUP_ADDRESS;
+        break;
+    case SYS_INFO_WIFI:
+        wifi_get_status(&wifi);
+        known = wifi.phase == WIFI_PHASE_ONLINE       ? SYS_WIFI_ONLINE
+                : wifi.phase == WIFI_PHASE_CONNECTING ? SYS_WIFI_CONNECTING
+                                                      : SYS_WIFI_SETUP;
+        break;
+    case SYS_INFO_SLOT:
+        sysinfo_read(&info);
+        known = info.running_slot;
+        break;
+    case SYS_INFO_FREE_MEMORY:
+        sysinfo_read(&info);
+        snprintf(number, sizeof number, "%" PRIu32, info.free_memory_kb);
+        known = number;
         break;
     default:
         return HOST_ERR_ARGUMENT;

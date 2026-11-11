@@ -54,13 +54,6 @@ int screens_menu_first_row(int count, int selected, int visible_rows);
 /* What to do to give the device a Wi-Fi network. */
 void screens_setup(gfx_t *g, const char *access_point_name, const char *address);
 
-typedef struct {
-    const char *label;
-    const char *value;
-} screens_field_t;
-
-/* A table of label / value rows. */
-void screens_fields(gfx_t *g, const screens_field_t *fields, int count);
 
 #ifdef __cplusplus
 }

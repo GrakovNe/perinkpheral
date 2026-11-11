@@ -27,9 +27,6 @@ typedef struct {
 /* entries must outlive the scene. */
 scene_t *scene_menu(const menu_entry_t *entries, int count);
 
-/* The device's name, firmware, memory. */
-scene_t *scene_device(void);
-
 /* A scene sets a timer through this; 0 ms cancels. */
 typedef void (*scenes_set_timer_fn)(int id, int32_t milliseconds);
 

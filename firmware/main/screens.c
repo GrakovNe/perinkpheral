@@ -155,17 +155,6 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
     }
 }
 
-#define FIELD_ROW_HEIGHT 34
-
-void screens_fields(gfx_t *g, const screens_field_t *fields, int count)
-{
-    for (int i = 0; i < count; i++) {
-        int baseline = (i + 1) * FIELD_ROW_HEIGHT;
-        gfx_text_font(g, MARGIN, baseline, gfx_font_system(), fields[i].label, true);
-        right_aligned(g, baseline, gfx_font_system(), fields[i].value);
-    }
-}
-
 /* The setup screen: a code that joins the phone to the device's access
  * point, and under it the same in words for whoever has no camera. */
 #define SETUP_TOP_GAP       8

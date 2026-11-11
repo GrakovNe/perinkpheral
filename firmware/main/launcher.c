@@ -15,7 +15,7 @@
 
 static const char *TAG = "launcher";
 
-#define BUILT_IN_PAGES     2 /* Device, and the system applications: About */
+#define BUILT_IN_PAGES     2 /* the system applications: Device and About */
 #define INSTALLED_APPS_MAX (LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES)
 
 /* The titles in here are what the menu points at. */
@@ -31,12 +31,20 @@ static int          s_entry_count;
  * application's name can. */
 #define SYSTEM_NAME_PREFIX "sys."
 
-extern const uint8_t system_about_wasm_start[] asm("_binary_system_about_wasm_start");
-extern const uint8_t system_about_wasm_end[] asm("_binary_system_about_wasm_end");
-extern const char system_about_manifest_start[] asm("_binary_system_about_manifest_start");
+#define SYSTEM_APP(name)                                                                \
+    extern const uint8_t system_##name##_wasm_start[] asm("_binary_system_" #name          \
+                                                           "_wasm_start");                  \
+    extern const uint8_t system_##name##_wasm_end[] asm("_binary_system_" #name "_wasm_end"); \
+    extern const char system_##name##_manifest_start[] asm("_binary_system_" #name          \
+                                                             "_manifest_start")
+SYSTEM_APP(device);
+SYSTEM_APP(about);
 
-static app_manifest_t s_about;
-static scene_t       *s_about_scene;
+/* In the order the menu lists them, after the installed ones. */
+enum { SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_APP_COUNT };
+
+static app_manifest_t s_system[SYSTEM_APP_COUNT];
+static scene_t       *s_system_scenes[SYSTEM_APP_COUNT];
 
 /* NULL when the manifest it was built with is not one this host reads:
  * a mistake of the build, said in the log. */
@@ -70,19 +78,26 @@ void launcher_start(void)
                                 s_app_scenes[i] };
         }
     }
-    s_entries[s_entry_count++] = (menu_entry_t){ "Device", NULL, scene_device() };
-    s_about_scene = system_app_scene(&s_about, system_about_manifest_start,
-                                     system_about_wasm_start,
-                                     (size_t)(system_about_wasm_end - system_about_wasm_start));
-    if (s_about_scene != NULL) {
-        s_entries[s_entry_count++] = (menu_entry_t){
-            s_about.title, s_about.has_icon ? s_about.icon : NULL, s_about_scene };
+    s_system_scenes[SYSTEM_DEVICE] =
+        system_app_scene(&s_system[SYSTEM_DEVICE], system_device_manifest_start,
+                         system_device_wasm_start,
+                         (size_t)(system_device_wasm_end - system_device_wasm_start));
+    s_system_scenes[SYSTEM_ABOUT] =
+        system_app_scene(&s_system[SYSTEM_ABOUT], system_about_manifest_start,
+                         system_about_wasm_start,
+                         (size_t)(system_about_wasm_end - system_about_wasm_start));
+    for (int i = 0; i < SYSTEM_APP_COUNT; i++) {
+        if (s_system_scenes[i] != NULL) {
+            s_entries[s_entry_count++] = (menu_entry_t){
+                s_system[i].title, s_system[i].has_icon ? s_system[i].icon : NULL,
+                s_system_scenes[i] };
+        }
     }
 }
 
 scene_t *launcher_about(void)
 {
-    return s_about_scene;
+    return s_system_scenes[SYSTEM_ABOUT];
 }
 
 const menu_entry_t *launcher_entries(int *count)
