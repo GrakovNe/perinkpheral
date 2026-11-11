@@ -34,7 +34,6 @@
 
 static const char *TAG = "main";
 
-static appconf_t s_cfg;
 
 /* Runs in the Wi-Fi task whenever the connection comes or goes. */
 static void on_wifi_changed(void)
@@ -78,8 +77,10 @@ void app_main(void)
     static char device_id[5];
     appconf_device_id(mac, device_id);
 
-    appconf_t *cfg = &s_cfg;
-    settings_load(cfg, device_id);
+    settings_start(device_id);
+    static appconf_t settings; /* as they are at start: what is told once is told from here */
+    settings_read(&settings);
+    const appconf_t *cfg = &settings;
     ESP_LOGI(TAG, "device %s: name \"%s\", hostname %s.local",
              device_id, cfg->device_name, cfg->hostname);
 
@@ -89,8 +90,7 @@ void app_main(void)
     timers_start();
     const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
     display_start(&refresh_policy);
-    app_host_use(cfg);
-    app_system_use(cfg, device_id);
+    app_host_set_dithering(cfg->dither != 0);
     buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();
@@ -106,7 +106,7 @@ void app_main(void)
     wifi_start(&wifi);
     power_start(cfg->power_saving != 0);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
-    web_server_start(cfg, device_id);
+    web_server_start();
     /* An image installed over the network has to prove that the network
      * still works before it is kept. */
     ota_start(cfg->wifi_ssid[0] != '\0');

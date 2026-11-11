@@ -24,7 +24,7 @@ extern "C" {
  *
  * config is the live settings; the server changes them only through
  * settings_save(). device_id as everywhere: four hex digits. */
-void web_server_start(appconf_t *config, const char device_id[5]);
+void web_server_start(void);
 
 bool web_server_is_up(void);
 

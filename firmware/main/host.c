@@ -159,6 +159,12 @@ static void remember_current_app(const wm_t *wm)
     }
 }
 
+/* The host loop's own, and nobody else's: what is on the screen and whose
+ * answer is being taken. Other tasks reach them through events_call(). */
+static wm_t                 wm;
+static app_delivery_state_t delivery_state;
+static scene_t             *s_menu;
+
 /* An application's scene is about to be freed, the list of them being
  * read anew: nobody may be left holding it. */
 typedef struct {
@@ -179,17 +185,39 @@ static void drop_app_scene(scene_t *scene, void *context)
     }
 }
 
+void host_reload_apps(void)
+{
+    reload_context_t context = { &wm, &delivery_state };
+    poller_hold();
+    launcher_reload(drop_app_scene, &context);
+    poller_release_reloaded();
+    int count;
+    const menu_entry_t *entries = launcher_entries(&count);
+    scene_menu(entries, count);
+    /* Where the splash leads may have been one of them. */
+    scene_boot_splash(scene_after_boot(s_menu), timers_set, launcher_about(), about_is_shown);
+    wm_invalidate(&wm, WM_CHANGED_URGENTLY);
+}
+
+void host_deliver(const char *app_name, const app_delivery_t *delivery)
+{
+    scene_t *owner = launcher_app_scene(app_name);
+    if (owner != NULL) {
+        app_deliver(&delivery_state, &wm, owner, delivery, esp_timer_get_time() / 1000);
+    }
+}
+
 void host_run(void)
 {
     launcher_start();
     int menu_entry_count;
     const menu_entry_t *menu_entries = launcher_entries(&menu_entry_count);
     scene_t *menu = scene_menu(menu_entries, menu_entry_count);
+    s_menu = menu;
 
     gfx_t screen;
     gfx_init(&screen, s_frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
-    wm_t wm;
     /* The splash is the About application; a firmware without one starts
      * where the splash would have led. */
     scene_t *after_boot = scene_after_boot(menu);
@@ -199,8 +227,8 @@ void host_run(void)
                          : after_boot;
     wm_init(&wm, menu, first, draw_header, NULL);
 
-    app_delivery_state_t delivery_state;
     app_delivery_init(&delivery_state);
+    events_this_is_the_host_loop();
     poller_start();
 
     int events_since_shown = 0;
@@ -241,27 +269,16 @@ void host_run(void)
             break;
         case EVENT_APP_DELIVERY: {
             poller_delivery_t *handed = event.delivery;
-            scene_t *owner = launcher_app_scene(handed->app_name);
-            if (owner != NULL) {
-                app_deliver(&delivery_state, &wm, owner, &handed->delivery,
-                            esp_timer_get_time() / 1000);
-            }
+            host_deliver(handed->app_name, &handed->delivery);
             xSemaphoreGive(handed->handed_over);
             break;
         }
-        case EVENT_APPS_CHANGED: {
-            reload_context_t context = { &wm, &delivery_state };
-            poller_hold();
-            launcher_reload(drop_app_scene, &context);
-            poller_release_reloaded();
-            menu_entries = launcher_entries(&menu_entry_count);
-            scene_menu(menu_entries, menu_entry_count);
-            /* Where the splash leads may have been one of them. */
-            scene_boot_splash(scene_after_boot(menu), timers_set, launcher_about(),
-                              about_is_shown);
-            wm_invalidate(&wm, WM_CHANGED_URGENTLY);
+        case EVENT_APPS_CHANGED:
+            host_reload_apps();
             break;
-        }
+        case EVENT_CALL:
+            events_answer_call(event.call);
+            break;
         case EVENT_DEV_REQUEST:
 #ifdef CONFIG_APP_DEV_CONSOLE
             devtools_serve(event.dev_request, &wm, s_frames_shown,

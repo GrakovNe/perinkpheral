@@ -16,12 +16,15 @@
 static const char *TAG = "launcher";
 
 #define BUILT_IN_PAGES     3 /* the system applications: Settings, Device and About */
-#define INSTALLED_APPS_MAX (LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES)
+#define INSTALLED_APPS_MAX LAUNCHER_INSTALLED_MAX
+_Static_assert(LAUNCHER_INSTALLED_MAX == LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES,
+               "the menu has a row for every application and every system one");
 
 /* The titles in here are what the menu points at. */
 static app_manifest_t s_installed[INSTALLED_APPS_MAX];
 static scene_t       *s_app_scenes[INSTALLED_APPS_MAX];
 static int            s_installed_count;
+static volatile uint32_t s_installed_version; /* odd while the list is being read anew */
 
 static menu_entry_t s_entries[LAUNCHER_ENTRIES_MAX];
 static int          s_entry_count;
@@ -97,6 +100,18 @@ static void list_entries(void)
     }
 }
 
+int launcher_read_installed(app_manifest_t *copy, int capacity)
+{
+    uint32_t version;
+    int      count;
+    do {
+        version = s_installed_version;
+        count = s_installed_count < capacity ? s_installed_count : capacity;
+        memcpy(copy, s_installed, (size_t)count * sizeof *copy);
+    } while ((version & 1) != 0 || version != s_installed_version);
+    return count;
+}
+
 void launcher_reload(launcher_drop_fn drop, void *context)
 {
     for (int i = 0; i < s_installed_count; i++) {
@@ -106,7 +121,9 @@ void launcher_reload(launcher_drop_fn drop, void *context)
             s_app_scenes[i] = NULL;
         }
     }
+    s_installed_version++;
     read_installed();
+    s_installed_version++;
     list_entries();
 }
 

@@ -76,16 +76,16 @@ static int32_t file_write(const char *app_name, const char *file, int32_t offset
     return HOST_ERR_FAILED;
 }
 
-static const appconf_t *s_config;
+static bool s_dithers = true;
 
-void app_host_use(const appconf_t *config)
+void app_host_set_dithering(bool dithers)
 {
-    s_config = config;
+    s_dithers = dithers;
 }
 
 static bool dithers(void)
 {
-    return s_config == NULL || s_config->dither != 0;
+    return s_dithers;
 }
 
 const app_services_t *app_host_services(void)

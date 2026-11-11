@@ -7,6 +7,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 
 static const char *TAG = "events";
 
@@ -53,10 +55,50 @@ void events_post_button(uint8_t index, event_press_t press)
     events_post(&event);
 }
 
-void events_post_apps_changed(void)
+typedef struct {
+    events_call_fn    run;
+    void             *argument;
+    SemaphoreHandle_t done;
+} call_t;
+
+static TaskHandle_t s_host_loop;
+
+void events_this_is_the_host_loop(void)
+{
+    s_host_loop = xTaskGetCurrentTaskHandle();
+}
+
+bool events_call(events_call_fn run, void *argument)
+{
+    if (xTaskGetCurrentTaskHandle() == s_host_loop) {
+        run(argument);
+        return true;
+    }
+    call_t call = { .run = run, .argument = argument, .done = xSemaphoreCreateBinary() };
+    if (call.done == NULL) {
+        return false;
+    }
+    event_t event = { .kind = EVENT_CALL, .call = &call };
+    bool    is_asked = events_post(&event);
+    if (is_asked) {
+        /* For as long as it takes: the call is on this task's stack. */
+        xSemaphoreTake(call.done, portMAX_DELAY);
+    }
+    vSemaphoreDelete(call.done);
+    return is_asked;
+}
+
+void events_answer_call(void *asked)
+{
+    call_t *call = asked;
+    call->run(call->argument);
+    xSemaphoreGive(call->done);
+}
+
+bool events_post_apps_changed(void)
 {
     event_t event = { .kind = EVENT_APPS_CHANGED };
-    events_post(&event);
+    return events_post(&event);
 }
 
 bool events_wait(event_t *event, uint32_t timeout_ms)

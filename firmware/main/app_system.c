@@ -29,15 +29,6 @@
 
 static const char *TAG = "system";
 
-static appconf_t  *s_config;
-static const char *s_device_id;
-
-void app_system_use(appconf_t *config, const char device_id[5])
-{
-    s_config = config;
-    s_device_id = device_id;
-}
-
 int32_t app_system_info(int what, char *text, int32_t capacity)
 {
     sysinfo_t     info;
@@ -45,6 +36,7 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     const char   *known;
     char          number[12];
     char          join_code[WIFI_QR_TEXT_MAX];
+    appconf_t     settings;
     switch (what) {
     case SYS_INFO_VERSION:
         sysinfo_read(&info);
@@ -78,7 +70,8 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
         known = number;
         break;
     case SYS_INFO_TIME_ZONE:
-        known = s_config->tz;
+        settings_read(&settings);
+        known = settings.tz;
         break;
     case SYS_INFO_JOIN_CODE:
         wifi_get_status(&wifi);
@@ -100,29 +93,31 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
 
 int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t *most)
 {
+    appconf_t settings;
+    settings_read(&settings);
     switch (what) {
     case SYS_NUMBER_TIME_AUTOMATIC:
-        *value = s_config->time_auto;
+        *value = settings.time_auto;
         *least = 0;
         *most = 1;
         return HOST_OK;
     case SYS_NUMBER_POWER_SAVING:
-        *value = s_config->power_saving;
+        *value = settings.power_saving;
         *least = 0;
         *most = 1;
         return HOST_OK;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
-        *value = s_config->refresh_full_every;
+        *value = settings.refresh_full_every;
         *least = APPCONF_REFRESH_FULL_EVERY_LEAST;
         *most = APPCONF_REFRESH_FULL_EVERY_MOST;
         return HOST_OK;
     case SYS_NUMBER_REFRESH_MIN_SECONDS:
-        *value = s_config->refresh_min_data_s;
+        *value = settings.refresh_min_data_s;
         *least = APPCONF_REFRESH_MIN_DATA_S_LEAST;
         *most = APPCONF_REFRESH_MIN_DATA_S_MOST;
         return HOST_OK;
     case SYS_NUMBER_REFRESH_FORCE_HOURS:
-        *value = s_config->refresh_keepalive_h;
+        *value = settings.refresh_keepalive_h;
         *least = APPCONF_REFRESH_KEEPALIVE_H_LEAST;
         *most = APPCONF_REFRESH_KEEPALIVE_H_MOST;
         return HOST_OK;
@@ -131,66 +126,61 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
     }
 }
 
-/* The settings change only if all of `wanted` is sound and was stored;
- * then they are in effect at once. */
-static int32_t apply(const appconf_t *wanted)
+/* An application runs in the host loop: the settings are changed here and
+ * now, by their owner. */
+static int32_t change(const appconf_t *wanted)
 {
     char problem[64];
-    if (!appconf_validate(wanted, problem, sizeof problem)) {
+    switch (settings_change(wanted, problem, sizeof problem, NULL)) {
+    case SETTINGS_CHANGED:
+        return HOST_OK;
+    case SETTINGS_INVALID:
         return HOST_ERR_ARGUMENT;
+    case SETTINGS_NOT_STORED:
+        break;
     }
-    if (settings_save(wanted) != ESP_OK) {
-        return HOST_ERR_FAILED;
-    }
-    *s_config = *wanted;
-    appconf_derive(s_config, s_device_id);
-    net_time_set_zone(s_config->tz);
-    net_time_set_automatic(s_config->time_auto != 0);
-    power_set_saving(s_config->power_saving != 0);
-    poller_reschedule();
-    refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
-    display_set_policy(&policy);
-    status_check(); /* the date in the header may have just changed */
-    return HOST_OK;
+    return HOST_ERR_FAILED;
 }
 
 int32_t app_system_number_set(int what, int32_t value)
 {
     /* What does not fit the field would fit after being cut: refuse it here. */
-    if (value < 0 || value > UINT16_MAX) {
+    if (value < 0 || value > (what == SYS_NUMBER_REFRESH_MIN_SECONDS ? UINT16_MAX : UINT8_MAX)) {
         return HOST_ERR_ARGUMENT;
     }
-    appconf_t wanted = *s_config;
+    appconf_t wanted;
+    settings_read(&wanted);
     switch (what) {
     case SYS_NUMBER_TIME_AUTOMATIC:
-        wanted.time_auto = (uint8_t)(value > UINT8_MAX ? UINT8_MAX : value);
+        wanted.time_auto = (uint8_t)value;
         break;
     case SYS_NUMBER_POWER_SAVING:
-        wanted.power_saving = (uint8_t)(value > UINT8_MAX ? UINT8_MAX : value);
+        wanted.power_saving = (uint8_t)value;
         break;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
-        wanted.refresh_full_every = (uint8_t)(value > UINT8_MAX ? UINT8_MAX - 1 : value);
+        wanted.refresh_full_every = (uint8_t)value;
         break;
     case SYS_NUMBER_REFRESH_MIN_SECONDS:
         wanted.refresh_min_data_s = (uint16_t)value;
         break;
     case SYS_NUMBER_REFRESH_FORCE_HOURS:
-        wanted.refresh_keepalive_h = (uint8_t)(value > UINT8_MAX ? UINT8_MAX : value);
+        wanted.refresh_keepalive_h = (uint8_t)value;
         break;
     default:
         return HOST_ERR_ARGUMENT;
     }
-    return apply(&wanted);
+    return change(&wanted);
 }
 
 int32_t app_system_text_set(int what, const char *text)
 {
-    if (what != SYS_TEXT_TIME_ZONE || strlen(text) >= sizeof s_config->tz) {
+    appconf_t wanted;
+    settings_read(&wanted);
+    if (what != SYS_TEXT_TIME_ZONE || strlen(text) >= sizeof wanted.tz) {
         return HOST_ERR_ARGUMENT;
     }
-    appconf_t wanted = *s_config;
     strcpy(wanted.tz, text);
-    return apply(&wanted);
+    return change(&wanted);
 }
 
 int32_t app_system_time_set(int64_t unix_seconds)
@@ -228,7 +218,11 @@ int32_t app_system_app_remove(int index)
         return HOST_ERR_FAILED;
     }
     ESP_LOGI(TAG, "\"%s\" removed", installed[index].name);
-    events_post_apps_changed();
+    /* Not from inside the handler that asked: the list is read anew once
+     * the application that asked has returned. */
+    if (!events_post_apps_changed()) {
+        ESP_LOGW(TAG, "the queue is full: the list is read anew at the next change");
+    }
     return HOST_OK;
 }
 
@@ -238,10 +232,11 @@ int32_t app_system_do(int action)
     case SYS_DO_RESTART:
         break;
     case SYS_DO_FORGET_NETWORK: {
-        appconf_t wanted = *s_config;
+        appconf_t wanted;
+        settings_read(&wanted);
         wanted.wifi_ssid[0] = '\0';
         wanted.wifi_password[0] = '\0';
-        if (settings_save(&wanted) != ESP_OK) {
+        if (change(&wanted) != HOST_OK) {
             return HOST_ERR_FAILED;
         }
         ESP_LOGW(TAG, "the network is forgotten, restarting");

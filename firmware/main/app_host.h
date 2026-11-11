@@ -15,8 +15,9 @@ extern "C" {
  * log, the timers, a store of its own. */
 const app_services_t *app_host_services(void);
 
-/* The live settings: the services read from them what the user chose. */
-void app_host_use(const appconf_t *config);
+/* Whether applications' greys are dithered: a setting, told here when it
+ * changes. */
+void app_host_set_dithering(bool dithers);
 
 #ifdef __cplusplus
 }

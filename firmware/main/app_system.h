@@ -16,10 +16,6 @@ extern "C" {
  * under sys_* to an application that asked for it. The functions are the
  * ones app_services_t names. */
 
-/* The live settings, which the settings application changes, and the
- * device's id, which a name is derived from. Both must stay. */
-void app_system_use(appconf_t *config, const char device_id[5]);
-
 int32_t app_system_info(int what, char *text, int32_t capacity);
 int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t *most);
 int32_t app_system_number_set(int what, int32_t value);

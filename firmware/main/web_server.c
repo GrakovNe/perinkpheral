@@ -22,6 +22,7 @@
 #include "display.h"
 #include "log_capture.h"
 #include "net_time.h"
+#include "events.h"
 #include "ota.h"
 #include "poller.h"
 #include "power.h"
@@ -50,8 +51,6 @@ static const char *TAG = "web";
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
-static appconf_t *s_config;
-static char       s_device_id[5];
 static bool       s_is_up;
 
 static void restart_now(void *arg)
@@ -149,16 +148,19 @@ static esp_err_t handle_status(httpd_req_t *request)
     wifi_status_t wifi;
     wifi_get_status(&wifi);
     const esp_partition_t *running = esp_ota_get_running_partition();
+    /* A copy of the settings as they are: the page may be a moment behind. */
+    appconf_t settings;
+    settings_read(&settings);
 
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "name", s_config->device_name);
+    cJSON_AddStringToObject(json, "name", settings.device_name);
     cJSON_AddStringToObject(json, "firmware", esp_app_get_description()->version);
     cJSON_AddStringToObject(json, "slot", running != NULL ? running->label : "?");
     cJSON_AddBoolToObject(json, "on_probation", ota_is_on_probation());
     cJSON_AddStringToObject(json, "wifi", phase_name(wifi.phase));
     cJSON_AddStringToObject(json, "ssid", wifi.ssid);
     cJSON_AddStringToObject(json, "address", wifi.address);
-    cJSON_AddStringToObject(json, "tz", s_config->tz);
+    cJSON_AddStringToObject(json, "tz", settings.tz);
     if (net_time_is_known()) {
         char   local_time[LOCAL_TIME_MAX];
         time_t now = (time_t)net_time_now();
@@ -167,7 +169,7 @@ static esp_err_t handle_status(httpd_req_t *request)
         strftime(local_time, sizeof local_time, "%a %d %b %H:%M", &local);
         cJSON_AddStringToObject(json, "time", local_time);
     }
-    cJSON_AddStringToObject(json, "hostname", s_config->hostname);
+    cJSON_AddStringToObject(json, "hostname", settings.hostname);
     cJSON_AddStringToObject(json, "idf", esp_app_get_description()->idf_ver);
     cJSON_AddStringToObject(json, "built", esp_app_get_description()->date);
     cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
@@ -240,7 +242,42 @@ static bool take_string(const cJSON *json, const char *field, char *value, size_
     return true;
 }
 
-static esp_err_t handle_wifi(httpd_req_t *request)
+/* ---- changing the host's settings ----
+ *
+ * The settings are the host loop's: a handler here reads what the page
+ * sent and asks the host loop to make the change, which waits for the
+ * panel if the panel is busy. */
+
+/* Puts what the page sent into `wanted`; false when a field does not fit. */
+typedef bool (*settings_edit_fn)(const cJSON *json, appconf_t *wanted);
+
+typedef struct {
+    const cJSON       *json;
+    settings_edit_fn   edit;
+    bool               fits;
+    settings_outcome_t outcome;
+    bool               needs_restart;
+    char               problem[VALIDATION_TEXT_MAX];
+} settings_command_t;
+
+/* In the host loop: the change is made on the settings as they are now,
+ * so that two of them never undo each other. */
+static void change_settings(void *argument)
+{
+    settings_command_t *command = argument;
+    appconf_t wanted;
+    settings_read(&wanted);
+    command->fits = command->edit(command->json, &wanted);
+    if (command->fits) {
+        command->outcome = settings_change(&wanted, command->problem, sizeof command->problem,
+                                           &command->needs_restart);
+    }
+}
+
+/* Reads the body, has the settings changed with `edit` and answers the
+ * page. `restarts`: the change is one the device restarts for. */
+static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn edit,
+                                          bool restarts)
 {
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
@@ -250,101 +287,82 @@ static esp_err_t handle_wifi(httpd_req_t *request)
         return send_error(request, "Invalid request.");
     }
     cJSON *json = cJSON_Parse(body);
-    /* Worked on in a copy: the live settings change only if all of it is good. */
-    appconf_t *wanted = malloc(sizeof *wanted);
-    if (json == NULL || wanted == NULL) {
-        cJSON_Delete(json);
-        free(wanted);
+    if (json == NULL) {
         return send_error(request, "Invalid request.");
     }
-    *wanted = *s_config;
-    char problem[VALIDATION_TEXT_MAX] = "";
-    bool fields_fit =
-        take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
-        take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
-        take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+    settings_command_t command = { .json = json, .edit = edit };
+    bool is_asked = events_call(change_settings, &command);
     cJSON_Delete(json);
-
-    esp_err_t result;
-    if (!fields_fit) {
-        result = send_error(request, "Value too long.");
-    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
-        result = send_error(request, problem);
-    } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "Storage error.");
-    } else {
-        *s_config = *wanted;
-        appconf_derive(s_config, s_device_id);
-        ESP_LOGW(TAG, "Wi-Fi settings changed, restarting");
-        result = send_ok(request, "Saved. Restarting.");
-        web_server_restart_soon();
+    if (!is_asked) {
+        return send_error(request, "Device busy.");
     }
-    free(wanted);
-    return result;
+    if (!command.fits) {
+        return send_error(request, "Invalid value.");
+    }
+    if (command.outcome == SETTINGS_INVALID) {
+        return send_error(request, command.problem);
+    }
+    if (command.outcome == SETTINGS_NOT_STORED) {
+        return send_error(request, "Storage error.");
+    }
+    if (restarts) {
+        ESP_LOGW(TAG, "settings changed, restarting");
+        esp_err_t result = send_ok(request, "Saved. Restarting.");
+        web_server_restart_soon();
+        return result;
+    }
+    return send_ok(request, command.needs_restart ? "Saved. Restart to apply." : "Saved.");
+}
+
+static bool edit_network(const cJSON *json, appconf_t *wanted)
+{
+    return take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
+           take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
+           take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+}
+
+static esp_err_t handle_wifi(httpd_req_t *request)
+{
+    return change_settings_as_asked(request, edit_network, true);
 }
 
 /* The time zone takes effect at once: the header and the applications
  * read local time anew whenever they draw. */
+static bool edit_time_zone(const cJSON *json, appconf_t *wanted)
+{
+    return cJSON_GetObjectItemCaseSensitive(json, "tz") != NULL &&
+           take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+}
+
 static esp_err_t handle_time(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
-    char body[SETTINGS_BODY_MAX];
-    if (!read_body(request, body, sizeof body)) {
-        return send_error(request, "Invalid request.");
-    }
-    cJSON *json = cJSON_Parse(body);
-    appconf_t *wanted = malloc(sizeof *wanted);
-    if (json == NULL || wanted == NULL) {
-        cJSON_Delete(json);
-        free(wanted);
-        return send_error(request, "Invalid request.");
-    }
-    *wanted = *s_config;
-    char problem[VALIDATION_TEXT_MAX] = "";
-    bool has_zone = cJSON_GetObjectItemCaseSensitive(json, "tz") != NULL;
-    bool zone_fits = take_string(json, "tz", wanted->tz, sizeof wanted->tz);
-    cJSON_Delete(json);
-
-    esp_err_t result;
-    if (!has_zone || !zone_fits) {
-        result = send_error(request, "Invalid time zone.");
-    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
-        result = send_error(request, problem);
-    } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "Storage error.");
-    } else {
-        *s_config = *wanted;
-        net_time_set_zone(s_config->tz);
-        status_check(); /* the date in the header may have just changed */
-        result = send_ok(request, "Saved.");
-    }
-    free(wanted);
-    return result;
+    return change_settings_as_asked(request, edit_time_zone, false);
 }
 
 /* ---- the host's own settings ---- */
 
 static esp_err_t handle_settings(httpd_req_t *request)
 {
+    appconf_t settings;
+    settings_read(&settings);
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "device_name", s_config->device_name);
-    cJSON_AddStringToObject(json, "hostname", s_config->hostname);
-    cJSON_AddStringToObject(json, "wifi_ssid", s_config->wifi_ssid);
-    cJSON_AddStringToObject(json, "ntp_server", s_config->ntp_server);
-    cJSON_AddStringToObject(json, "tz", s_config->tz);
-    cJSON_AddNumberToObject(json, "refresh_min_data_s", s_config->refresh_min_data_s);
-    cJSON_AddNumberToObject(json, "refresh_full_every", s_config->refresh_full_every);
-    cJSON_AddNumberToObject(json, "refresh_keepalive_h", s_config->refresh_keepalive_h);
-    cJSON_AddBoolToObject(json, "dither", s_config->dither != 0);
-    cJSON_AddBoolToObject(json, "time_auto", s_config->time_auto != 0);
-    cJSON_AddBoolToObject(json, "power_saving", s_config->power_saving != 0);
+    cJSON_AddStringToObject(json, "device_name", settings.device_name);
+    cJSON_AddStringToObject(json, "hostname", settings.hostname);
+    cJSON_AddStringToObject(json, "wifi_ssid", settings.wifi_ssid);
+    cJSON_AddStringToObject(json, "ntp_server", settings.ntp_server);
+    cJSON_AddStringToObject(json, "tz", settings.tz);
+    cJSON_AddNumberToObject(json, "refresh_min_data_s", settings.refresh_min_data_s);
+    cJSON_AddNumberToObject(json, "refresh_full_every", settings.refresh_full_every);
+    cJSON_AddNumberToObject(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
+    cJSON_AddBoolToObject(json, "dither", settings.dither != 0);
+    cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
+    cJSON_AddBoolToObject(json, "power_saving", settings.power_saving != 0);
     return send_json(request, "200 OK", json);
 }
 
-/* False when the field is there and is not a whole number in the range of
- * its place. A missing field leaves the value as it is. */
+
+/* A number that is there has to be a whole one from 0 to `most`; one that
+ * is not leaves the value as it was. */
 static bool take_number(const cJSON *json, const char *field, uint32_t most, uint32_t *value)
 {
     const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
@@ -359,79 +377,42 @@ static bool take_number(const cJSON *json, const char *field, uint32_t most, uin
     return true;
 }
 
-/* Any of the settings handle_settings() lists, but the network: that one
- * has a form of its own and restarts the device. What can take effect at
- * once does; a new name or time server waits for the next start. */
-static esp_err_t handle_set_settings(httpd_req_t *request)
+static bool take_flag(const cJSON *json, const char *field, uint8_t *value)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    if (item == NULL) {
+        return true;
     }
-    char body[SETTINGS_BODY_MAX];
-    if (!read_body(request, body, sizeof body)) {
-        return send_error(request, "Invalid request.");
+    if (!cJSON_IsBool(item)) {
+        return false;
     }
-    cJSON     *json = cJSON_Parse(body);
-    appconf_t *wanted = malloc(sizeof *wanted);
-    if (json == NULL || wanted == NULL) {
-        cJSON_Delete(json);
-        free(wanted);
-        return send_error(request, "Invalid request.");
-    }
-    *wanted = *s_config;
+    *value = cJSON_IsTrue(item) ? 1 : 0;
+    return true;
+}
+
+static bool edit_settings(const cJSON *json, appconf_t *wanted)
+{
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
     uint32_t keepalive_h = wanted->refresh_keepalive_h;
-    const cJSON *dither = cJSON_GetObjectItemCaseSensitive(json, "dither");
-    const cJSON *time_auto = cJSON_GetObjectItemCaseSensitive(json, "time_auto");
-    const cJSON *power_saving = cJSON_GetObjectItemCaseSensitive(json, "power_saving");
-    bool fields_fit =
+    bool fits =
         take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
         take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
         take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
         take_number(json, "refresh_min_data_s", UINT16_MAX, &min_data_s) &&
         take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
         take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
-        (dither == NULL || cJSON_IsBool(dither)) &&
-        (time_auto == NULL || cJSON_IsBool(time_auto)) &&
-        (power_saving == NULL || cJSON_IsBool(power_saving));
+        take_flag(json, "dither", &wanted->dither) &&
+        take_flag(json, "time_auto", &wanted->time_auto) &&
+        take_flag(json, "power_saving", &wanted->power_saving);
     wanted->refresh_min_data_s = (uint16_t)min_data_s;
     wanted->refresh_full_every = (uint8_t)full_every;
     wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
-    if (dither != NULL) {
-        wanted->dither = cJSON_IsTrue(dither) ? 1 : 0;
-    }
-    if (time_auto != NULL) {
-        wanted->time_auto = cJSON_IsTrue(time_auto) ? 1 : 0;
-    }
-    if (power_saving != NULL) {
-        wanted->power_saving = cJSON_IsTrue(power_saving) ? 1 : 0;
-    }
-    cJSON_Delete(json);
+    return fits;
+}
 
-    char      problem[VALIDATION_TEXT_MAX] = "";
-    esp_err_t result;
-    if (!fields_fit) {
-        result = send_error(request, "Invalid value.");
-    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
-        result = send_error(request, problem);
-    } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "Storage error.");
-    } else {
-        bool needs_restart = strcmp(wanted->device_name, s_config->device_name) != 0 ||
-                             strcmp(wanted->ntp_server, s_config->ntp_server) != 0;
-        *s_config = *wanted;
-        appconf_derive(s_config, s_device_id);
-        net_time_set_zone(s_config->tz);
-        net_time_set_automatic(s_config->time_auto != 0);
-        power_set_saving(s_config->power_saving != 0);
-        poller_reschedule();
-        refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
-        display_set_policy(&policy);
-        status_check();
-        result = send_ok(request, needs_restart ? "Saved. Restart to apply." : "Saved.");
-    }
-    free(wanted);
-    return result;
+static esp_err_t handle_set_settings(httpd_req_t *request)
+{
+    return change_settings_as_asked(request, edit_settings, false);
 }
 
 static esp_err_t handle_restart(httpd_req_t *request)
@@ -592,11 +573,8 @@ static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
     return httpd_resp_send(request, NULL, 0);
 }
 
-void web_server_start(appconf_t *config, const char device_id[5])
+void web_server_start(void)
 {
-    s_config = config;
-    memcpy(s_device_id, device_id, sizeof s_device_id);
-
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
     /* Installing an application hashes files and reads a manifest on this task. */

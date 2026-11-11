@@ -23,6 +23,7 @@ typedef enum {
     EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
     EVENT_APP_DELIVERY, /* an answer from the network for an application, see poller.h */
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
+    EVENT_CALL,       /* another task asks the host loop to do something, and waits */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -45,6 +46,7 @@ typedef struct {
     } timer;
     void *dev_request; /* a devtools request, see devtools.h */
     void *delivery;    /* a poller_delivery_t */
+    void *call;        /* of events_call() */
 } event_t;
 
 void events_start(void);
@@ -55,8 +57,19 @@ bool events_post(const event_t *event);
 void events_post_button(uint8_t index, event_press_t press);
 
 /* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
+/* The host loop owns the host's state: whoever else wants it changed asks
+ * here. `run` is called in the host loop with `argument`, and this returns
+ * when it has returned - at once when asked from the host loop itself.
+ * False, with nothing done, when the queue is full. */
+typedef void (*events_call_fn)(void *argument);
+bool events_call(events_call_fn run, void *argument);
+
+/* For the host loop: marks the task that is one, and answers a call. */
+void events_this_is_the_host_loop(void);
+void events_answer_call(void *call);
+
 /* An application was installed or removed. Safe from any task. */
-void events_post_apps_changed(void);
+bool events_post_apps_changed(void);
 
 bool events_wait(event_t *event, uint32_t timeout_ms);
 

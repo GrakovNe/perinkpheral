@@ -41,7 +41,18 @@ scene_t *launcher_scene(const char *name);
 /* What the menu lists: applications by title, then the host's pages. */
 const menu_entry_t *launcher_entries(int *count);
 
-/* The installed applications that can be started, as their manifests say. */
+/* How many applications the launcher has room for. */
+#define LAUNCHER_INSTALLED_MAX (LAUNCHER_ENTRIES_MAX - 3)
+
+/* The installed applications as they are now, copied: for any task but
+ * the host loop, never waits. A reader overtaken by the list being read
+ * anew copies again. Returns how many; `capacity` is at least
+ * LAUNCHER_INSTALLED_MAX. */
+int launcher_read_installed(app_manifest_t *copy, int capacity);
+
+/* The installed applications that can be started, as their manifests say.
+ * The list itself: only for the host loop, and for the poller while it is
+ * held. */
 const app_manifest_t *launcher_installed(int *count);
 
 /* The scene of an installed application; NULL when there is none by that

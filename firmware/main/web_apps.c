@@ -19,6 +19,7 @@
 #include "catalog.h"
 #include "host_api.h"
 #include "events.h"
+#include "host.h"
 #include "launcher.h"
 #include "poller.h"
 #include "settings.h"
@@ -57,12 +58,32 @@ static esp_err_t send_message(httpd_req_t *request, const char *status, const ch
 }
 
 /* The application the request names, if it is installed. */
+/* The installed applications as this task last read them: the list is the
+ * host loop's, and what is here may be a moment old. */
+static app_manifest_t s_installed[LAUNCHER_INSTALLED_MAX];
+
+static int read_installed(void)
+{
+    return launcher_read_installed(s_installed, LAUNCHER_INSTALLED_MAX);
+}
+
+static bool is_installed(const char *app_name)
+{
+    int count = read_installed();
+    for (int i = 0; i < count; i++) {
+        if (strcmp(s_installed[i].name, app_name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool asked_app(httpd_req_t *request, char name[APP_NAME_BUFFER])
 {
     char query[QUERY_MAX];
     return httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK &&
            httpd_query_key_value(query, "app", name, APP_NAME_BUFFER) == ESP_OK &&
-           launcher_app_scene(name) != NULL;
+           is_installed(name);
 }
 
 /* A setting as text: what is in the store under its key, or empty. */
@@ -112,8 +133,8 @@ static void add_settings(cJSON *app, const char *app_name)
 
 static esp_err_t handle_list(httpd_req_t *request)
 {
-    int                   count;
-    const app_manifest_t *installed = launcher_installed(&count);
+    int                   count = read_installed();
+    const app_manifest_t *installed = s_installed;
     cJSON                *apps = cJSON_CreateArray();
     for (int i = 0; i < count; i++) {
         cJSON *app = cJSON_CreateObject();
@@ -163,6 +184,51 @@ static bool are_acceptable(const char *manifest, const cJSON *wanted, const char
     return true;
 }
 
+/* Asked of the host loop: the store is the application's, and it may be
+ * writing there itself. */
+typedef struct {
+    const char  *app_name;
+    const cJSON *wanted;
+    const char  *status;      /* of the answer to the page */
+    char         message[64];
+} app_settings_command_t;
+
+static void change_app_settings(void *argument)
+{
+    app_settings_command_t *command = argument;
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, command->app_name);
+    const char *problem = NULL;
+    if (!cJSON_IsObject(command->wanted) || manifest == NULL) {
+        command->status = "400 Bad Request";
+        snprintf(command->message, sizeof command->message, "Invalid request.");
+    } else if (!are_acceptable(manifest, command->wanted, &problem)) {
+        command->status = "400 Bad Request";
+        snprintf(command->message, sizeof command->message, "Invalid value: %s.", problem);
+    } else {
+        const cJSON *value;
+        bool         stored = true;
+        cJSON_ArrayForEach(value, command->wanted)
+        {
+            /* An empty value takes the setting back: kv_set removes the key. */
+            stored = app_kv_set(command->app_name, value->string, value->valuestring,
+                                (int32_t)strlen(value->valuestring)) == HOST_OK &&
+                     stored;
+        }
+        if (stored) {
+            ESP_LOGI(TAG, "settings of \"%s\" changed", command->app_name);
+            app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
+            host_deliver(command->app_name, &changed);
+            poller_hurry(command->app_name);
+            command->status = "200 OK";
+            snprintf(command->message, sizeof command->message, "Saved.");
+        } else {
+            command->status = "500 Internal Server Error";
+            snprintf(command->message, sizeof command->message, "Storage error.");
+        }
+    }
+    free(manifest);
+}
+
 static esp_err_t handle_settings(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
@@ -175,40 +241,14 @@ static esp_err_t handle_settings(httpd_req_t *request)
     char  *body = read_body(request);
     cJSON *wanted = body != NULL ? cJSON_Parse(body) : NULL;
     free(body);
-    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    const char *problem = NULL;
-    esp_err_t   result;
-    if (!cJSON_IsObject(wanted) || manifest == NULL) {
-        result = send_message(request, "400 Bad Request", "error",
-                              "Invalid request.");
-    } else if (!are_acceptable(manifest, wanted, &problem)) {
-        char message[64];
-        snprintf(message, sizeof message, "Invalid value: %s.", problem);
-        result = send_message(request, "400 Bad Request", "error", message);
-    } else {
-        const cJSON *value;
-        bool         stored = true;
-        cJSON_ArrayForEach(value, wanted)
-        {
-            /* An empty value takes the setting back: kv_set removes the key. */
-            stored = app_kv_set(app_name, value->string, value->valuestring,
-                                (int32_t)strlen(value->valuestring)) == HOST_OK &&
-                     stored;
-        }
-        if (stored) {
-            ESP_LOGI(TAG, "settings of \"%s\" changed", app_name);
-            app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-            poller_hand_over(app_name, &changed);
-            poller_hurry(app_name);
-            result = send_message(request, "200 OK", "ok", "Saved.");
-        } else {
-            result = send_message(request, "500 Internal Server Error", "error",
-                                  "Storage error.");
-        }
-    }
+    app_settings_command_t command = { .app_name = app_name, .wanted = wanted };
+    bool is_asked = events_call(change_app_settings, &command);
     cJSON_Delete(wanted);
-    free(manifest);
-    return result;
+    if (!is_asked) {
+        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+    }
+    return send_message(request, command.status,
+                        strcmp(command.status, "200 OK") == 0 ? "ok" : "error", command.message);
 }
 
 /* ---- where applications come from ---- */
@@ -421,20 +461,53 @@ static const char *install_file(const char *source, const char *app_name, const 
         }
         free(text);
     }
-    if (problem == NULL &&
-        !app_store_commit_file(STORAGE_APPS_ROOT, app_name, name->valuestring)) {
-        problem = "Storage error.";
-    }
+    /* It stays under its temporary name: the host loop puts it in place. */
     if (problem != NULL) {
         remove(path);
     }
     return problem;
 }
 
-static bool is_installed(const char *app_name)
+/* Asked of the host loop: what was fetched takes the place of what was
+ * there, and the list of applications is read anew - in one step, with
+ * nothing of the host looking at the folder meanwhile. */
+typedef struct {
+    const char  *app_name;
+    const cJSON *files;
+    bool         is_done;
+} install_command_t;
+
+static void put_in_place(void *argument)
 {
-    return launcher_app_scene(app_name) != NULL;
+    install_command_t *command = argument;
+    const cJSON *entry;
+    command->is_done = true;
+    cJSON_ArrayForEach(entry, command->files)
+    {
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
+        command->is_done = app_store_commit_file(STORAGE_APPS_ROOT, command->app_name,
+                                                 name->valuestring) &&
+                           command->is_done;
+    }
+    host_reload_apps();
 }
+
+typedef struct {
+    const char *app_name;
+    bool        forgets; /* what it stored goes too */
+    bool        is_done;
+} remove_command_t;
+
+static void take_away(void *argument)
+{
+    remove_command_t *command = argument;
+    command->is_done = app_store_remove(STORAGE_APPS_ROOT, command->app_name);
+    if (command->is_done && command->forgets) {
+        app_kv_erase(command->app_name);
+    }
+    host_reload_apps();
+}
+
 
 /* The files as the page read them from the index: the module first, the
  * manifest last, and both there. */
@@ -463,9 +536,8 @@ static esp_err_t handle_install(httpd_req_t *request)
         !app_manifest_is_valid_name(app_name)) {
         return send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
-    int count;
-    launcher_installed(&count);
     bool was_installed = is_installed(app_name);
+    int  count = read_installed();
     if (!was_installed && count >= CATALOG_INSTALLED_MAX) {
         return send_message(request, "409 Conflict", "error",
                             "No free slots.");
@@ -488,19 +560,26 @@ static esp_err_t handle_install(httpd_req_t *request)
             break;
         }
     }
+    if (problem == NULL) {
+        install_command_t command = { .app_name = app_name, .files = files };
+        if (!events_call(put_in_place, &command)) {
+            problem = "Device busy.";
+        } else if (!command.is_done) {
+            problem = "Storage error.";
+        }
+    }
     cJSON_Delete(json);
     if (problem != NULL) {
-        /* Half of a new application is nothing: take it away again. Half of
-         * an update leaves the old manifest with newer files, which the
-         * next try puts right. */
+        /* What was fetched and not put in place is nothing: a new
+         * application's folder goes, an installed one stays as it was. */
         if (!was_installed) {
-            app_store_remove(STORAGE_APPS_ROOT, app_name);
+            remove_command_t undo = { .app_name = app_name };
+            events_call(take_away, &undo);
         }
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
         return send_message(request, "502 Bad Gateway", "error", problem);
     }
     ESP_LOGI(TAG, "\"%s\" installed", app_name);
-    events_post_apps_changed();
     return send_message(request, "200 OK", "ok", "Installed.");
 }
 
@@ -521,15 +600,14 @@ static esp_err_t handle_remove(httpd_req_t *request)
     if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
         httpd_query_key_value(query, "forget", forget, sizeof forget);
     }
-    if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
-        return send_message(request, "500 Internal Server Error", "error",
-                            "Storage error.");
+    remove_command_t command = { .app_name = app_name, .forgets = strcmp(forget, "1") == 0 };
+    if (!events_call(take_away, &command)) {
+        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
-    if (strcmp(forget, "1") == 0) {
-        app_kv_erase(app_name);
+    if (!command.is_done) {
+        return send_message(request, "500 Internal Server Error", "error", "Storage error.");
     }
     ESP_LOGI(TAG, "\"%s\" removed", app_name);
-    events_post_apps_changed();
     return send_message(request, "200 OK", "ok", "Removed.");
 }
 

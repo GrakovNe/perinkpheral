@@ -13,6 +13,13 @@
 #include <string.h>
 
 #include "esp_log.h"
+
+#include "app_host.h"
+#include "display.h"
+#include "net_time.h"
+#include "poller.h"
+#include "power.h"
+#include "status.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -66,7 +73,7 @@ static void get_str(nvs_handle_t h, const char *key, char *out, size_t out_sz)
     free(tmp);
 }
 
-void settings_load(appconf_t *c, const char device_id[5])
+static void load(appconf_t *c, const char device_id[5])
 {
     appconf_defaults(c, device_id);
 
@@ -104,7 +111,7 @@ void settings_load(appconf_t *c, const char device_id[5])
     }
 }
 
-esp_err_t settings_save(const appconf_t *c)
+static esp_err_t save(const appconf_t *c)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open(CFG_NS, NVS_READWRITE, &h);
@@ -223,3 +230,68 @@ refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
     };
     return policy;
 }
+
+/* ---- the settings in effect ---- */
+
+static appconf_t         s_live;
+static volatile uint32_t s_version; /* odd while s_live is being rewritten */
+static char              s_device_id[5];
+
+static void publish(const appconf_t *settings)
+{
+    s_version++;
+    s_live = *settings;
+    appconf_derive(&s_live, s_device_id);
+    s_version++;
+}
+
+void settings_start(const char device_id[5])
+{
+    memcpy(s_device_id, device_id, sizeof s_device_id);
+    appconf_t stored;
+    load(&stored, device_id);
+    publish(&stored);
+}
+
+void settings_read(appconf_t *copy)
+{
+    uint32_t version;
+    do {
+        version = s_version;
+        *copy = s_live;
+    } while ((version & 1) != 0 || version != s_version);
+}
+
+settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_t problem_size,
+                                   bool *needs_restart)
+{
+    if (!appconf_validate(wanted, problem, problem_size)) {
+        return SETTINGS_INVALID;
+    }
+    if (save(wanted) != ESP_OK) {
+        return SETTINGS_NOT_STORED;
+    }
+    bool power_changed = wanted->power_saving != s_live.power_saving;
+    if (needs_restart != NULL) {
+        *needs_restart = strcmp(wanted->device_name, s_live.device_name) != 0 ||
+                         strcmp(wanted->ntp_server, s_live.ntp_server) != 0 ||
+                         strcmp(wanted->wifi_ssid, s_live.wifi_ssid) != 0 ||
+                         strcmp(wanted->wifi_password, s_live.wifi_password) != 0;
+    }
+    publish(wanted);
+
+    net_time_set_zone(s_live.tz);
+    net_time_set_automatic(s_live.time_auto != 0);
+    app_host_set_dithering(s_live.dither != 0);
+    refresh_policy_cfg_t policy = settings_refresh_policy(&s_live);
+    display_set_policy(&policy);
+    if (power_changed) {
+        /* Only then: the polls are another distance apart, and scheduling
+         * them anew is not something to do for a change of the time zone. */
+        power_set_saving(s_live.power_saving != 0);
+        poller_reschedule();
+    }
+    status_check(); /* the date in the header may be another now */
+    return SETTINGS_CHANGED;
+}
+
