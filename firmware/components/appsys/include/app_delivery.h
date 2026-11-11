@@ -38,7 +38,7 @@ typedef enum {
 
 typedef struct {
     app_delivery_kind_t kind;
-    int                 request;     /* the poll's number in the manifest */
+    int                 request;     /* the poll's number in the manifest; the alarm's, for an alarm */
     int                 http_status; /* VALUES: 0 when the request failed */
     /* PIECE */
     const uint8_t *data;

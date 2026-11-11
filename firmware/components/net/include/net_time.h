@@ -22,6 +22,10 @@ void net_time_start(const char *ntp_server, const char *time_zone, bool automati
  * it has and takes one by hand. */
 void net_time_set_automatic(bool automatic);
 
+/* Told whenever the wall clock is set to another time - by the network or
+ * by hand - with how far ahead it went (back: negative). One listener. */
+void net_time_on_change(void (*moved)(int64_t delta_ms));
+
 /* The clock by hand; false while it is set from the network. */
 bool net_time_set(int64_t unix_seconds);
 

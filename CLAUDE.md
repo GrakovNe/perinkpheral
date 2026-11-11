@@ -207,11 +207,11 @@ request_focus()                        // from app_on_data off the screen: worth
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
 kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
-net_is_online() -> 0 | 1
-http_request(method, url, headers, body) -> request number   // only to the manifest's "hosts"
+http_request(tag, method, url, headers, body)   // only to the manifest's "hosts"; the answer comes under the tag
 poll_now(n)                            // fetch poll n of the manifest now, not when it is due
 poll_set_interval(n, seconds)          // another pace for it, until the device restarts
-alarm_set(seconds)                     // app_on_alarm() once, on the screen or off it; 0 takes it back
+alarm_set(id, seconds)                 // app_on_alarm(id) once, on the screen or off it; 0 takes it back; four an application
+alarm_set_at(id, unix_time)            // the same at a moment of the clock, and following the clock when it is set
 file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
 file_read(name, name_len, offset, buf, cap) -> bytes read
 file_write(name, name_len, offset, buf, len)  // inside the file or at its end; len 0 at 0 removes it
@@ -239,6 +239,7 @@ There are no pointer callbacks. An application exports functions with fixed name
 ```
 app_init()
 app_on_focus() / app_on_blur()
+app_on_terminate()                  // the instance is about to be unloaded, whatever the reason: save here
 app_on_button(event)                // BTN_UP | BTN_OK | BTN_DOWN | BTN_BACK with _KEYDOWN, _KEYUP as it happens
                                     // and _PRESSED, _LONG_PRESSED as what it meant: BTN_OK_PRESSED
 app_on_timer(id)
@@ -324,7 +325,7 @@ An architecture review on 2026-11-12 found the structure behind most of the open
 - `settings.c` holds the settings and the one function that checks, stores and applies them.
 - An application is installed in two steps: the files are fetched into a staging place from the web server's task, and put in place by the host loop together with reading the list anew.
 
-**How an application is addressed.**
+**How an application is addressed.** *(Built: ids, the schedule and the alarms by id, several alarms. Not yet: intents.)*
 - Inside the host an application is its **id: 32 bits of the SHA-256 of its module and its manifest**. A new version is another application to everything that was waiting for the old one; the same version installed again is the same. System applications have ids the same way. The name stays for people and for the disk: the folder, the catalog, the page, the store, the application to return to after a restart.
 - The schedule of polls, the requests and the alarms are kept **by id**. Removing an application removes its own; nothing else touches them.
 - Several alarms an application: `alarm_set(id, seconds)`, `alarm_set_at(id, unix_time)`, `app_on_alarm(id)`.

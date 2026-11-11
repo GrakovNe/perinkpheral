@@ -681,9 +681,22 @@ HOST_FUNCTION(host_poll_set_interval)
 HOST_FUNCTION(host_alarm_set)
 {
     m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int32_t, seconds);
     app_t *app = APP_OF(runtime);
-    bool set = seconds >= 0 && app->services->alarm_set(app->name, (uint32_t)seconds);
+    bool set = id >= 0 && id < HOST_ALARM_COUNT && seconds >= 0 &&
+               app->services->alarm_set(app->name, id, seconds, false);
+    m3ApiReturn(set ? HOST_OK : HOST_ERR_ARGUMENT);
+}
+
+HOST_FUNCTION(host_alarm_set_at)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, id);
+    m3ApiGetArg(int64_t, unix_time);
+    app_t *app = APP_OF(runtime);
+    bool set = id >= 0 && id < HOST_ALARM_COUNT && unix_time > 0 &&
+               app->services->alarm_set(app->name, id, unix_time, true);
     m3ApiReturn(set ? HOST_OK : HOST_ERR_ARGUMENT);
 }
 
@@ -785,7 +798,8 @@ HOST_FUNCTION(host_sys_info)
     m3ApiReturn(app->services->system_info(what, (char *)text, capacity));
 }
 
-#define SYSTEM_TEXT_MAX 63
+#define SYSTEM_TEXT_MAX     63
+#define SYSTEM_APP_LIST_MAX 16
 
 HOST_FUNCTION(host_sys_number_get)
 {
@@ -845,10 +859,32 @@ HOST_FUNCTION(host_sys_time_set)
     m3ApiReturn(app->services->system_time_set(unix_seconds));
 }
 
+HOST_FUNCTION(host_sys_app_list)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, ids_offset);
+    m3ApiGetArg(int32_t, capacity);
+    app_t *app = APP_OF(runtime);
+    /* Checked before it is multiplied: a capacity cannot wrap round. */
+    if (capacity < 0 || capacity > SYSTEM_APP_LIST_MAX ||
+        app->services->system_app_list == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    uint8_t *ids = in_app_memory_to_fill(runtime, _mem, ids_offset,
+                                         capacity * (int32_t)sizeof(uint32_t));
+    if (ids == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    uint32_t listed[SYSTEM_APP_LIST_MAX];
+    int32_t  count = app->services->system_app_list(listed, capacity);
+    memcpy(ids, listed, (size_t)(count < capacity ? count : capacity) * sizeof(uint32_t));
+    m3ApiReturn(count);
+}
+
 HOST_FUNCTION(host_sys_app_title)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(uint32_t, index);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, capacity);
     uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
@@ -862,7 +898,7 @@ HOST_FUNCTION(host_sys_app_title)
 HOST_FUNCTION(host_sys_app_remove)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(uint32_t, index);
     app_t *app = APP_OF(runtime);
     if (app->services->system_app_remove == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -951,7 +987,8 @@ static const struct {
     { "poll_now", "i(i)", host_poll_now },
     { "http_request", "i(iiiiiiii)", host_http_request },
     { "poll_set_interval", "i(ii)", host_poll_set_interval },
-    { "alarm_set", "i(i)", host_alarm_set },
+    { "alarm_set", "i(ii)", host_alarm_set },
+    { "alarm_set_at", "i(iI)", host_alarm_set_at },
     { "file_write", "i(iiiii)", host_file_write },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
@@ -972,6 +1009,7 @@ static const struct {
     { "sys_number_set", "i(ii)", host_sys_number_set },
     { "sys_text_set", "i(i*i)", host_sys_text_set },
     { "sys_time_set", "i(I)", host_sys_time_set },
+    { "sys_app_list", "i(*i)", host_sys_app_list },
     { "sys_app_title", "i(i*i)", host_sys_app_title },
     { "sys_app_remove", "i(i)", host_sys_app_remove },
     { "sys_do", "i(i)", host_sys_do },
@@ -1307,9 +1345,9 @@ void app_values(app_t *app, int request, int http_status, const char *const *val
     app->value_count = 0;
 }
 
-void app_alarm(app_t *app)
+void app_alarm(app_t *app, int id)
 {
-    CALL_HANDLER(app, app->on_alarm);
+    CALL_HANDLER(app, app->on_alarm, (int32_t)id);
 }
 
 void app_settings_changed(app_t *app)

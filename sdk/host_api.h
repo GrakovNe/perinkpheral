@@ -365,18 +365,28 @@ HOST_IMPORT(http_request,
  * now, until the device restarts. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
 
-/* ---- The alarm ---- */
+/* ---- Alarms ---- */
 
-/* Call app_on_alarm() once, `seconds` from now, whether the application
+/* Call app_on_alarm(id) once, when the time comes, whether the application
  * is on the screen then or not; off the screen it is loaded for the call
- * and may ask for the screen with request_focus(). One alarm for an
- * application: setting it again moves it, 0 takes it back. timer_set()
- * is for the application on the screen; this is for a countdown that
- * must end wherever the user has gone. A restart of the device forgets
- * it: what must survive that is a time in the store, set again in
- * app_init(). */
-HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t seconds));
-APP_EXPORT(app_on_alarm, void app_on_alarm(void));
+ * and may ask for the screen with request_focus(). An application has
+ * HOST_ALARM_COUNT alarms, numbered from 0; setting one again moves it.
+ * timer_set() is for the application on the screen; this is for what must
+ * happen wherever the user has gone.
+ *
+ * There are two ways to say when. alarm_set() is "in so many seconds" - a
+ * countdown - and does not care what the clock is set to; 0 takes the
+ * alarm back. alarm_set_at() is "at this moment" - a time of day, in unix
+ * seconds as time_now() counts them - and follows the clock when it is
+ * set to another time.
+ *
+ * A restart of the device forgets them: what must survive that is a time
+ * in the store, set again in app_init(). A new version of the application
+ * does not get the alarms of the old one. */
+#define HOST_ALARM_COUNT 4
+HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t id, int32_t seconds));
+HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
+APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
 
 /* ---- Files ---- */
 
@@ -505,12 +515,15 @@ HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *
  * the network. */
 HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 
-/* The installed applications by number, from 0: the title of one, or
- * HOST_ERR_NOT_FOUND past the last. Removing one takes its files and
- * leaves what it stored; the numbers are other ones once the handler
- * that removed it has returned. */
-HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(int32_t index, char *text, int32_t capacity));
-HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(int32_t index));
+/* The installed applications. Each has an id the host gave it - of its
+ * code and its manifest, so that another version is another id - and the
+ * list is their ids, in the order the menu has them: how many there are,
+ * of which up to `capacity` are written. Removing one takes its files and
+ * leaves what it stored; HOST_ERR_NOT_FOUND for an id that is nobody's
+ * (any more). */
+HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
+HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
+HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 
 /* What cannot be taken back; the device restarts after each. */
 #define SYS_DO_RESTART        0

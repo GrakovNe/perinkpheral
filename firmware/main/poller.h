@@ -69,7 +69,10 @@ bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
 
 /* Calls the application once, `seconds` from now, on the screen or off it;
  * 0 takes the alarm back. Kept in memory: a restart forgets it. */
-bool poller_alarm_set(const char *app_name, uint32_t seconds);
+bool poller_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time);
+
+/* The wall clock was set `delta_ms` ahead: alarms for a time of day follow. */
+void poller_clock_moved(int64_t delta_ms);
 
 /* Fetches `url` on the poller's task - the one with the stack for TLS -
  * and hands the answer to `take` piece by piece, there. Waits until it is

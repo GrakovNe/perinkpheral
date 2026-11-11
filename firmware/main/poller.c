@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "esp_heap_caps.h"
 #include "esp_crt_bundle.h"
@@ -47,13 +48,15 @@ static const char *TAG = "poller";
 #define USER_AGENT          "perinkpheral"
 #define HTTP_OK_FIRST       200
 #define HTTP_OK_LAST        299
-#define NO_APP              (-1)
+#define NO_APP              0 /* no application has this id */
 
 static poll_schedule_t       s_schedule;
-static const app_manifest_t *s_apps;
-static int                   s_app_count;
+/* The installed applications as the poller last took them: its own copy,
+ * so that nothing here looks at a list another task is rewriting. An
+ * application is its id everywhere below. */
+static app_manifest_t        s_known[LAUNCHER_INSTALLED_MAX];
+static int                   s_known_count;
 static app_alarms_t          s_alarms;
-static uint32_t              s_generation; /* of the list of applications: goes up when it is read anew */
 /* The schedule and the alarms are changed from other tasks too: an
  * application asks for a poll, the web page saves settings. */
 static SemaphoreHandle_t     s_lock;
@@ -387,18 +390,40 @@ static void unlock(void)
     xSemaphoreGive(s_lock);
 }
 
-/* The application's number as the schedule counts them, or NO_APP. */
+/* The application's id, or NO_APP. With the lock held, or before the
+ * poller's task is there. */
+static int id_of(const char *app_name)
+{
+    for (int i = 0; i < s_known_count; i++) {
+        if (strcmp(s_known[i].name, app_name) == 0) {
+            return (int)s_known[i].id;
+        }
+    }
+    return NO_APP;
+}
+
+/* The name of the application with the id, for whoever is called by name;
+ * false when it is not installed any more. With the lock held. */
+static bool name_of(int app, char name[APP_NAME_MAX + 1])
+{
+    for (int i = 0; i < s_known_count; i++) {
+        if ((int)s_known[i].id == app) {
+            strcpy(name, s_known[i].name);
+            return true;
+        }
+    }
+    return false;
+}
+
 static int app_number(const char *app_name)
 {
     if (s_lock == NULL) {
         return NO_APP; /* asked before the poller started: nothing is scheduled yet */
     }
-    for (int app = 0; app < s_app_count; app++) {
-        if (strcmp(s_apps[app].name, app_name) == 0) {
-            return app;
-        }
-    }
-    return NO_APP;
+    lock();
+    int app = id_of(app_name);
+    unlock();
+    return app;
 }
 
 /* Makes the oldest request an application queued, if there is one. */
@@ -417,8 +442,7 @@ static bool run_pending_request(void)
     /* Nothing waiting is the usual case, and costs no memory. */
     request_t *request = oldest != NULL ? calloc(1, sizeof *request) : NULL;
     if (request != NULL) {
-        app = oldest->app;
-        strcpy(app_name, s_apps[app].name);
+        app = name_of(oldest->app, app_name) ? oldest->app : NO_APP;
         number = oldest->number;
         method = oldest->method;
         body_length = oldest->body_length;
@@ -578,16 +602,15 @@ bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *
 static bool ring_due_alarm(void)
 {
     char app_name[APP_NAME_MAX + 1];
+    int  app = NO_APP, alarm_number = 0;
     lock();
-    int app = app_alarms_take_due(&s_alarms, now_ms());
-    if (app >= 0) {
-        strcpy(app_name, s_apps[app].name);
-    }
+    bool is_due = app_alarms_take_due(&s_alarms, now_ms(), &app, &alarm_number) &&
+                  name_of(app, app_name);
     unlock();
-    if (app < 0) {
+    if (!is_due) {
         return false;
     }
-    app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM };
+    app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
     poller_hand_over(app_name, &alarm);
     return true;
 }
@@ -605,10 +628,9 @@ static bool fail_request_without_network(void)
     lock();
     for (int i = 0; i < PENDING_MAX && !found; i++) {
         if (s_pending[i].is_waiting && now_ms() - s_pending[i].queued_ms > RADIO_WAIT_MS) {
-            strcpy(app_name, s_apps[s_pending[i].app].name);
             number = s_pending[i].number;
             s_pending[i].is_waiting = false;
-            found = true;
+            found = name_of(s_pending[i].app, app_name);
         }
     }
     unlock();
@@ -689,12 +711,10 @@ static void poller_task(void *arg)
          * what is needed of it is taken now. */
         int due_app = due != NULL ? due->app : NO_APP, due_poll = due != NULL ? due->poll : 0;
         /* And the list of applications may be read anew while the request
-         * runs: the name is kept, and the numbers are good only for the
-         * list they were taken from. */
-        char     due_name[APP_NAME_MAX + 1] = "";
-        uint32_t generation = s_generation;
-        if (due != NULL) {
-            strcpy(due_name, s_apps[due_app].name);
+         * runs: the name is taken now. */
+        char due_name[APP_NAME_MAX + 1] = "";
+        if (due != NULL && !name_of(due_app, due_name)) {
+            due = NULL; /* not installed any more: its poll goes at the next reload */
         }
         unlock();
         if (due == NULL) {
@@ -710,37 +730,47 @@ static void poller_task(void *arg)
         }
         run_poll(due_name, due_poll);
         lock();
-        if (generation == s_generation) {
-            poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
-        }
+        /* By id: if the application is gone meanwhile, so is its poll. */
+        poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
         unlock();
     }
 }
 
-/* Takes the installed applications as the launcher has them now and
- * schedules their polls; what was scheduled, queued or set before is for
- * applications that may be gone. Returns the polls scheduled. */
+/* Takes the installed applications as the launcher has them now. What
+ * was scheduled, queued or set for an application that is still there
+ * stays as it is; what was for one that is gone goes; the polls of a new
+ * one are scheduled. Returns the polls there are. With the lock held, in
+ * the host loop or before the poller's task. */
 static int schedule_installed(void)
 {
-    s_apps = launcher_installed(&s_app_count);
-    s_generation++;
-    poll_schedule_init(&s_schedule);
-    app_alarms_init(&s_alarms);
-    memset(s_pending, 0, sizeof s_pending);
-    int polls = 0;
-    for (int app = 0; app < s_app_count; app++) {
-        for (int poll = 0; poll < s_apps[app].poll_count; poll++) {
-            /* From a battery no poll is closer to the last than this. */
-            uint32_t every_s = s_apps[app].poll_every_s[poll];
-            if (power_is_saving() && every_s < POWER_SAVING_POLL_MIN_S) {
-                every_s = POWER_SAVING_POLL_MIN_S;
-            }
-            if (poll_schedule_add(&s_schedule, app, poll, every_s, now_ms())) {
-                polls++;
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    s_known_count = count < LAUNCHER_INSTALLED_MAX ? count : LAUNCHER_INSTALLED_MAX;
+    memcpy(s_known, installed, (size_t)s_known_count * sizeof s_known[0]);
+
+    int ids[LAUNCHER_INSTALLED_MAX];
+    for (int i = 0; i < s_known_count; i++) {
+        ids[i] = (int)s_known[i].id;
+    }
+    poll_schedule_keep_only(&s_schedule, ids, s_known_count);
+    app_alarms_keep_only(&s_alarms, ids, s_known_count);
+    for (int i = 0; i < PENDING_MAX; i++) {
+        char name[APP_NAME_MAX + 1];
+        if (s_pending[i].is_waiting && !name_of(s_pending[i].app, name)) {
+            s_pending[i].is_waiting = false;
+        }
+    }
+    /* From a battery no poll is closer to its last than this. */
+    poll_schedule_set_floor(&s_schedule, power_is_saving() ? POWER_SAVING_POLL_MIN_S : 0);
+    for (int i = 0; i < s_known_count; i++) {
+        for (int poll = 0; poll < s_known[i].poll_count; poll++) {
+            if (!poll_schedule_has(&s_schedule, ids[i], poll)) {
+                poll_schedule_add(&s_schedule, ids[i], poll, s_known[i].poll_every_s[poll],
+                                  now_ms());
             }
         }
     }
-    return polls;
+    return s_schedule.count;
 }
 
 void poller_reschedule(void)
@@ -748,8 +778,20 @@ void poller_reschedule(void)
     if (s_lock == NULL) {
         return;
     }
+    /* Only the least distance between polls is another: everything else
+     * is as it was. */
     lock();
-    schedule_installed();
+    poll_schedule_set_floor(&s_schedule, power_is_saving() ? POWER_SAVING_POLL_MIN_S : 0);
+    unlock();
+}
+
+void poller_clock_moved(int64_t delta_ms)
+{
+    if (s_lock == NULL) {
+        return;
+    }
+    lock();
+    app_alarms_clock_moved(&s_alarms, delta_ms);
     unlock();
 }
 
@@ -762,11 +804,13 @@ void poller_release_reloaded(void)
 {
     int polls = schedule_installed();
     unlock();
-    ESP_LOGI(TAG, "applications changed: %d polls of %d applications", polls, s_app_count);
+    ESP_LOGI(TAG, "applications changed: %d polls of %d applications", polls, s_known_count);
 }
 
 void poller_start(void)
 {
+    poll_schedule_init(&s_schedule);
+    app_alarms_init(&s_alarms);
     int polls = schedule_installed();
     s_fetch_done = xSemaphoreCreateBinary();
     s_fetch_turn = xSemaphoreCreateMutex();
@@ -813,14 +857,23 @@ bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
     return found;
 }
 
-bool poller_alarm_set(const char *app_name, uint32_t seconds)
+bool poller_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
 {
     int app = app_number(app_name);
     if (app == NO_APP) {
         return false;
     }
     lock();
-    bool set = app_alarms_set(&s_alarms, app, seconds, now_ms());
+    bool set = true;
+    if (!is_a_time && when == 0) {
+        app_alarms_cancel(&s_alarms, app, alarm);
+    } else {
+        /* A time of day is so far from now by the wall clock, and is kept
+         * on the clock that only goes forward - with a note that it moves
+         * when the wall clock is set. */
+        int64_t in_ms = is_a_time ? (when - (int64_t)time(NULL)) * 1000 : when * 1000;
+        set = app_alarms_set(&s_alarms, app, alarm, now_ms() + in_ms, is_a_time);
+    }
     unlock();
     return set;
 }

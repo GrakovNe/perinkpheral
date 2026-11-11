@@ -36,7 +36,14 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
 }
 static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
 static bool no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return false; }
-static bool no_alarm(const char *app, uint32_t s) { (void)app; (void)s; return false; }
+static bool no_alarm(const char *app, int id, int64_t when, bool is_a_time)
+{
+    (void)app;
+    (void)id;
+    (void)when;
+    (void)is_a_time;
+    return false;
+}
 static int32_t no_file_write(const char *app, const char *file, int32_t offset, const void *bytes,
                              int32_t length)
 {

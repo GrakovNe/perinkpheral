@@ -199,10 +199,17 @@ static bool fake_poll_set_interval(const char *app_name, int poll, uint32_t ever
     return true;
 }
 
-static bool fake_alarm_set(const char *app_name, uint32_t seconds)
+static int     alarm_number = -1;
+static int64_t alarm_time;
+static bool fake_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
 {
     (void)app_name;
-    alarm_seconds = seconds;
+    if (is_a_time) {
+        alarm_time = when;
+    } else {
+        alarm_number = alarm;
+        alarm_seconds = (uint32_t)when;
+    }
     return true;
 }
 
@@ -547,10 +554,11 @@ static void test_values(void)
               "1 https://api.example.com/do?x={{token}}|2:Accept=application/json,X-Token={{token}}|{\"a\":1}");
     /* a poll at another pace, an alarm, a file written, and the wrong ones refused */
     CHECK(gfx_get(&surface, 14, ROW_VALUES));
-    CHECK(paced_seconds == 3600 && alarm_seconds == 0);
+    CHECK(paced_seconds == 3600 && alarm_seconds == 0 && alarm_number == 2);
+    CHECK(alarm_time == 1800000000);
     CHECK_STR(written_file, "cache.bin@4:abc");
     /* the alarm comes back as a call */
-    app_alarm(app);
+    app_alarm(app, 2);
     draw(app);
     CHECK(gfx_get(&surface, 16, ROW_VALUES));
     /* its file: the length, a piece from the middle, the end, the names it may not use */

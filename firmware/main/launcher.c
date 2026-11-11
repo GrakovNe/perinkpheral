@@ -4,7 +4,11 @@
  */
 #include "launcher.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "mbedtls/sha256.h"
 
 #include "esp_log.h"
 
@@ -70,6 +74,46 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
     return app_scene_create_built_in(manifest, wasm, wasm_size, app_host_services());
 }
 
+/* What the host calls an application: a number made of its code and its
+ * manifest, so that another version is another application to whatever
+ * was waiting for the old one, and the same version installed again is
+ * the same. Never 0, and never negative as an int. */
+#define HASH_CHUNK_BYTES 512
+
+static uint32_t id_of(const char *app_name, const uint8_t *code, size_t code_size)
+{
+    mbedtls_sha256_context hash;
+    uint8_t                digest[32];
+    mbedtls_sha256_init(&hash);
+    mbedtls_sha256_starts(&hash, 0);
+    if (code != NULL) {
+        mbedtls_sha256_update(&hash, code, code_size);
+    } else {
+        /* It has no slot: the module is a file. */
+        char path[APP_STORE_PATH_MAX];
+        snprintf(path, sizeof path, "%s/%s/" APP_FILE_MODULE, STORAGE_APPS_ROOT, app_name);
+        FILE *module = fopen(path, "rb");
+        static uint8_t chunk[HASH_CHUNK_BYTES]; /* only the host loop lists applications */
+        size_t count;
+        while (module != NULL && (count = fread(chunk, 1, sizeof chunk, module)) > 0) {
+            mbedtls_sha256_update(&hash, chunk, count);
+        }
+        if (module != NULL) {
+            fclose(module);
+        }
+    }
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    if (manifest != NULL) {
+        mbedtls_sha256_update(&hash, (const uint8_t *)manifest, strlen(manifest));
+        free(manifest);
+    }
+    mbedtls_sha256_finish(&hash, digest);
+    mbedtls_sha256_free(&hash);
+    uint32_t id = ((uint32_t)digest[0] << 24 | (uint32_t)digest[1] << 16 |
+                   (uint32_t)digest[2] << 8 | digest[3]) & 0x7FFFFFFFu;
+    return id != 0 ? id : 1;
+}
+
 /* Reads the store and makes a scene of every installed application. */
 static void read_installed(void)
 {
@@ -80,8 +124,9 @@ static void read_installed(void)
     for (int i = 0; i < s_installed_count; i++) {
         /* Run from its slot, in place; one that has none is read from its
          * file into memory, as all of them used to be. */
-        size_t         size;
+        size_t         size = 0;
         const uint8_t *code = app_code_find(s_installed[i].name, &size);
+        s_installed[i].id = id_of(s_installed[i].name, code, size);
         s_app_scenes[i] = code != NULL
                               ? app_scene_create_built_in(&s_installed[i], code, size,
                                                           app_host_services())

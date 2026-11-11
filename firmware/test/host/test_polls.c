@@ -252,18 +252,45 @@ static void test_pace_and_alarms(void)
     CHECK(!poll_schedule_set_interval(&schedule, 5, 0, 60, 60000));
 
     app_alarms_t alarms;
+    int app = 0, alarm = 0;
     app_alarms_init(&alarms);
-    CHECK(app_alarms_take_due(&alarms, 1000) == -1);
-    CHECK(app_alarms_set(&alarms, 2, 30, 1000) && app_alarms_set(&alarms, 0, 10, 1000));
-    CHECK(app_alarms_take_due(&alarms, 10999) == -1);
-    CHECK(app_alarms_take_due(&alarms, 11000) == 0);
-    CHECK(app_alarms_take_due(&alarms, 11000) == -1); /* once */
-    /* set again: moved, not added; 0 takes it back */
-    CHECK(app_alarms_set(&alarms, 2, 100, 20000));
-    CHECK(app_alarms_take_due(&alarms, 31000) == -1);
-    CHECK(app_alarms_set(&alarms, 2, 0, 20000));
-    CHECK(app_alarms_take_due(&alarms, 999999) == -1);
-    CHECK(!app_alarms_set(&alarms, APP_ALARMS_MAX, 1, 0) && !app_alarms_set(&alarms, -1, 1, 0));
+    CHECK(!app_alarms_take_due(&alarms, 1000, &app, &alarm));
+    CHECK(app_alarms_wait_ms(&alarms, 1000) == UINT32_MAX);
+    /* two applications, and two alarms of one of them */
+    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 31000, false));
+    CHECK(app_alarms_set(&alarms, 0x1111, 2, 11000, false));
+    CHECK(app_alarms_set(&alarms, 0x1111, 3, 21000, true));
+    CHECK(app_alarms_wait_ms(&alarms, 1000) == 10000);
+    CHECK(!app_alarms_take_due(&alarms, 10999, &app, &alarm));
+    CHECK(app_alarms_take_due(&alarms, 11000, &app, &alarm) && app == 0x1111 && alarm == 2);
+    CHECK(!app_alarms_take_due(&alarms, 11000, &app, &alarm)); /* once */
+    /* set anew: the same alarm, another time */
+    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 15000, false));
+    CHECK(app_alarms_take_due(&alarms, 15000, &app, &alarm) && app == 0x7a7a && alarm == 0);
+    /* the wall clock is set five seconds ahead: the alarm for a time of day
+     * comes five seconds sooner */
+    app_alarms_clock_moved(&alarms, 5000);
+    CHECK(!app_alarms_take_due(&alarms, 15999, &app, &alarm));
+    CHECK(app_alarms_take_due(&alarms, 16000, &app, &alarm) && app == 0x1111 && alarm == 3);
+    /* and one "in so long" does not move */
+    CHECK(app_alarms_set(&alarms, 0x1111, 1, 40000, false));
+    app_alarms_clock_moved(&alarms, -3600000);
+    CHECK(app_alarms_wait_ms(&alarms, 30000) == 10000);
+    /* taken back; an application that was removed loses its own */
+    app_alarms_cancel(&alarms, 0x1111, 1);
+    CHECK(app_alarms_wait_ms(&alarms, 30000) == UINT32_MAX);
+    CHECK(app_alarms_set(&alarms, 0x1111, 0, 50000, false));
+    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 60000, false));
+    const int left[] = { 0x7a7a };
+    app_alarms_keep_only(&alarms, left, 1);
+    CHECK(app_alarms_take_due(&alarms, 99999, &app, &alarm) && app == 0x7a7a);
+    CHECK(!app_alarms_take_due(&alarms, 99999, &app, &alarm));
+    /* the table is of a size */
+    for (int i = 0; i < APP_ALARMS_MAX; i++) {
+        CHECK(app_alarms_set(&alarms, 1, i, 1, false));
+    }
+    CHECK(!app_alarms_set(&alarms, 2, 0, 1, false));
+    CHECK(app_alarms_set(&alarms, 1, 0, 2, false)); /* one that is there can be set anew */
 }
 
 static void test_schedule_is_bounded(void)
@@ -304,8 +331,34 @@ static void test_pick(void)
     }
 }
 
+static void test_floor_and_removal(void)
+{
+    poll_schedule_t schedule;
+    uint32_t wait_ms;
+    poll_schedule_init(&schedule);
+    CHECK(poll_schedule_add(&schedule, 0xA, 0, 60, 0));
+    CHECK(poll_schedule_add(&schedule, 0xB, 0, 900, 0));
+    /* saving power: nothing is closer than five minutes, and the pace asked
+     * for is kept for when the floor is gone */
+    poll_schedule_set_floor(&schedule, 300);
+    poll_schedule_finished(&schedule, 0xA, 0, 1000);
+    poll_schedule_finished(&schedule, 0xB, 0, 1000);
+    CHECK(poll_schedule_due(&schedule, 300999, &wait_ms) == NULL && wait_ms == 1);
+    CHECK(poll_schedule_due(&schedule, 301000, &wait_ms)->app == 0xA);
+    poll_schedule_set_floor(&schedule, 0);
+    poll_schedule_finished(&schedule, 0xA, 0, 301000);
+    CHECK(poll_schedule_due(&schedule, 361000, &wait_ms)->app == 0xA);
+    /* one application is removed: its polls go, the other's stay */
+    CHECK(poll_schedule_has(&schedule, 0xA, 0) && poll_schedule_has(&schedule, 0xB, 0));
+    const int left[] = { 0xB };
+    poll_schedule_keep_only(&schedule, left, 1);
+    CHECK(!poll_schedule_has(&schedule, 0xA, 0) && poll_schedule_has(&schedule, 0xB, 0));
+    CHECK(schedule.count == 1);
+}
+
 int main(void)
 {
+    test_floor_and_removal();
     test_polls_in_the_manifest();
     test_bad_polls();
     test_template();

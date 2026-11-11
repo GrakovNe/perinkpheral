@@ -20,7 +20,7 @@ void app_delivery_init(app_delivery_state_t *state)
 static void call(app_t *app, const app_delivery_t *delivery)
 {
     if (delivery->kind == APP_DELIVERY_ALARM) {
-        app_alarm(app);
+        app_alarm(app, delivery->request);
     } else if (delivery->kind == APP_DELIVERY_SETTINGS) {
         app_settings_changed(app);
     } else if (delivery->kind == APP_DELIVERY_VALUES) {

@@ -222,9 +222,9 @@ static bool calls_through_pointers(void)
 
 static int32_t alarms_rung;
 
-void app_on_alarm(void)
+void app_on_alarm(int32_t id)
 {
-    alarms_rung++;
+    alarms_rung += id == 2 ? 1 : 100;
 }
 
 static bool numbers_parse(void)
@@ -368,8 +368,10 @@ void app_on_draw(void)
         mark(12, ROW_VALUES);
     }
     if (poll_set_interval(0, 3600) == HOST_OK && poll_set_interval(1, 60) == HOST_ERR_ARGUMENT &&
-        poll_set_interval(0, 0) == HOST_ERR_ARGUMENT && alarm_set(120) == HOST_OK &&
-        alarm_set(-1) == HOST_ERR_ARGUMENT && alarm_set(0) == HOST_OK &&
+        poll_set_interval(0, 0) == HOST_ERR_ARGUMENT && alarm_set(2, 120) == HOST_OK &&
+        alarm_set(2, -1) == HOST_ERR_ARGUMENT && alarm_set(2, 0) == HOST_OK &&
+        alarm_set(HOST_ALARM_COUNT, 5) == HOST_ERR_ARGUMENT && alarm_set(-1, 5) == HOST_ERR_ARGUMENT &&
+        alarm_set_at(1, 1800000000) == HOST_OK && alarm_set_at(1, 0) == HOST_ERR_ARGUMENT &&
         file_write("cache.bin", 9, 4, "abc", 3) == HOST_OK &&
         file_write("../x", 4, 0, "abc", 3) == HOST_ERR_ARGUMENT &&
         file_write("cache.bin", 9, -1, "abc", 3) == HOST_ERR_ARGUMENT &&

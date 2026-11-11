@@ -51,7 +51,7 @@ static int32_t depth;
 
 #define TEXT_MAX 47
 
-static int32_t app_to_remove;
+static uint32_t app_to_remove;
 static char    app_to_remove_title[TEXT_MAX + 1];
 
 static const char *notice;
@@ -254,14 +254,22 @@ static bool clock_save(void)
 
 /* ---- the rows of a page ---- */
 
+/* The installed applications, as the host lists them now. */
+#define APPS_MAX 16
+static uint32_t app_ids[APPS_MAX];
+
 static int32_t app_count(void)
 {
-    char title[TEXT_MAX + 1];
-    int32_t count = 0;
-    while (sys_app_title(count, title, TEXT_MAX) >= 0) {
-        count++;
-    }
-    return count;
+    int32_t count = sys_app_list(app_ids, APPS_MAX);
+    return count < 0 ? 0 : count > APPS_MAX ? APPS_MAX : count;
+}
+
+/* The title of the application on the row, terminated; false past the last. */
+static bool app_title_at(int32_t row, char title[TEXT_MAX + 1])
+{
+    int32_t length = row < app_count() ? sys_app_title(app_ids[row], title, TEXT_MAX) : -1;
+    title[length > 0 ? length : 0] = '\0';
+    return length >= 0;
 }
 
 static void format_choice(const display_setting_t *setting, int32_t value, char text[TEXT_MAX + 1])
@@ -367,11 +375,8 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         copy_text(label, TEXT_MAX + 1, CITIES[row].name);
         break;
     case PAGE_APPS: {
-        int32_t length = sys_app_title(row, label, TEXT_MAX);
-        if (length < 0) {
+        if (!app_title_at(row, label)) {
             copy_text(label, TEXT_MAX + 1, "No apps");
-        } else {
-            label[length] = '\0';
         }
         break;
     }
@@ -531,10 +536,8 @@ static void activate(page_t page, int32_t row)
         }
         break;
     case PAGE_APPS: {
-        int32_t length = sys_app_title(row, app_to_remove_title, TEXT_MAX);
-        if (length >= 0) {
-            app_to_remove_title[length] = '\0';
-            app_to_remove = row;
+        if (app_title_at(row, app_to_remove_title)) {
+            app_to_remove = app_ids[row];
             open(PAGE_REMOVE_APP, 0);
         }
         break;
@@ -807,7 +810,7 @@ static void draw_list(page_t page, int32_t selected)
         char value[TEXT_MAX + 1];
         describe_row(page, first + slot, label, value);
         draw_row(slot, label, value, first + slot == selected);
-        if (page == PAGE_APPS && sys_app_title(first + slot, value, TEXT_MAX) >= 0) {
+        if (page == PAGE_APPS && app_title_at(first + slot, value)) {
             /* What OK does to an application here, said by a picture. */
             int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
             gfx_color(first + slot == selected ? HOST_PAPER : HOST_INK);

@@ -24,6 +24,37 @@ void net_time_set_zone(const char *time_zone)
     tzset();
 }
 
+static void (*s_moved)(int64_t delta_ms);
+
+void net_time_on_change(void (*moved)(int64_t delta_ms))
+{
+    s_moved = moved;
+}
+
+/* The one place the wall clock is set: whoever follows it is told how far
+ * it went. */
+static bool set_clock(const struct timeval *to)
+{
+    struct timeval before;
+    gettimeofday(&before, NULL);
+    if (settimeofday(to, NULL) != 0) {
+        return false;
+    }
+    if (s_moved != NULL) {
+        s_moved(((int64_t)to->tv_sec - before.tv_sec) * 1000 +
+                ((int64_t)to->tv_usec - before.tv_usec) / 1000);
+    }
+    return true;
+}
+
+/* What the SNTP client calls with the time it got: ours instead of the
+ * library's, which sets the clock and tells nobody by how much. */
+void sntp_sync_time(struct timeval *tv)
+{
+    set_clock(tv);
+    sntp_set_sync_status(SNTP_SYNC_STATUS_COMPLETED);
+}
+
 static bool s_automatic = true;
 
 void net_time_set_automatic(bool automatic)
@@ -45,7 +76,7 @@ bool net_time_set(int64_t unix_seconds)
         return false;
     }
     struct timeval now = { .tv_sec = (time_t)unix_seconds };
-    return settimeofday(&now, NULL) == 0;
+    return set_clock(&now);
 }
 
 void net_time_start(const char *ntp_server, const char *time_zone, bool automatic)

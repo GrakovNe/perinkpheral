@@ -57,9 +57,10 @@ typedef struct {
     int32_t (*http_request)(const char *app_name, const app_request_t *request);
     /* Another pace for a poll; false when there is no such poll. */
     bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
-    /* Call the application once, `seconds` from now, wherever it is then;
-     * 0 takes the alarm back. */
-    bool (*alarm_set)(const char *app_name, uint32_t seconds);
+    /* The alarm numbered `alarm` of the application: `when` is seconds from
+     * now, 0 taking the alarm back, or - `is_a_time` - a moment in unix
+     * seconds. False when there is no room for one more. */
+    bool (*alarm_set)(const char *app_name, int alarm, int64_t when, bool is_a_time);
     /* The application's own files, as file_size and file_read of
      * host_api.h answer; the name is checked and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);
@@ -77,8 +78,9 @@ typedef struct {
     int32_t (*system_number_set)(int what, int32_t value);
     int32_t (*system_text_set)(int what, const char *text);
     int32_t (*system_time_set)(int64_t unix_seconds);
-    int32_t (*system_app_title)(int index, char *text, int32_t capacity);
-    int32_t (*system_app_remove)(int index);
+    int32_t (*system_app_list)(uint32_t *ids, int32_t capacity);
+    int32_t (*system_app_title)(uint32_t id, char *text, int32_t capacity);
+    int32_t (*system_app_remove)(uint32_t id);
     int32_t (*system_do)(int action);
 } app_services_t;
 
@@ -124,7 +126,7 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
 void app_values(app_t *app, int request, int http_status, const char *const *values, int count);
 
 /* The alarm the application set has come: app_on_alarm(). */
-void app_alarm(app_t *app);
+void app_alarm(app_t *app, int id);
 
 /* The user changed the application's settings: app_on_settings(). */
 void app_settings_changed(app_t *app);

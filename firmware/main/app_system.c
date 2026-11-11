@@ -192,33 +192,54 @@ int32_t app_system_time_set(int64_t unix_seconds)
     return HOST_OK;
 }
 
-int32_t app_system_app_title(int index, char *text, int32_t capacity)
+int32_t app_system_app_list(uint32_t *ids, int32_t capacity)
 {
     int count;
     const app_manifest_t *installed = launcher_installed(&count);
-    if (index < 0 || index >= count) {
+    for (int i = 0; i < count && i < capacity; i++) {
+        ids[i] = installed[i].id;
+    }
+    return count;
+}
+
+/* The installed application with the id; NULL when there is none. */
+static const app_manifest_t *installed_with(uint32_t id)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (installed[i].id == id) {
+            return &installed[i];
+        }
+    }
+    return NULL;
+}
+
+int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity)
+{
+    const app_manifest_t *app = installed_with(id);
+    if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    size_t length = strlen(installed[index].title);
+    size_t length = strlen(app->title);
     if (length > (size_t)capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(text, installed[index].title, length);
+    memcpy(text, app->title, length);
     return (int32_t)length;
 }
 
-int32_t app_system_app_remove(int index)
+int32_t app_system_app_remove(uint32_t id)
 {
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    if (index < 0 || index >= count) {
+    const app_manifest_t *app = installed_with(id);
+    if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    if (!app_store_remove(STORAGE_APPS_ROOT, installed[index].name)) {
+    if (!app_store_remove(STORAGE_APPS_ROOT, app->name)) {
         return HOST_ERR_FAILED;
     }
-    app_code_forget(installed[index].name);
-    ESP_LOGI(TAG, "\"%s\" removed", installed[index].name);
+    app_code_forget(app->name);
+    ESP_LOGI(TAG, "\"%s\" removed", app->name);
     /* Not from inside the handler that asked: the list is read anew once
      * the application that asked has returned. */
     if (!events_post_apps_changed()) {

@@ -21,8 +21,9 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
 int32_t app_system_number_set(int what, int32_t value);
 int32_t app_system_text_set(int what, const char *text);
 int32_t app_system_time_set(int64_t unix_seconds);
-int32_t app_system_app_title(int index, char *text, int32_t capacity);
-int32_t app_system_app_remove(int index);
+int32_t app_system_app_list(uint32_t *ids, int32_t capacity);
+int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity);
+int32_t app_system_app_remove(uint32_t id);
 int32_t app_system_do(int action);
 
 #ifdef __cplusplus

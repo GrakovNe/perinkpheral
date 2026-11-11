@@ -109,6 +109,7 @@ void app_main(void)
     status_start();
     wifi_start(&wifi);
     power_start(cfg->power_saving != 0);
+    net_time_on_change(poller_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
     web_server_start();
     /* An image installed over the network has to prove that the network
