@@ -843,7 +843,7 @@ void app_blur(app_t *app)
 
 void app_button(app_t *app, int button, int press)
 {
-    CALL_HANDLER(app, app->on_button, (int32_t)button, (int32_t)press);
+    CALL_HANDLER(app, app->on_button, (int32_t)BTN_EVENT(button, press));
 }
 
 void app_timer(app_t *app, int id)

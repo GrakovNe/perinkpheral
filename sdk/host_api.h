@@ -47,20 +47,60 @@ APP_EXPORT(app_init, void app_init(void));
 APP_EXPORT(app_on_focus, void app_on_focus(void));
 APP_EXPORT(app_on_blur, void app_on_blur(void));
 
-/* button: 1..4, as they sit on the device. The host's own layout is 1 up,
- * 2 ok, 3 down, 4 back.
+/* The four buttons, by what they do in the host's own screens; they sit
+ * on the device in this order, and applications are encouraged to keep
+ * the meaning. */
+#define BTN_UP   1
+#define BTN_OK   2
+#define BTN_DOWN 3
+#define BTN_BACK 4
+
+/* What a button did. A press arrives twice over. As it happens, for an
+ * application that follows the finger: KEYDOWN, then KEYUP. And as what
+ * it meant: PRESSED right after the key went up, or LONG_PRESSED while
+ * it is still held - the release is then only a KEYUP. Most applications
+ * handle PRESSED and LONG_PRESSED and ignore the other two. */
+#define BTN_KEYDOWN      0
+#define BTN_KEYUP        1
+#define BTN_PRESSED      2
+#define BTN_LONG_PRESSED 3
+
+/* One number says both, and has a name:
  *
- * A press arrives twice over: as it happens, for an application that
- * follows the finger - HOST_PRESS_DOWN, then HOST_PRESS_UP - and as what
- * it meant: HOST_PRESS_SHORT right after the up, or HOST_PRESS_LONG while
- * the button is still held, after which the release is only an up. Most
- * applications look at short and long and ignore the rest. A long press
- * on 4 never arrives: it opens the menu. */
-#define HOST_PRESS_DOWN  0
-#define HOST_PRESS_UP    1
-#define HOST_PRESS_SHORT 2
-#define HOST_PRESS_LONG  3
-APP_EXPORT(app_on_button, void app_on_button(int32_t button, int32_t press));
+ *     void app_on_button(int32_t event)
+ *     {
+ *         switch (event) {
+ *         case BTN_OK_PRESSED:        start();          break;
+ *         case BTN_OK_LONG_PRESSED:   reset();          break;
+ *         case BTN_BACK_PRESSED:      request_exit();   break;
+ *         }
+ *     }
+ *
+ * BTN_OF() and BTN_ACTION_OF() take an event apart for code that would
+ * rather look at the two separately. BTN_BACK_LONG_PRESSED never arrives:
+ * a long press on BACK opens the menu, whatever the application does. */
+#define BTN_EVENT(button, action) ((button) << 2 | (action))
+#define BTN_OF(event)             ((event) >> 2)
+#define BTN_ACTION_OF(event)      ((event) & 3)
+
+#define BTN_UP_KEYDOWN        BTN_EVENT(BTN_UP, BTN_KEYDOWN)
+#define BTN_UP_KEYUP          BTN_EVENT(BTN_UP, BTN_KEYUP)
+#define BTN_UP_PRESSED        BTN_EVENT(BTN_UP, BTN_PRESSED)
+#define BTN_UP_LONG_PRESSED   BTN_EVENT(BTN_UP, BTN_LONG_PRESSED)
+#define BTN_OK_KEYDOWN        BTN_EVENT(BTN_OK, BTN_KEYDOWN)
+#define BTN_OK_KEYUP          BTN_EVENT(BTN_OK, BTN_KEYUP)
+#define BTN_OK_PRESSED        BTN_EVENT(BTN_OK, BTN_PRESSED)
+#define BTN_OK_LONG_PRESSED   BTN_EVENT(BTN_OK, BTN_LONG_PRESSED)
+#define BTN_DOWN_KEYDOWN      BTN_EVENT(BTN_DOWN, BTN_KEYDOWN)
+#define BTN_DOWN_KEYUP        BTN_EVENT(BTN_DOWN, BTN_KEYUP)
+#define BTN_DOWN_PRESSED      BTN_EVENT(BTN_DOWN, BTN_PRESSED)
+#define BTN_DOWN_LONG_PRESSED BTN_EVENT(BTN_DOWN, BTN_LONG_PRESSED)
+#define BTN_BACK_KEYDOWN      BTN_EVENT(BTN_BACK, BTN_KEYDOWN)
+#define BTN_BACK_KEYUP        BTN_EVENT(BTN_BACK, BTN_KEYUP)
+#define BTN_BACK_PRESSED      BTN_EVENT(BTN_BACK, BTN_PRESSED)
+#define BTN_BACK_LONG_PRESSED BTN_EVENT(BTN_BACK, BTN_LONG_PRESSED)
+
+APP_EXPORT(app_on_button, void app_on_button(int32_t event));
 
 /* A timer set with timer_set() ran out. */
 APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));

@@ -223,7 +223,8 @@ There are no pointer callbacks. An application exports functions with fixed name
 ```
 app_init()
 app_on_focus() / app_on_blur()
-app_on_button(button 1..4, press)   // 0 down, 1 up as it happens; 2 short, 3 long as what it meant
+app_on_button(event)                // BTN_UP | BTN_OK | BTN_DOWN | BTN_BACK with _KEYDOWN, _KEYUP as it happens
+                                    // and _PRESSED, _LONG_PRESSED as what it meant: BTN_OK_PRESSED
 app_on_timer(id)
 app_on_draw()                       // paint the whole picture from the state
 app_on_data(request, ptr, len, flags, http_status)   // a piece of the answer to poll number `request`

@@ -19,9 +19,6 @@
 #include "host_api.h"
 
 #define FRAME_TIMER     0
-#define BUTTON_UP       1
-#define BUTTON_OK       2
-#define BUTTON_BACK     4
 #define MS_PER_10_S     10000
 #define LINE_HEIGHT     30
 #define MARGIN          16
@@ -188,19 +185,20 @@ void app_on_timer(int32_t id)
     timer_set(FRAME_TIMER, MS_PER_10_S / frames_per_10_s);
 }
 
-void app_on_button(int32_t button, int32_t press)
+void app_on_button(int32_t event)
 {
-    if (press != HOST_PRESS_SHORT) {
-        return;
-    }
-    if (button == BUTTON_BACK) {
+    switch (event) {
+    case BTN_BACK_PRESSED:
         request_exit();
-    } else if (button == BUTTON_OK) {
+        break;
+    case BTN_OK_PRESSED:
         start_over();
-    } else if (button == BUTTON_UP) {
+        break;
+    case BTN_UP_PRESSED:
         /* Enough: to the numbers at once. */
         started_ms = time_uptime_ms() - (int64_t)frame_count * MS_PER_10_S / frames_per_10_s;
         request_redraw(HOST_REDRAW_NORMAL);
+        break;
     }
 }
 
@@ -226,7 +224,7 @@ static void draw_numbers(void)
     draw_line(3, "Draw, average: ", draw_ms_total / shown, " ms");
     draw_line(4, "Draw, worst: ", draw_ms_worst, " ms");
     draw_line(5, "Rectangles a frame: ", rectangles / shown, "");
-    draw_line(6, "1 stop, 2 again, 4 back", 0, 0);
+    draw_line(6, "Up stop, Ok again, Back", 0, 0);
 
     /* Every grey the host can make, paper to ink: the video itself has
      * next to none, so this is where the panel shows what they look like. */

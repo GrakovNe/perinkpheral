@@ -118,9 +118,9 @@ void app_on_blur(void)
     host_log(HOST_LOG_INFO, "blur", 4);
 }
 
-void app_on_button(int32_t button, int32_t press)
+void app_on_button(int32_t event)
 {
-    (void)press;
+    int32_t button = BTN_OF(event);
     if (button == BUTTON_TRAP) {
         __builtin_trap();
     }

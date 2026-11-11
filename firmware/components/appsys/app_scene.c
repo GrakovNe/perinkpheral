@@ -120,14 +120,19 @@ static scene_reaction_t app_scene_button(scene_t *scene, scene_button_t button,
                                       NULL };
         return reaction;
     }
-    static const int HOST_PRESS_OF[] = {
-        [SCENE_PRESS_DOWN] = HOST_PRESS_DOWN,
-        [SCENE_PRESS_UP] = HOST_PRESS_UP,
-        [SCENE_PRESS_SHORT] = HOST_PRESS_SHORT,
-        [SCENE_PRESS_LONG] = HOST_PRESS_LONG,
+    static const int BTN_ACTION_FOR[] = {
+        [SCENE_PRESS_DOWN] = BTN_KEYDOWN,
+        [SCENE_PRESS_UP] = BTN_KEYUP,
+        [SCENE_PRESS_SHORT] = BTN_PRESSED,
+        [SCENE_PRESS_LONG] = BTN_LONG_PRESSED,
     };
-    /* Applications count buttons 1..4, as they sit on the device. */
-    app_button(self->app, (int)button + 1, HOST_PRESS_OF[press]);
+    static const int BTN_FOR[] = {
+        [SCENE_BUTTON_UP] = BTN_UP,
+        [SCENE_BUTTON_OK] = BTN_OK,
+        [SCENE_BUTTON_DOWN] = BTN_DOWN,
+        [SCENE_BUTTON_BACK] = BTN_BACK,
+    };
+    app_button(self->app, BTN_FOR[button], BTN_ACTION_FOR[press]);
     return reaction_of(self);
 }
 

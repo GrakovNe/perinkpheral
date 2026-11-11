@@ -202,11 +202,16 @@ state and ask for a redraw; `app_on_draw()` paints the state:
 
 static int32_t presses;
 
-void app_on_button(int32_t button, int32_t press)
+void app_on_button(int32_t event)
 {
-    if (press == HOST_PRESS_SHORT) {
+    switch (event) {
+    case BTN_OK_PRESSED:
         presses++;
-        request_redraw();
+        request_redraw(HOST_REDRAW_NORMAL);
+        break;
+    case BTN_BACK_PRESSED:
+        request_exit();
+        break;
     }
 }
 

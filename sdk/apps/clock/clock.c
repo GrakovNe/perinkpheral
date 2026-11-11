@@ -13,7 +13,6 @@
 #include "host_api.h"
 
 #define MINUTE_TIMER       0
-#define BUTTON_BACK        4
 #define MS_PER_SECOND      1000
 #define SECONDS_PER_MINUTE 60
 #define DAYS_PER_WEEK      7
@@ -61,9 +60,9 @@ void app_on_focus(void)
     wake_for_the_next_picture();
 }
 
-void app_on_button(int32_t button, int32_t press)
+void app_on_button(int32_t event)
 {
-    if (button == BUTTON_BACK && press == HOST_PRESS_SHORT) {
+    if (event == BTN_BACK_PRESSED) {
         request_exit();
     }
 }

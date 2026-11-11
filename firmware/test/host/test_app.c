@@ -225,11 +225,11 @@ static void test_buttons_and_redraw(void)
     app_t *app = load_probe();
     CHECK(!app_take_redraw_request(app));
 
-    app_button(app, 2, HOST_PRESS_SHORT);
+    app_button(app, 2, BTN_PRESSED);
     CHECK(app_take_redraw_request(app));
     CHECK(!app_take_redraw_request(app)); /* asked once, told once */
 
-    app_button(app, 1, HOST_PRESS_SHORT);
+    app_button(app, 1, BTN_PRESSED);
     draw(app);
     CHECK(black_in_row(ROW_PRESSES) == 3); /* 2 + 1: the state lives in the module */
     app_unload(app);
@@ -239,7 +239,7 @@ static void test_exit(void)
 {
     app_t *app = load_probe();
     CHECK(!app_take_exit_request(app));
-    app_button(app, 7, HOST_PRESS_SHORT);
+    app_button(app, 7, BTN_PRESSED);
     CHECK(app_take_exit_request(app));
     CHECK(!app_take_exit_request(app)); /* asked once, told once */
     app_unload(app);
@@ -283,7 +283,7 @@ static void test_refusals(void)
     CHECK(black_in_row(ROW_NOT_DRAWING) == 0);
 
     /* drawing from a button handler is refused and paints nothing */
-    app_button(app, 3, HOST_PRESS_SHORT);
+    app_button(app, 3, BTN_PRESSED);
     CHECK(!app_take_redraw_request(app));
     draw(app);
     CHECK(black_in_row(ROW_NOT_DRAWING) == 1);
@@ -371,7 +371,7 @@ static void test_data(void)
 static void test_trap_stops_the_application(void)
 {
     app_t *app = load_probe();
-    app_button(app, 4, HOST_PRESS_SHORT);
+    app_button(app, 4, BTN_PRESSED);
     CHECK(app_has_stopped(app));
     CHECK(app_stop_reason(app)[0] != '\0');
     CHECK(app_take_redraw_request(app)); /* the screen has to say so */
@@ -390,7 +390,7 @@ static void test_runaway_handlers_are_stopped(void)
     /* a loop that calls nothing and never ends */
     app_t *app = load_probe();
     clock_runs = true;
-    app_button(app, 8, HOST_PRESS_SHORT);
+    app_button(app, 8, BTN_PRESSED);
     CHECK(app_has_stopped(app));
     CHECK_STR(app_stop_reason(app), "it ran too long");
     app_unload(app);
@@ -399,7 +399,7 @@ static void test_runaway_handlers_are_stopped(void)
      * and by the stack, not by the clock */
     app = load_probe();
     clock_runs = true;
-    app_button(app, 9, HOST_PRESS_SHORT);
+    app_button(app, 9, BTN_PRESSED);
     CHECK(app_has_stopped(app));
     CHECK(strcmp(app_stop_reason(app), "it ran too long") != 0);
     app_unload(app);
@@ -407,7 +407,7 @@ static void test_runaway_handlers_are_stopped(void)
     /* and an application that behaves is not cut short by a slow clock */
     app = load_probe();
     clock_runs = true;
-    app_button(app, 1, HOST_PRESS_SHORT);
+    app_button(app, 1, BTN_PRESSED);
     draw(app);
     CHECK(!app_has_stopped(app));
     app_unload(app);
@@ -475,18 +475,18 @@ static void test_values(void)
 static void test_redraw_flags(void)
 {
     app_t *app = load_probe();
-    app_button(app, 2, HOST_PRESS_SHORT);
+    app_button(app, 2, BTN_PRESSED);
     CHECK(app_take_redraw_request(app) && app_take_redraw_flags(app) == HOST_REDRAW_NORMAL);
 
-    app_button(app, 10, HOST_PRESS_SHORT);
+    app_button(app, 10, BTN_PRESSED);
     CHECK(app_take_redraw_request(app) && app_take_redraw_flags(app) == HOST_REDRAW_SOON);
     CHECK(app_take_redraw_flags(app) == 0); /* asked once, told once */
 
     /* two requests in a row: both wishes stand */
-    app_button(app, 10, HOST_PRESS_SHORT);
-    app_button(app, 11, HOST_PRESS_SHORT);
+    app_button(app, 10, BTN_PRESSED);
+    app_button(app, 11, BTN_PRESSED);
     CHECK(app_take_redraw_flags(app) == (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN));
-    app_button(app, 12, HOST_PRESS_SHORT);
+    app_button(app, 12, BTN_PRESSED);
     CHECK(app_take_redraw_flags(app) == HOST_REDRAW_NO_BLINK);
     app_unload(app);
 }

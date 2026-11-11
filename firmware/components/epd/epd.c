@@ -21,6 +21,8 @@ static const char *TAG = "epd";
 #define BUSY_PARTIAL_MS 3000
 
 static epd_config_t        s_cfg;
+#define BUS_HOLD_FROM_BYTES 64
+
 static spi_device_handle_t s_spi;
 static bool                s_ready;
 
@@ -28,6 +30,11 @@ static bool                s_ready;
  * refresh on this module never finish. */
 static void tx(const uint8_t *d, size_t n)
 {
+    /* A frame is fifteen thousand one-byte transactions: with the bus held
+     * for all of them the driver skips its own preparation on each. What
+     * goes over the wire is the same, CS and all. */
+    bool holds_bus = n >= BUS_HOLD_FROM_BYTES &&
+                     spi_device_acquire_bus(s_spi, portMAX_DELAY) == ESP_OK;
     for (size_t i = 0; i < n; i++) {
         spi_transaction_t t = {
             .flags = SPI_TRANS_USE_TXDATA, .length = 8, .tx_data = { d[i] },
@@ -35,6 +42,9 @@ static void tx(const uint8_t *d, size_t n)
         gpio_set_level(s_cfg.cs_gpio, 0);
         ESP_ERROR_CHECK(spi_device_polling_transmit(s_spi, &t));
         gpio_set_level(s_cfg.cs_gpio, 1);
+    }
+    if (holds_bus) {
+        spi_device_release_bus(s_spi);
     }
 }
 

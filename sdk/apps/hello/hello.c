@@ -12,7 +12,6 @@
 #include "host_api.h"
 
 #define MARGIN      16
-#define BUTTON_BACK 4 /* the host's layout: 1 up, 2 ok, 3 down, 4 back */
 
 static const char PRESSES_KEY[] = "presses";
 #define PRESSES_KEY_LENGTH ((int32_t)sizeof PRESSES_KEY - 1)
@@ -36,17 +35,19 @@ void app_on_blur(void)
     kv_set(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
 }
 
-void app_on_button(int32_t button, int32_t press)
+void app_on_button(int32_t event)
 {
-    if (press != HOST_PRESS_SHORT) {
-        return;
-    }
-    if (button == BUTTON_BACK) {
+    switch (event) {
+    case BTN_BACK_PRESSED:
         request_exit();
-        return;
+        break;
+    case BTN_UP_PRESSED:
+    case BTN_OK_PRESSED:
+    case BTN_DOWN_PRESSED:
+        presses++;
+        request_redraw(HOST_REDRAW_NORMAL);
+        break;
     }
-    presses++;
-    request_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_draw(void)
