@@ -226,7 +226,38 @@ static const gfx_glyph_t tiny_glyphs[] = {
     { 'I', 1, 3, 1, 3, 3, 0 },
 };
 static const gfx_font_t tiny = { .ascent = 3, .descent = 1, .glyphs = tiny_glyphs, .count = 2,
-                                 .bits = tiny_bits };
+                                 .bits = tiny_bits, .scale = 1 };
+static const gfx_font_t tiny_tripled = { .ascent = 3, .descent = 1, .glyphs = tiny_glyphs,
+                                         .count = 2, .bits = tiny_bits, .scale = 3 };
+
+/* The same dots, three pixels each. */
+static void test_text_font_scaled(void)
+{
+    fresh();
+    CHECK(gfx_font_height(&tiny_tripled) == 12 && gfx_font_ascent(&tiny_tripled) == 9);
+    CHECK(gfx_font_cap_height(&tiny_tripled) == 6); /* no 'H': the '?' stands in */
+    CHECK(gfx_text_font_width(&tiny_tripled, "II") == 18);
+    /* baseline at y = 12: the bar is 3 x 9 pixels at x = 3..5, y = 3..11 */
+    CHECK(gfx_text_font(&g, 0, 12, &tiny_tripled, "I", true) == 9);
+    int black = 0;
+    for (int y = 0; y < 20; y++) {
+        for (int x = 0; x < 20; x++) {
+            bool inside = x >= 3 && x < 6 && y >= 3 && y < 12;
+            CHECK(gfx_get(&g, x, y) == inside);
+            black += gfx_get(&g, x, y);
+        }
+    }
+    CHECK(black == 27);
+
+    /* every size in the firmware is the same face */
+    for (int id = 0; id < GFX_FONT_COUNT; id++) {
+        const gfx_font_t *font = gfx_font((gfx_font_id_t)id);
+        CHECK(font != NULL && gfx_text_font_width(font, "0") == 7 * font->scale);
+        CHECK(gfx_font_cap_height(font) == 8 * font->scale);
+    }
+    CHECK(gfx_font(GFX_FONT_COUNT) == NULL && gfx_font((gfx_font_id_t)-1) == NULL);
+    CHECK(gfx_font_height(gfx_font_system()) == 30);
+}
 
 static void test_text_font(void)
 {
@@ -257,5 +288,6 @@ int main(void)
     test_bitmap();
     test_text_square();
     test_text_font();
+    test_text_font_scaled();
     REPORT();
 }

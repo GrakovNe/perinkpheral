@@ -81,11 +81,11 @@ Fonts: `tools/fontgen/fontgen.py <ttf> --px N --name <id> --out
 firmware/components/gfx/fonts/<id>.h --preview <file>.png` rasterizes a
 TTF with FreeType in monochrome (printable ASCII) into a `gfx_font_t`
 for `gfx_text_font()`. It needs the `freetype-py` package. The UI font
-is `assets/fonts/DepartureMono-Regular.otf`, a pixel font: rasterize it
-only at multiples of 11 px, where it lands on its own grid. The headers
-are 22 px (the host's text), 44 px and 66 px `--only "0123456789:+-.,%/ "`
-(large text and digits for applications). The generated headers are
-committed.
+is `assets/fonts/DepartureMono-Regular.otf`, a pixel font: it is rasterized
+once, at 11 px (`--px 11 --name departure_11`), where it lands on its own
+grid. The sizes on the device are that bitmap drawn at whole multiples
+(`gfx_font_t.scale`); a new size is a line in `gfx.c`, not a new header.
+The generated header is committed.
 
 Firmware without the cable, once the device is on a network:
 `curl --data-binary @firmware/build/perinkpheral.bin

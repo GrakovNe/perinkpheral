@@ -345,6 +345,7 @@ static const gfx_glyph_t *font_glyph(const gfx_font_t *font, uint32_t cp)
 int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
 {
     int x0 = x;
+    int scale = font->scale;
     const char *s = utf8;
     while (*s != '\0') {
         const gfx_glyph_t *gl = font_glyph(font, next_cp(&s));
@@ -356,11 +357,12 @@ int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *ut
         for (int row = 0; row < gl->h; row++) {
             for (int col = 0; col < gl->w; col++) {
                 if (bits[row * stride + (col >> 3)] & (0x80 >> (col & 7))) {
-                    gfx_pixel(g, x + gl->left + col, y - gl->top + row, black);
+                    gfx_fill(g, x + (gl->left + col) * scale, y + (row - gl->top) * scale, scale,
+                             scale, black);
                 }
             }
         }
-        x += gl->advance;
+        x += gl->advance * scale;
     }
     return x - x0;
 }
@@ -372,30 +374,39 @@ int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
     while (*s != '\0') {
         const gfx_glyph_t *gl = font_glyph(font, next_cp(&s));
         if (gl != NULL) {
-            w += gl->advance;
+            w += gl->advance * font->scale;
         }
     }
     return w;
 }
 
-#include "departure_22.h"
-#include "departure_44.h"
-#include "departure_66_digits.h"
+int gfx_font_cap_height(const gfx_font_t *font)
+{
+    const gfx_glyph_t *capital = font_glyph(font, 'H');
+    return capital != NULL ? capital->top * font->scale : gfx_font_ascent(font);
+}
+
+#include "departure_11.h"
+
+#define DEPARTURE_MONO(pixels_per_dot)                                              \
+    {                                                                               \
+        .ascent = departure_11_ascent, .descent = departure_11_descent,             \
+        .glyphs = departure_11_glyphs, .count = departure_11_count,                 \
+        .bits = departure_11_bits, .scale = (pixels_per_dot),                       \
+    }
+
+static const gfx_font_t FONTS[GFX_FONT_COUNT] = {
+    [GFX_FONT_TEXT] = DEPARTURE_MONO(2),    [GFX_FONT_MEDIUM] = DEPARTURE_MONO(3),
+    [GFX_FONT_LARGE] = DEPARTURE_MONO(4),   [GFX_FONT_DISPLAY] = DEPARTURE_MONO(6),
+    [GFX_FONT_HUGE] = DEPARTURE_MONO(10),
+};
 
 const gfx_font_t *gfx_font(gfx_font_id_t id)
 {
-    switch (id) {
-    case GFX_FONT_TEXT:
-        return &departure_22;
-    case GFX_FONT_LARGE:
-        return &departure_44;
-    case GFX_FONT_DIGITS:
-        return &departure_66_digits;
-    }
-    return NULL;
+    return (unsigned)id < GFX_FONT_COUNT ? &FONTS[id] : NULL;
 }
 
 const gfx_font_t *gfx_font_system(void)
 {
-    return &departure_22;
+    return &FONTS[GFX_FONT_TEXT];
 }

@@ -198,8 +198,15 @@ void app_on_draw(void)
     if (time_now() == 0 && time_zone_offset() == FAKE_ZONE_OFFSET) {
         mark(6, ROW_MEASURES);
     }
-    if (gfx_font_height(HOST_FONT_DIGITS) > gfx_font_height(HOST_FONT_LARGE) &&
-        gfx_font_height(HOST_FONT_LARGE) > gfx_font_height(HOST_FONT_TEXT)) {
+    if (gfx_font_height(HOST_FONT_HUGE) > gfx_font_height(HOST_FONT_DISPLAY) &&
+        gfx_font_height(HOST_FONT_DISPLAY) > gfx_font_height(HOST_FONT_LARGE) &&
+        gfx_font_height(HOST_FONT_LARGE) > gfx_font_height(HOST_FONT_MEDIUM) &&
+        gfx_font_height(HOST_FONT_MEDIUM) > gfx_font_height(HOST_FONT_TEXT) &&
+        gfx_font_height(HOST_FONT_TEXT) > gfx_font_ascent(HOST_FONT_TEXT) &&
+        gfx_font_ascent(HOST_FONT_TEXT) > gfx_font_cap_height(HOST_FONT_TEXT) &&
+        gfx_font_cap_height(HOST_FONT_TEXT) > 0 &&
+        gfx_font_ascent(UNKNOWN_FONT) == HOST_ERR_ARGUMENT &&
+        gfx_font_cap_height(UNKNOWN_FONT) == HOST_ERR_ARGUMENT) {
         mark(8, ROW_MEASURES);
     }
 

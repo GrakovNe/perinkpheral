@@ -77,9 +77,12 @@ def write_header(path, name, px, ascent, descent, glyphs, bits, source):
         for cp, w, h, left, top, adv, off in glyphs:
             f.write("    { 0x%04X, %d, %d, %d, %d, %d, %d },\n" % (cp, w, h, left, top, adv, off))
         f.write("};\n\n")
+        f.write("enum { %s_ascent = %d, %s_descent = %d, %s_count = %d };\n\n"
+                % (name, ascent, name, descent, name, len(glyphs)))
         f.write("static const gfx_font_t %s = {\n" % name)
-        f.write("    .ascent = %d, .descent = %d, .glyphs = %s_glyphs, .count = %d, .bits = %s_bits,\n"
-                % (ascent, descent, name, len(glyphs), name))
+        f.write("    .ascent = %s_ascent, .descent = %s_descent, .glyphs = %s_glyphs,\n"
+                % (name, name, name))
+        f.write("    .count = %s_count, .bits = %s_bits, .scale = 1,\n" % (name, name))
         f.write("};\n")
 
 

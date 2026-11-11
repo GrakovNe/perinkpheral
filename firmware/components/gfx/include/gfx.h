@@ -89,12 +89,16 @@ typedef struct {
     uint32_t offset; /* into bits */
 } gfx_glyph_t;
 
+/* A font is a set of glyphs and how many pixels a dot of them takes: a
+ * pixel font drawn larger is the same dots, only bigger. The metrics in
+ * here are in dots; the functions below answer in pixels. */
 typedef struct {
     uint8_t            ascent;
     uint8_t            descent;
     const gfx_glyph_t *glyphs; /* sorted by cp */
     int                count;
     const uint8_t     *bits;
+    uint8_t            scale; /* pixels per dot, at least 1 */
 } gfx_font_t;
 
 /* UTF-8 text with the baseline at y; code points the font lacks draw as
@@ -103,12 +107,15 @@ int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *ut
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
 
-/* The fonts in the firmware, all Departure Mono, which lands on its own
- * pixel grid only at multiples of 11. */
+/* The fonts in the firmware: Departure Mono, drawn on an 11 px grid and
+ * shown at whole multiples of it. Every one has all of printable ASCII. */
 typedef enum {
-    GFX_FONT_TEXT,   /* 22 px, printable ASCII: the host's text */
-    GFX_FONT_LARGE,  /* 44 px, printable ASCII */
-    GFX_FONT_DIGITS, /* 66 px: digits, space and : + - . , % / */
+    GFX_FONT_TEXT,    /* 22 px: the host's text */
+    GFX_FONT_MEDIUM,  /* 33 px */
+    GFX_FONT_LARGE,   /* 44 px */
+    GFX_FONT_DISPLAY, /* 66 px */
+    GFX_FONT_HUGE,    /* 110 px */
+    GFX_FONT_COUNT,
 } gfx_font_id_t;
 
 /* NULL for an id that is not one of the above. */
@@ -117,10 +124,20 @@ const gfx_font_t *gfx_font(gfx_font_id_t id);
 /* GFX_FONT_TEXT, for the host's own screens. */
 const gfx_font_t *gfx_font_system(void);
 
+/* From the top of a line to its baseline. */
+static inline int gfx_font_ascent(const gfx_font_t *font)
+{
+    return font->ascent * font->scale;
+}
+
+/* The whole line: the ascent and the room for descenders under it. */
 static inline int gfx_font_height(const gfx_font_t *font)
 {
-    return font->ascent + font->descent;
+    return (font->ascent + font->descent) * font->scale;
 }
+
+/* How far capitals and digits rise above the baseline. */
+int gfx_font_cap_height(const gfx_font_t *font);
 
 #ifdef __cplusplus
 }

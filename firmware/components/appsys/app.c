@@ -83,8 +83,9 @@ static void stop_budget(void)
 
 /* ---- the host API as the application sees it ---- */
 
-_Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_LARGE == GFX_FONT_LARGE &&
-                   HOST_FONT_DIGITS == GFX_FONT_DIGITS,
+_Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_MEDIUM == GFX_FONT_MEDIUM &&
+                   HOST_FONT_LARGE == GFX_FONT_LARGE && HOST_FONT_DISPLAY == GFX_FONT_DISPLAY &&
+                   HOST_FONT_HUGE == GFX_FONT_HUGE,
                "applications name the fonts by the numbers gfx gives them");
 
 static const gfx_font_t *font_by_id(int32_t font)
@@ -179,7 +180,7 @@ HOST_FUNCTION(host_gfx_text)
         !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(gfx_text_font(app->surface, x, y + font->ascent, font, terminated, true));
+    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated, true));
 }
 
 HOST_FUNCTION(host_gfx_text_width)
@@ -203,6 +204,22 @@ HOST_FUNCTION(host_gfx_font_height)
     m3ApiGetArg(int32_t, font_id);
     const gfx_font_t *font = font_by_id(font_id);
     m3ApiReturn(font != NULL ? gfx_font_height(font) : HOST_ERR_ARGUMENT);
+}
+
+HOST_FUNCTION(host_gfx_font_ascent)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, font_id);
+    const gfx_font_t *font = font_by_id(font_id);
+    m3ApiReturn(font != NULL ? gfx_font_ascent(font) : HOST_ERR_ARGUMENT);
+}
+
+HOST_FUNCTION(host_gfx_font_cap_height)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, font_id);
+    const gfx_font_t *font = font_by_id(font_id);
+    m3ApiReturn(font != NULL ? gfx_font_cap_height(font) : HOST_ERR_ARGUMENT);
 }
 
 HOST_FUNCTION(host_gfx_rect)
@@ -406,6 +423,8 @@ static const struct {
     { "gfx_text", "i(iii*i)", host_gfx_text },
     { "gfx_text_width", "i(i*i)", host_gfx_text_width },
     { "gfx_font_height", "i(i)", host_gfx_font_height },
+    { "gfx_font_ascent", "i(i)", host_gfx_font_ascent },
+    { "gfx_font_cap_height", "i(i)", host_gfx_font_cap_height },
     { "gfx_rect", "i(iiiii)", host_gfx_rect },
     { "gfx_line", "i(iiii)", host_gfx_line },
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },

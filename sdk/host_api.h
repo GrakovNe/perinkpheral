@@ -104,10 +104,14 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 
-/* All Departure Mono. A character a font does not have is drawn as '?'. */
-#define HOST_FONT_TEXT   0 /* 22 px, printable ASCII: the host's own text */
-#define HOST_FONT_LARGE  1 /* 44 px, printable ASCII */
-#define HOST_FONT_DIGITS 2 /* 66 px: digits, space and : + - . , % / */
+/* All Departure Mono, a pixel font drawn on an 11 px grid and shown at
+ * whole multiples of it; every size has all of printable ASCII. A
+ * character outside it is drawn as '?'. */
+#define HOST_FONT_TEXT    0 /* 22 px: the host's own text */
+#define HOST_FONT_MEDIUM  1 /* 33 px */
+#define HOST_FONT_LARGE   2 /* 44 px */
+#define HOST_FONT_DISPLAY 3 /* 66 px */
+#define HOST_FONT_HUGE    4 /* 110 px: five characters fill the width */
 
 /* y is the top of the line, not the baseline. Text longer than
  * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
@@ -116,7 +120,15 @@ HOST_IMPORT(gfx_text, int32_t gfx_text(int32_t x, int32_t y, int32_t font, const
                                        int32_t length));
 HOST_IMPORT(gfx_text_width, int32_t gfx_text_width(int32_t font, const char *text,
                                                    int32_t length));
+
+/* A line of a font, top to bottom: the baseline is gfx_font_ascent()
+ * under the top, capitals and digits stand gfx_font_cap_height() high on
+ * it, and gfx_font_height() is the whole line with the room for
+ * descenders. To put the top of the digits at `top`, draw the text at
+ * top - (gfx_font_ascent() - gfx_font_cap_height()). */
 HOST_IMPORT(gfx_font_height, int32_t gfx_font_height(int32_t font));
+HOST_IMPORT(gfx_font_ascent, int32_t gfx_font_ascent(int32_t font));
+HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
 
 #define HOST_RECT_OUTLINE 0
 #define HOST_RECT_FILLED  1
