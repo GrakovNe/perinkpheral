@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app_manifest.h"
 #include "gfx.h"
 
 #ifdef __cplusplus
@@ -18,6 +19,18 @@ extern "C" {
  * and the host API it can call. Knows nothing about scenes or the panel,
  * and no ESP-IDF: what it needs from the device comes in as app_services_t,
  * so the same code runs under the host tests with a real interpreter. */
+
+/* A request an application makes itself, as http_request() of host_api.h
+ * takes it. The body is the application's memory: whoever keeps the
+ * request copies it. */
+typedef struct {
+    int            method; /* HOST_HTTP_* */
+    char           url[APP_URL_MAX + 1];
+    app_header_t   headers[APP_HEADERS_MAX];
+    int            header_count;
+    const uint8_t *body;
+    int32_t        body_length;
+} app_request_t;
 
 /* What the device offers an application beyond drawing. */
 typedef struct {
@@ -38,6 +51,8 @@ typedef struct {
     /* Fetch the application's poll number `poll` now instead of when it is
      * due; false when it has no such poll. */
     bool (*poll_now)(const char *app_name, int poll);
+    /* Queues the request; the number its answer will carry, or a HOST_ERR_*. */
+    int32_t (*http_request)(const char *app_name, const app_request_t *request);
     /* Another pace for a poll; false when there is no such poll. */
     bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
     /* Call the application once, `seconds` from now, wherever it is then;

@@ -148,6 +148,35 @@ static void test_settings(void)
     CHECK(!app_manifest_accepts_setting(good, "city", too_long, NULL));
 }
 
+static void test_hosts(void)
+{
+    const char *manifest = "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"hosts\":[\"api.example.com\",\"192.168.1.10:32400\"]}";
+    CHECK(parse(manifest) == APP_MANIFEST_OK);
+    CHECK(app_manifest_allows_url(manifest, "https://api.example.com/v1/x?y=1"));
+    CHECK(app_manifest_allows_url(manifest, "http://API.Example.com"));
+    CHECK(app_manifest_allows_url(manifest, "http://192.168.1.10:32400/status"));
+    /* another port is another host; so is a longer or a shorter name */
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10/status"));
+    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com.evil.net/"));
+    CHECK(!app_manifest_allows_url(manifest, "https://example.com/"));
+    CHECK(!app_manifest_allows_url(manifest, "https://evil.net/api.example.com"));
+    /* what is before an @ is not the host */
+    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com@evil.net/"));
+    CHECK(!app_manifest_allows_url(manifest, "ftp://api.example.com/"));
+    CHECK(!app_manifest_allows_url(manifest, "https:///x") && !app_manifest_allows_url(manifest, ""));
+    /* no list: nowhere */
+    CHECK(!app_manifest_allows_url("{\"name\":\"a\",\"title\":\"T\",\"abi\":1}", "https://api.example.com/"));
+    static const char *const BAD[] = {
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"hosts\":\"api.example.com\"}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"hosts\":[1]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"hosts\":[\"\"]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"hosts\":[\"a\",\"b\",\"c\",\"d\",\"e\"]}",
+    };
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        CHECK(parse(BAD[i]) == APP_MANIFEST_BAD_HOSTS);
+    }
+}
+
 int main(void)
 {
     test_complete();
@@ -158,5 +187,6 @@ int main(void)
     test_other_fields();
     test_abi();
     test_settings();
+    test_hosts();
     REPORT();
 }

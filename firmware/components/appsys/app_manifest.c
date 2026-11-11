@@ -283,6 +283,70 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
     return accepted;
 }
 
+static bool are_sound_hosts(const cJSON *hosts)
+{
+    if (hosts == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(hosts) || cJSON_GetArraySize(hosts) > APP_HOSTS_MAX) {
+        return false;
+    }
+    const cJSON *host;
+    cJSON_ArrayForEach(host, hosts)
+    {
+        if (!is_text_of(host, 1, APP_HOST_MAX)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static char lower(char character)
+{
+    return character >= 'A' && character <= 'Z' ? (char)(character + ('a' - 'A')) : character;
+}
+
+/* Host names are the same in any case. */
+static bool is_same_host(const char *host, const char *other, size_t other_length)
+{
+    if (strlen(host) != other_length) {
+        return false;
+    }
+    for (size_t i = 0; i < other_length; i++) {
+        if (lower(host[i]) != lower(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool app_manifest_allows_url(const char *json, const char *url)
+{
+    const char *host = starts_with(url, "http://")    ? url + sizeof "http://" - 1
+                       : starts_with(url, "https://") ? url + sizeof "https://" - 1
+                                                      : NULL;
+    if (host == NULL) {
+        return false;
+    }
+    /* "user@host" would make the part before the @ look like the host. */
+    size_t host_length = strcspn(host, "/?#");
+    if (host_length == 0 || memchr(host, '@', host_length) != NULL) {
+        return false;
+    }
+    cJSON *root = cJSON_Parse(json);
+    bool   allowed = false;
+    const cJSON *listed;
+    cJSON_ArrayForEach(listed, cJSON_GetObjectItemCaseSensitive(root, "hosts"))
+    {
+        if (cJSON_IsString(listed) && is_same_host(listed->valuestring, host, host_length)) {
+            allowed = true;
+            break;
+        }
+    }
+    cJSON_Delete(root);
+    return allowed;
+}
+
 static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *manifest)
 {
     if (!cJSON_IsObject(root)) {
@@ -311,6 +375,9 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_OTHER_ABI;
     }
 
+    if (!are_sound_hosts(cJSON_GetObjectItemCaseSensitive(root, "hosts"))) {
+        return APP_MANIFEST_BAD_HOSTS;
+    }
     if (!are_sound_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
         return APP_MANIFEST_BAD_SETTING;
     }
@@ -384,6 +451,8 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"title\" is missing, empty or longer than 23";
     case APP_MANIFEST_BAD_FIELD:
         return "a field has the wrong type or is too long";
+    case APP_MANIFEST_BAD_HOSTS:
+        return "\"hosts\" must be a list of at most 4 host names";
     case APP_MANIFEST_BAD_SETTING:
         return "\"settings\" must be a list of at most 8, each with a key, a type "
                "(text, secret, number, choice, toggle) and a title";

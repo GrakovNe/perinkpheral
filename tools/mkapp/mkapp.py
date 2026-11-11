@@ -38,6 +38,8 @@ URL_MAX = 255
 HEADERS_MAX = 4
 PICK_PATHS_MAX = 16
 PICK_PATH_MAX = 63
+HOSTS_MAX = 4
+HOST_MAX = 63
 SETTINGS_MAX = 8
 SETTING_KEY_MAX = 15
 SETTING_TITLE_MAX = 31
@@ -289,6 +291,12 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    hosts = manifest.get("hosts", [])
+    if (not isinstance(hosts, list) or len(hosts) > HOSTS_MAX
+            or any(not isinstance(host, str) or not 0 < len(host.encode()) <= HOST_MAX
+                   for host in hosts)):
+        sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes"
+                 % (path, HOSTS_MAX, HOST_MAX))
     check_settings(path, manifest.get("settings", []))
     polls = manifest.get("polls", [])
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:

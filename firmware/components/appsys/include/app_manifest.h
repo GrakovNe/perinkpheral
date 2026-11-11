@@ -75,6 +75,7 @@ typedef enum {
     APP_MANIFEST_BAD_TITLE, /* missing, empty or too long */
     APP_MANIFEST_BAD_FIELD, /* a known field of the wrong type or too long */
     APP_MANIFEST_OTHER_ABI, /* missing, or not the ABI this host speaks */
+    APP_MANIFEST_BAD_HOSTS,   /* "hosts" is not a list of a few host names */
     APP_MANIFEST_BAD_SETTING, /* "settings" is not a list of sound settings */
     APP_MANIFEST_BAD_POLL,  /* too many polls, or one without a sound url and every */
 } app_manifest_result_t;
@@ -122,6 +123,15 @@ typedef enum {
  * manifest is one that app_manifest_parse() accepted. */
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret);
+
+/* Where an application may send requests of its own (http_request): the
+ * manifest's "hosts", up to APP_HOSTS_MAX names, each as it stands in a
+ * URL - "api.example.com", "192.168.1.10:32400". True when the URL is
+ * http or https and its host is one of them. The polls of the manifest
+ * are the author's own and are not held to the list. */
+#define APP_HOSTS_MAX 4
+#define APP_HOST_MAX  63
+bool app_manifest_allows_url(const char *json, const char *url);
 
 /* 1-13 of a-z, 0-9, - and _: what an application may be called. */
 bool app_manifest_is_valid_name(const char *name);

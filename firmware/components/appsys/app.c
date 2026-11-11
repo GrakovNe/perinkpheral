@@ -505,6 +505,93 @@ HOST_FUNCTION(host_poll_now)
     m3ApiReturn(app->services->poll_now(app->name, poll) ? HOST_OK : HOST_ERR_ARGUMENT);
 }
 
+/* "Name: value" lines into headers; false when a line is not that or
+ * there are too many. */
+static bool parse_headers(const char *lines, int32_t length, app_request_t *request)
+{
+    request->header_count = 0;
+    int32_t at = 0;
+    while (at < length) {
+        int32_t line_end = at;
+        while (line_end < length && lines[line_end] != '\n') {
+            line_end++;
+        }
+        int32_t colon = at;
+        while (colon < line_end && lines[colon] != ':') {
+            colon++;
+        }
+        int32_t value_start = colon + 1;
+        while (value_start < line_end && lines[value_start] == ' ') {
+            value_start++;
+        }
+        int32_t name_length = colon - at, value_length = line_end - value_start;
+        if (line_end > at) { /* an empty line is skipped */
+            if (colon == line_end || name_length < 1 || name_length > APP_HEADER_NAME_MAX ||
+                value_length > APP_HEADER_VALUE_MAX || request->header_count == APP_HEADERS_MAX) {
+                return false;
+            }
+            app_header_t *header = &request->headers[request->header_count++];
+            memcpy(header->name, lines + at, (size_t)name_length);
+            header->name[name_length] = '\0';
+            memcpy(header->value, lines + value_start, (size_t)value_length);
+            header->value[value_length] = '\0';
+        }
+        at = line_end + 1;
+    }
+    return true;
+}
+
+/* Text an application gives for a request: no control characters, which
+ * in a URL or a header would be the start of something else. */
+static bool is_request_text(const uint8_t *text, int32_t length, bool allow_line_breaks)
+{
+    for (int32_t i = 0; i < length; i++) {
+        bool is_line_break = text[i] == '\n';
+        if ((text[i] < ' ' || text[i] > '~') && !(allow_line_breaks && is_line_break)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+HOST_FUNCTION(host_http_request)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, method);
+    m3ApiGetArg(uint32_t, url_offset);
+    m3ApiGetArg(int32_t, url_length);
+    m3ApiGetArg(uint32_t, headers_offset);
+    m3ApiGetArg(int32_t, headers_length);
+    m3ApiGetArg(uint32_t, body_offset);
+    m3ApiGetArg(int32_t, body_length);
+
+    app_t *app = APP_OF(runtime);
+    const uint8_t *url = in_app_memory(runtime, _mem, url_offset, url_length);
+    const uint8_t *headers = in_app_memory(runtime, _mem, headers_offset, headers_length);
+    const uint8_t *body = in_app_memory(runtime, _mem, body_offset, body_length);
+    bool is_sound = url != NULL && headers != NULL && body != NULL && url_length >= 1 &&
+                    url_length <= APP_URL_MAX && headers_length <= HOST_HTTP_HEADERS_MAX &&
+                    body_length <= HOST_HTTP_BODY_MAX && method >= HOST_HTTP_GET &&
+                    method <= HOST_HTTP_DELETE && is_request_text(url, url_length, false) &&
+                    is_request_text(headers, headers_length, true);
+    /* Too large for the stack an application runs on. */
+    app_request_t *request = is_sound ? malloc(sizeof *request) : NULL;
+    if (request == NULL) {
+        m3ApiReturn(is_sound ? HOST_ERR_NO_SPACE : HOST_ERR_ARGUMENT);
+    }
+    int32_t result = HOST_ERR_ARGUMENT;
+    if (parse_headers((const char *)headers, headers_length, request)) {
+        request->method = method;
+        memcpy(request->url, url, (size_t)url_length);
+        request->url[url_length] = '\0';
+        request->body = body;
+        request->body_length = body_length;
+        result = app->services->http_request(app->name, request);
+    }
+    free(request);
+    m3ApiReturn(result);
+}
+
 HOST_FUNCTION(host_poll_set_interval)
 {
     m3ApiReturnType(int32_t);
@@ -634,6 +721,7 @@ static const struct {
     { "file_read", "i(iiiii)", host_file_read },
     { "net_is_online", "i()", host_net_is_online },
     { "poll_now", "i(i)", host_poll_now },
+    { "http_request", "i(iiiiiii)", host_http_request },
     { "poll_set_interval", "i(ii)", host_poll_set_interval },
     { "alarm_set", "i(i)", host_alarm_set },
     { "file_write", "i(iiiii)", host_file_write },

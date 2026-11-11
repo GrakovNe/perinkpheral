@@ -180,6 +180,17 @@ static bool fake_poll_now(const char *app_name, int poll)
     return true;
 }
 
+static char asked_request[160];
+static int32_t fake_http_request(const char *app_name, const app_request_t *request)
+{
+    (void)app_name;
+    snprintf(asked_request, sizeof asked_request, "%d %s|%d:%s=%s,%s=%s|%.*s", request->method,
+             request->url, request->header_count, request->headers[0].name,
+             request->headers[0].value, request->headers[1].name, request->headers[1].value,
+             (int)request->body_length, (const char *)request->body);
+    return HOST_REQUEST_FIRST + 3;
+}
+
 static uint32_t paced_seconds, alarm_seconds = 99;
 static bool fake_poll_set_interval(const char *app_name, int poll, uint32_t every_s)
 {
@@ -218,6 +229,7 @@ static const app_services_t SERVICES = {
     .kv_set = fake_kv_set,
     .is_online = fake_is_online,
     .poll_now = fake_poll_now,
+    .http_request = fake_http_request,
     .poll_set_interval = fake_poll_set_interval,
     .alarm_set = fake_alarm_set,
     .file_size = fake_file_size,
@@ -519,6 +531,10 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 8, ROW_VALUES));
     /* the network: online, a poll asked for by its number, a wrong number refused */
     CHECK(gfx_get(&surface, 12, ROW_VALUES) && polled_now == 1);
+    /* a request of its own: the method, the URL, the headers taken apart, the body */
+    CHECK(gfx_get(&surface, 18, ROW_VALUES));
+    CHECK_STR(asked_request,
+              "1 https://api.example.com/do?x={{token}}|2:Accept=application/json,X-Token={{token}}|{\"a\":1}");
     /* a poll at another pace, an alarm, a file written, and the wrong ones refused */
     CHECK(gfx_get(&surface, 14, ROW_VALUES));
     CHECK(paced_seconds == 3600 && alarm_seconds == 0);

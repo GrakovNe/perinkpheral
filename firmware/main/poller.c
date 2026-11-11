@@ -121,21 +121,35 @@ typedef struct {
     uint8_t     next_piece[HOST_DATA_CHUNK_MAX];
 } request_t;
 
-/* The poll as the manifest has it, the settings put in. False when the
- * manifest cannot be read or a setting the poll needs is not there yet. */
-static bool prepare(request_t *request, const char *app_name, int poll_number,
-                    esp_http_client_handle_t *client)
+/* Reads poll number `poll_number` of the manifest into the request. */
+static bool load_poll(request_t *request, const char *app_name, int poll_number)
 {
     char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
     bool  parsed = manifest != NULL && app_manifest_parse_poll(manifest, poll_number,
                                                                &request->poll) == APP_MANIFEST_OK;
     free(manifest);
-    if (!parsed || !text_template_fill_url(request->poll.url, setting_of, (void *)app_name,
-                                           request->url, sizeof request->url)) {
+    return parsed;
+}
+
+static const esp_http_client_method_t METHODS[] = {
+    [HOST_HTTP_GET] = HTTP_METHOD_GET,
+    [HOST_HTTP_POST] = HTTP_METHOD_POST,
+    [HOST_HTTP_PUT] = HTTP_METHOD_PUT,
+    [HOST_HTTP_DELETE] = HTTP_METHOD_DELETE,
+};
+
+/* The request of request->poll with the settings put in. False when a
+ * setting it needs is not there yet. */
+static bool prepare(request_t *request, const char *app_name, int method,
+                    esp_http_client_handle_t *client)
+{
+    if (!text_template_fill_url(request->poll.url, setting_of, (void *)app_name, request->url,
+                                sizeof request->url)) {
         return false;
     }
     esp_http_client_config_t config = {
         .url = request->url,
+        .method = METHODS[method],
         .timeout_ms = REQUEST_TIMEOUT_MS,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .user_agent = USER_AGENT,
@@ -250,6 +264,47 @@ static void tell_failure(const request_t *request, const char *app_name, int pol
     (void)request;
 }
 
+/* Makes the request that request->poll describes and hands the answer
+ * to the application under `number`. */
+static void perform(request_t *request, const char *app_name, int number, int method,
+                    const uint8_t *body, int body_length)
+{
+    bool wants_values = request->poll.pick_count > 0;
+    esp_http_client_handle_t client = NULL;
+    if (!prepare(request, app_name, method, &client)) {
+        /* Most likely a setting that is not there yet: the application is
+         * told, so that it can say what it is waiting for. */
+        ESP_LOGI(TAG, "%s/%d: cannot be asked yet", app_name, number);
+        tell_failure(request, app_name, number, wants_values);
+        return;
+    }
+    int64_t   started_ms = now_ms();
+    esp_err_t err = esp_http_client_open(client, body_length);
+    if (err == ESP_OK && body_length > 0 &&
+        esp_http_client_write(client, (const char *)body, body_length) != body_length) {
+        err = ESP_FAIL;
+    }
+    int http_status = 0;
+    if (err == ESP_OK) {
+        esp_http_client_fetch_headers(client);
+        http_status = esp_http_client_get_status_code(client);
+    }
+    if (err != ESP_OK || http_status == 0) {
+        ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, number, esp_err_to_name(err));
+        tell_failure(request, app_name, number, wants_values);
+    } else {
+        if (wants_values) {
+            fetch_values(request, client, app_name, number, http_status);
+        } else {
+            fetch_pieces(request, client, app_name, number, http_status);
+        }
+        bool is_ok = http_status >= HTTP_OK_FIRST && http_status <= HTTP_OK_LAST;
+        ESP_LOG_LEVEL(is_ok ? ESP_LOG_INFO : ESP_LOG_WARN, TAG, "%s/%d: HTTP %d in %d ms",
+                      app_name, number, http_status, (int)(now_ms() - started_ms));
+    }
+    esp_http_client_cleanup(client);
+}
+
 static void run_poll(const char *app_name, int poll_number)
 {
     request_t *request = calloc(1, sizeof *request);
@@ -257,39 +312,30 @@ static void run_poll(const char *app_name, int poll_number)
         ESP_LOGW(TAG, "%s/%d: no memory for the request", app_name, poll_number);
         return;
     }
-    esp_http_client_handle_t client = NULL;
-    if (!prepare(request, app_name, poll_number, &client)) {
-        /* Most likely a setting that is not there yet: the application is
-         * told, so that it can say what it is waiting for. */
-        ESP_LOGI(TAG, "%s/%d: cannot be asked yet", app_name, poll_number);
-        tell_failure(request, app_name, poll_number, request->poll.pick_count > 0);
-        free(request);
-        return;
+    if (load_poll(request, app_name, poll_number)) {
+        perform(request, app_name, poll_number, HOST_HTTP_GET, NULL, 0);
     }
-    bool      wants_values = request->poll.pick_count > 0;
-    int64_t   started_ms = now_ms();
-    esp_err_t err = esp_http_client_open(client, 0);
-    int       http_status = 0;
-    if (err == ESP_OK) {
-        esp_http_client_fetch_headers(client);
-        http_status = esp_http_client_get_status_code(client);
-    }
-    if (err != ESP_OK || http_status == 0) {
-        ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, poll_number, esp_err_to_name(err));
-        tell_failure(request, app_name, poll_number, wants_values);
-    } else {
-        if (wants_values) {
-            fetch_values(request, client, app_name, poll_number, http_status);
-        } else {
-            fetch_pieces(request, client, app_name, poll_number, http_status);
-        }
-        bool is_ok = http_status >= HTTP_OK_FIRST && http_status <= HTTP_OK_LAST;
-        ESP_LOG_LEVEL(is_ok ? ESP_LOG_INFO : ESP_LOG_WARN, TAG, "%s/%d: HTTP %d in %d ms",
-                      app_name, poll_number, http_status, (int)(now_ms() - started_ms));
-    }
-    esp_http_client_cleanup(client);
     free(request);
 }
+
+/* ---- requests the applications make themselves ---- */
+
+#define PENDING_MAX 4 /* for the whole device */
+
+typedef struct {
+    bool         is_waiting;
+    int          app;
+    int          number; /* what the answer is delivered under */
+    int          method;
+    char         url[APP_URL_MAX + 1];
+    app_header_t headers[APP_HEADERS_MAX];
+    int          header_count;
+    uint8_t      body[HOST_HTTP_BODY_MAX];
+    int          body_length;
+} pending_t;
+
+static pending_t s_pending[PENDING_MAX];
+static int       s_next_number = HOST_REQUEST_FIRST;
 
 static void lock(void)
 {
@@ -315,6 +361,80 @@ static int app_number(const char *app_name)
     return NO_APP;
 }
 
+/* Makes the oldest request an application queued, if there is one. */
+static bool run_pending_request(void)
+{
+    static uint8_t body[HOST_HTTP_BODY_MAX]; /* only this task makes requests */
+    int app = NO_APP, number = 0, method = 0, body_length = 0;
+    lock();
+    pending_t *oldest = NULL;
+    for (int i = 0; i < PENDING_MAX; i++) {
+        if (s_pending[i].is_waiting && (oldest == NULL || s_pending[i].number < oldest->number)) {
+            oldest = &s_pending[i];
+        }
+    }
+    /* Nothing waiting is the usual case, and costs no memory. */
+    request_t *request = oldest != NULL ? calloc(1, sizeof *request) : NULL;
+    if (request != NULL) {
+        app = oldest->app;
+        number = oldest->number;
+        method = oldest->method;
+        body_length = oldest->body_length;
+        memcpy(body, oldest->body, (size_t)body_length);
+        strcpy(request->poll.url, oldest->url);
+        memcpy(request->poll.headers, oldest->headers, sizeof oldest->headers);
+        request->poll.header_count = oldest->header_count;
+        oldest->is_waiting = false;
+    }
+    unlock();
+    if (app != NO_APP) {
+        perform(request, s_apps[app].name, number, method, body, body_length);
+    }
+    free(request);
+    return app != NO_APP;
+}
+
+int32_t poller_request(const char *app_name, const app_request_t *asked)
+{
+    int app = app_number(app_name);
+    if (app == NO_APP) {
+        return HOST_ERR_FAILED;
+    }
+    /* Only where the manifest said the application would go. */
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    bool  allowed = manifest != NULL && app_manifest_allows_url(manifest, asked->url);
+    free(manifest);
+    if (!allowed) {
+        ESP_LOGW(TAG, "%s: a request to a host its manifest does not list", app_name);
+        return HOST_ERR_ARGUMENT;
+    }
+    int32_t result = HOST_ERR_NO_SPACE;
+    lock();
+    int        own_waiting = 0;
+    pending_t *free_slot = NULL;
+    for (int i = 0; i < PENDING_MAX; i++) {
+        if (!s_pending[i].is_waiting) {
+            free_slot = &s_pending[i];
+        } else if (s_pending[i].app == app) {
+            own_waiting++;
+        }
+    }
+    if (free_slot != NULL && own_waiting < HOST_HTTP_PENDING_MAX) {
+        free_slot->app = app;
+        free_slot->number = s_next_number++;
+        free_slot->method = asked->method;
+        strcpy(free_slot->url, asked->url);
+        memcpy(free_slot->headers, asked->headers, sizeof free_slot->headers);
+        free_slot->header_count = asked->header_count;
+        free_slot->body_length = asked->body_length;
+        memcpy(free_slot->body, asked->body, (size_t)asked->body_length);
+        free_slot->is_waiting = true;
+        result = free_slot->number;
+    }
+    unlock();
+    return result;
+}
+
 /* An alarm that has come is handed to its application like an answer. */
 static bool ring_due_alarm(void)
 {
@@ -334,6 +454,10 @@ static void poller_task(void *arg)
     (void)arg;
     for (;;) {
         if (ring_due_alarm()) {
+            continue;
+        }
+        bool can_ask = wifi_is_online() && esp_get_free_heap_size() >= FREE_HEAP_NEEDED;
+        if (can_ask && run_pending_request()) {
             continue;
         }
         lock();

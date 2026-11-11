@@ -287,6 +287,33 @@ HOST_IMPORT(net_is_online, int32_t net_is_online(void));
  * asking again before the answer changes nothing. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
+/* A request the application makes itself: an action on a button, a
+ * second step after an answer. Only to the hosts the manifest lists
+ * under "hosts". The host makes one request at a time for the whole
+ * device and keeps at most HOST_HTTP_PENDING_MAX of an application's
+ * waiting; the answer comes through app_on_data() in pieces, under the
+ * number this returns - HOST_REQUEST_FIRST or more, so that it cannot be
+ * taken for a poll - whether the application is on the screen by then or
+ * not.
+ *
+ * `headers` is lines of "Name: value" separated by '\n', at most four.
+ * {{key}} in the URL and in a header value is replaced by the setting of
+ * that name, as in a poll. Returns HOST_ERR_ARGUMENT for a URL outside
+ * the manifest's hosts or anything malformed, HOST_ERR_NO_SPACE when too
+ * many are waiting already. */
+#define HOST_HTTP_GET    0
+#define HOST_HTTP_POST   1
+#define HOST_HTTP_PUT    2
+#define HOST_HTTP_DELETE 3
+#define HOST_HTTP_HEADERS_MAX 255
+#define HOST_HTTP_BODY_MAX    512
+#define HOST_HTTP_PENDING_MAX 2
+#define HOST_REQUEST_FIRST    16
+HOST_IMPORT(http_request,
+            int32_t http_request(int32_t method, const char *url, int32_t url_length,
+                                 const char *headers, int32_t headers_length,
+                                 const void *body, int32_t body_length));
+
 /* Another pace for poll number `poll` than the manifest says - the
  * server told when to come again. From 10 seconds to a day, counted from
  * now, until the device restarts. */

@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "app.h"
 #include "app_delivery.h"
 
 #ifdef __cplusplus
@@ -42,6 +43,10 @@ void poller_hurry(const char *app_name);
 /* One poll of an application now; false when it has no such poll. From
  * any task. */
 bool poller_poll_now(const char *app_name, int poll);
+
+/* Queues a request an application makes itself; the number its answer
+ * will be delivered under, or a HOST_ERR_*. */
+int32_t poller_request(const char *app_name, const app_request_t *request);
 
 /* Another pace for a poll than its manifest says, until the device
  * restarts. False when there is no such poll. */

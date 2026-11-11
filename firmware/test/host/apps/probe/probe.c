@@ -376,6 +376,23 @@ void app_on_draw(void)
         file_write("cache.bin", 9, 0, (const void *)0xFFFFFF00u, 3) == HOST_ERR_ARGUMENT) {
         mark(14, ROW_VALUES);
     }
+    static const char URL[] = "https://api.example.com/do?x={{token}}";
+    static const char HEADERS[] = "Accept: application/json\nX-Token: {{token}}\n";
+    static const char BODY[] = "{\"a\":1}";
+    static const char FIVE_HEADERS[] = "A: 1\nB: 2\nC: 3\nD: 4\nE: 5";
+    if (http_request(HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1, BODY,
+                     sizeof BODY - 1) == HOST_REQUEST_FIRST + 3 &&
+        http_request(7, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "", 0) ==
+            HOST_ERR_ARGUMENT &&
+        http_request(HOST_HTTP_GET, URL, sizeof URL - 1, FIVE_HEADERS, sizeof FIVE_HEADERS - 1,
+                     "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(HOST_HTTP_GET, URL, 0, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(HOST_HTTP_GET, (const char *)0xFFFFFF00u, 8, "", 0, "", 0) ==
+            HOST_ERR_ARGUMENT) {
+        mark(18, ROW_VALUES);
+    }
     if (alarms_rung == 1) {
         mark(16, ROW_VALUES);
     }
