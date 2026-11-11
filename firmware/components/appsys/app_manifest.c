@@ -185,6 +185,23 @@ static int setting_type(const cJSON *setting)
     return -1;
 }
 
+static bool fits_type(const cJSON *setting, int type, const char *value);
+static bool is_printable(const char *text);
+
+/* What the page shows while nothing is set; the application has to mean
+ * the same when it finds nothing in its store. A secret has none, and a
+ * place is not a place without its numbers. */
+static bool has_sound_default(const cJSON *setting, int type)
+{
+    const cJSON *value = cJSON_GetObjectItemCaseSensitive(setting, "default");
+    if (value == NULL) {
+        return true;
+    }
+    return type != APP_SETTING_SECRET && type != APP_SETTING_PLACE &&
+           is_text_of(value, 1, APP_SETTING_VALUE_MAX) && is_printable(value->valuestring) &&
+           fits_type(setting, type, value->valuestring);
+}
+
 /* Whether the settings have a number under the key that `named` holds. */
 static bool has_number_setting(const cJSON *settings, const cJSON *named)
 {
@@ -221,7 +238,8 @@ static bool are_sound_settings(const cJSON *settings)
     cJSON_ArrayForEach(setting, settings)
     {
         int type = setting_type(setting);
-        if (type < 0 || (type == APP_SETTING_PLACE && !is_sound_place(settings, setting))) {
+        if (type < 0 || (type == APP_SETTING_PLACE && !is_sound_place(settings, setting)) ||
+            !has_sound_default(setting, type)) {
             return false;
         }
         /* Two settings under one key would be one value with two forms. */

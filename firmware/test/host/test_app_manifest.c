@@ -162,6 +162,19 @@ static void test_settings(void)
     for (size_t i = 0; i < sizeof BAD_PLACES / sizeof BAD_PLACES[0]; i++) {
         CHECK(parse(BAD_PLACES[i]) == APP_MANIFEST_BAD_SETTING);
     }
+
+    /* a default is a value the setting itself would take */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"1\"},{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"15\"},{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"b\",\"options\":[\"a\",\"b\"]}]}") == APP_MANIFEST_OK);
+    static const char *const BAD_DEFAULTS[] = {
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"yes\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":1}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"many\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"c\",\"options\":[\"a\",\"b\"]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"s\",\"type\":\"secret\",\"title\":\"T\",\"default\":\"x\"}]}",
+    };
+    for (size_t i = 0; i < sizeof BAD_DEFAULTS / sizeof BAD_DEFAULTS[0]; i++) {
+        CHECK(parse(BAD_DEFAULTS[i]) == APP_MANIFEST_BAD_SETTING);
+    }
 }
 
 static void test_hosts(void)

@@ -266,6 +266,16 @@ def check_settings(path, settings):
                      or not 0 < len(option.encode()) <= SETTING_OPTION_MAX for option in options)):
             sys.exit("%s: \"options\" must be 1-%d strings of 1-%d bytes"
                      % (where, SETTING_OPTIONS_MAX, SETTING_OPTION_MAX))
+    for number, setting in enumerate(settings):
+        default, kind = setting.get("default"), setting["type"]
+        if default is None:
+            continue
+        fits = (isinstance(default, str) and default and kind not in ("secret", "place")
+                and (kind != "toggle" or default in ("0", "1"))
+                and (kind != "choice" or default in setting["options"])
+                and (kind != "number" or re.fullmatch(r"-?(\d+\.?\d*|\.\d+)", default)))
+        if not fits:
+            sys.exit("%s: setting %d: \"default\" must be a value the setting takes" % (path, number))
     numbers = {setting["key"] for setting in settings if setting["type"] == "number"}
     for number, setting in enumerate(settings):
         if setting["type"] != "place":

@@ -116,6 +116,10 @@ const char *app_manifest_result_text(app_manifest_result_t result);
  * `key`, so the code reads it with kv_get() by the same name and the host
  * puts it into URLs and headers as {{key}}.
  *
+ * A setting may have a "default": what the page shows while nothing is
+ * set. Nothing is stored for it - the application has to mean the same
+ * when kv_get() finds nothing.
+ *
  * A place is asked for by its name, and a request needs where it is:
  *
  *       { "key": "city", "type": "place", "title": "City",
