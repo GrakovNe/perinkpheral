@@ -103,7 +103,7 @@ void display_start(const refresh_policy_cfg_t *policy)
     };
     ESP_ERROR_CHECK(epd_init(&cfg));
 
-    BaseType_t ok = xTaskCreate(keepalive_task, "epd-keepalive", 2048, NULL, 1, NULL);
+    BaseType_t ok = xTaskCreate(keepalive_task, "epd-keepalive", 3072, NULL, 1, NULL);
     configASSERT(ok == pdPASS);
 }
 

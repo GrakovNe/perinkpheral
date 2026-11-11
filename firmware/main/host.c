@@ -33,6 +33,9 @@ static const char *TAG = "host";
 
 #define NOTHING_TO_SHOW UINT32_MAX
 
+/* How many events in a row are handled before the panel is shown what came of them. */
+#define EVENTS_BEFORE_SHOWING 24
+
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
@@ -176,8 +179,19 @@ void host_run(void)
     app_delivery_init(&delivery_state);
     poller_start();
 
+    int events_since_shown = 0;
     for (;;) {
-        uint32_t wait_ms = show_pending_frame(&wm, &screen);
+        /* A refresh takes a second and the queue does not wait for it: with
+         * events in it they are answered first and the panel shows where
+         * they led, not every step. Not for ever, though - a queue that
+         * never empties must not keep the picture back. */
+        uint32_t wait_ms = 0;
+        if (!events_are_waiting() || events_since_shown >= EVENTS_BEFORE_SHOWING) {
+            wait_ms = show_pending_frame(&wm, &screen);
+            events_since_shown = 0;
+            events_report_dropped();
+        }
+        events_since_shown++;
 
         event_t event;
         if (!events_wait(&event, wait_ms)) {

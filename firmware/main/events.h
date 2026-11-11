@@ -56,6 +56,13 @@ void events_post_button(uint8_t index, event_press_t press);
 /* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
 bool events_wait(event_t *event, uint32_t timeout_ms);
 
+/* Whether anything is in the queue now. */
+bool events_are_waiting(void);
+
+/* Says in the log how many events did not fit since it last said so; for
+ * the host loop. */
+void events_report_dropped(void);
+
 #ifdef __cplusplus
 }
 #endif

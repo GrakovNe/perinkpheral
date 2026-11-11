@@ -9,6 +9,7 @@
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include "log_ring.h"
 
@@ -19,6 +20,7 @@ static char         s_storage[LOG_CAPTURE_BYTES];
 static log_ring_t   s_ring;
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static vprintf_like_t s_console;
+static SemaphoreHandle_t s_line_lock;
 
 /* The console gets the colours; the copy that is read as text does not.
  * Removes "ESC [ ... m" in place and returns the new length. */
@@ -44,7 +46,16 @@ static int capture(const char *format, va_list arguments)
     int written = s_console(format, for_console);
     va_end(for_console);
 
-    char line[LINE_MAX_BYTES];
+    /* The line is put together in one place for every task, not on the
+     * stack of whoever logs: a task with 2 KB of stack logs too, and this
+     * would be most of it. A line that cannot have the place - a second
+     * task logging at the same instant, or an interrupt - goes to the
+     * console only. */
+    static char line[LINE_MAX_BYTES];
+    if (s_line_lock == NULL || xPortInIsrContext() ||
+        xSemaphoreTake(s_line_lock, 0) != pdTRUE) {
+        return written;
+    }
     int length = vsnprintf(line, sizeof line, format, arguments);
     if (length > 0) {
         size_t kept = strip_colours(line, (size_t)length < sizeof line ? (size_t)length
@@ -53,12 +64,14 @@ static int capture(const char *format, va_list arguments)
         log_ring_write(&s_ring, line, kept);
         portEXIT_CRITICAL(&s_lock);
     }
+    xSemaphoreGive(s_line_lock);
     return written;
 }
 
 void log_capture_start(void)
 {
     log_ring_init(&s_ring, s_storage, sizeof s_storage);
+    s_line_lock = xSemaphoreCreateMutex();
     s_console = esp_log_set_vprintf(capture);
 }
 

@@ -10,6 +10,10 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
+/* It posts events and nothing else, but a log line from any task costs
+ * about a kilobyte of its stack. */
+#define BUTTONS_STACK_BYTES 3072
+
 static const char *TAG = "buttons";
 
 #define SAMPLE_MS 5
@@ -67,6 +71,6 @@ void buttons_start(buttons_sink_fn sink)
                  gpio_get_level(s_gpio[i]));
     }
 
-    BaseType_t ok = xTaskCreate(buttons_task, "buttons", 2048, NULL, 10, NULL);
+    BaseType_t ok = xTaskCreate(buttons_task, "buttons", BUTTONS_STACK_BYTES, NULL, 10, NULL);
     configASSERT(ok == pdPASS);
 }

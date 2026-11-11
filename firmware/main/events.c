@@ -10,9 +10,11 @@
 
 static const char *TAG = "events";
 
-#define QUEUE_LENGTH 32
+#define QUEUE_LENGTH 64
 
 static QueueHandle_t s_queue;
+static volatile uint32_t s_dropped;
+static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
 
 void events_start(void)
 {
@@ -23,10 +25,26 @@ void events_start(void)
 bool events_post(const event_t *event)
 {
     if (xQueueSend(s_queue, event, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "queue full, event %d dropped", (int)event->kind);
+        /* Counted, not logged: this runs in whatever task has the event,
+         * and the smallest of them has no stack for a log line. */
+        s_dropped++;
         return false;
     }
     return true;
+}
+
+bool events_are_waiting(void)
+{
+    return uxQueueMessagesWaiting(s_queue) > 0;
+}
+
+void events_report_dropped(void)
+{
+    uint32_t dropped = s_dropped;
+    if (dropped != s_dropped_reported) {
+        ESP_LOGW(TAG, "queue full: %u events dropped", (unsigned)(dropped - s_dropped_reported));
+        s_dropped_reported = dropped;
+    }
 }
 
 void events_post_button(uint8_t index, event_press_t press)
