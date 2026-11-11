@@ -49,11 +49,18 @@ typedef struct {
     int                value_count;
 } app_delivery_t;
 
+/* For how long after its settings were saved an application on the screen
+ * is shown at once whatever arrives for it. */
+#define APP_SETTINGS_SHOWN_SOON_MS (30 * 1000)
+
 typedef struct {
     scene_t *in_background; /* the owner loaded off the screen, between its first piece and its last */
     bool     is_mid_answer; /* pieces of an answer are still to come for it */
     bool     has_given_focus;
     int64_t  last_focus_ms;
+    /* Whose settings were saved last, and when: only ever compared. */
+    const scene_t *settings_owner;
+    int64_t        settings_ms;
 } app_delivery_state_t;
 
 void app_delivery_init(app_delivery_state_t *state);

@@ -13,6 +13,8 @@ void app_delivery_init(app_delivery_state_t *state)
     state->is_mid_answer = false;
     state->has_given_focus = false;
     state->last_focus_ms = 0;
+    state->settings_owner = NULL;
+    state->settings_ms = 0;
 }
 
 static void call(app_t *app, const app_delivery_t *delivery)
@@ -68,7 +70,18 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
             call(app, delivery);
             /* On the screen there is nothing to ask for. */
             app_take_focus_request(app);
-            wm_scene_reacted(wm, owner, app_scene_take_reaction(owner), WM_CHANGED_BY_DATA);
+            /* Somebody has just saved its settings and is looking at the
+             * device: what the settings changed is shown at once, and so is
+             * the answer fetched because of them - not when the panel is
+             * next due for data. */
+            if (delivery->kind == APP_DELIVERY_SETTINGS) {
+                state->settings_owner = owner;
+                state->settings_ms = now_ms;
+            }
+            bool is_after_settings = state->settings_owner == owner &&
+                                     now_ms - state->settings_ms < APP_SETTINGS_SHOWN_SOON_MS;
+            wm_scene_reacted(wm, owner, app_scene_take_reaction(owner),
+                             is_after_settings ? WM_CHANGED_URGENTLY : WM_CHANGED_BY_DATA);
         }
         /* It came onto the screen while it was loaded for an answer - the
          * user opened it: it is the scene's now, and not to be unloaded as

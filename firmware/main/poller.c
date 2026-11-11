@@ -471,6 +471,8 @@ static void do_fetch(fetch_job_t *job)
         /* A file of a release is behind a redirect to an address a kilobyte
          * and more long, and a header has to fit here in one piece. */
         .buffer_size = FETCH_HEADER_BYTES,
+        /* And the request for that address has to fit into this one. */
+        .buffer_size_tx = FETCH_HEADER_BYTES,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
