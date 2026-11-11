@@ -10,40 +10,61 @@
   body { margin: 0; background: var(--paper); color: var(--ink);
          font: 16px/1.5 ui-monospace, Menlo, Consolas, monospace; }
   .shell { display: grid; grid-template-columns: 13rem 1fr; min-height: 100vh; }
-  nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; }
+  nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; display: flex;
+        flex-direction: column; position: sticky; top: 0; height: 100vh; }
   nav h1 { font-size: 1.15rem; letter-spacing: .08em; margin: 0 1.25rem 1.5rem; }
   nav a { display: block; padding: .5rem 1.25rem; color: var(--ink); text-decoration: none; }
   nav a.current { background: var(--ink); color: var(--paper); }
-  nav p { margin: 1.5rem 1.25rem 0; color: var(--dim); font-size: .85rem; }
-  main { padding: 1.5rem 2rem 4rem; max-width: 58rem; min-width: 0; }
+  nav a.current .count { color: var(--paper); }
+  nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; overflow-wrap: anywhere; }
+  nav .count { float: right; }
+  main { padding: 1.5rem 2rem 4rem; min-width: 0; }
   section { display: none; }
   section.current { display: block; }
   h2 { font-size: 1.4rem; margin: 0; }
   h3 { font-size: 1rem; border-bottom: 1px solid var(--ink); padding-bottom: .25rem;
        margin: 2rem 0 .75rem; }
-  .head { display: flex; align-items: center; gap: .5rem 1rem; margin-bottom: 1.25rem;
-          flex-wrap: wrap; }
-  .head h2 { flex: 1; }
+  .head { display: flex; justify-content: flex-end; margin-bottom: .75rem; }
   .count { color: var(--dim); font-weight: normal; }
   .note { color: var(--dim); margin: .5rem 0 0; }
   .rows { display: grid; gap: .5rem; margin-top: .75rem; }
   .rows div { display: flex; gap: .5rem; }
-  .rows button { margin: 0; padding: .5rem .85rem; }
-  .result { min-height: 1.5rem; margin: .75rem 0 0; }
+  .rows button { margin: 0; min-width: 2.6rem; padding: 0 .85rem; }
+  dialog .buttons { justify-content: flex-end; margin-top: .5rem; }
+  .toasts { position: fixed; top: 1rem; right: 1rem; z-index: 10; display: grid; gap: .5rem;
+            width: min(22rem, calc(100vw - 2rem)); }
+  .toast { padding: .7rem 1rem; color: var(--ink); background: var(--paper);
+           border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); cursor: pointer;
+           animation: drop .15s ease-out; }
+  .toast.error { color: var(--paper); background: var(--ink); box-shadow: 4px 4px 0 var(--dim); }
+  .toast.busy::after { content: ""; animation: dots 1.2s steps(1) infinite; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-.5rem); } }
   dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem 1rem; margin: 0; }
   dt { color: var(--dim); } dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   label { display: block; margin: .75rem 0 .2rem; color: var(--dim); }
   input, select, textarea { width: 100%; padding: .5rem; font: inherit; color: var(--ink);
           background: transparent; border: 1px solid var(--ink); border-radius: 0; }
   textarea { resize: vertical; }
-  input[type=checkbox] { width: auto; margin-right: .5rem; }
+  input[type=checkbox] { width: 1.1rem; height: 1.1rem; margin: 0 .6rem 0 0; accent-color: var(--ink);
+                         vertical-align: -.2rem; }
+  input[type=file] { height: auto; }
   input:disabled { color: var(--dim); border-color: var(--line); }
-  button { margin-top: 1rem; padding: .5rem 1rem; font: inherit; cursor: pointer;
+  input, select, button { height: 2.6rem; }
+  button { margin-top: 1rem; padding: 0 1rem; font: inherit; cursor: pointer;
            color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
-           border-radius: 0; }
+           border-radius: 0; display: inline-flex; align-items: center;
+           justify-content: center; white-space: nowrap; }
+  button.busy::after { content: ""; width: 1.9em; text-align: left;
+                       animation: dots 1.2s steps(1) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; }
+                    75% { content: "..."; } }
+  button.done::before { content: ""; width: .35em; height: .7em; margin: 0 .6em .2em 0;
+                        border: solid currentColor; border-width: 0 2px 2px 0;
+                        transform: rotate(45deg); }
   button.quiet { color: var(--ink); background: transparent; }
   button:disabled { opacity: .45; cursor: default; }
-  button.icon { margin: 0; padding: .3rem; line-height: 0; color: var(--ink);
+  button.busy, button.done { opacity: 1; }
+  button.icon { margin: 0; padding: .3rem; height: auto; line-height: 0; color: var(--ink);
                 background: transparent; border-color: transparent; }
   button.icon:hover { border-color: var(--ink); }
   svg.pixels { display: block; fill: currentColor; shape-rendering: crispEdges; }
@@ -60,10 +81,12 @@
   .tile .spring { flex: 1; }
   .tile button.action { width: 100%; }
   .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--ink); margin-bottom: 1rem; }
-  .tabs button { margin: 0; color: var(--ink); background: transparent;
+  .tabs button { margin: 0; min-width: 6.5rem; color: var(--ink); background: transparent;
                  border: 1px solid transparent; border-bottom: none; }
   .tabs button.current { color: var(--paper); background: var(--ink); }
-  .pane { display: none; max-width: 30rem; }
+  .pane { display: none; max-width: 36rem; }
+  /* Tiles take all the room there is; text and forms keep a line a person can read. */
+  #device > *, #about > *, #settings > .tabs { max-width: 56rem; }
   .pane.current { display: block; }
   .buttons { display: flex; gap: .75rem; flex-wrap: wrap; }
   pre { margin: 0; padding: .75rem; border: 1px solid var(--line); max-height: 22rem;
@@ -72,6 +95,7 @@
            background: var(--paper); border: 1px solid var(--ink); border-radius: 0; }
   dialog::backdrop { background: rgba(20, 20, 19, .55); }
   dialog h2 { font-size: 1.15rem; margin-bottom: .5rem; }
+  dialog p { margin: 0 0 .5rem; }
   ul.plain { list-style: none; padding: 0; margin: 0; }
   ul.plain li { padding: .35rem 0; border-bottom: 1px solid var(--line); }
   ul.plain small { color: var(--dim); display: block; }
@@ -79,7 +103,9 @@
   @media (max-width: 44rem) {
     .shell { grid-template-columns: 1fr; }
     nav { border-right: none; border-bottom: 1px solid var(--ink); padding: 1rem 0 0;
-          display: flex; flex-wrap: wrap; align-items: center; }
+          flex-direction: row; flex-wrap: wrap; align-items: center; position: static;
+          height: auto; }
+    nav .count { float: none; margin-left: .5rem; }
     nav h1 { margin: 0 1rem .75rem; width: 100%; }
     nav a { padding: .5rem 1rem; }
     nav p { display: none; }
@@ -93,25 +119,22 @@
 <div class="shell">
 <nav>
   <h1>perINKpheraL</h1>
-  <a href="#apps">Apps</a>
+  <a href="#apps">Apps<span class="count" id="slots"></span></a>
   <a href="#device">Device</a>
   <a href="#settings">Settings</a>
   <a href="#about">About</a>
-  <p id="nav-name"></p>
+  <p><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
 </nav>
 <main>
 
 <section id="apps">
   <div class="head">
-    <h2>Apps <span class="count" id="slots"></span></h2>
     <button class="icon" id="open-sources" title="Sources"></button>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
-  <p class="result" id="apps-result"></p>
 </section>
 
 <section id="device">
-  <div class="head"><h2>Device</h2></div>
   <dl id="status"><dt>Loading</dt><dd></dd></dl>
 
   <h3>Firmware</h3>
@@ -121,7 +144,6 @@
       <button>Install</button>
       <button type="button" class="quiet" id="check-release">Check for updates</button>
     </div>
-    <p class="result" id="firmware-result"></p>
   </form>
 
   <h3>Log</h3>
@@ -133,11 +155,9 @@
     <button class="quiet" id="restart">Restart</button>
     <button class="quiet" id="reset">Factory reset</button>
   </div>
-  <p class="result" id="device-result"></p>
 </section>
 
 <section id="settings">
-  <div class="head"><h2>Settings</h2></div>
   <div class="tabs" id="tabs">
     <button data-pane="general">General</button>
     <button data-pane="time">Time</button>
@@ -151,7 +171,6 @@
     <label for="hostname">Hostname</label>
     <input id="hostname" disabled>
     <button>Save</button>
-    <p class="result" id="general-result"></p>
   </form>
 
   <form class="pane" id="time">
@@ -163,7 +182,6 @@
     <label for="ntp_server">NTP server</label>
     <input id="ntp_server" maxlength="64" autocomplete="off" required>
     <button>Save</button>
-    <p class="result" id="time-result"></p>
   </form>
 
   <form class="pane" id="display">
@@ -183,7 +201,6 @@
     <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
     <label><input id="dither" type="checkbox">Dithering</label>
     <button>Save</button>
-    <p class="result" id="display-result"></p>
   </form>
 
   <form class="pane" id="network">
@@ -192,13 +209,10 @@
     <label for="password">Password</label>
     <input id="password" type="password" maxlength="64" autocomplete="off">
     <button>Connect</button>
-    <p class="result" id="network-result"></p>
   </form>
 </section>
 
 <section id="about">
-  <div class="head"><h2>About</h2></div>
-  <p>A desk e-paper companion. Runs applications, fetches its own data, needs no server.</p>
   <dl>
     <dt>Author</dt><dd>Max Grakov</dd>
     <dt>License</dt><dd>MIT</dd>
@@ -251,9 +265,20 @@ DEALINGS IN THE SOFTWARE.</pre>
       <button type="button" class="quiet" id="refresh-catalogs">Update</button>
       <button type="button" class="quiet" data-close>Close</button>
     </div>
-    <p class="result" id="sources-result"></p>
   </form>
 </dialog>
+
+<dialog id="confirm-dialog">
+  <form method="dialog">
+    <p id="confirm-text"></p>
+    <div class="buttons">
+      <button value="yes" id="confirm-yes"></button>
+      <button value="no" class="quiet">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts"></div>
 
 <dialog id="app-dialog">
   <form id="app-settings">
@@ -263,7 +288,6 @@ DEALINGS IN THE SOFTWARE.</pre>
       <button>Save</button>
       <button type="button" class="quiet" data-close>Close</button>
     </div>
-    <p class="result" id="app-result"></p>
   </form>
 </dialog>
 
@@ -311,28 +335,92 @@ async function ask(url, options) {
   return json;
 }
 
-/* Sends the request and puts the device's answer, or what went wrong, where it is read. */
-async function send(resultId, url, options, button) {
-  if (button) button.disabled = true;
-  show(resultId, "");
+/* ---- what happened: on the button that did it, and in the corner ---- */
+
+/* A message in the corner. It goes by itself unless it is told to stay;
+ * a click sends it away at once. Returns the way to take it down. */
+function toast(text, kind, stays) {
+  const box = make("div", { className: "toast" + (kind ? " " + kind : ""), textContent: text });
+  const close = () => box.remove();
+  box.addEventListener("click", close);
+  /* An open dialog covers the page: the message has to be in it to be seen. */
+  (document.querySelector("dialog[open]") || document.body).append(byId("toasts"));
+  byId("toasts").append(box);
+  if (!stays) setTimeout(close, kind === "error" ? 6000 : 3500);
+  return close;
+}
+
+/* How a button reads while its work is under way and right after it. */
+const WORDS = { Save: ["Saving", "Saved"], Install: ["Installing", "Installed"],
+                Remove: ["Removing", "Removed"], Update: ["Updating", "Updated"],
+                Connect: ["Connecting", "Connected"], Restart: ["Restarting", "Restarting"],
+                "Factory reset": ["Resetting", "Reset"], Refresh: ["Loading", "Refresh"],
+                "Check for updates": ["Checking", "Check for updates"] };
+
+/* Runs the work with the button showing it: dots while it goes on, a tick
+ * when it is done, and the button as it was a moment later. What went
+ * wrong goes to the corner. Returns whether it went well. */
+async function busy(button, work) {
+  const label = button.textContent;
+  const words = WORDS[Object.keys(WORDS).find(word => label.startsWith(word))] || [label, label];
+  /* Its width stays: the text changes under the user's eyes, the layout does not. */
+  button.style.minWidth = button.offsetWidth + "px";
+  button.disabled = true;
+  button.classList.add("busy");
+  button.textContent = words[0];
   let done = true;
   try {
-    const answer = await ask(url, options);
-    show(resultId, answer.ok || "Done.");
+    await work();
   } catch (error) {
-    show(resultId, error.message === "Failed to fetch" ? "Device unreachable." : error.message);
+    toast(error.message === "Failed to fetch" ? "Device unreachable." : error.message, "error");
     done = false;
   }
-  if (button) button.disabled = false;
+  button.classList.remove("busy");
+  if (done && words[1] !== label) {
+    button.classList.add("done");
+    button.textContent = words[1];
+    await new Promise(resolve => setTimeout(resolve, 1400));
+    button.classList.remove("done");
+  }
+  button.textContent = label;
+  button.disabled = false;
   return done;
 }
 
+/* The device's "Saved." is what the tick on the button says already; anything more
+ * than that - "Restart to apply." - is worth a line in the corner. */
+const send = (button, url, options) => busy(button, async () => {
+  const answer = await ask(url, options);
+  const isPlain = !answer.ok || answer.ok === "Saved." || answer.ok.endsWith("Restarting.");
+  if (!isPlain) toast(answer.ok);
+});
 const post = body => ({ method: "POST", body: JSON.stringify(body) });
 
+/* A question before something that cannot be taken back. */
+function confirmed(text, action) {
+  show("confirm-text", text);
+  show("confirm-yes", action);
+  const dialog = byId("confirm-dialog");
+  dialog.returnValue = "no";
+  dialog.showModal();
+  return new Promise(resolve => dialog.addEventListener(
+    "close", () => resolve(dialog.returnValue === "yes"), { once: true }));
+}
+
 /* After a restart the device is gone for a moment; then the page reads everything anew. */
+let restarting = null;
+
 function afterRestart() {
+  if (restarting) return;
+  restarting = toast("Restarting", "busy", true);
   setTimeout(async function retry() {
-    try { await loadAll(); } catch (error) { setTimeout(retry, 2000); }
+    try {
+      await loadAll();
+      restarting();
+      restarting = null;
+    } catch (error) {
+      setTimeout(retry, 2000);
+    }
   }, 9000);
 }
 
@@ -349,6 +437,8 @@ function showSection() {
     section.classList.toggle("current", section.id === name);
   for (const link of document.querySelectorAll("nav a"))
     link.classList.toggle("current", link.hash === "#" + name);
+  /* The browser scrolls to what the link names; a section starts at its top. */
+  scrollTo(0, 0);
 }
 
 let wantedInside = null;
@@ -418,7 +508,6 @@ let appInDialog = null;
 function openAppSettings(app) {
   appInDialog = app;
   show("app-dialog-title", app.title);
-  show("app-result", "");
   byId("app-fields").replaceChildren(...app.settings.flatMap(setting => settingField(app, setting)));
   byId("app-dialog").showModal();
 }
@@ -439,7 +528,7 @@ function tile(app, have, source) {
   const action = make("button", { className: "action" });
   const query = "app=" + encodeURIComponent(app.name);
   const run = async (url, options) => {
-    if (await send("apps-result", url, options, action)) afterRestart();
+    if (await send(action, url, options)) afterRestart();
   };
   const install = () => run("/api/apps/install?source=" + source + "&" + query,
                             post({ files: app.files }));
@@ -449,8 +538,8 @@ function tile(app, have, source) {
   } else if (have) {
     action.textContent = "Remove";
     action.classList.add("quiet");
-    action.addEventListener("click", () => {
-      if (confirm("Remove " + app.title + "? Settings are kept."))
+    action.addEventListener("click", async () => {
+      if (await confirmed("Remove " + app.title + "? Settings are kept.", "Remove"))
         run("/api/apps/remove?" + query, { method: "POST" });
     });
   } else {
@@ -478,7 +567,7 @@ function drawTiles() {
       tiles.push(tile(offer.app, null, offer.source));
   byId("tiles").replaceChildren(...tiles);
   if (!tiles.length) byId("tiles").textContent = "No apps.";
-  show("slots", "(" + installed.length + " / " + SLOTS + ")");
+  show("slots", installed.length + " / " + SLOTS);
 }
 
 async function loadApps() {
@@ -503,7 +592,7 @@ async function loadCatalogs() {
   }
   offered = found;
   drawTiles();
-  show("apps-result", silent.length ? "Source unavailable: " + silent.join(", ") : "");
+  for (const source of silent) toast("Source unavailable: " + source, "error");
 }
 
 /* A link to a repository as people paste it, read as the catalog folder in it. */
@@ -520,7 +609,6 @@ function catalogAddress(line) {
 
 byId("open-sources").append(pixels(GEAR, 2));
 byId("open-sources").addEventListener("click", () => {
-  show("sources-result", "");
   byId("sources-dialog").showModal();
 });
 
@@ -564,16 +652,10 @@ byId("sources").addEventListener("submit", async event => {
   event.preventDefault();
   const added = [...byId("source-rows").querySelectorAll("input:not(:disabled)")]
     .map(input => catalogAddress(input.value)).filter(address => address);
-  if (await send("sources-result", "/api/sources", post({ sources: added }), event.submitter))
-    loadCatalogs();
+  if (await send(event.submitter, "/api/sources", post({ sources: added }))) loadCatalogs();
 });
 
-byId("refresh-catalogs").addEventListener("click", async event => {
-  event.target.disabled = true;
-  await loadCatalogs();
-  show("sources-result", "Updated.");
-  event.target.disabled = false;
-});
+byId("refresh-catalogs").addEventListener("click", event => busy(event.target, loadCatalogs));
 
 byId("app-settings").addEventListener("submit", async event => {
   event.preventDefault();
@@ -583,7 +665,7 @@ byId("app-settings").addEventListener("submit", async event => {
     else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
   }
   const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
-  if (await send("app-result", url, post(settings), event.submitter)) loadApps();
+  if (await send(event.submitter, url, post(settings))) loadApps();
 });
 
 for (const close of document.querySelectorAll("[data-close]"))
@@ -618,40 +700,36 @@ async function loadStatus() {
                               make("dd", { textContent: shown[key] }));
   byId("status").replaceChildren(...rows);
   show("nav-name", status.name);
+  show("nav-firmware", status.firmware);
 }
 
-byId("check-release").addEventListener("click", async event => {
-  event.target.disabled = true;
-  try {
-    const answer = await fetch(RELEASES);
-    const release = answer.ok ? await answer.json() : null;
-    show("firmware-result", !release ? "No releases."
-         : release.tag_name === status.firmware ? "Up to date."
-         : "Update available: " + release.tag_name + ".");
-  } catch (error) {
-    show("firmware-result", "GitHub unreachable.");
-  }
-  event.target.disabled = false;
-});
+byId("check-release").addEventListener("click", event => busy(event.target, async () => {
+  let answer;
+  try { answer = await fetch(RELEASES); } catch (error) { throw new Error("GitHub unreachable."); }
+  const release = answer.ok ? await answer.json() : null;
+  toast(!release ? "No releases."
+        : release.tag_name === status.firmware ? "Up to date."
+        : "Update available: " + release.tag_name + ".");
+}));
 
 byId("firmware").addEventListener("submit", async event => {
   event.preventDefault();
-  if (await send("firmware-result", "/api/ota", { method: "POST", body: byId("image").files[0] },
-                 event.submitter)) afterRestart();
+  if (await send(event.submitter, "/api/ota", { method: "POST", body: byId("image").files[0] }))
+    afterRestart();
 });
 
-byId("load-log").addEventListener("click", async () => {
+byId("load-log").addEventListener("click", event => busy(event.target, async () => {
   show("log", await (await fetch("/api/log")).text());
   byId("log").scrollTop = byId("log").scrollHeight;
-});
+}));
 
 byId("restart").addEventListener("click", async event => {
-  if (await send("device-result", "/api/restart", { method: "POST" }, event.target)) afterRestart();
+  if (await send(event.target, "/api/restart", { method: "POST" })) afterRestart();
 });
 
-byId("reset").addEventListener("click", event => {
-  if (confirm("Factory reset? All settings and app data will be erased."))
-    send("device-result", "/api/reset", { method: "POST" }, event.target);
+byId("reset").addEventListener("click", async event => {
+  if (await confirmed("Factory reset? All settings and app data will be erased.", "Factory reset"))
+    send(event.target, "/api/reset", { method: "POST" });
 });
 
 /* ---- settings ---- */
@@ -722,7 +800,7 @@ async function loadSettings() {
 function saveSettings(formId, read) {
   byId(formId).addEventListener("submit", async event => {
     event.preventDefault();
-    if (await send(formId + "-result", "/api/settings", post(read()), event.submitter)) {
+    if (await send(event.submitter, "/api/settings", post(read()))) {
       loadSettings();
       loadStatus();
     }
@@ -745,7 +823,7 @@ byId("network").addEventListener("submit", async event => {
   const network = { ssid: byId("ssid").value, password: byId("password").value };
   /* Setting the device up is one step: it learns where it is along with the network. */
   if (settings.tz === ZONE_NOT_SET) network.tz = posixZone();
-  if (await send("network-result", "/api/wifi", post(network), event.submitter)) afterRestart();
+  if (await send(event.submitter, "/api/wifi", post(network))) afterRestart();
 });
 
 for (const tab of byId("tabs").children)
