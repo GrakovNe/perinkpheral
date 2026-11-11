@@ -313,6 +313,49 @@ TRMNL is a thin client: once per `refresh_rate` the device does `GET /api/displa
 - Works with any BYOS server (Terminus, byos_fastapi and others) - they read `Width`/`Height` from the headers and render for 400×300. The TRMNL cloud is not a goal (BYOD license, 800×480).
 - Gives access to the TRMNL plugin ecosystem with no changes in the host.
 
+## Decided, being built
+
+An architecture review on 2026-11-12 found the structure behind most of the open items; these are the owner's decisions on it. Until a line here is built the code is as the sections above describe it, and where the two disagree this section is where the code is going.
+
+**Who may change what.**
+- The host loop owns the host's state: the settings, the list of installed applications, the scenes. Every other task - the web server, the poller, Wi-Fi - reads a **published snapshot** and changes nothing.
+- A snapshot carries a version: a reader notes it, copies, and copies again if it changed meanwhile. No lock on reading, anywhere; a reader may see what was true a moment ago.
+- A change is a **command through the event queue**: the handler posts it and waits for the host loop's answer, as the development tools do. A page waits up to the length of a refresh; that is fine.
+- Posting into the queue may be refused when it is full, and says so: the caller decides (a command answers "Device busy.", a deadline stays due, a press is lost).
+- `settings.c` holds the settings and the one function that checks, stores and applies them.
+- An application is installed in two steps: the files are fetched into a staging place from the web server's task, and put in place by the host loop together with reading the list anew.
+
+**How an application is addressed.**
+- Inside the host an application is its **id: 32 bits of the SHA-256 of its module and its manifest**. A new version is another application to everything that was waiting for the old one; the same version installed again is the same. System applications have ids the same way. The name stays for people and for the disk: the folder, the catalog, the page, the store, the application to return to after a restart.
+- The schedule of polls, the requests and the alarms are kept **by id**. Removing an application removes its own; nothing else touches them.
+- Several alarms an application: `alarm_set(id, seconds)`, `alarm_set_at(id, unix_time)`, `app_on_alarm(id)`.
+- **Intents by subscription**: an application names in its manifest (`"intents"`) the kinds of news it wants, and gets them through `app_on_intent(type)`, loaded for it if it is not. To begin with: the time changed, the network is there again. A kind the host does not know fails the build in `tools/mkapp`.
+- `app_on_terminate()` is called before an instance is unloaded, whatever the reason - it left the screen, a delivery in the background is done, the device restarts or sleeps, the application is removed. `app_on_blur()` keeps its narrow meaning and comes first. State is saved in `app_on_terminate`.
+
+**Time.**
+- **One module owns every deadline** of the host and does nothing else: the polls, the alarms, the timers of the application on the screen, the panel's daily refresh, the while after a press, Wi-Fi's retries. Set a deadline, take it back, ask for the nearest; one that has come is an event in the queue.
+- **The scale is absolute time.** The RTC always has one - the user's, the network's or 1970 - and runs through sleep. Behind the API everything is a moment: "in 20 minutes" is turned into one when it is set.
+- When the clock is changed - by the network or by hand - deadlines that were set as "in so long" move with it, and those set as "at such a time" stay.
+
+**Stopping.**
+- A restart, a factory reset and going to sleep are one sequence in the host loop: `app_on_terminate` for the loaded application, the panel's refresh to its end, the poller and the radio stopped, what the chip has to know when it wakes written down, and only then the restart or the sleep. No waiting on the off chance: every step is known to be done.
+
+**Memory.**
+- RAM is two areas. The **application area** is one block taken at start: the application's page of 64 KB and the interpreter's working memory, of one fixed size for every application, reset as a whole when the application is unloaded. The **host's heap** is the rest, and no application ever touches it. What the host has is then the same whichever application is on the screen. The size of the area is to be measured on the heaviest applications and written here; a developer declares nothing.
+- An application's **code is executed from flash** and never copied into RAM, as the system applications' already is: a partition of five slots of 64 KB, one an installed application, mapped read-only. The host writes a slot when an application is installed and erases it when one is removed; a module may be 64 KB. The manifest, the files and the store stay where they are.
+- This changes the partition table, which cannot be changed over the air: the one device there is gets flashed over USB, once. An image made for another partition table is refused by the update.
+- The poller looks at the largest free block before a TLS session, not at the sum.
+
+**The contract.**
+- `http_request(tag, ...)`: the application chooses the tag, a number it has a name for, and the answer comes with it. Tags are an application's own; two applications with the same one never meet.
+- `net_is_online()` goes. An application asks for data; "there is no network" is one of the answers, and a request that failed says why: no network, no answer, a host the manifest does not allow.
+- The header's icon says whether the last use of the network worked.
+- The system API gives applications by id, not by their place in a list.
+- `"system": true` stays one consent for all of it.
+- `main/poller.c` becomes three: the schedule with the alarms (pure), the one that talks to the network, and what ties them to the host. Calling the host loop and waiting for it moves to `events.c`.
+
+Looked at and left: the settings as one table instead of a field in five places (it is only typing, once applying them is one function); memory an application declares in its manifest (a developer cannot know the number - the area is the same for all); blocks that move and a heap that is compacted, as the systems of the nineties had (the host is C over ESP-IDF, and one application at a time with an area that is reset gives the same for nothing).
+
 ## Repository layout
 ```
 firmware/              the ESP-IDF project (build from this folder)
