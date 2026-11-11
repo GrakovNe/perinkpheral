@@ -79,6 +79,13 @@ static void react(wm_t *wm, scene_reaction_t reaction, wm_change_t cause)
     case SCENE_REDRAW:
         mark_changed(wm, cause);
         break;
+    case SCENE_REDRAW_SOON:
+        mark_changed(wm, WM_CHANGED_URGENTLY);
+        mark_changed(wm, cause);
+        break;
+    case SCENE_REDRAW_CLEAN:
+        mark_changed(wm, WM_CHANGED_CLEANLY);
+        break;
     case SCENE_OPEN:
         give_screen_to(wm, reaction.open);
         break;

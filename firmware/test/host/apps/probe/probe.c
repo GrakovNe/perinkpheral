@@ -19,6 +19,8 @@
 #define ROW_STORE          16 /* pixels 0..12: see app_on_draw; pixel 20: a value from an earlier life */
 #define ROW_DATA           18 /* pixel 0: a response arrived whole and in order; pixel 2: a failed one was told apart */
 #define ROW_TEXT           20
+#define ROW_COLOR          60 /* pixels 0 1 4..7: a bar with a hole of paper; pixel 10: a wrong colour refused */
+#define ROW_LOCAL_TIME     62 /* pixel 0: no time yet; pixel 2: the time taken apart; pixel 4: a wild pointer refused */
 
 #define BUTTON_DRAW_OUTSIDE 3
 #define BUTTON_TRAP         4
@@ -26,6 +28,8 @@
 #define BUTTON_EXIT          7
 #define BUTTON_SPIN_FOREVER  8
 #define BUTTON_RECURSE       9
+#define BUTTON_REDRAW_SOON   10
+#define BUTTON_REDRAW_CLEAN  11
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
@@ -128,12 +132,16 @@ void app_on_button(int32_t button, int32_t press)
     if (button == BUTTON_RECURSE) {
         presses = descend_forever(1);
     }
+    if (button == BUTTON_REDRAW_SOON || button == BUTTON_REDRAW_CLEAN) {
+        request_redraw(button == BUTTON_REDRAW_SOON ? HOST_REDRAW_SOON : HOST_REDRAW_CLEAN);
+        return;
+    }
     if (button == BUTTON_DRAW_OUTSIDE) {
         result_outside_draw = gfx_rect(0, 0, 1, 1, HOST_RECT_FILLED);
         return;
     }
     presses += button;
-    request_redraw();
+    request_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
@@ -164,7 +172,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 void app_on_timer(int32_t id)
 {
     fired_timer = id;
-    request_redraw();
+    request_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_draw(void)
@@ -249,6 +257,31 @@ void app_on_draw(void)
     gfx_bitmap(0, ROW_BITMAP, 3, 1, ink_at_0_and_2);
     gfx_line(0, ROW_LINE, 3, ROW_LINE);
     gfx_text(0, ROW_TEXT, HOST_FONT_TEXT, "I", 1);
+
+    gfx_rect(0, ROW_COLOR, 8, 1, HOST_RECT_FILLED);
+    if (gfx_color(HOST_PAPER) == HOST_OK) {
+        gfx_rect(2, ROW_COLOR, 2, 1, HOST_RECT_FILLED);
+        /* a clear bit of a bitmap leaves the bar alone, a set one is paper too */
+        static const uint8_t nothing_set[] = { 0x00 };
+        gfx_bitmap(4, ROW_COLOR, 4, 1, nothing_set);
+    }
+    if (gfx_color(2) == HOST_ERR_ARGUMENT && gfx_color(HOST_INK) == HOST_OK) {
+        mark(10, ROW_COLOR);
+    }
+
+    host_local_time_t now;
+    int32_t local_time_result = time_local(&now);
+    if (time_now() == 0 && local_time_result == HOST_ERR_NOT_FOUND) {
+        mark(0, ROW_LOCAL_TIME);
+    }
+    /* 2026-11-11 23:30:15 UTC, an hour east of it: already Thursday the 12th */
+    if (local_time_result == HOST_OK && now.year == 2026 && now.month == 11 && now.day == 12 &&
+        now.weekday == 4 && now.hour == 0 && now.minute == 30 && now.second == 15) {
+        mark(2, ROW_LOCAL_TIME);
+    }
+    if (time_local((host_local_time_t *)far_outside_memory) == HOST_ERR_ARGUMENT) {
+        mark(4, ROW_LOCAL_TIME);
+    }
 
     /* Far beyond the surface: has to vanish, not land somewhere. */
     gfx_rect(gfx_width(), gfx_height(), 5000, 5000, HOST_RECT_FILLED);

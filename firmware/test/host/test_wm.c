@@ -223,6 +223,34 @@ static void test_stronger_change_wins(void)
     CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_INPUT);
 }
 
+static void test_how_a_scene_wants_to_be_shown(void)
+{
+    start(&app.scene);
+    wm_shown(&wm);
+    /* from a timer, nobody looking - but the scene says it matters now */
+    app.next_reaction.kind = SCENE_REDRAW_SOON;
+    wm_timer(&wm, 0);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_URGENTLY);
+    /* a plain redraw after it does not take the urgency away */
+    app.next_reaction.kind = SCENE_REDRAW;
+    wm_timer(&wm, 0);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_URGENTLY);
+    wm_shown(&wm);
+
+    /* under a finger it is shown at once anyway */
+    app.next_reaction.kind = SCENE_REDRAW_SOON;
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_INPUT);
+    wm_shown(&wm);
+
+    /* a clean picture is asked for from anywhere, and a switch is still more */
+    app.next_reaction.kind = SCENE_REDRAW_CLEAN;
+    wm_timer(&wm, 0);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_CLEANLY);
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_SWITCH);
+}
+
 static void test_timer(void)
 {
     start(&app.scene);
@@ -328,6 +356,7 @@ int main(void)
     test_long_back_is_always_the_menu();
     test_back_from_the_menu();
     test_stronger_change_wins();
+    test_how_a_scene_wants_to_be_shown();
     test_timer();
     test_suspend_and_resume();
     test_frame_with_header();

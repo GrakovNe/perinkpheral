@@ -26,7 +26,9 @@ extern "C" {
 typedef enum {
     WM_CLEAN,
     WM_CHANGED_BY_DATA,   /* something arrived, the clock moved */
+    WM_CHANGED_URGENTLY,  /* a scene asked to be shown soon */
     WM_CHANGED_BY_INPUT,  /* the user pressed a button */
+    WM_CHANGED_CLEANLY,   /* a scene asked for a picture without traces */
     WM_CHANGED_BY_SWITCH, /* another scene took the screen */
 } wm_change_t;
 

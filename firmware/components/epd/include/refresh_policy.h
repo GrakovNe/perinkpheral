@@ -19,10 +19,16 @@ extern "C" {
  * always a full refresh. Pure, host-tested. */
 typedef enum {
     REFRESH_FOR_DATA,      /* a poll result, a clock tick */
+    REFRESH_FOR_REQUEST,   /* an application asked to be shown soon, with nobody pressing */
     REFRESH_FOR_BUTTON,    /* the user pressed something */
+    REFRESH_FOR_CLEAN,     /* an application asked for a picture without traces: a full refresh */
     REFRESH_FOR_SWITCH,    /* another application takes the scene */
     REFRESH_FOR_KEEPALIVE, /* nothing happened for a day */
 } refresh_reason_t;
+
+/* What an application may ask for is not rationed, but the panel is not
+ * refreshed on request more often than this. */
+#define REFRESH_ON_REQUEST_MIN_MS 1000
 
 typedef enum {
     REFRESH_NONE,

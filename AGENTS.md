@@ -82,7 +82,8 @@ its menu shows it).
   and restarts the device into it - the loop for working on an
   application, no reflashing;
 - `flash` uploads `firmware/build/perinkpheral.bin` and waits for the
-  device to come back; `status` and `log` print what the names say.
+  device to come back; after a change to `sdk/host_api.h` use `flash
+  --apps`, or the applications on the device stay built for the old one; `status` and `log` print what the names say.
 
 Verify a change on the real device this way, not only in the preview.
 With no network, `tools/devshot/devshot.py $PORT --keys 3,2 --out

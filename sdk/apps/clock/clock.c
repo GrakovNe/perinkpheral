@@ -16,8 +16,6 @@
 #define BUTTON_BACK        4
 #define MS_PER_SECOND      1000
 #define SECONDS_PER_MINUTE 60
-#define MINUTES_PER_HOUR   60
-#define SECONDS_PER_DAY    86400
 #define DAYS_PER_WEEK      7
 #define RETRY_MS           5000 /* how soon to look again while the time is unknown */
 
@@ -34,50 +32,6 @@ static const char *const WEEKDAYS[DAYS_PER_WEEK] = { "Sunday",   "Monday", "Tues
 static const char *const MONTHS[] = { "January", "February", "March",     "April",
                                       "May",     "June",     "July",      "August",
                                       "September", "October", "November", "December" };
-
-typedef struct {
-    int32_t hour, minute;
-    int32_t weekday; /* 0 is Sunday */
-    int32_t day, month; /* both from 1 */
-} local_time_t;
-
-/* Days since 1 January 1970 to a day and a month, by Howard Hinnant's
- * civil_from_days: the calendar counted in 400-year eras that start on
- * 1 March, so that the leap day is the last day of a year. */
-static void date_from_days(int64_t days, int32_t *day, int32_t *month)
-{
-    const int32_t DAYS_PER_ERA = 146097, DAYS_TO_ERA_START = 719468;
-    int64_t shifted = days + DAYS_TO_ERA_START;
-    int64_t era = (shifted >= 0 ? shifted : shifted - (DAYS_PER_ERA - 1)) / DAYS_PER_ERA;
-    int32_t day_of_era = (int32_t)(shifted - era * DAYS_PER_ERA);
-    int32_t year_of_era =
-        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
-    int32_t day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    int32_t month_from_march = (5 * day_of_year + 2) / 153;
-    *day = day_of_year - (153 * month_from_march + 2) / 5 + 1;
-    *month = month_from_march < 10 ? month_from_march + 3 : month_from_march - 9;
-}
-
-/* False while the device does not know the time. */
-static bool local_time(local_time_t *now)
-{
-    int64_t utc_seconds = time_now();
-    if (utc_seconds == 0) {
-        return false;
-    }
-    int64_t seconds = utc_seconds + time_zone_offset();
-    if (seconds < 0) {
-        return false; /* before 1970: not a time this calendar counts */
-    }
-    int64_t days = seconds / SECONDS_PER_DAY;
-    int32_t second_of_day = (int32_t)(seconds % SECONDS_PER_DAY);
-    now->hour = second_of_day / (SECONDS_PER_MINUTE * MINUTES_PER_HOUR);
-    now->minute = second_of_day / SECONDS_PER_MINUTE % MINUTES_PER_HOUR;
-    /* 1 January 1970 was a Thursday. */
-    now->weekday = (int32_t)((days + 4) % DAYS_PER_WEEK);
-    date_from_days(days, &now->day, &now->month);
-    return true;
-}
 
 static void wake_for_the_next_picture(void)
 {
@@ -117,7 +71,7 @@ void app_on_button(int32_t button, int32_t press)
 void app_on_timer(int32_t id)
 {
     (void)id;
-    request_redraw();
+    request_redraw(HOST_REDRAW_NORMAL);
     wake_for_the_next_picture();
 }
 
@@ -125,8 +79,8 @@ void app_on_draw(void)
 {
     char time_line[8], weekday_line[24], date_line[24];
     app_text_t text;
-    local_time_t now;
-    if (local_time(&now)) {
+    host_local_time_t now;
+    if (time_local(&now) == HOST_OK) {
         app_text_start(&text, time_line, sizeof time_line);
         app_text_add_padded(&text, now.hour, 2);
         app_text_add(&text, ":");

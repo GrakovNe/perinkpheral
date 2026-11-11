@@ -59,25 +59,25 @@ static void test_clear_and_pixel(void)
 static void test_line(void)
 {
     fresh();
-    gfx_line(&g, 2, 3, 9, 3);
+    gfx_line(&g, 2, 3, 9, 3, true);
     CHECK(count_black() == 8); /* both ends are drawn */
     CHECK(gfx_get(&g, 2, 3) && gfx_get(&g, 9, 3));
 
     fresh();
-    gfx_line(&g, 5, 10, 5, 4); /* backwards works the same */
+    gfx_line(&g, 5, 10, 5, 4, true); /* backwards works the same */
     CHECK(count_black() == 7 && gfx_get(&g, 5, 4) && gfx_get(&g, 5, 10));
 
     fresh();
-    gfx_line(&g, 0, 0, 7, 7);
+    gfx_line(&g, 0, 0, 7, 7, true);
     CHECK(count_black() == 8 && gfx_get(&g, 3, 3));
 
     fresh();
-    gfx_line(&g, 4, 4, 4, 4);
+    gfx_line(&g, 4, 4, 4, 4, true);
     CHECK(count_black() == 1);
 
     /* a line that leaves the surface is cut, not wrapped */
     fresh();
-    gfx_line(&g, W - 3, 0, W + 20, 0);
+    gfx_line(&g, W - 3, 0, W + 20, 0, true);
     CHECK(count_black() == 3);
 }
 
@@ -152,7 +152,7 @@ static void test_fill_frame(void)
     CHECK(!gfx_get(&g, 6, 7) && !gfx_get(&g, 5, 8));
 
     fresh();
-    gfx_frame(&g, 0, 0, 10, 10, 2);
+    gfx_frame(&g, 0, 0, 10, 10, 2, true);
     CHECK(count_black() == 100 - 36);
     CHECK(gfx_get(&g, 1, 5) && gfx_get(&g, 8, 5));
     CHECK(!gfx_get(&g, 2, 2) && !gfx_get(&g, 5, 5));

@@ -119,24 +119,24 @@ void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black)
     }
 }
 
-void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness)
+void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness, bool black)
 {
-    gfx_fill(g, x, y, w, thickness, true);
-    gfx_fill(g, x, y + h - thickness, w, thickness, true);
-    gfx_fill(g, x, y, thickness, h, true);
-    gfx_fill(g, x + w - thickness, y, thickness, h, true);
+    gfx_fill(g, x, y, w, thickness, black);
+    gfx_fill(g, x, y + h - thickness, w, thickness, black);
+    gfx_fill(g, x, y, thickness, h, black);
+    gfx_fill(g, x + w - thickness, y, thickness, h, black);
 }
 
-void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1)
+void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black)
 {
     int delta_x = x1 - x0, delta_y = y1 - y0;
     int steps = imax(delta_x < 0 ? -delta_x : delta_x, delta_y < 0 ? -delta_y : delta_y);
     if (steps == 0) {
-        gfx_pixel(g, x0, y0, true);
+        gfx_pixel(g, x0, y0, black);
         return;
     }
     for (int step = 0; step <= steps; step++) {
-        gfx_pixel(g, x0 + delta_x * step / steps, y0 + delta_y * step / steps, true);
+        gfx_pixel(g, x0 + delta_x * step / steps, y0 + delta_y * step / steps, black);
     }
 }
 

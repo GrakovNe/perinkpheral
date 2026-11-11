@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "host_api.h"
 #include "wasm3.h"
@@ -44,6 +45,8 @@ struct app {
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
+    int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
+    bool        draws_in_ink;  /* gfx_color(): what the drawing calls draw with */
     bool        exit_requested;
     bool        focus_requested;
     const char *stop_reason; /* NULL while the application is alive */
@@ -180,7 +183,8 @@ HOST_FUNCTION(host_gfx_text)
         !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated, true));
+    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated,
+                              app->draws_in_ink));
 }
 
 HOST_FUNCTION(host_gfx_text_width)
@@ -239,9 +243,9 @@ HOST_FUNCTION(host_gfx_rect)
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (fill == HOST_RECT_FILLED) {
-        gfx_fill(app->surface, x, y, width, height, true);
+        gfx_fill(app->surface, x, y, width, height, app->draws_in_ink);
     } else {
-        gfx_frame(app->surface, x, y, width, height, 1);
+        gfx_frame(app->surface, x, y, width, height, 1, app->draws_in_ink);
     }
     m3ApiReturn(HOST_OK);
 }
@@ -261,7 +265,7 @@ HOST_FUNCTION(host_gfx_line)
     if (!is_drawable(x0) || !is_drawable(y0) || !is_drawable(x1) || !is_drawable(y1)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    gfx_line(app->surface, x0, y0, x1, y1);
+    gfx_line(app->surface, x0, y0, x1, y1, app->draws_in_ink);
     m3ApiReturn(HOST_OK);
 }
 
@@ -290,16 +294,37 @@ HOST_FUNCTION(host_gfx_bitmap)
     }
     for (int32_t row = 0; row < height; row++) {
         for (int32_t column = 0; column < width; column++) {
-            bool ink = (bits[row * bytes_per_row + column / 8] & (0x80 >> (column % 8))) != 0;
-            gfx_pixel(app->surface, x + column, y + row, ink);
+            bool is_set = (bits[row * bytes_per_row + column / 8] & (0x80 >> (column % 8))) != 0;
+            if (is_set) {
+                gfx_pixel(app->surface, x + column, y + row, app->draws_in_ink);
+            }
         }
     }
     m3ApiReturn(HOST_OK);
 }
 
+HOST_FUNCTION(host_gfx_color)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, color);
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (color != HOST_INK && color != HOST_PAPER) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    app->draws_in_ink = color == HOST_INK;
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(host_request_redraw)
 {
-    APP_OF(runtime)->redraw_requested = true;
+    m3ApiGetArg(int32_t, flags);
+    app_t *app = APP_OF(runtime);
+    app->redraw_requested = true;
+    /* Bits the host does not know are an application from the future. */
+    app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN);
     m3ApiSuccess();
 }
 
@@ -393,6 +418,38 @@ HOST_FUNCTION(host_time_zone_offset)
     m3ApiReturn(APP_OF(runtime)->services->time_zone_offset());
 }
 
+HOST_FUNCTION(host_time_local)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, now_offset);
+    app_t *app = APP_OF(runtime);
+    host_local_time_t *now = (host_local_time_t *)in_app_memory_to_fill(
+        runtime, _mem, now_offset, (int32_t)sizeof(host_local_time_t));
+    if (now == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int64_t utc_seconds = app->services->unix_time();
+    if (utc_seconds == 0) {
+        m3ApiReturn(HOST_ERR_NOT_FOUND);
+    }
+    /* Local time is UTC moved by the offset, so the calendar of UTC reads it. */
+    time_t local_seconds = (time_t)(utc_seconds + app->services->time_zone_offset());
+    struct tm parts;
+    gmtime_r(&local_seconds, &parts);
+    /* The application's memory is not aligned for anybody: copy, do not assign. */
+    host_local_time_t taken_apart = {
+        .year = parts.tm_year + 1900,
+        .month = parts.tm_mon + 1,
+        .day = parts.tm_mday,
+        .weekday = parts.tm_wday,
+        .hour = parts.tm_hour,
+        .minute = parts.tm_min,
+        .second = parts.tm_sec,
+    };
+    memcpy(now, &taken_apart, sizeof taken_apart);
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(host_time_uptime_ms)
 {
     m3ApiReturnType(int64_t);
@@ -428,7 +485,8 @@ static const struct {
     { "gfx_rect", "i(iiiii)", host_gfx_rect },
     { "gfx_line", "i(iiii)", host_gfx_line },
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
-    { "request_redraw", "v()", host_request_redraw },
+    { "gfx_color", "i(i)", host_gfx_color },
+    { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },
     { "timer_set", "i(ii)", host_timer_set },
@@ -436,6 +494,7 @@ static const struct {
     { "kv_set", "i(*i*i)", host_kv_set },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
+    { "time_local", "i(i)", host_time_local },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
     { "log", "v(i*i)", host_log },
 };
@@ -708,6 +767,7 @@ void app_timer(app_t *app, int id)
 void app_draw(app_t *app, gfx_t *surface)
 {
     app->surface = surface;
+    app->draws_in_ink = true;
     CALL_HANDLER(app, app->on_draw);
     app->surface = NULL;
     app->exit_requested = false;
@@ -741,6 +801,13 @@ bool app_take_redraw_request(app_t *app)
     bool requested = app->redraw_requested;
     app->redraw_requested = false;
     return requested;
+}
+
+int app_take_redraw_flags(app_t *app)
+{
+    int flags = app->redraw_flags;
+    app->redraw_flags = 0;
+    return flags;
 }
 
 bool app_take_exit_request(app_t *app)

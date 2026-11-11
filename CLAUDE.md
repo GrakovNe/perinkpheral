@@ -114,6 +114,8 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
   "abi": 1
 }
 ```
+**An application may bring an icon**, in its manifest and optional: the device draws it beside the title in its list, the web page beside the application's name. How it is written is not decided; the candidate is the form the host's own icons have in the source - 11 rows of 11 characters, `#` for ink - which a person can type, which follows the icon rules by construction and which scales on both sides.
+
 **Settings are declared in the manifest, not by code**, the way Pebble did it with a companion page: nobody types a token with four buttons. The device's web page has an Applications section - what is installed, and a settings form for each, drawn from the manifest without running the application; the catalog will live in the same place. A field is a text, a secret (the page can write it and cannot read it back), a number, a choice from a list or a switch. The values are stored in the application's own store under the keys the manifest names, so the code reads a setting with `kv_get` by the same key, and the host substitutes it into URLs and headers (`{{key}}`). A change arrives as `app_on_settings()`; an application that is not on the screen is loaded for the call and unloaded after it, as for data.
 
 **JSON is picked apart by the host.** A poll or a request names the paths it wants (`current.temperature_2m`, `daily.weather_code[0]`); the host finds them in the stream and hands the application the values, so an application does not parse anything. One that wants the answer as it came asks for it raw and gets the pieces through `app_on_data`. Ease of writing an application is worth the host's memory here.
@@ -184,10 +186,11 @@ gfx_text_width(font_id, str_ptr, len) -> px
 gfx_font_height(font_id) -> px          // the whole line
 gfx_font_ascent(font_id) -> px          // from the top of the line to the baseline
 gfx_font_cap_height(font_id) -> px      // capitals and digits above the baseline
+gfx_color(ink | paper)                 // what the calls below draw with; every draw starts in ink
 gfx_rect(x, y, w, h, fill)
 gfx_line(x0, y0, x1, y1)
-gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit is ink
-request_redraw()                       // the picture is out of date
+gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear one leaves what is there
+request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh
 request_exit()                         // done: give the screen back, as BACK does in the host's pages
 request_focus()                        // from app_on_data off the screen: worth showing now; the host decides
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
@@ -195,14 +198,12 @@ kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
 time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
+time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
 **What the contract still needs** - agreed, not written yet; in the order it will be built:
-- **Colour**: ink or paper in `gfx_text`, `gfx_rect`, `gfx_line`, `gfx_bitmap`, so that an application can invert a row the way the menu does.
-- **Local time taken apart**: year, month, day, day of the week, hour, minute - no application should carry its own calendar.
 - **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
-- **How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Two flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything - and `HOST_REDRAW_CLEAN` - a full refresh, for a new picture. Neither has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
 - **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_now(n)` and `poll_set_interval(n, seconds)` for the polls of the manifest; `net_is_online()`.
 - **Files**: `blob_write(name, offset, ptr, len)`, `blob_read`, `blob_size`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
 - **An alarm off the screen**: `alarm_set(seconds)`, then `app_on_alarm()` on an application that is loaded for it and may ask for the screen. `timer_set` lives only while the application is on the screen; in deep sleep the alarm is the only way an application wakes by itself.
@@ -210,6 +211,8 @@ log(level, str, len)
 **Few applications, large ones**, the way Pebble did it: at most **5** installed, each with a module of up to 48 KB, 100 KB of files and 4 KB of `kv_*`. The partition is 1 MB; five such applications are about 780 KB of it. Whoever wants more rotates them - one day from a companion application on a phone.
 
 **Put off: BLE.** The chip has BLE 5 and no classic Bluetooth. As a host service it could be media keys - the device pairs as a keyboard and an application sends play, pause, next, volume to whatever it is paired with, with no API of the player. What plays now can be read that way only from an iPhone (Apple Media Service); Android and computers give it over classic Bluetooth, which is not here. It is not in the plan of milestone 2: the stack is estimated, not measured, at 200-300 KB of flash and 60-90 KB of memory, next to a firmware slot with about 300 KB left and a heap that TLS still has to fit into. Measure before deciding.
+
+**How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Two flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything - and `HOST_REDRAW_CLEAN` - a full refresh, for a new picture. Neither has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
 
 What a handler may count on: one handler runs at a time and has 3 seconds; it returns nothing and leaves requests (`request_redraw`, `request_exit`, `request_focus`) that take effect when it returns; presses are not lost, timers of one id collapse into one, and the pieces of one answer arrive in order with nothing between them.
 
@@ -347,6 +350,7 @@ Open:
 - With Wi-Fi connected and an application on the screen the free heap is about 130 KB, and it has been as low as 107 KB. Polling will add TLS (~45 KB) on top; the radio's buffers have not been tuned.
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
 - The down and up events of real buttons have not been seen on the device.
+- A firmware upload replaces the firmware and not the applications: after a change of the host API the ones on the device are refused ("Not a valid application") until they are uploaded again - `devtool.py flash --apps` does both. Nothing tells the user why; the `abi` number is there for this and is not checked against yet.
 - An application uploaded with the development tools is started by restarting the device: the list of applications is read once, at start. Installing from the catalog will need the launcher to reload it.
 - The time zone the page works out from a browser is a rule of fixed dates; a zone that changes its clocks otherwise (Morocco) comes out approximate.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.

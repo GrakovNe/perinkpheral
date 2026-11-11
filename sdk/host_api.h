@@ -32,7 +32,7 @@
 #define HOST_OK               0
 #define HOST_ERR_NOT_DRAWING -1 /* a gfx_* call outside app_on_draw() */
 #define HOST_ERR_ARGUMENT    -2 /* a pointer outside the memory, an unknown font or timer */
-#define HOST_ERR_NOT_FOUND   -3 /* kv_get: nothing is stored under the key */
+#define HOST_ERR_NOT_FOUND   -3 /* kv_get: nothing is stored under the key; time_local: no time yet */
 #define HOST_ERR_NO_SPACE    -4 /* kv_get: the value is larger than the buffer; kv_set: the storage is full */
 #define HOST_ERR_FAILED      -5 /* the storage itself failed; nothing was read or written */
 
@@ -130,21 +130,42 @@ HOST_IMPORT(gfx_font_height, int32_t gfx_font_height(int32_t font));
 HOST_IMPORT(gfx_font_ascent, int32_t gfx_font_ascent(int32_t font));
 HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
 
+/* What the calls below draw with, until the next gfx_color(): ink, which
+ * every draw starts with, or paper - for text on a filled bar, a hole in
+ * a shape. */
+#define HOST_INK   0
+#define HOST_PAPER 1
+HOST_IMPORT(gfx_color, int32_t gfx_color(int32_t color));
+
 #define HOST_RECT_OUTLINE 0
 #define HOST_RECT_FILLED  1
 HOST_IMPORT(gfx_rect, int32_t gfx_rect(int32_t x, int32_t y, int32_t width, int32_t height,
                                        int32_t fill));
 HOST_IMPORT(gfx_line, int32_t gfx_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1));
 
-/* bits: row after row, the most significant bit is the left pixel, a set
- * bit is ink, every row padded to a whole byte. */
+/* bits: row after row, the most significant bit is the left pixel, every
+ * row padded to a whole byte. A set bit is drawn in the current colour, a
+ * clear one leaves what is there. */
 HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, int32_t height,
                                            const uint8_t *bits));
 
 /* ---- The scene ---- */
 
-/* The picture is out of date: call app_on_draw() soon. */
-HOST_IMPORT(request_redraw, void request_redraw(void));
+/* The picture is out of date: call app_on_draw(). How soon the panel
+ * shows it follows from where this was called: from app_on_button() at
+ * once, the user is looking; from app_on_timer() and app_on_data() by the
+ * user's e-paper policy, which may be a minute.
+ *
+ * HOST_REDRAW_SOON: show it now although nobody pressed anything - a
+ * countdown that ran out. HOST_REDRAW_CLEAN: a full refresh, which blinks
+ * and leaves no trace of the old picture - for a new image. Neither is
+ * rationed: every refresh costs the battery and wears the panel, and how
+ * much of both to spend is the application's call. The host only keeps
+ * them a second apart. */
+#define HOST_REDRAW_NORMAL 0
+#define HOST_REDRAW_SOON   1
+#define HOST_REDRAW_CLEAN  2
+HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
 /* From app_on_data() off the screen: what arrived is worth showing now.
  * The host decides; on the screen it means nothing. */
@@ -189,6 +210,19 @@ HOST_IMPORT(time_now, int64_t time_now(void));
 /* Seconds to add to time_now() for the user's local time, daylight saving
  * included; 0 while the time is not known. */
 HOST_IMPORT(time_zone_offset, int32_t time_zone_offset(void));
+
+/* The user's local time taken apart, so that no application carries a
+ * calendar of its own. HOST_ERR_NOT_FOUND while the time is not known. */
+typedef struct {
+    int32_t year;    /* 2026 */
+    int32_t month;   /* 1..12 */
+    int32_t day;     /* 1..31 */
+    int32_t weekday; /* 0 is Sunday */
+    int32_t hour;    /* 0..23 */
+    int32_t minute;
+    int32_t second;
+} host_local_time_t;
+HOST_IMPORT(time_local, int32_t time_local(host_local_time_t *now));
 
 /* Milliseconds since the device started; always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));

@@ -73,6 +73,10 @@ bool app_take_focus_request(app_t *app);
 /* True once after the application called request_redraw(). */
 bool app_take_redraw_request(app_t *app);
 
+/* HOST_REDRAW_* of every request_redraw() since the last call: how the
+ * application wants its picture shown. */
+int app_take_redraw_flags(app_t *app);
+
 /* True once after the application called request_exit() in a button or
  * timer handler; a call from anywhere else is dropped. */
 bool app_take_exit_request(app_t *app);

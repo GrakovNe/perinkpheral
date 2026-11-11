@@ -114,6 +114,32 @@ static void test_wait(void)
     CHECK(refresh_policy_decide(&p, &CFG, REFRESH_FOR_DATA, 190000) != REFRESH_NONE);
 }
 
+static void test_on_request(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    go(&p, REFRESH_FOR_SWITCH, 0);
+    /* asked to be shown soon: no waiting for the data interval, only a second */
+    CHECK(go(&p, REFRESH_FOR_REQUEST, 500) == REFRESH_NONE);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_REQUEST, 500) == 500);
+    CHECK(go(&p, REFRESH_FOR_REQUEST, 1000) == REFRESH_PARTIAL);
+    CHECK(go(&p, REFRESH_FOR_REQUEST, 1999) == REFRESH_NONE);
+    CHECK(go(&p, REFRESH_FOR_REQUEST, 2000) == REFRESH_PARTIAL);
+
+    /* a clean picture is a full refresh whatever the count, a second apart too */
+    CHECK(p.partials == 2);
+    CHECK(go(&p, REFRESH_FOR_CLEAN, 2500) == REFRESH_NONE);
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_CLEAN, 2500) == 500);
+    CHECK(go(&p, REFRESH_FOR_CLEAN, 3000) == REFRESH_FULL);
+    CHECK(p.partials == 0);
+
+    /* requests count towards the full refresh like any other */
+    for (int i = 1; i <= 5; i++) {
+        CHECK(go(&p, REFRESH_FOR_REQUEST, 3000 + i * 1000) == REFRESH_PARTIAL);
+    }
+    CHECK(go(&p, REFRESH_FOR_REQUEST, 9000) == REFRESH_FULL);
+}
+
 int main(void)
 {
     test_wait();
@@ -123,5 +149,6 @@ int main(void)
     test_full_after_n_partials();
     test_switch_always_full();
     test_keepalive();
+    test_on_request();
     REPORT();
 }

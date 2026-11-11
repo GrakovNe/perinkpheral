@@ -15,7 +15,7 @@
  * replaced by the recorders below. */
 
 #define SURFACE_W 64
-#define SURFACE_H 48
+#define SURFACE_H 64
 
 /* The rows apps/probe paints, as it names them. */
 #define ROW_PRESSES       0
@@ -29,6 +29,8 @@
 #define ROW_LINE          14
 #define ROW_DATA          18
 #define ROW_TEXT          20
+#define ROW_COLOR         60
+#define ROW_LOCAL_TIME    62
 
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
 static gfx_t surface;
@@ -37,9 +39,12 @@ static char logged[64];
 static int  timer_set_id;
 static int  timer_set_ms;
 
+/* 0: the device does not know the time, as at start. */
+static int64_t fake_now;
+
 static int64_t fake_unix_time(void)
 {
-    return 0;
+    return fake_now;
 }
 
 static int32_t fake_time_zone_offset(void)
@@ -420,13 +425,52 @@ static void test_bad_modules(void)
     app_unload(NULL); /* allowed */
 }
 
+static void test_redraw_flags(void)
+{
+    app_t *app = load_probe();
+    app_button(app, 2, HOST_PRESS_SHORT);
+    CHECK(app_take_redraw_request(app) && app_take_redraw_flags(app) == HOST_REDRAW_NORMAL);
+
+    app_button(app, 10, HOST_PRESS_SHORT);
+    CHECK(app_take_redraw_request(app) && app_take_redraw_flags(app) == HOST_REDRAW_SOON);
+    CHECK(app_take_redraw_flags(app) == 0); /* asked once, told once */
+
+    /* two requests in a row: both wishes stand */
+    app_button(app, 10, HOST_PRESS_SHORT);
+    app_button(app, 11, HOST_PRESS_SHORT);
+    CHECK(app_take_redraw_flags(app) == (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN));
+    app_unload(app);
+}
+
+static void test_color_and_local_time(void)
+{
+    app_t *app = load_probe();
+    draw(app);
+    /* a bar of eight with a hole of two, and the mark for a refused colour */
+    CHECK(black_in_row(ROW_COLOR) == 7);
+    CHECK(!gfx_get(&surface, 2, ROW_COLOR) && !gfx_get(&surface, 3, ROW_COLOR));
+    /* every draw starts in ink again */
+    draw(app);
+    CHECK(gfx_get(&surface, 0, ROW_COLOR));
+
+    CHECK(gfx_get(&surface, 0, ROW_LOCAL_TIME) && !gfx_get(&surface, 2, ROW_LOCAL_TIME));
+    CHECK(gfx_get(&surface, 4, ROW_LOCAL_TIME));
+    fake_now = 1794439815; /* 2026-11-11 23:30:15 UTC */
+    draw(app);
+    CHECK(!gfx_get(&surface, 0, ROW_LOCAL_TIME) && gfx_get(&surface, 2, ROW_LOCAL_TIME));
+    fake_now = 0;
+    app_unload(app);
+}
+
 int main(void)
 {
     test_lifecycle();
     test_buttons_and_redraw();
     test_exit();
     test_timer();
+    test_redraw_flags();
     test_drawing();
+    test_color_and_local_time();
     test_refusals();
     test_measures_and_time();
     test_more_refusals();

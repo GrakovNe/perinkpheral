@@ -11,6 +11,25 @@ void refresh_policy_init(refresh_policy_t *p)
     p->partials = 0;
 }
 
+/* The least time between the last refresh and one for this reason. */
+static int64_t least_gap_ms(const refresh_policy_cfg_t *cfg, refresh_reason_t why)
+{
+    switch (why) {
+    case REFRESH_FOR_KEEPALIVE:
+        return (int64_t)cfg->keepalive_ms;
+    case REFRESH_FOR_BUTTON:
+        return (int64_t)cfg->min_button_ms;
+    case REFRESH_FOR_REQUEST:
+    case REFRESH_FOR_CLEAN:
+        return REFRESH_ON_REQUEST_MIN_MS;
+    case REFRESH_FOR_SWITCH:
+        return 0;
+    case REFRESH_FOR_DATA:
+        break;
+    }
+    return (int64_t)cfg->min_data_ms;
+}
+
 refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
                                      const refresh_policy_cfg_t *cfg,
                                      refresh_reason_t why, int64_t now_ms)
@@ -20,22 +39,11 @@ refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
     if (!p->shown || why == REFRESH_FOR_SWITCH) {
         return REFRESH_FULL;
     }
-    int64_t since = now_ms - p->last_ms;
-    switch (why) {
-    case REFRESH_FOR_KEEPALIVE:
-        return since >= (int64_t)cfg->keepalive_ms ? REFRESH_FULL : REFRESH_NONE;
-    case REFRESH_FOR_BUTTON:
-        if (since < (int64_t)cfg->min_button_ms) {
-            return REFRESH_NONE;
-        }
-        break;
-    case REFRESH_FOR_DATA:
-        if (since < (int64_t)cfg->min_data_ms) {
-            return REFRESH_NONE;
-        }
-        break;
-    default:
-        break;
+    if (now_ms - p->last_ms < least_gap_ms(cfg, why)) {
+        return REFRESH_NONE;
+    }
+    if (why == REFRESH_FOR_KEEPALIVE || why == REFRESH_FOR_CLEAN) {
+        return REFRESH_FULL;
     }
     return p->partials >= cfg->full_every ? REFRESH_FULL : REFRESH_PARTIAL;
 }
@@ -46,10 +54,7 @@ uint32_t refresh_policy_wait_ms(const refresh_policy_t *p, const refresh_policy_
     if (!p->shown || why == REFRESH_FOR_SWITCH) {
         return 0;
     }
-    int64_t least_gap_ms = why == REFRESH_FOR_KEEPALIVE ? (int64_t)cfg->keepalive_ms
-                           : why == REFRESH_FOR_BUTTON  ? (int64_t)cfg->min_button_ms
-                                                        : (int64_t)cfg->min_data_ms;
-    int64_t allowed_at_ms = p->last_ms + least_gap_ms;
+    int64_t allowed_at_ms = p->last_ms + least_gap_ms(cfg, why);
     return allowed_at_ms > now_ms ? (uint32_t)(allowed_at_ms - now_ms) : 0;
 }
 

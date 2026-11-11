@@ -46,7 +46,7 @@ void app_on_button(int32_t button, int32_t press)
         return;
     }
     presses++;
-    request_redraw();
+    request_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_draw(void)

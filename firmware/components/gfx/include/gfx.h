@@ -49,10 +49,10 @@ bool gfx_get(const gfx_t *g, int x, int y);
 void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black);
 
 /* A black rectangle outline of the given thickness, inside x,y,w,h. */
-void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness);
+void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness, bool black);
 
 /* A black line one pixel wide, both ends included. */
-void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1);
+void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
 
 /* A 1 bpp bitmap in the framebuffer's own format (row-major, MSB left,
  * 1 = white, rows padded to a byte). */

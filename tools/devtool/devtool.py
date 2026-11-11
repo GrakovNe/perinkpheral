@@ -12,8 +12,10 @@
     devtool.py run sdk/apps/clock [--shot f.png]
                                           build the application, upload it and
                                           restart the device into it
-    devtool.py flash [image.bin]          upload a firmware image and wait for the
-                                          device to come back
+    devtool.py flash [image.bin] [--apps] upload a firmware image and wait for the
+                                          device to come back; --apps rebuilds and
+                                          uploads the applications of sdk/apps too,
+                                          which a change of the host API needs
 
 The device is named with --host or PERINKPHERAL_HOST (its address is on
 the Device page of its menu). It has to run a firmware built with
@@ -21,6 +23,7 @@ APP_DEV_CONSOLE, which is the default. Only the Python standard library
 is needed; `run` also needs what tools/mkapp needs.
 """
 import argparse
+import glob
 import json
 import os
 import subprocess
@@ -48,6 +51,7 @@ NEW_FRAME_WAIT_S = 4.0
 # A frame may be held back by the refresh policy for up to a minute.
 PENDING_FRAME_WAIT_S = 70.0
 RESTART_WAIT_S = 60.0
+SDK_APPS = os.path.join(os.path.dirname(TOOLS), "sdk", "apps")
 DEFAULT_FIRMWARE = os.path.join(os.path.dirname(TOOLS), "firmware", "build", "perinkpheral.bin")
 
 
@@ -170,17 +174,23 @@ def command_open(device, options):
         save_shot(rows, options.shot)
 
 
-def command_run(device, options):
-    with open(os.path.join(options.app_dir, "manifest.json")) as manifest:
+def upload_app(device, app_dir):
+    """Builds the application and puts its two files on the device; returns its name."""
+    with open(os.path.join(app_dir, "manifest.json")) as manifest:
         name = json.load(manifest)["name"]
     with tempfile.TemporaryDirectory() as built:
-        subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"), options.app_dir,
+        subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"), app_dir,
                         "--out", built], check=True)
         # The module first: a manifest alone would list an application that cannot start.
         for file_name in ("app.wasm", "manifest.json"):
             with open(os.path.join(built, file_name), "rb") as content:
                 device.request("/api/dev/app?name=%s&file=%s" % (urllib.parse.quote(name), file_name),
                                method="POST", body=content.read(), timeout=UPLOAD_TIMEOUT_S)
+    return name
+
+
+def command_run(device, options):
+    name = upload_app(device, options.app_dir)
     device.request("/api/dev/run?app=" + urllib.parse.quote(name), method="POST")
     print("uploaded %s, restarting into it" % name)
     device.wait_until_back()
@@ -191,6 +201,12 @@ def command_run(device, options):
 
 
 def command_flash(device, options):
+    if options.apps:
+        # A firmware upload replaces the firmware and nothing else: applications
+        # built for the old host API would be refused by the new one. They go
+        # first, so that the new firmware starts with applications of its own day.
+        for app_dir in sorted(glob.glob(os.path.join(SDK_APPS, "*", ""))):
+            print("uploaded " + upload_app(device, app_dir))
     with open(options.image, "rb") as image:
         answer, _ = device.request("/api/ota", method="POST", body=image.read(),
                                    timeout=UPLOAD_TIMEOUT_S)
@@ -231,6 +247,8 @@ def main():
 
     flash = commands.add_parser("flash")
     flash.add_argument("image", nargs="?", default=DEFAULT_FIRMWARE)
+    flash.add_argument("--apps", action="store_true",
+                       help="upload the applications of sdk/apps as well, built anew")
     flash.set_defaults(run=command_flash)
 
     options = parser.parse_args()

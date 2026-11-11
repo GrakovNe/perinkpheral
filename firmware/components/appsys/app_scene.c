@@ -84,7 +84,10 @@ static scene_reaction_t reaction_of(app_scene_t *self)
     if (app_take_exit_request(self->app)) {
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {
-        reaction.kind = SCENE_REDRAW;
+        int flags = app_take_redraw_flags(self->app);
+        reaction.kind = (flags & HOST_REDRAW_CLEAN)  ? SCENE_REDRAW_CLEAN
+                        : (flags & HOST_REDRAW_SOON) ? SCENE_REDRAW_SOON
+                                                     : SCENE_REDRAW;
     }
     return reaction;
 }
@@ -144,6 +147,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
         app_draw(self->app, surface);
         /* Drawing is itself the answer to any request made so far. */
         app_take_redraw_request(self->app);
+        app_take_redraw_flags(self->app);
     }
     if (app_has_stopped(self->app)) {
         /* Over whatever it managed to draw before it stopped. */

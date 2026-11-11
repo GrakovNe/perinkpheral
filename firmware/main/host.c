@@ -51,6 +51,10 @@ static refresh_reason_t refresh_reason(wm_change_t change)
         return REFRESH_FOR_SWITCH;
     case WM_CHANGED_BY_INPUT:
         return REFRESH_FOR_BUTTON;
+    case WM_CHANGED_URGENTLY:
+        return REFRESH_FOR_REQUEST;
+    case WM_CHANGED_CLEANLY:
+        return REFRESH_FOR_CLEAN;
     default:
         return REFRESH_FOR_DATA;
     }
