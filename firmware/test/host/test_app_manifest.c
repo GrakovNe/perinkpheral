@@ -139,6 +139,9 @@ static void test_settings(void)
     /* a key the manifest does not have is nobody's setting */
     CHECK(!app_manifest_accepts_setting(good, "forecast", "x", NULL));
     CHECK(!app_manifest_accepts_setting("{\"name\":\"a\"}", "token", "x", NULL));
+    /* a line break would be a header of the user's own in a request */
+    CHECK(!app_manifest_accepts_setting(good, "city", "x\r\nHost: evil", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "token", "tab\there", NULL));
     char too_long[APP_SETTING_VALUE_MAX + 2];
     memset(too_long, 'x', sizeof too_long - 1);
     too_long[sizeof too_long - 1] = '\0';

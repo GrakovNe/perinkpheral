@@ -29,6 +29,12 @@ typedef bool (*text_template_value_fn)(void *context, const char *key, char *val
 bool text_template_fill(const char *template_text, text_template_value_fn value_of,
                         void *context, char *filled, size_t filled_size);
 
+/* The same for a URL: every value is percent-encoded on its way in, so
+ * that a setting with a space, an ampersand or a slash in it stays the
+ * one value it was meant to be. */
+bool text_template_fill_url(const char *template_text, text_template_value_fn value_of,
+                            void *context, char *filled, size_t filled_size);
+
 #ifdef __cplusplus
 }
 #endif

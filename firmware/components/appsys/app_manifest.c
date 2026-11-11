@@ -247,6 +247,18 @@ static bool fits_type(const cJSON *setting, int type, const char *value)
     }
 }
 
+/* A value ends up in a URL or in a header of a request: a line break in
+ * it would be a header of the user's own making. Version 1 is ASCII. */
+static bool is_printable(const char *text)
+{
+    for (const char *character = text; *character != '\0'; character++) {
+        if (*character < ' ' || *character > '~') {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret)
 {
@@ -260,7 +272,8 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
             strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring, key) != 0) {
             continue;
         }
-        accepted = strlen(value) <= APP_SETTING_VALUE_MAX && fits_type(setting, type, value);
+        accepted = strlen(value) <= APP_SETTING_VALUE_MAX && is_printable(value) &&
+                   fits_type(setting, type, value);
         if (is_secret != NULL) {
             *is_secret = type == APP_SETTING_SECRET;
         }

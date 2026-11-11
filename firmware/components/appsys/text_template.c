@@ -10,8 +10,44 @@
 #define CLOSING "}}"
 #define BRACES  2 /* the length of either */
 
+/* What a URL takes as it is; everything else goes in as %XX. */
+static bool is_unreserved(char character)
+{
+    return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+           (character >= '0' && character <= '9') || character == '-' || character == '.' ||
+           character == '_' || character == '~';
+}
+
+/* Percent-encodes the terminated `value` where it lies; false when the
+ * longer text does not fit into `capacity`. */
+static bool encode_in_place(char *value, size_t capacity)
+{
+    static const char HEX[] = "0123456789ABCDEF";
+    size_t length = strlen(value), encoded_length = 0;
+    for (size_t i = 0; i < length; i++) {
+        encoded_length += is_unreserved(value[i]) ? 1 : 3;
+    }
+    if (encoded_length >= capacity) {
+        return false;
+    }
+    /* From the end, so that nothing is overwritten before it is read. */
+    size_t to = encoded_length;
+    value[to] = '\0';
+    for (size_t from = length; from-- > 0;) {
+        unsigned char character = (unsigned char)value[from];
+        if (is_unreserved((char)character)) {
+            value[--to] = (char)character;
+        } else {
+            value[--to] = HEX[character & 0x0F];
+            value[--to] = HEX[character >> 4];
+            value[--to] = '%';
+        }
+    }
+    return true;
+}
+
 static bool fill(const char *template_text, text_template_value_fn value_of, void *context,
-                 char *filled, size_t filled_size)
+                 char *filled, size_t filled_size, bool for_url)
 {
     size_t used = 0;
     const char *rest = template_text;
@@ -37,7 +73,8 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
         char key[TEXT_TEMPLATE_KEY_MAX + 1];
         memcpy(key, key_start, key_length);
         key[key_length] = '\0';
-        if (!value_of(context, key, filled + used, filled_size - used)) {
+        if (!value_of(context, key, filled + used, filled_size - used) ||
+            (for_url && !encode_in_place(filled + used, filled_size - used))) {
             return false;
         }
         used += strlen(filled + used);
@@ -45,15 +82,27 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
     }
 }
 
-bool text_template_fill(const char *template_text, text_template_value_fn value_of,
-                        void *context, char *filled, size_t filled_size)
+static bool fill_or_empty(const char *template_text, text_template_value_fn value_of,
+                          void *context, char *filled, size_t filled_size, bool for_url)
 {
     if (filled_size == 0) {
         return false;
     }
-    if (!fill(template_text, value_of, context, filled, filled_size)) {
+    if (!fill(template_text, value_of, context, filled, filled_size, for_url)) {
         filled[0] = '\0';
         return false;
     }
     return true;
+}
+
+bool text_template_fill(const char *template_text, text_template_value_fn value_of,
+                        void *context, char *filled, size_t filled_size)
+{
+    return fill_or_empty(template_text, value_of, context, filled, filled_size, false);
+}
+
+bool text_template_fill_url(const char *template_text, text_template_value_fn value_of,
+                            void *context, char *filled, size_t filled_size)
+{
+    return fill_or_empty(template_text, value_of, context, filled, filled_size, true);
 }

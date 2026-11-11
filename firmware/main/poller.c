@@ -133,8 +133,8 @@ static bool prepare(request_t *request, const char *app_name, int poll_number,
     bool  parsed = manifest != NULL && app_manifest_parse_poll(manifest, poll_number,
                                                                &request->poll) == APP_MANIFEST_OK;
     free(manifest);
-    if (!parsed || !text_template_fill(request->poll.url, setting_of, (void *)app_name,
-                                       request->url, sizeof request->url)) {
+    if (!parsed || !text_template_fill_url(request->poll.url, setting_of, (void *)app_name,
+                                           request->url, sizeof request->url)) {
         return false;
     }
     esp_http_client_config_t config = {

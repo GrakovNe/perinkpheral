@@ -91,12 +91,37 @@ static bool settings_value(void *context, const char *key, char *value, size_t v
     const char *found = strcmp(key, "token") == 0    ? "s3cret"
                         : strcmp(key, "server") == 0 ? "10.0.0.2"
                         : strcmp(key, "empty") == 0  ? ""
+          : strcmp(key, "city") == 0   ? "New York&x=1/~a"
                                                      : NULL;
     if (found == NULL || strlen(found) >= value_size) {
         return false;
     }
     strcpy(value, found);
     return true;
+}
+
+static void test_template_for_a_url(void)
+{
+    char filled[64];
+    /* a value stays one value: what would cut the URL goes in encoded */
+    CHECK(text_template_fill_url("http://a/q?c={{city}}&t={{token}}", settings_value, NULL, filled,
+                                 sizeof filled));
+    CHECK_STR(filled, "http://a/q?c=New%20York%26x%3D1%2F~a&t=s3cret");
+    /* the template's own text is the author's and is left alone */
+    CHECK(text_template_fill_url("http://a/b c?x={{empty}}", settings_value, NULL, filled,
+                                 sizeof filled));
+    CHECK_STR(filled, "http://a/b c?x=");
+    /* the longer text has to fit too */
+    char tight[27];
+    CHECK(!text_template_fill_url("http://a/?c={{city}}", settings_value, NULL, tight,
+                                  sizeof tight));
+    CHECK_STR(tight, "");
+    char just_enough[36];
+    CHECK(text_template_fill_url("http://a/?c={{city}}", settings_value, NULL, just_enough,
+                                 sizeof just_enough));
+    /* a header is not a URL: there the value goes in as it is */
+    CHECK(text_template_fill("{{city}}", settings_value, NULL, filled, sizeof filled));
+    CHECK_STR(filled, "New York&x=1/~a");
 }
 
 static void test_template(void)
@@ -248,5 +273,6 @@ int main(void)
     test_schedule_is_bounded();
     test_pick();
     test_schedule_hurry();
+    test_template_for_a_url();
     REPORT();
 }
