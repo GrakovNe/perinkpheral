@@ -29,6 +29,7 @@ enum {
     VALUE_DAY_LOW = VALUE_DAY_HIGH + 3,
 };
 
+#define WEATHER_POLL  0
 #define DAYS          3
 #define HTTP_OK       200
 #define DAYS_PER_WEEK 7
@@ -131,8 +132,13 @@ void app_on_settings(void)
 
 void app_on_button(int32_t event)
 {
-    if (event == BTN_BACK_PRESSED) {
+    switch (event) {
+    case BTN_BACK_PRESSED:
         request_exit();
+        break;
+    case BTN_OK_PRESSED:
+        poll_now(WEATHER_POLL); /* "refresh": the answer redraws the screen */
+        break;
     }
 }
 

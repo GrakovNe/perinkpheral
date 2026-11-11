@@ -34,6 +34,8 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
     (void)app; (void)key; (void)value; (void)length;
     return HOST_OK;
 }
+static bool offline(void) { return false; }
+static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
 static int32_t no_file_size(const char *app, const char *file)
 {
     (void)app; (void)file;
@@ -48,6 +50,7 @@ static int32_t no_file_read(const char *app, const char *file, int32_t offset, v
 static const app_services_t SERVICES = {
     .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
+    .is_online = offline, .poll_now = no_poll_now,
     .file_size = no_file_size, .file_read = no_file_read,
 };
 

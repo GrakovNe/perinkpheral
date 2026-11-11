@@ -275,6 +275,18 @@ HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *va
 HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const void *value,
                                    int32_t length));
 
+/* ---- The network ---- */
+
+/* 1 while the device is on its network, 0 otherwise: the difference
+ * between "nothing new" and "no way to know". */
+HOST_IMPORT(net_is_online, int32_t net_is_online(void));
+
+/* Fetch poll number `poll` of the manifest now instead of when it is due
+ * - the user pressed "refresh". The answer arrives the usual way. The
+ * host makes one request at a time and not more than one a second, so
+ * asking again before the answer changes nothing. */
+HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
+
 /* ---- Files ---- */
 
 /* What does not fit a kv value: a picture, a table, a video. An

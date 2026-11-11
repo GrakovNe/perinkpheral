@@ -490,6 +490,20 @@ HOST_FUNCTION(host_file_read)
     m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
 }
 
+HOST_FUNCTION(host_net_is_online)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiReturn(APP_OF(runtime)->services->is_online() ? 1 : 0);
+}
+
+HOST_FUNCTION(host_poll_now)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, poll);
+    app_t *app = APP_OF(runtime);
+    m3ApiReturn(app->services->poll_now(app->name, poll) ? HOST_OK : HOST_ERR_ARGUMENT);
+}
+
 HOST_FUNCTION(host_time_now)
 {
     m3ApiReturnType(int64_t);
@@ -579,6 +593,8 @@ static const struct {
     { "kv_set", "i(*i*i)", host_kv_set },
     { "file_size", "i(ii)", host_file_size },
     { "file_read", "i(iiiii)", host_file_read },
+    { "net_is_online", "i()", host_net_is_online },
+    { "poll_now", "i(i)", host_poll_now },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
     { "time_local", "i(i)", host_time_local },

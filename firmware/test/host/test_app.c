@@ -162,6 +162,23 @@ static int32_t fake_file_read(const char *app_name, const char *file, int32_t of
     return count;
 }
 
+static bool fake_is_online(void)
+{
+    return true;
+}
+
+/* The application has polls 0 and 1. */
+static int polled_now = -1;
+static bool fake_poll_now(const char *app_name, int poll)
+{
+    (void)app_name;
+    if (poll < 0 || poll > 1) {
+        return false;
+    }
+    polled_now = poll;
+    return true;
+}
+
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
@@ -170,6 +187,8 @@ static const app_services_t SERVICES = {
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
     .kv_set = fake_kv_set,
+    .is_online = fake_is_online,
+    .poll_now = fake_poll_now,
     .file_size = fake_file_size,
     .file_read = fake_file_read,
 };
@@ -466,6 +485,8 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 4, ROW_VALUES) && gfx_get(&surface, 6, ROW_VALUES));
     /* and a call through a function pointer, which the trimmed interpreter still has */
     CHECK(gfx_get(&surface, 8, ROW_VALUES));
+    /* the network: online, a poll asked for by its number, a wrong number refused */
+    CHECK(gfx_get(&surface, 12, ROW_VALUES) && polled_now == 1);
     /* its file: the length, a piece from the middle, the end, the names it may not use */
     CHECK(gfx_get(&surface, 10, ROW_VALUES));
     CHECK(!app_has_stopped(app));

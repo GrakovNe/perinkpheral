@@ -64,3 +64,17 @@ void poll_schedule_hurry(poll_schedule_t *schedule, int app, int64_t now_ms)
         }
     }
 }
+
+bool poll_schedule_hurry_one(poll_schedule_t *schedule, int app, int poll, int64_t now_ms)
+{
+    for (int i = 0; i < schedule->count; i++) {
+        poll_entry_t *entry = &schedule->entries[i];
+        if (entry->app == app && entry->poll == poll) {
+            if (entry->due_ms > now_ms) {
+                entry->due_ms = now_ms;
+            }
+            return true;
+        }
+    }
+    return false;
+}

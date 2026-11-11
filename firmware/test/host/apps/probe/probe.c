@@ -356,6 +356,10 @@ void app_on_draw(void)
     if (calls_through_pointers()) {
         mark(8, ROW_VALUES);
     }
+    if (net_is_online() == 1 && poll_now(1) == HOST_OK && poll_now(2) == HOST_ERR_ARGUMENT &&
+        poll_now(-1) == HOST_ERR_ARGUMENT) {
+        mark(12, ROW_VALUES);
+    }
     char piece[4] = { 0 };
     if (file_size("data.bin", 8) == 10 && file_read("data.bin", 8, 4, piece, 3) == 3 &&
         piece[0] == '4' && piece[2] == '6' && file_read("data.bin", 8, 8, piece, 4) == 2 &&

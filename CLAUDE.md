@@ -197,6 +197,8 @@ request_focus()                        // from app_on_data off the screen: worth
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
 kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
+net_is_online() -> 0 | 1
+poll_now(n)                            // fetch poll n of the manifest now, not when it is due
 file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
 file_read(name, name_len, offset, buf, cap) -> bytes read
 time_now() -> unix seconds             // 0 while the time is unknown
@@ -207,7 +209,7 @@ log(level, str, len)
 ```
 **What the contract still needs** - agreed, not written yet; in the order it will be built:
 - **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
-- **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_now(n)` and `poll_set_interval(n, seconds)` for the polls of the manifest; `net_is_online()`.
+- **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_set_interval(n, seconds)` for the polls of the manifest. (`poll_now` and `net_is_online` are done.)
 - **Writing files**: reading the files an application came with is done (`file_size`, `file_read`); what is left is `file_write`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
 - **An alarm off the screen**: `alarm_set(seconds)`, then `app_on_alarm()` on an application that is loaded for it and may ask for the screen. `timer_set` lives only while the application is on the screen; in deep sleep the alarm is the only way an application wakes by itself.
 

@@ -12,6 +12,8 @@
 #include "storage.h"
 #include "host_api.h"
 #include "net_time.h"
+#include "poller.h"
+#include "wifi.h"
 #include "timers.h"
 
 static const char *TAG = "app";
@@ -66,6 +68,8 @@ const app_services_t *app_host_services(void)
         .timer_set = timers_set,
         .kv_get = app_kv_get,
         .kv_set = app_kv_set,
+        .is_online = wifi_is_online,
+        .poll_now = poller_poll_now,
         .file_size = file_size,
         .file_read = file_read,
     };

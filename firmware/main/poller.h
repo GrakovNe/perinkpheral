@@ -39,6 +39,10 @@ void poller_start(void);
  * when their time comes. From any task. */
 void poller_hurry(const char *app_name);
 
+/* One poll of an application now; false when it has no such poll. From
+ * any task. */
+bool poller_poll_now(const char *app_name, int poll);
+
 /* Gives something to the host loop for an application and waits until
  * the application has had it. From any task but the host's own. */
 void poller_hand_over(const char *app_name, const app_delivery_t *delivery);

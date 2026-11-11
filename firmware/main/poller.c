@@ -47,6 +47,10 @@ static const app_manifest_t *s_apps;
 static int                   s_app_count;
 /* The application whose polls are to be fetched at once, or NO_APP. */
 static atomic_int            s_hurried_app = NO_APP;
+/* One poll asked for by its application: the application's number and the
+ * poll's packed into one word, or NO_APP. */
+static atomic_int            s_hurried_poll = NO_APP;
+#define PACKED_POLL(app, poll) ((app) * APP_POLLS_MAX + (poll))
 
 static int64_t now_ms(void)
 {
@@ -298,6 +302,11 @@ static void poller_task(void *arg)
         if (hurried_app != NO_APP) {
             poll_schedule_hurry(&s_schedule, hurried_app, now_ms());
         }
+        int hurried_poll = atomic_exchange(&s_hurried_poll, NO_APP);
+        if (hurried_poll != NO_APP) {
+            poll_schedule_hurry_one(&s_schedule, hurried_poll / APP_POLLS_MAX,
+                                    hurried_poll % APP_POLLS_MAX, now_ms());
+        }
         uint32_t            wait_ms;
         const poll_entry_t *due = poll_schedule_due(&s_schedule, now_ms(), &wait_ms);
         if (due == NULL) {
@@ -349,4 +358,18 @@ void poller_hurry(const char *app_name)
             atomic_store(&s_hurried_app, app);
         }
     }
+}
+
+bool poller_poll_now(const char *app_name, int poll)
+{
+    for (int app = 0; app < s_app_count; app++) {
+        if (strcmp(s_apps[app].name, app_name) == 0) {
+            if (poll < 0 || poll >= s_apps[app].poll_count) {
+                return false;
+            }
+            atomic_store(&s_hurried_poll, PACKED_POLL(app, poll));
+            return true;
+        }
+    }
+    return false;
 }

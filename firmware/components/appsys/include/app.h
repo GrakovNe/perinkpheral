@@ -33,6 +33,11 @@ typedef struct {
     int32_t (*kv_get)(const char *app_name, const char *key, void *value, int32_t capacity);
     int32_t (*kv_set)(const char *app_name, const char *key, const void *value,
                       int32_t value_length);
+    /* Whether the device is on its network now. */
+    bool (*is_online)(void);
+    /* Fetch the application's poll number `poll` now instead of when it is
+     * due; false when it has no such poll. */
+    bool (*poll_now)(const char *app_name, int poll);
     /* The application's own files, as file_size and file_read of
      * host_api.h answer; the name is checked and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);

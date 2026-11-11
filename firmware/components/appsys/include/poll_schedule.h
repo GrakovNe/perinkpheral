@@ -47,6 +47,10 @@ const poll_entry_t *poll_schedule_due(const poll_schedule_t *schedule, int64_t n
  * several periods does not catch up with a burst. */
 void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, int64_t now_ms);
 
+/* One poll is due now: the application asked for it. False when there is
+ * no such poll. */
+bool poll_schedule_hurry_one(poll_schedule_t *schedule, int app, int poll, int64_t now_ms);
+
 /* Every poll of that application is due now: its settings changed, and
  * what it shows was fetched with the old ones. */
 void poll_schedule_hurry(poll_schedule_t *schedule, int app, int64_t now_ms);
