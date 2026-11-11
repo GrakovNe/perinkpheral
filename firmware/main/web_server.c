@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "esp_heap_caps.h"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -170,6 +171,8 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
     cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
+    cJSON_AddNumberToObject(json, "largest_free_block",
+                            heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
     return send_json(request, "200 OK", json);
 }
 
@@ -333,6 +336,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "refresh_full_every", s_config->refresh_full_every);
     cJSON_AddNumberToObject(json, "refresh_keepalive_h", s_config->refresh_keepalive_h);
     cJSON_AddBoolToObject(json, "dither", s_config->dither != 0);
+    cJSON_AddBoolToObject(json, "time_auto", s_config->time_auto != 0);
     return send_json(request, "200 OK", json);
 }
 
@@ -375,6 +379,7 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
     uint32_t keepalive_h = wanted->refresh_keepalive_h;
     const cJSON *dither = cJSON_GetObjectItemCaseSensitive(json, "dither");
+    const cJSON *time_auto = cJSON_GetObjectItemCaseSensitive(json, "time_auto");
     bool fields_fit =
         take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
         take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
@@ -382,12 +387,16 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
         take_number(json, "refresh_min_data_s", UINT16_MAX, &min_data_s) &&
         take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
         take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
-        (dither == NULL || cJSON_IsBool(dither));
+        (dither == NULL || cJSON_IsBool(dither)) &&
+        (time_auto == NULL || cJSON_IsBool(time_auto));
     wanted->refresh_min_data_s = (uint16_t)min_data_s;
     wanted->refresh_full_every = (uint8_t)full_every;
     wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
     if (dither != NULL) {
         wanted->dither = cJSON_IsTrue(dither) ? 1 : 0;
+    }
+    if (time_auto != NULL) {
+        wanted->time_auto = cJSON_IsTrue(time_auto) ? 1 : 0;
     }
     cJSON_Delete(json);
 
@@ -405,6 +414,7 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
         *s_config = *wanted;
         appconf_derive(s_config, s_device_id);
         net_time_set_zone(s_config->tz);
+        net_time_set_automatic(s_config->time_auto != 0);
         refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
         display_set_policy(&policy);
         status_check();

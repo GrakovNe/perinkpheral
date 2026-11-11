@@ -733,6 +733,102 @@ HOST_FUNCTION(host_sys_info)
     m3ApiReturn(app->services->system_info(what, (char *)text, capacity));
 }
 
+#define SYSTEM_TEXT_MAX 63
+
+HOST_FUNCTION(host_sys_number_get)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, what);
+    m3ApiGetArg(uint32_t, number_offset);
+    uint8_t *number = in_app_memory_to_fill(runtime, _mem, number_offset, sizeof(sys_number_t));
+    app_t *app = APP_OF(runtime);
+    if (number == NULL || app->services->system_number_get == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    sys_number_t read = { 0 };
+    int32_t result = app->services->system_number_get(what, &read.value, &read.least, &read.most);
+    if (result == HOST_OK) {
+        memcpy(number, &read, sizeof read);
+    }
+    m3ApiReturn(result);
+}
+
+HOST_FUNCTION(host_sys_number_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, what);
+    m3ApiGetArg(int32_t, value);
+    app_t *app = APP_OF(runtime);
+    if (app->services->system_number_set == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_number_set(what, value));
+}
+
+HOST_FUNCTION(host_sys_text_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, what);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    app_t *app = APP_OF(runtime);
+    if (text == NULL || length > SYSTEM_TEXT_MAX || app->services->system_text_set == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    char terminated[SYSTEM_TEXT_MAX + 1];
+    memcpy(terminated, text, (size_t)length);
+    terminated[length] = '\0';
+    m3ApiReturn(app->services->system_text_set(what, terminated));
+}
+
+HOST_FUNCTION(host_sys_time_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int64_t, unix_seconds);
+    app_t *app = APP_OF(runtime);
+    if (app->services->system_time_set == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_time_set(unix_seconds));
+}
+
+HOST_FUNCTION(host_sys_app_title)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    app_t *app = APP_OF(runtime);
+    if (text == NULL || app->services->system_app_title == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_app_title(index, (char *)text, capacity));
+}
+
+HOST_FUNCTION(host_sys_app_remove)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, index);
+    app_t *app = APP_OF(runtime);
+    if (app->services->system_app_remove == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_app_remove(index));
+}
+
+HOST_FUNCTION(host_sys_do)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, action);
+    app_t *app = APP_OF(runtime);
+    if (app->services->system_do == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_do(action));
+}
+
 HOST_FUNCTION(host_sys_logo)
 {
     m3ApiReturnType(int32_t);
@@ -820,6 +916,13 @@ static const struct {
     M3RawCall   function;
 } SYSTEM_API[] = {
     { "sys_info", "i(i*i)", host_sys_info },
+    { "sys_number_get", "i(i*)", host_sys_number_get },
+    { "sys_number_set", "i(ii)", host_sys_number_set },
+    { "sys_text_set", "i(i*i)", host_sys_text_set },
+    { "sys_time_set", "i(I)", host_sys_time_set },
+    { "sys_app_title", "i(i*i)", host_sys_app_title },
+    { "sys_app_remove", "i(i)", host_sys_app_remove },
+    { "sys_do", "i(i)", host_sys_do },
     { "sys_logo", "i(iii)", host_sys_logo },
     { "sys_logo_width", "i(i)", host_sys_logo_width },
     { "sys_logo_height", "i(i)", host_sys_logo_height },

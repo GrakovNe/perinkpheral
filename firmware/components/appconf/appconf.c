@@ -126,6 +126,7 @@ void appconf_defaults(appconf_t *c, const char device_id[5])
     c->refresh_min_button_ms = APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT;
     c->refresh_full_every = APPCONF_REFRESH_FULL_EVERY_DEFAULT;
     c->dither = 1;
+    c->time_auto = 1;
     c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;
     appconf_derive(c, device_id);
 }
@@ -204,6 +205,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     }
     if (c->dither > 1) {
         BAD("Dithering must be 0 or 1.");
+    }
+    if (c->time_auto > 1) {
+        BAD("Automatic time must be 0 or 1.");
     }
     if (c->refresh_keepalive_h < APPCONF_REFRESH_KEEPALIVE_H_LEAST ||
         c->refresh_keepalive_h > APPCONF_REFRESH_KEEPALIVE_H_MOST) {

@@ -431,6 +431,7 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define SYS_INFO_WIFI    4 /* one of SYS_WIFI_* */
 #define SYS_INFO_SLOT    5 /* the firmware slot it runs from: "ota_0" */
 #define SYS_INFO_FREE_MEMORY 6 /* of the host, in KB, as digits */
+#define SYS_INFO_TIME_ZONE   7 /* as a POSIX TZ string: "MSK-3" */
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
 #define SYS_WIFI_SETUP      "setup" /* waiting on its own access point to be told a network */
@@ -443,3 +444,39 @@ HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t 
 HOST_SYSTEM_IMPORT(sys_logo, int32_t sys_logo(int32_t x, int32_t y, int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
+
+/* A setting of the host that is a number, with the range it may be in. */
+#define SYS_NUMBER_TIME_AUTOMATIC      0 /* 1: the clock is set from the network; 0: by hand */
+#define SYS_NUMBER_REFRESH_FULL_EVERY  1 /* quick refreshes before a full one; 0: always full.
+                                            SYS_REFRESH_FULL_NEVER is taken too, outside the range */
+#define SYS_NUMBER_REFRESH_MIN_SECONDS 2 /* the least between refreshes nobody asked for */
+#define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* without a refresh before one is forced */
+#define SYS_REFRESH_FULL_NEVER         255
+typedef struct {
+    int32_t value;
+    int32_t least;
+    int32_t most;
+} sys_number_t;
+HOST_SYSTEM_IMPORT(sys_number_get, int32_t sys_number_get(int32_t what, sys_number_t *number));
+/* Stored, and in effect at once. HOST_ERR_ARGUMENT for a value the setting does not take. */
+HOST_SYSTEM_IMPORT(sys_number_set, int32_t sys_number_set(int32_t what, int32_t value));
+
+/* A setting of the host that is text. */
+#define SYS_TEXT_TIME_ZONE 0 /* a POSIX TZ string; read it with sys_info() */
+HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *text, int32_t length));
+
+/* The clock by hand, in unix seconds. HOST_ERR_FAILED while it is set from
+ * the network. */
+HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
+
+/* The installed applications by number, from 0: the title of one, or
+ * HOST_ERR_NOT_FOUND past the last. Removing one takes its files, leaves
+ * what it stored, and restarts the device. */
+HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(int32_t index, char *text, int32_t capacity));
+HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(int32_t index));
+
+/* What cannot be taken back; the device restarts after each. */
+#define SYS_DO_RESTART        0
+#define SYS_DO_FORGET_NETWORK 1 /* the device comes back with its setup access point */
+#define SYS_DO_FACTORY_RESET  2 /* the settings and what the applications stored are erased */
+HOST_SYSTEM_IMPORT(sys_do, int32_t sys_do(int32_t action));

@@ -16,7 +16,14 @@ extern "C" {
  * not know the time and says so rather than show 1970. */
 
 /* time_zone is a POSIX TZ string, "CET-1CEST,M3.5.0,M10.5.0/3". */
-void net_time_start(const char *ntp_server, const char *time_zone);
+void net_time_start(const char *ntp_server, const char *time_zone, bool automatic);
+
+/* Whether the clock is set from the network. Turned off, it keeps the time
+ * it has and takes one by hand. */
+void net_time_set_automatic(bool automatic);
+
+/* The clock by hand; false while it is set from the network. */
+bool net_time_set(int64_t unix_seconds);
 
 /* From now on local time is read in this zone. */
 void net_time_set_zone(const char *time_zone);

@@ -124,6 +124,14 @@ void *  m3_Realloc_Impl  (void * i_ptr, size_t i_newSize, size_t i_oldSize)
 
 #else
 
+// perinkpheral: the one large block a module asks for - its linear memory -
+// is not looked for in the heap every time: m3_reserve.c keeps it between
+// modules. A heap that has the bytes may not have them in one piece.
+#ifdef d_m3ReservedBlockBytes
+void *  m3_Reserved_Take  (size_t i_size);
+bool    m3_Reserved_Give  (void * i_ptr);
+#endif
+
 void *  m3_Malloc_Impl  (size_t i_size)
 {
     return calloc (i_size, 1);
@@ -131,12 +139,23 @@ void *  m3_Malloc_Impl  (size_t i_size)
 
 void  m3_Free_Impl  (void * io_ptr)
 {
+#ifdef d_m3ReservedBlockBytes
+    if (m3_Reserved_Give (io_ptr)) return;                      // perinkpheral
+#endif
     free (io_ptr);
 }
 
 void *  m3_Realloc_Impl  (void * i_ptr, size_t i_newSize, size_t i_oldSize)
 {
     if (M3_UNLIKELY(i_newSize == i_oldSize)) return i_ptr;
+
+#ifdef d_m3ReservedBlockBytes
+    if (i_ptr == NULL && i_newSize >= d_m3ReservedBlockBytes)   // perinkpheral
+    {
+        void * reserved = m3_Reserved_Take (i_newSize);
+        if (reserved) return reserved;
+    }
+#endif
 
     void * newPtr = realloc (i_ptr, i_newSize);
 

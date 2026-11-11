@@ -1,6 +1,6 @@
 # Wasm3 v0.9.0 (https://github.com/wasm3/wasm3, MIT), the interpreter core
-# only: no WASI, no libc bindings. The sources in wasm3/ carry one local
-# change, described in README.md; everything else the device needs is set
+# only: no WASI, no libc bindings. The sources in wasm3/ carry two local
+# changes, described in README.md; everything else the device needs is set
 # from here.
 set(wasm3_dir "wasm3")
 set(wasm3_sources
@@ -8,10 +8,12 @@ set(wasm3_sources
     "m3_function.c" "m3_info.c" "m3_module.c" "m3_parse.c" "m3_validate.c")
 list(TRANSFORM wasm3_sources PREPEND "${wasm3_dir}/")
 
-idf_component_register(SRCS ${wasm3_sources}
-                       INCLUDE_DIRS "${wasm3_dir}")
+idf_component_register(SRCS ${wasm3_sources} "m3_reserve.c"
+                       INCLUDE_DIRS "${wasm3_dir}" ".")
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
+    # A module's linear memory comes from m3_reserve.c, not from the heap.
+    d_m3ReservedBlockBytes=65536
     # Selects wasm3's defaults for small devices.
     ESP32
     # Keeps wasm3 from pinning every operation into RAM: on the C6 code

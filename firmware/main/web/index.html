@@ -203,6 +203,7 @@
       <input id="tz" maxlength="47" autocomplete="off" required>
       <button type="button" class="quiet" id="tz-detect">Detect</button>
     </div></div>
+    <label class="check"><input id="time_auto" type="checkbox">Set time automatically</label>
     <label for="ntp_server">NTP server</label>
     <input id="ntp_server" maxlength="64" autocomplete="off" required>
     <button>Save</button>
@@ -953,6 +954,7 @@ async function loadSettings() {
                                       textContent: "Every " + settings.refresh_full_every + " updates" }));
   fullEvery.value = settings.refresh_full_every;
   byId("dither").checked = settings.dither;
+  byId("time_auto").checked = settings.time_auto;
   byId("ssid").value = settings.wifi_ssid;
   byId("hostname").value = settings.hostname;
 }
@@ -968,7 +970,8 @@ function saveSettings(formId, read) {
 }
 
 saveSettings("general", () => ({ device_name: byId("device_name").value }));
-saveSettings("time", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value }));
+saveSettings("time", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value,
+                              time_auto: byId("time_auto").checked }));
 saveSettings("display", () => ({
   refresh_full_every: Number(byId("refresh_full_every").value),
   refresh_min_data_s: Number(byId("refresh_min_data_s").value),

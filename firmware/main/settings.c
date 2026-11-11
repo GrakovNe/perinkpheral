@@ -32,6 +32,7 @@ static const char *TAG = "settings";
 #define KEY_REFRESH_FULL   "rf_full"
 #define KEY_REFRESH_KEEP   "rf_keep"
 #define KEY_DITHER         "dither"
+#define KEY_TIME_AUTO      "time_auto"
 
 void settings_nvs_init(void)
 {
@@ -90,6 +91,7 @@ void settings_load(appconf_t *c, const char device_id[5])
     nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
     nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
     nvs_get_u8(h, KEY_DITHER, &c->dither);
+    nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -126,6 +128,7 @@ esp_err_t settings_save(const appconf_t *c)
     PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
     PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
     PUT(nvs_set_u8(h, KEY_DITHER, c->dither));
+    PUT(nvs_set_u8(h, KEY_TIME_AUTO, c->time_auto));
     PUT(nvs_commit(h));
 #undef PUT
 

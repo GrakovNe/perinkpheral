@@ -10,6 +10,8 @@
 #include "sdkconfig.h"
 
 #include "app_host.h"
+#include "app_system.h"
+#include "m3_reserve.h"
 #include "appconf.h"
 #include "board.h"
 #include "buttons.h"
@@ -63,12 +65,16 @@ void app_main(void)
              __DATE__, __TIME__);
 
     reset_early_init();
+    /* First of all: the heap will not be this whole again. */
+    m3_reserve();
+
     settings_nvs_init();
     board_init();
 
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    char device_id[5];
+    /* Kept: the system API derives names from it for as long as the device runs. */
+    static char device_id[5];
     appconf_device_id(mac, device_id);
 
     appconf_t *cfg = &s_cfg;
@@ -83,6 +89,7 @@ void app_main(void)
     const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
     display_start(&refresh_policy);
     app_host_use(cfg);
+    app_system_use(cfg, device_id);
     buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();
@@ -96,7 +103,7 @@ void app_main(void)
     };
     status_start();
     wifi_start(&wifi);
-    net_time_start(cfg->ntp_server, cfg->tz);
+    net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
     web_server_start(cfg, device_id);
     /* An image installed over the network has to prove that the network
      * still works before it is kept. */

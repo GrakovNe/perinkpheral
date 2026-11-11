@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include "esp_sntp.h"
@@ -22,7 +23,31 @@ void net_time_set_zone(const char *time_zone)
     tzset();
 }
 
-void net_time_start(const char *ntp_server, const char *time_zone)
+static bool s_automatic = true;
+
+void net_time_set_automatic(bool automatic)
+{
+    if (automatic == s_automatic) {
+        return;
+    }
+    s_automatic = automatic;
+    if (automatic) {
+        esp_sntp_init();
+    } else {
+        esp_sntp_stop();
+    }
+}
+
+bool net_time_set(int64_t unix_seconds)
+{
+    if (s_automatic) {
+        return false;
+    }
+    struct timeval now = { .tv_sec = (time_t)unix_seconds };
+    return settimeofday(&now, NULL) == 0;
+}
+
+void net_time_start(const char *ntp_server, const char *time_zone, bool automatic)
 {
     /* SNTP keeps the pointer, not the name. */
     static char server[SERVER_NAME_MAX + 1];
@@ -31,11 +56,17 @@ void net_time_start(const char *ntp_server, const char *time_zone)
     net_time_set_zone(time_zone);
     esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, server);
-    esp_sntp_init();
+    s_automatic = automatic;
+    if (automatic) {
+        esp_sntp_init();
+    }
 }
 
 void net_time_sync_now(void)
 {
+    if (!s_automatic) {
+        return;
+    }
     esp_sntp_restart();
 }
 

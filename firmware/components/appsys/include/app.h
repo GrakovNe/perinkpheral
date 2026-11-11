@@ -72,6 +72,15 @@ typedef struct {
     /* For the system API: what the device knows about itself (SYS_INFO_*)
      * as text; the length, or a HOST_ERR_*. May be NULL. */
     int32_t (*system_info)(int what, char *text, int32_t capacity);
+    /* The rest of the system API, each as host_api.h says it under sys_*;
+     * text arrives terminated. Any may be NULL. */
+    int32_t (*system_number_get)(int what, int32_t *value, int32_t *least, int32_t *most);
+    int32_t (*system_number_set)(int what, int32_t value);
+    int32_t (*system_text_set)(int what, const char *text);
+    int32_t (*system_time_set)(int64_t unix_seconds);
+    int32_t (*system_app_title)(int index, char *text, int32_t capacity);
+    int32_t (*system_app_remove)(int index);
+    int32_t (*system_do)(int action);
 } app_services_t;
 
 typedef struct app app_t;
