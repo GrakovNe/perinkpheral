@@ -12,9 +12,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "app_kv.h"
 #include "app_store.h"
 #include "display.h"
 #include "events.h"
+#include "host_api.h"
 #include "launcher.h"
 #include "settings.h"
 #include "storage.h"
@@ -326,6 +328,35 @@ static esp_err_t handle_run(httpd_req_t *http)
     return err;
 }
 
+/* A value into an application's store, as its own kv_set would put it:
+ * how a setting is given to an application before there is a form for it. */
+static esp_err_t handle_kv(httpd_req_t *http)
+{
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
+    char app[QUERY_VALUE_MAX], key[QUERY_VALUE_MAX];
+    static char value[HOST_KV_VALUE_MAX]; /* one handler runs at a time */
+    if (!query_value(http, "app", app, sizeof app) || !query_value(http, "key", key, sizeof key) ||
+        !app_manifest_is_valid_name(app) || key[0] == '\0' || strlen(key) > HOST_KV_KEY_MAX) {
+        return refuse(http, "app=<name>&key=<key>, the value as the body");
+    }
+    if (http->content_len > sizeof value) {
+        return refuse(http, "the value is too long");
+    }
+    size_t received = 0;
+    while (received < http->content_len) {
+        int count = httpd_req_recv(http, value + received, http->content_len - received);
+        if (count <= 0) {
+            return refuse(http, "the value did not arrive");
+        }
+        received += (size_t)count;
+    }
+    int32_t result = app_kv_set(app, key, value, (int32_t)received);
+    return result == HOST_OK ? send_text(http, "200 OK", "stored")
+                             : send_text(http, "500 Internal Server Error", "not stored");
+}
+
 static esp_err_t handle_restart(httpd_req_t *http)
 {
     if (web_server_refuses_cross_site(http)) {
@@ -346,6 +377,7 @@ void devtools_register(httpd_handle_t server)
         { .uri = "/api/dev/app", .method = HTTP_POST, .handler = handle_app_file },
         { .uri = "/api/dev/run", .method = HTTP_POST, .handler = handle_run },
         { .uri = "/api/dev/restart", .method = HTTP_POST, .handler = handle_restart },
+        { .uri = "/api/dev/kv", .method = HTTP_POST, .handler = handle_kv },
     };
     for (int i = 0; i < DEVTOOLS_ROUTES; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));

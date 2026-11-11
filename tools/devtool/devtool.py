@@ -12,6 +12,8 @@
     devtool.py run sdk/apps/clock [--shot f.png]
                                           build the application, upload it and
                                           restart the device into it
+    devtool.py set weather lat 55.75      a value into an application's store: a
+                                          setting, until the web page has a form
     devtool.py flash [image.bin] [--apps] upload a firmware image and wait for the
                                           device to come back; --apps rebuilds and
                                           uploads the applications of sdk/apps too,
@@ -202,6 +204,12 @@ def command_run(device, options):
         save_shot(rows, options.shot)
 
 
+def command_set(device, options):
+    device.request("/api/dev/kv?app=%s&key=%s" % (urllib.parse.quote(options.app),
+                                                  urllib.parse.quote(options.key)),
+                   method="POST", body=options.value.encode())
+
+
 def command_flash(device, options):
     with open(options.image, "rb") as image:
         answer, _ = device.request("/api/ota", method="POST", body=image.read(),
@@ -249,6 +257,12 @@ def main():
     run.add_argument("app_dir")
     run.add_argument("--shot", help="save the picture once the application is on the screen")
     run.set_defaults(run=command_run)
+
+    set_value = commands.add_parser("set")
+    set_value.add_argument("app")
+    set_value.add_argument("key")
+    set_value.add_argument("value")
+    set_value.set_defaults(run=command_set)
 
     flash = commands.add_parser("flash")
     flash.add_argument("image", nargs="?", default=DEFAULT_FIRMWARE)

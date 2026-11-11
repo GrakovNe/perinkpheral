@@ -29,13 +29,14 @@ extern "C" {
  *   POST /api/dev/run?app=<name>            restart into that application: how a
  *                                           freshly uploaded one is started
  *
+ *   POST /api/dev/kv?app=<name>&key=<key>   a value into the application's store, the body
  *   POST /api/dev/restart                   restart, to read the list of applications anew
  *
  * Like the rest of the device's API these ask for nothing. */
 void devtools_register(httpd_handle_t server);
 
 /* How many routes devtools_register() adds. */
-#define DEVTOOLS_ROUTES 6
+#define DEVTOOLS_ROUTES 7
 
 /* The host loop's side: it took EVENT_DEV_REQUEST off the queue. Whatever
  * touches the frame or the scenes is done here, on the host's own task.
