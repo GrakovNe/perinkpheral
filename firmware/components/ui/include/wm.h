@@ -33,7 +33,8 @@ typedef enum {
     WM_CHANGED_BY_SWITCH, /* another scene took the screen */
 } wm_change_t;
 
-typedef void (*wm_draw_header_fn)(gfx_t *surface, void *context);
+/* `scene` is the one the header is drawn above. */
+typedef void (*wm_draw_header_fn)(gfx_t *surface, const scene_t *scene, void *context);
 
 typedef struct {
     scene_t *home;        /* the menu: a long press on BACK always leads here */
@@ -84,6 +85,12 @@ void wm_draw(wm_t *wm, gfx_t *screen);
 
 /* The frame drawn last reached the panel. */
 void wm_shown(wm_t *wm);
+
+/* How wide the two texts of a header may be when together they are wider
+ * than `available`: each is sure of half, and what one does not need of
+ * its half goes to the other. */
+void wm_header_share(int left_width, int right_width, int available, int *left_max,
+                     int *right_max);
 
 /* The two parts of a screen that has a header. */
 void wm_split(const gfx_t *screen, gfx_t *header, gfx_t *content);

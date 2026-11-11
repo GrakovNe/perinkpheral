@@ -279,8 +279,36 @@ static void test_text_font(void)
     CHECK(count_black() == 7);
 }
 
+static void test_text_fit(void)
+{
+    const gfx_font_t *font = gfx_font_system();
+    int character = gfx_text_font_width(font, "x");
+    char fitted[24];
+
+    gfx_text_fit(font, "Berlin", 6 * character, fitted, sizeof fitted);
+    CHECK_STR(fitted, "Berlin");
+    /* one character short: the end gives way to three dots */
+    gfx_text_fit(font, "Saint Petersburg", 15 * character, fitted, sizeof fitted);
+    CHECK_STR(fitted, "Saint Peters...");
+    /* no space is left before the dots */
+    gfx_text_fit(font, "Saint Petersburg", 9 * character, fitted, sizeof fitted);
+    CHECK_STR(fitted, "Saint...");
+    gfx_text_fit(font, "Berlin", 4 * character, fitted, sizeof fitted);
+    CHECK_STR(fitted, "B...");
+    /* not even one character and the dots: nothing */
+    gfx_text_fit(font, "Berlin", 3 * character, fitted, sizeof fitted);
+    CHECK_STR(fitted, "");
+    gfx_text_fit(font, "", 0, fitted, sizeof fitted);
+    CHECK_STR(fitted, "");
+    /* the buffer is a limit too */
+    char small[8];
+    gfx_text_fit(font, "Saint Petersburg", 100 * character, small, sizeof small);
+    CHECK_STR(small, "Saint P");
+}
+
 int main(void)
 {
+    test_text_fit();
     test_clear_and_pixel();
     test_fill_frame();
     test_viewport();

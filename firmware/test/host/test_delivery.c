@@ -85,7 +85,12 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
 static void menu_draw(scene_t *scene, gfx_t *surface) { (void)scene; (void)surface; }
 static const scene_ops_t MENU_OPS = { .enter = menu_enter, .leave = menu_leave,
                                       .button = menu_button, .draw = menu_draw };
-static void no_header(gfx_t *surface, void *context) { (void)surface; (void)context; }
+static void no_header(gfx_t *surface, const scene_t *scene, void *context)
+{
+    (void)surface;
+    (void)scene;
+    (void)context;
+}
 
 static char                 root[64];
 static menu_t               menu;

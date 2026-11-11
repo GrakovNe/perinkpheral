@@ -65,7 +65,7 @@ test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/include/wm.h $(UI)/include/scene.
 
 test_scenes: test_scenes.c tinytest.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
 	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
-		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(GFX)/gfx.c $(GFX)/font_square.c $(QR_SRCS)
+		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c $(QR_SRCS)
 
 # The interpreter is upstream code: built once, without our warnings, and
 # limited to one page of memory exactly as on the device.

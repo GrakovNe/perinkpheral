@@ -84,8 +84,9 @@ static int header_draws;
 
 static int header_surface_h;
 
-static void draw_header(gfx_t *surface, void *context)
+static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
+    (void)scene;
     header_surface_h = surface->h;
     header_draws += *(int *)context;
 }
@@ -348,8 +349,29 @@ static void test_fullscreen_frame(void)
     CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == 0);
 }
 
+static void test_header_share(void)
+{
+    int left, right;
+    /* both fit: both are whole */
+    wm_header_share(100, 140, 320, &left, &right);
+    CHECK(left == 100 && right == 140);
+    /* the left is long: the right keeps its own, the left has the rest */
+    wm_header_share(400, 140, 320, &left, &right);
+    CHECK(left == 180 && right == 140);
+    /* the right is long */
+    wm_header_share(100, 400, 320, &left, &right);
+    CHECK(left == 100 && right == 220);
+    /* both are: half each */
+    wm_header_share(400, 400, 320, &left, &right);
+    CHECK(left == 160 && right == 160);
+    /* one alone may have it all, and no more */
+    wm_header_share(0, 400, 320, &left, &right);
+    CHECK(left == 0 && right == 320);
+}
+
 int main(void)
 {
+    test_header_share();
     test_first_scene();
     test_buttons_reach_the_scene();
     test_open_and_back();

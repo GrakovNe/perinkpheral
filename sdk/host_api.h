@@ -243,6 +243,18 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
 #define HOST_REDRAW_NO_BLINK 4
 HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
+/* The host's header above an application that is not full-screen has two
+ * texts: nothing on the left, beside the connection icon, and the date on
+ * the right. An application may put its own there - a place, a title - in
+ * the host's font and size; one that does not fit is cut with "...", and
+ * the two never run into each other. A length of 0 gives a side back to
+ * the host. Call it whenever the text changes; it is forgotten when the
+ * application leaves the screen. */
+#define HOST_HEADER_LEFT     0
+#define HOST_HEADER_RIGHT    1
+#define HOST_HEADER_TEXT_MAX 31
+HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
+
 /* From app_on_data() off the screen: what arrived is worth showing now.
  * The host decides; on the screen it means nothing. */
 HOST_IMPORT(request_focus, void request_focus(void));

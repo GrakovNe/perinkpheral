@@ -54,6 +54,8 @@ struct app {
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
     bool        exit_requested;
     bool        focus_requested;
+    /* What it put into the host's header; empty leaves a side to the host. */
+    char        header[HOST_HEADER_RIGHT + 1][HOST_HEADER_TEXT_MAX + 1];
     const char *stop_reason; /* NULL while the application is alive */
 };
 
@@ -359,6 +361,23 @@ HOST_FUNCTION(host_request_redraw)
     /* Bits the host does not know are an application from the future. */
     app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN | HOST_REDRAW_NO_BLINK);
     m3ApiSuccess();
+}
+
+HOST_FUNCTION(host_header_text)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, side);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || text == NULL ||
+        length > HOST_HEADER_TEXT_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    app_t *app = APP_OF(runtime);
+    memcpy(app->header[side], text, (size_t)length);
+    app->header[side][length] = '\0';
+    m3ApiReturn(HOST_OK);
 }
 
 HOST_FUNCTION(host_request_focus)
@@ -718,6 +737,7 @@ static const struct {
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },
+    { "header_text", "i(i*i)", host_header_text },
     { "timer_set", "i(ii)", host_timer_set },
     { "kv_get", "i(*i*i)", host_kv_get },
     { "kv_set", "i(*i*i)", host_kv_set },
@@ -1047,6 +1067,11 @@ void app_alarm(app_t *app)
 void app_settings_changed(app_t *app)
 {
     CALL_HANDLER(app, app->on_settings);
+}
+
+const char *app_header_text(const app_t *app, int side)
+{
+    return app->header[side];
 }
 
 bool app_take_focus_request(app_t *app)

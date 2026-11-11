@@ -5,6 +5,7 @@
 #include "app_scene.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "app_store.h"
 #include "host_api.h"
@@ -20,7 +21,32 @@ typedef struct {
     uint8_t              *module;     /* the file's bytes, kept while the application runs */
     app_t                *app;        /* NULL while not on the screen or not loadable */
     const char           *load_error; /* why app is NULL although the scene is on the screen */
+    /* The header's texts as the application last gave them: they outlive
+     * the instance, which is unloaded for a delivery to another one. */
+    char                  header[HOST_HEADER_RIGHT + 1][HOST_HEADER_TEXT_MAX + 1];
 } app_scene_t;
+
+/* Takes over what the application has in the header now; true when that
+ * is not what the scene had. An application that is not running has
+ * nothing there. */
+static bool take_header(app_scene_t *self)
+{
+    bool changed = false;
+    for (int side = HOST_HEADER_LEFT; side <= HOST_HEADER_RIGHT; side++) {
+        const char *text = self->app != NULL && !app_has_stopped(self->app)
+                               ? app_header_text(self->app, side)
+                               : "";
+        if (strcmp(self->header[side], text) != 0) {
+            strcpy(self->header[side], text);
+            changed = true;
+        }
+    }
+    self->scene.header_left = self->header[HOST_HEADER_LEFT][0] != '\0'
+                                  ? self->header[HOST_HEADER_LEFT] : NULL;
+    self->scene.header_right = self->header[HOST_HEADER_RIGHT][0] != '\0'
+                                   ? self->header[HOST_HEADER_RIGHT] : NULL;
+    return changed;
+}
 
 static void cancel_timers(const app_services_t *services)
 {
@@ -74,6 +100,7 @@ static void app_scene_enter(scene_t *scene)
     if (load(self) && !was_loaded) {
         app_focus(self->app);
     }
+    take_header(self);
 }
 
 static void app_scene_leave(scene_t *scene)
@@ -96,6 +123,10 @@ static bool is_running(const app_scene_t *self)
 static scene_reaction_t reaction_of(app_scene_t *self)
 {
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
+    /* A new text in the header is a new picture, asked for or not. */
+    if (take_header(self)) {
+        reaction.kind = SCENE_REDRAW;
+    }
     if (app_take_exit_request(self->app)) {
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {

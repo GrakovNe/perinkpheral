@@ -72,6 +72,10 @@ typedef struct {
 struct scene {
     const scene_ops_t *ops;
     bool               fullscreen; /* false: the host draws its header above */
+    /* What the scene wants in the two texts of that header instead of the
+     * host's own; NULL leaves a side to the host. */
+    const char        *header_left;
+    const char        *header_right;
 };
 
 #ifdef __cplusplus

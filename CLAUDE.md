@@ -172,7 +172,8 @@ A device on a shelf has to come back from a restart showing what it showed, with
 The host draws a header above its own screens and above every application that does not ask for the full screen:
 - On the left the Wi-Fi icon in one of two states - connected, or not connected (the same icon struck through). It shows the outcome of the last connection attempt, which is what matters in the profiles where Wi-Fi is off between polls.
 - On the right the date (`Wed 11 Nov`), blank while the time is unknown.
-- Nothing else: no application title, no network name, no clock - the date changes once a day, so the header never asks for a refresh of its own. There is no footer.
+- Nothing else of the host's own: no application title, no network name, no clock - the date changes once a day, so the header never asks for a refresh of its own. There is no footer.
+- **An application may put its own text into both**: beside the icon on the left, where the host has nothing, and on the right in place of the date (`header_text`). It gives a line and nothing more - the font and the size are the host's. A text that does not fit is cut with `...`, and the two never meet: when together they are too wide each is sure of half the width, and what one does not need of its half goes to the other (`wm_header_share`, `gfx_text_fit`). A side the application gave nothing for is the host's. The texts are forgotten when the application leaves the screen. `weather` shows its city and the date.
 - An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×260 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.
 - The network name and the address are on the device page of the menu, not in the header.
 
@@ -193,6 +194,7 @@ gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear on
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
 request_exit()                         // done: give the screen back, as BACK does in the host's pages
+header_text(side, str_ptr, len)        // its own line in the host's header, left or right; len 0 gives the side back
 request_focus()                        // from app_on_data off the screen: worth showing now; the host decides
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
 kv_get(key, key_len, buf, cap) -> len  // the application's own store

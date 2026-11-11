@@ -23,11 +23,13 @@ extern "C" {
 void screens_splash(gfx_t *g);
 
 /* The host's header: the Wi-Fi icon on the left, struck through when
- * the last connection attempt failed,
- * the date on the right, a rule along the bottom edge. */
+ * the last connection attempt failed, a text beside it and a text against
+ * the right edge, a rule along the bottom edge. A text that does not fit
+ * is cut with "...", and the two do not meet. */
 typedef struct {
-    bool        wifi; /* the last connection attempt succeeded */
-    const char *date; /* "Wed 11 Nov"; NULL while the time is unknown */
+    bool        wifi;  /* the last connection attempt succeeded */
+    const char *left;  /* NULL: nothing */
+    const char *right; /* "Wed 11 Nov"; NULL: nothing */
 } screens_header_t;
 
 void screens_header(gfx_t *g, const screens_header_t *header);

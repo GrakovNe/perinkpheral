@@ -118,6 +118,10 @@ void app_settings_changed(app_t *app);
 /* True once after the application called request_focus(). */
 bool app_take_focus_request(app_t *app);
 
+/* What the application put into the host's header on `side`
+ * (HOST_HEADER_*); empty when it left the side to the host. */
+const char *app_header_text(const app_t *app, int side);
+
 /* True once after the application called request_redraw(). */
 bool app_take_redraw_request(app_t *app);
 

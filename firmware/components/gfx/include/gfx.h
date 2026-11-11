@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -112,6 +113,12 @@ typedef struct {
 int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black);
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
+
+/* `text` as it fits into `max_width`: whole, or its start with "..." after
+ * it, or nothing when not even that fits. `fitted` takes up to `capacity`
+ * bytes with the terminator. ASCII. */
+void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
+                  size_t capacity);
 
 /* The fonts in the firmware: Departure Mono, drawn on an 11 px grid and
  * shown at whole multiples of it. Every one has all of printable ASCII. */

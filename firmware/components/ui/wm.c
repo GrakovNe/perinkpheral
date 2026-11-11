@@ -170,6 +170,25 @@ wm_change_t wm_pending_change(const wm_t *wm)
     return wm->change;
 }
 
+void wm_header_share(int left_width, int right_width, int available, int *left_max,
+                     int *right_max)
+{
+    int half = available / 2;
+    if (left_width + right_width <= available) {
+        *left_max = left_width;
+        *right_max = right_width;
+    } else if (right_width <= half) {
+        *left_max = available - right_width;
+        *right_max = right_width;
+    } else if (left_width <= half) {
+        *left_max = left_width;
+        *right_max = available - left_width;
+    } else {
+        *left_max = half;
+        *right_max = half;
+    }
+}
+
 void wm_split(const gfx_t *screen, gfx_t *header, gfx_t *content)
 {
     gfx_viewport(screen, header, 0, 0, screen->w, WM_HEADER_HEIGHT);
@@ -186,7 +205,7 @@ void wm_draw(wm_t *wm, gfx_t *screen)
     }
     gfx_t header, content;
     wm_split(screen, &header, &content);
-    wm->draw_header(&header, wm->header_context);
+    wm->draw_header(&header, wm->current, wm->header_context);
     wm->current->ops->draw(wm->current, &content);
 }
 

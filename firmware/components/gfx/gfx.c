@@ -5,6 +5,7 @@
 #include "gfx.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "../font_square.h"
@@ -392,6 +393,29 @@ int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
         }
     }
     return w;
+}
+
+void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
+                  size_t capacity)
+{
+    static const char ELLIPSIS[] = "...";
+    snprintf(fitted, capacity, "%s", text);
+    if (gfx_text_font_width(font, fitted) <= max_width) {
+        return;
+    }
+    size_t room = capacity > sizeof ELLIPSIS ? capacity - sizeof ELLIPSIS : 0;
+    size_t kept = strlen(text) < room ? strlen(text) : room;
+    for (; kept > 0; kept--) {
+        /* No space before the dots: "Saint...", not "Saint ...". */
+        if (text[kept - 1] == ' ') {
+            continue;
+        }
+        snprintf(fitted, capacity, "%.*s%s", (int)kept, text, ELLIPSIS);
+        if (gfx_text_font_width(font, fitted) <= max_width) {
+            return;
+        }
+    }
+    fitted[0] = '\0';
 }
 
 int gfx_font_cap_height(const gfx_font_t *font)

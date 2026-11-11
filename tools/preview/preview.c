@@ -79,9 +79,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const screens_header_t online = { true, "Wed 11 Nov" };
+    const screens_header_t online = { true, NULL, "Wed 11 Nov" };
     /* As the device shows it before there is a network: no Wi-Fi, no date. */
-    const screens_header_t offline = { false, NULL };
+    const screens_header_t offline = { false, NULL, NULL };
     gfx_t content;
 
     const char *titles[] = { "Clock", "Hello", "Device", "About" };

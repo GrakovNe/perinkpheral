@@ -9,6 +9,7 @@
 
 #include "qrcodegen.h"
 #include "wifi_qr.h"
+#include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
  * logo word is the square font; everything else is Departure Mono. */
@@ -92,14 +93,28 @@ static void icon_signal(gfx_t *g, int x, int y, bool connected)
     }
 }
 
-#define HEADER_BASELINE 30
+#define HEADER_BASELINE    30
+#define HEADER_ICON_GAP    12 /* from the icon to the text beside it */
+#define HEADER_TEXTS_GAP   14 /* the least between the two texts: a character */
+#define HEADER_TEXT_BUFFER 48
 
 void screens_header(gfx_t *g, const screens_header_t *header)
 {
     icon_signal(g, MARGIN, HEADER_BASELINE - ICON_BASELINE_ROWS * ICON_CELL, header->wifi);
-    if (header->date != NULL) {
-        right_aligned(g, HEADER_BASELINE, gfx_font_system(), header->date);
-    }
+
+    const gfx_font_t *font = gfx_font_system();
+    const char *left = header->left != NULL ? header->left : "";
+    const char *right = header->right != NULL ? header->right : "";
+    int text_left = MARGIN + ICON_COLS * ICON_CELL + HEADER_ICON_GAP;
+    int available = g->w - MARGIN - text_left - HEADER_TEXTS_GAP;
+    int left_max, right_max;
+    wm_header_share(gfx_text_font_width(font, left), gfx_text_font_width(font, right), available,
+                    &left_max, &right_max);
+    char fitted[HEADER_TEXT_BUFFER];
+    gfx_text_fit(font, left, left_max, fitted, sizeof fitted);
+    gfx_text_font(g, text_left, HEADER_BASELINE, font, fitted, true);
+    gfx_text_fit(font, right, right_max, fitted, sizeof fitted);
+    right_aligned(g, HEADER_BASELINE, font, fitted);
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }
 

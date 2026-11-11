@@ -35,14 +35,18 @@ static const char *TAG = "host";
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
-static void draw_header(gfx_t *surface, void *context)
+static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
     (void)context;
     status_t status;
     status_read(&status);
+    /* The host's own: nothing on the left, the date on the right. */
     screens_header_t header = {
         .wifi = status.wifi_connected,
-        .date = status.date_known ? status.date : NULL,
+        .left = scene->header_left,
+        .right = scene->header_right != NULL ? scene->header_right
+                 : status.date_known         ? status.date
+                                             : NULL,
     };
     screens_header(surface, &header);
 }
