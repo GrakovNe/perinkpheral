@@ -16,6 +16,8 @@
 #include "host_api.h"
 #include "launcher.h"
 #include "net_time.h"
+#include "poller.h"
+#include "power.h"
 #include "reset.h"
 #include "settings.h"
 #include "status.h"
@@ -104,6 +106,11 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
         *least = 0;
         *most = 1;
         return HOST_OK;
+    case SYS_NUMBER_POWER_SAVING:
+        *value = s_config->power_saving;
+        *least = 0;
+        *most = 1;
+        return HOST_OK;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
         *value = s_config->refresh_full_every;
         *least = APPCONF_REFRESH_FULL_EVERY_LEAST;
@@ -139,6 +146,8 @@ static int32_t apply(const appconf_t *wanted)
     appconf_derive(s_config, s_device_id);
     net_time_set_zone(s_config->tz);
     net_time_set_automatic(s_config->time_auto != 0);
+    power_set_saving(s_config->power_saving != 0);
+    poller_reschedule();
     refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
     display_set_policy(&policy);
     status_check(); /* the date in the header may have just changed */
@@ -155,6 +164,9 @@ int32_t app_system_number_set(int what, int32_t value)
     switch (what) {
     case SYS_NUMBER_TIME_AUTOMATIC:
         wanted.time_auto = (uint8_t)(value > UINT8_MAX ? UINT8_MAX : value);
+        break;
+    case SYS_NUMBER_POWER_SAVING:
+        wanted.power_saving = (uint8_t)(value > UINT8_MAX ? UINT8_MAX : value);
         break;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
         wanted.refresh_full_every = (uint8_t)(value > UINT8_MAX ? UINT8_MAX - 1 : value);

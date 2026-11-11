@@ -209,6 +209,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     if (c->time_auto > 1) {
         BAD("Automatic time must be 0 or 1.");
     }
+    if (c->power_saving > 1) {
+        BAD("Power saving must be 0 or 1.");
+    }
     if (c->refresh_keepalive_h < APPCONF_REFRESH_KEEPALIVE_H_LEAST ||
         c->refresh_keepalive_h > APPCONF_REFRESH_KEEPALIVE_H_MOST) {
         BAD("Keep-alive must be %d-%d h.", APPCONF_REFRESH_KEEPALIVE_H_LEAST,

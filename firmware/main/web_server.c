@@ -24,6 +24,7 @@
 #include "net_time.h"
 #include "ota.h"
 #include "poller.h"
+#include "power.h"
 #include "reset.h"
 #include "settings.h"
 #include "web_apps.h"
@@ -338,6 +339,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "refresh_keepalive_h", s_config->refresh_keepalive_h);
     cJSON_AddBoolToObject(json, "dither", s_config->dither != 0);
     cJSON_AddBoolToObject(json, "time_auto", s_config->time_auto != 0);
+    cJSON_AddBoolToObject(json, "power_saving", s_config->power_saving != 0);
     return send_json(request, "200 OK", json);
 }
 
@@ -381,6 +383,7 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
     uint32_t keepalive_h = wanted->refresh_keepalive_h;
     const cJSON *dither = cJSON_GetObjectItemCaseSensitive(json, "dither");
     const cJSON *time_auto = cJSON_GetObjectItemCaseSensitive(json, "time_auto");
+    const cJSON *power_saving = cJSON_GetObjectItemCaseSensitive(json, "power_saving");
     bool fields_fit =
         take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
         take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
@@ -389,7 +392,8 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
         take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
         take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
         (dither == NULL || cJSON_IsBool(dither)) &&
-        (time_auto == NULL || cJSON_IsBool(time_auto));
+        (time_auto == NULL || cJSON_IsBool(time_auto)) &&
+        (power_saving == NULL || cJSON_IsBool(power_saving));
     wanted->refresh_min_data_s = (uint16_t)min_data_s;
     wanted->refresh_full_every = (uint8_t)full_every;
     wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
@@ -398,6 +402,9 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
     }
     if (time_auto != NULL) {
         wanted->time_auto = cJSON_IsTrue(time_auto) ? 1 : 0;
+    }
+    if (power_saving != NULL) {
+        wanted->power_saving = cJSON_IsTrue(power_saving) ? 1 : 0;
     }
     cJSON_Delete(json);
 
@@ -416,6 +423,8 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
         appconf_derive(s_config, s_device_id);
         net_time_set_zone(s_config->tz);
         net_time_set_automatic(s_config->time_auto != 0);
+        power_set_saving(s_config->power_saving != 0);
+        poller_reschedule();
         refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
         display_set_policy(&policy);
         status_check();

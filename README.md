@@ -281,8 +281,10 @@ the rest: the log, the status, flashing the firmware itself.
    the Wi-Fi setup screen with a QR code, and the host's own pages as
    system applications - Settings with four buttons and no keyboard,
    Device, About. Left: a second font.
-4. **Power.** Sleep between polls, measured current and real battery
-   life numbers, then extreme power saving.
+4. **Power - started.** Done: the battery profile - the chip sleeps
+   when nothing runs, the radio is on only for a poll and for two
+   minutes after a press. Left: measured current and real battery life
+   numbers, then extreme power saving on deep sleep.
 5. **Web UI and catalog - mostly done.** Done: installing from
    catalogs, settings of applications and of the host, the log. Left:
    firmware updates pulled from releases, and the API asking who is

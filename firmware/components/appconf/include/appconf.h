@@ -57,6 +57,7 @@ typedef struct {
     uint8_t  refresh_keepalive_h;   /* hours without a refresh before one is forced */
     uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
+    uint8_t  power_saving;          /* 1: the device runs from its battery; 0: it is plugged in */
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

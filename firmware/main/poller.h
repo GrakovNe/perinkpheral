@@ -40,6 +40,10 @@ void poller_start(void);
  * looks at them between these two. The second takes the new list and
  * schedules its polls; requests and alarms of the old one are dropped. */
 void poller_hold(void);
+
+/* The pace of polls may be another now - the power profile changed: they
+ * are scheduled anew. Requests and alarms waiting are dropped. */
+void poller_reschedule(void);
 void poller_release_reloaded(void);
 
 /* The application's settings changed: fetch its polls again now, not

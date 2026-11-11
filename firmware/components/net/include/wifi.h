@@ -37,6 +37,8 @@ typedef struct {
     char         ssid[WIFI_SSID_MAX + 1];              /* the stored network */
     char         access_point_name[WIFI_SSID_MAX + 1];
     char         address[16];                          /* empty unless online */
+    bool         is_radio_off;   /* turned off to save power; the phase is as it was left */
+    bool         was_reached;    /* the last attempt to join the network succeeded */
 } wifi_status_t;
 
 /* The strings are copied. */
@@ -45,6 +47,11 @@ void wifi_start(const wifi_config_in_t *config);
 void wifi_get_status(wifi_status_t *status);
 
 bool wifi_is_online(void);
+
+/* Turns the radio off to save power, or on again to join the stored
+ * network. Off is not taken while the device has no network or its setup
+ * access point is up: then it has to be found. From any task. */
+void wifi_set_radio(bool on);
 
 #ifdef __cplusplus
 }

@@ -24,6 +24,7 @@
 #include "poll_schedule.h"
 #include "storage.h"
 #include "text_template.h"
+#include "power.h"
 #include "wifi.h"
 
 static const char *TAG = "poller";
@@ -31,6 +32,9 @@ static const char *TAG = "poller";
 #define TASK_STACK_BYTES    8192 /* the TLS handshake runs on it */
 #define TASK_PRIORITY       4
 #define IDLE_CHECK_MS       250
+/* Saving power, every look is the chip waking up: fewer of them. */
+#define IDLE_CHECK_SAVING_MS 2000
+#define RADIO_WAIT_MS       20000 /* for the network to be joined before the radio is given back */
 #define REQUEST_TIMEOUT_MS  15000
 #define ANSWER_MAX_BYTES    (256 * 1024)
 /* A TLS session takes about 45 KB while it is open; below this the
@@ -555,10 +559,48 @@ static bool ring_due_alarm(void)
     return true;
 }
 
+/* Whether anything is waiting for the network now. */
+static bool wants_network(void)
+{
+    lock();
+    uint32_t wait_ms;
+    bool wanted = s_fetch_job != NULL || poll_schedule_due(&s_schedule, now_ms(), &wait_ms) != NULL;
+    for (int i = 0; i < PENDING_MAX && !wanted; i++) {
+        wanted = s_pending[i].is_waiting;
+    }
+    unlock();
+    return wanted;
+}
+
+/* Saving power, the radio is on only while there is something to ask:
+ * taken when there is, given back when there is not. A network that does
+ * not answer is not waited for with the radio on: the next try is a poll's
+ * least distance away. */
+static void keep_radio_for_work(void)
+{
+    static bool    is_holding;
+    static int64_t held_since_ms, try_again_at_ms;
+    bool wanted = power_is_saving() && wants_network();
+    if (wanted && !is_holding && now_ms() >= try_again_at_ms) {
+        power_hold_radio();
+        is_holding = true;
+        held_since_ms = now_ms();
+    } else if (is_holding && !wanted) {
+        power_release_radio();
+        is_holding = false;
+    } else if (is_holding && !wifi_is_online() && now_ms() - held_since_ms > RADIO_WAIT_MS) {
+        ESP_LOGW(TAG, "no network in %d s: the radio is given back", RADIO_WAIT_MS / 1000);
+        power_release_radio();
+        is_holding = false;
+        try_again_at_ms = now_ms() + (int64_t)POWER_SAVING_POLL_MIN_S * 1000;
+    }
+}
+
 static void poller_task(void *arg)
 {
     (void)arg;
     for (;;) {
+        keep_radio_for_work();
         if (ring_due_alarm()) {
             continue;
         }
@@ -586,7 +628,8 @@ static void poller_task(void *arg)
         }
         unlock();
         if (due == NULL) {
-            vTaskDelay(pdMS_TO_TICKS(wait_ms < IDLE_CHECK_MS ? wait_ms : IDLE_CHECK_MS));
+            uint32_t idle_ms = power_is_saving() ? IDLE_CHECK_SAVING_MS : IDLE_CHECK_MS;
+            vTaskDelay(pdMS_TO_TICKS(wait_ms < idle_ms ? wait_ms : idle_ms));
             continue;
         }
         /* Without a network, or without the memory for a session, the
@@ -617,13 +660,27 @@ static int schedule_installed(void)
     int polls = 0;
     for (int app = 0; app < s_app_count; app++) {
         for (int poll = 0; poll < s_apps[app].poll_count; poll++) {
-            if (poll_schedule_add(&s_schedule, app, poll, s_apps[app].poll_every_s[poll],
-                                  now_ms())) {
+            /* From a battery no poll is closer to the last than this. */
+            uint32_t every_s = s_apps[app].poll_every_s[poll];
+            if (power_is_saving() && every_s < POWER_SAVING_POLL_MIN_S) {
+                every_s = POWER_SAVING_POLL_MIN_S;
+            }
+            if (poll_schedule_add(&s_schedule, app, poll, every_s, now_ms())) {
                 polls++;
             }
         }
     }
     return polls;
+}
+
+void poller_reschedule(void)
+{
+    if (s_lock == NULL) {
+        return;
+    }
+    lock();
+    schedule_installed();
+    unlock();
 }
 
 void poller_hold(void)

@@ -17,6 +17,7 @@
 #include "events.h"
 #include "launcher.h"
 #include "poller.h"
+#include "power.h"
 #include "scenes.h"
 #include "screens.h"
 #include "settings.h"
@@ -89,6 +90,7 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     if (press == EVENT_PRESS_SHORT || press == EVENT_PRESS_LONG) {
         ESP_LOGI(TAG, "button %d %s", index + 1, press == EVENT_PRESS_LONG ? "long" : "short");
     }
+    power_note_press(); /* the user is here: the device stays reachable for a while */
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
 

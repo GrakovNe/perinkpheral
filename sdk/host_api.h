@@ -463,6 +463,9 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
                                             SYS_REFRESH_FULL_NEVER is taken too, outside the range */
 #define SYS_NUMBER_REFRESH_MIN_SECONDS 2 /* the least between refreshes nobody asked for */
 #define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* without a refresh before one is forced */
+#define SYS_NUMBER_POWER_SAVING        4 /* 1: the device runs from its battery - it sleeps when
+                                            nothing runs and its radio is on only for a poll and
+                                            for a while after a press; 0: it is plugged in */
 #define SYS_REFRESH_FULL_NEVER         255
 typedef struct {
     int32_t value;

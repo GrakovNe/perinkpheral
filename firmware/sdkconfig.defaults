@@ -28,3 +28,11 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 # The device asks servers and is never one over TLS: its own page is plain HTTP.
 CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y
+
+# The battery profile: the chip sleeps whenever nothing runs (light sleep),
+# switched on and off at run time by the power setting.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+# With a computer on the other end of the cable it does not: the console
+# and flashing over USB go on working on the bench.
+CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y

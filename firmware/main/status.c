@@ -25,7 +25,12 @@ static status_t          s_last_told; /* what the host was last told about */
 void status_read(status_t *status)
 {
     memset(status, 0, sizeof *status);
-    status->wifi_connected = wifi_is_online();
+    /* With the radio off between polls the icon says how the last attempt
+     * went: that is all there is to know. */
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    status->wifi_connected = wifi.is_radio_off ? wifi.was_reached
+                                               : wifi.phase == WIFI_PHASE_ONLINE;
     status->date_known = net_time_is_known();
     if (status->date_known) {
         time_t now = (time_t)net_time_now();
