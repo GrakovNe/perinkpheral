@@ -40,26 +40,42 @@ uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)
  * parsed manifest does not keep: a poll in full, the settings. */
 char *app_store_read_manifest(const char *root, const char *name);
 
-/* The two files an application is made of. */
-typedef enum {
-    APP_FILE_MANIFEST,
-    APP_FILE_MODULE,
-} app_file_t;
+/* The files of an application: the two it is made of, and whatever data
+ * it brings along or keeps - pictures, a cache. */
+#define APP_FILE_MANIFEST "manifest.json"
+#define APP_FILE_MODULE   "app.wasm"
 
-/* The most bytes a file of that kind may have. */
-size_t app_store_file_max_bytes(app_file_t file);
+/* A data file is named with 1-23 of a-z, 0-9, '.', '-' and '_', not
+ * starting with a dot. */
+#define APP_FILE_NAME_MAX 23
+/* All the data files of one application may take this much. */
+#define APP_FILES_MAX_BYTES (100 * 1024)
+
+/* True for the manifest, the module and any well-named data file. */
+bool app_store_is_file_name(const char *file);
+
+/* The most bytes a file of that name may have. */
+size_t app_store_file_max_bytes(const char *file);
 
 #define APP_STORE_PATH_MAX 128
 
 /* Installing a file is two steps, so that an upload cut short leaves the
  * file that was there: write the new content to the path that
  * app_store_begin_file() gives, then app_store_commit_file() puts it in
- * place. Both are false for a name that is not an application's, and when
- * the file system refuses. The application's folder is made if it is not
- * there. */
-bool app_store_begin_file(const char *root, const char *name, app_file_t file,
+ * place. Both are false for a name that is not an application's or not a
+ * file's, and when the file system refuses. The application's folder is
+ * made if it is not there. */
+bool app_store_begin_file(const char *root, const char *name, const char *file,
                           char path[APP_STORE_PATH_MAX]);
-bool app_store_commit_file(const char *root, const char *name, app_file_t file);
+bool app_store_commit_file(const char *root, const char *name, const char *file);
+
+/* How long a file of an application is; negative when there is none. */
+long app_store_file_size(const char *root, const char *name, const char *file);
+
+/* Up to `capacity` bytes of it from `offset` on; fewer at its end, none
+ * past it, negative when it cannot be read. */
+long app_store_read_file(const char *root, const char *name, const char *file, long offset,
+                         void *bytes, size_t capacity);
 
 #ifdef __cplusplus
 }

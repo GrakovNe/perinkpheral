@@ -186,16 +186,19 @@ gfx_text_width(font_id, str_ptr, len) -> px
 gfx_font_height(font_id) -> px          // the whole line
 gfx_font_ascent(font_id) -> px          // from the top of the line to the baseline
 gfx_font_cap_height(font_id) -> px      // capitals and digits above the baseline
-gfx_color(ink | paper)                 // what the calls below draw with; every draw starts in ink
+gfx_color(0..16)                       // how dark the calls below draw: 0 paper, 16 ink, between them a grey by dithering
 gfx_rect(x, y, w, h, fill)
 gfx_line(x0, y0, x1, y1)
 gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear one leaves what is there
-request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh
+request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
+                                       // NO_BLINK - now, and never as a full refresh: one picture of a row
 request_exit()                         // done: give the screen back, as BACK does in the host's pages
 request_focus()                        // from app_on_data off the screen: worth showing now; the host decides
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
 kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
+file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
+file_read(name, name_len, offset, buf, cap) -> bytes read
 time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
 time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
@@ -205,14 +208,14 @@ log(level, str, len)
 **What the contract still needs** - agreed, not written yet; in the order it will be built:
 - **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
 - **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_now(n)` and `poll_set_interval(n, seconds)` for the polls of the manifest; `net_is_online()`.
-- **Files**: `blob_write(name, offset, ptr, len)`, `blob_read`, `blob_size`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
+- **Writing files**: reading the files an application came with is done (`file_size`, `file_read`); what is left is `file_write`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
 - **An alarm off the screen**: `alarm_set(seconds)`, then `app_on_alarm()` on an application that is loaded for it and may ask for the screen. `timer_set` lives only while the application is on the screen; in deep sleep the alarm is the only way an application wakes by itself.
 
 **Few applications, large ones**, the way Pebble did it: at most **5** installed, each with a module of up to 48 KB, 100 KB of files and 4 KB of `kv_*`. The partition is 1 MB; five such applications are about 780 KB of it. Whoever wants more rotates them - one day from a companion application on a phone.
 
 **Put off: BLE.** The chip has BLE 5 and no classic Bluetooth. As a host service it could be media keys - the device pairs as a keyboard and an application sends play, pause, next, volume to whatever it is paired with, with no API of the player. What plays now can be read that way only from an iPhone (Apple Media Service); Android and computers give it over classic Bluetooth, which is not here. It is not in the plan of milestone 2: the stack is estimated, not measured, at 200-300 KB of flash and 60-90 KB of memory, next to a firmware slot with about 300 KB left and a heap that TLS still has to fit into. Measure before deciding.
 
-**How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Two flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything - and `HOST_REDRAW_CLEAN` - a full refresh, for a new picture. Neither has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
+**How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything; `HOST_REDRAW_CLEAN` - a full refresh, for a new picture; `HOST_REDRAW_NO_BLINK` - now, and not as the full refresh the host makes after every few partial ones: for pictures in a row. The traces then pile up until the first refresh that does not ask for this, or until the application leaves. None has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
 
 What a handler may count on: one handler runs at a time and has 3 seconds; it returns nothing and leaves requests (`request_redraw`, `request_exit`, `request_focus`) that take effect when it returns; presses are not lost, timers of one id collapse into one, and the pieces of one answer arrive in order with nothing between them.
 
@@ -244,7 +247,7 @@ Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The poli
 Not configurable:
 - Full refresh when the application on the scene changes; the first update after start is always full.
 - After every update the panel goes to deep sleep (mode 1, RAM is kept), otherwise it degrades irreversibly.
-- No animations and no real-time progress bars.
+- No animations and no real-time progress bars in the host's own screens. An application that wants a row of pictures has `HOST_REDRAW_NO_BLINK`; the panel itself takes a second for a partial refresh (0.4 s of it the panel, the rest sending two frames at 2 MHz), so that is one picture a second at best. `sdk/apps/badapple` is the test: 200x150 unpacked and drawn in about 0.1 s a frame by the interpreter.
 - 1 bit per pixel. Fonts are bitmap, pre-converted (`tools/fontgen`), ASCII; the readable minimum is ~10 px.
 
 ### Web UI (on the device, `esp_http_server`)
@@ -308,7 +311,8 @@ sdk/
   lib/                 what applications link instead of a C library
   apps/
     hello/             sample: text + reaction to a button
-    clock/             second sample, to check switching
+    clock/             the time, the day of the week and the date
+    badapple/          a test of the panel and the interpreter: a 1-bit video from a file
     plex/              the first real one: now playing + play/pause/next
     trmnl/             TRMNL BYOS client: polls /api/display, parses JSON, downloads the picture, draws with gfx_bitmap
 tools/
@@ -317,6 +321,7 @@ tools/
   devtool/             the device over the network: screenshots, presses, the log, upload and run an application, flash
   devshot/             the same over USB for a device with no network: presses and the frame its panel shows
   mkapp/               builds app.wasm (wasi-sdk) and checks its imports and memory
+  mkvideo/             a video into a 1-bit stream small enough to be a file of an application
   catalog/             generates catalog.json (milestone 5)
 assets/
   fonts/               DepartureMono-Regular.otf (OFL), its license

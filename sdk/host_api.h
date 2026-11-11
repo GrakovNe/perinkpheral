@@ -229,6 +229,22 @@ HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *va
 HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const void *value,
                                    int32_t length));
 
+/* ---- Files ---- */
+
+/* What does not fit a kv value: a picture, a table, a video. An
+ * application reads the files that came in its package - everything in
+ * its `files` folder when it was built. The name is 1-23 of a-z, 0-9,
+ * '.', '-' and '_', not starting with a dot. */
+#define HOST_FILE_NAME_MAX 23
+
+/* The length of the file, or HOST_ERR_NOT_FOUND. */
+HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length));
+
+/* Up to `capacity` bytes from `offset` on; returns how many, which is
+ * fewer at the end of the file and 0 past it. */
+HOST_IMPORT(file_read, int32_t file_read(const char *name, int32_t name_length, int32_t offset,
+                                         void *bytes, int32_t capacity));
+
 /* ---- Time ---- */
 
 /* Unix seconds; 0 while the device does not know the time. */

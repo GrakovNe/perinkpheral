@@ -34,9 +34,21 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
     (void)app; (void)key; (void)value; (void)length;
     return HOST_OK;
 }
+static int32_t no_file_size(const char *app, const char *file)
+{
+    (void)app; (void)file;
+    return HOST_ERR_NOT_FOUND;
+}
+static int32_t no_file_read(const char *app, const char *file, int32_t offset, void *bytes,
+                            int32_t capacity)
+{
+    (void)app; (void)file; (void)offset; (void)bytes; (void)capacity;
+    return HOST_ERR_NOT_FOUND;
+}
 static const app_services_t SERVICES = {
     .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
+    .file_size = no_file_size, .file_read = no_file_read,
 };
 
 typedef struct {

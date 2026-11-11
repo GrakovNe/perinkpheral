@@ -181,8 +181,10 @@ def upload_app(device, app_dir):
     with tempfile.TemporaryDirectory() as built:
         subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"), app_dir,
                         "--out", built], check=True)
-        # The module first: a manifest alone would list an application that cannot start.
-        for file_name in ("app.wasm", "manifest.json"):
+        # The manifest last: until it is there the device does not list the
+        # application, and by then everything it needs is.
+        data_files = sorted(set(os.listdir(built)) - {"app.wasm", "manifest.json"})
+        for file_name in ["app.wasm"] + data_files + ["manifest.json"]:
             with open(os.path.join(built, file_name), "rb") as content:
                 device.request("/api/dev/app?name=%s&file=%s" % (urllib.parse.quote(name), file_name),
                                method="POST", body=content.read(), timeout=UPLOAD_TIMEOUT_S)
@@ -201,12 +203,6 @@ def command_run(device, options):
 
 
 def command_flash(device, options):
-    if options.apps:
-        # A firmware upload replaces the firmware and nothing else: applications
-        # built for the old host API would be refused by the new one. They go
-        # first, so that the new firmware starts with applications of its own day.
-        for app_dir in sorted(glob.glob(os.path.join(SDK_APPS, "*", ""))):
-            print("uploaded " + upload_app(device, app_dir))
     with open(options.image, "rb") as image:
         answer, _ = device.request("/api/ota", method="POST", body=image.read(),
                                    timeout=UPLOAD_TIMEOUT_S)
@@ -214,6 +210,15 @@ def command_flash(device, options):
     status = device.wait_until_back()
     print("back: firmware %s in %s%s" % (status["firmware"], status["slot"],
                                          ", on probation" if status["on_probation"] else ""))
+    if options.apps:
+        # A firmware upload replaces the firmware and nothing else: applications
+        # built for the old host API are refused by the new one. They follow the
+        # firmware - it is the new one that knows how to take them - and the
+        # device starts once more to list them.
+        for app_dir in sorted(glob.glob(os.path.join(SDK_APPS, "*", ""))):
+            print("uploaded " + upload_app(device, app_dir))
+        device.request("/api/dev/restart", method="POST")
+        device.wait_until_back()
 
 
 def main():

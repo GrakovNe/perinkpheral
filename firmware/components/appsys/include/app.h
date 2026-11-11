@@ -33,6 +33,11 @@ typedef struct {
     int32_t (*kv_get)(const char *app_name, const char *key, void *value, int32_t capacity);
     int32_t (*kv_set)(const char *app_name, const char *key, const void *value,
                       int32_t value_length);
+    /* The application's own files, as file_size and file_read of
+     * host_api.h answer; the name is checked and terminated. */
+    int32_t (*file_size)(const char *app_name, const char *file);
+    int32_t (*file_read)(const char *app_name, const char *file, int32_t offset, void *bytes,
+                         int32_t capacity);
 } app_services_t;
 
 typedef struct app app_t;

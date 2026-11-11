@@ -356,6 +356,16 @@ void app_on_draw(void)
     if (calls_through_pointers()) {
         mark(8, ROW_VALUES);
     }
+    char piece[4] = { 0 };
+    if (file_size("data.bin", 8) == 10 && file_read("data.bin", 8, 4, piece, 3) == 3 &&
+        piece[0] == '4' && piece[2] == '6' && file_read("data.bin", 8, 8, piece, 4) == 2 &&
+        file_read("data.bin", 8, 10, piece, 4) == 0 &&
+        file_size("none.bin", 8) == HOST_ERR_NOT_FOUND &&
+        file_size("../x", 4) == HOST_ERR_ARGUMENT && file_size(".hidden", 7) == HOST_ERR_ARGUMENT &&
+        file_size("", 0) == HOST_ERR_ARGUMENT && file_read("data.bin", 8, -1, piece, 4) == HOST_ERR_ARGUMENT &&
+        file_read("data.bin", 8, 0, (void *)0xFFFFFF00u, 4) == HOST_ERR_ARGUMENT) {
+        mark(10, ROW_VALUES);
+    }
 
     host_local_time_t now;
     int32_t local_time_result = time_local(&now);

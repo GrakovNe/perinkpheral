@@ -24,16 +24,18 @@ extern "C" {
  *                                           while a newer frame waits for the panel
  *   POST /api/dev/button?button=1..4&press=short|long|down|up
  *   POST /api/dev/open?app=<name>           put an installed application on the screen
- *   POST /api/dev/app?name=<name>&file=manifest.json|app.wasm
+ *   POST /api/dev/app?name=<name>&file=manifest.json|app.wasm|<data file>
  *                                           the file as the request body
  *   POST /api/dev/run?app=<name>            restart into that application: how a
  *                                           freshly uploaded one is started
+ *
+ *   POST /api/dev/restart                   restart, to read the list of applications anew
  *
  * Like the rest of the device's API these ask for nothing. */
 void devtools_register(httpd_handle_t server);
 
 /* How many routes devtools_register() adds. */
-#define DEVTOOLS_ROUTES 5
+#define DEVTOOLS_ROUTES 6
 
 /* The host loop's side: it took EVENT_DEV_REQUEST off the queue. Whatever
  * touches the frame or the scenes is done here, on the host's own task.

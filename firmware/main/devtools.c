@@ -283,15 +283,11 @@ static esp_err_t handle_app_file(httpd_req_t *http)
     char name[QUERY_VALUE_MAX], file_name[QUERY_VALUE_MAX];
     if (!query_value(http, "name", name, sizeof name) ||
         !query_value(http, "file", file_name, sizeof file_name)) {
-        return refuse(http, "name=<application>&file=manifest.json|app.wasm");
+        return refuse(http, "name=<application>&file=<its file>");
     }
-    app_file_t file;
-    if (strcmp(file_name, "manifest.json") == 0) {
-        file = APP_FILE_MANIFEST;
-    } else if (strcmp(file_name, "app.wasm") == 0) {
-        file = APP_FILE_MODULE;
-    } else {
-        return refuse(http, "file is manifest.json or app.wasm");
+    const char *file = file_name;
+    if (!app_store_is_file_name(file)) {
+        return refuse(http, "not a file's name");
     }
     if (http->content_len == 0 || http->content_len > app_store_file_max_bytes(file)) {
         return refuse(http, "the file is empty or too large for an application");
@@ -330,6 +326,17 @@ static esp_err_t handle_run(httpd_req_t *http)
     return err;
 }
 
+static esp_err_t handle_restart(httpd_req_t *http)
+{
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
+    ESP_LOGW(TAG, "restart asked for");
+    esp_err_t err = send_text(http, "200 OK", "restarting");
+    web_server_restart_soon();
+    return err;
+}
+
 void devtools_register(httpd_handle_t server)
 {
     static const httpd_uri_t ROUTES[DEVTOOLS_ROUTES] = {
@@ -338,6 +345,7 @@ void devtools_register(httpd_handle_t server)
         { .uri = "/api/dev/open", .method = HTTP_POST, .handler = handle_open },
         { .uri = "/api/dev/app", .method = HTTP_POST, .handler = handle_app_file },
         { .uri = "/api/dev/run", .method = HTTP_POST, .handler = handle_run },
+        { .uri = "/api/dev/restart", .method = HTTP_POST, .handler = handle_restart },
     };
     for (int i = 0; i < DEVTOOLS_ROUTES; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));

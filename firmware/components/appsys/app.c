@@ -433,6 +433,62 @@ HOST_FUNCTION(host_kv_set)
     m3ApiReturn(app->services->kv_set(app->name, key, value, length));
 }
 
+/* A file's name from the application, terminated; false when it is not
+ * the application's memory or not a name a file can have. */
+static bool copy_file_name(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                           char name[HOST_FILE_NAME_MAX + 1])
+{
+    const uint8_t *text = length >= 1 && length <= HOST_FILE_NAME_MAX
+                              ? in_app_memory(runtime, memory, offset, length)
+                              : NULL;
+    if (text == NULL) {
+        return false;
+    }
+    for (int32_t i = 0; i < length; i++) {
+        char character = (char)text[i];
+        bool allowed = (character >= 'a' && character <= 'z') ||
+                       (character >= '0' && character <= '9') || character == '-' ||
+                       character == '_' || (character == '.' && i > 0);
+        if (!allowed) {
+            return false;
+        }
+        name[i] = character;
+    }
+    name[length] = '\0';
+    return true;
+}
+
+HOST_FUNCTION(host_file_size)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    app_t *app = APP_OF(runtime);
+    char name[HOST_FILE_NAME_MAX + 1];
+    if (!copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->file_size(app->name, name));
+}
+
+HOST_FUNCTION(host_file_read)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    m3ApiGetArg(int32_t, offset);
+    m3ApiGetArg(uint32_t, bytes_offset);
+    m3ApiGetArg(int32_t, capacity);
+    app_t *app = APP_OF(runtime);
+    char name[HOST_FILE_NAME_MAX + 1];
+    uint8_t *bytes = in_app_memory_to_fill(runtime, _mem, bytes_offset, capacity);
+    if (bytes == NULL || offset < 0 ||
+        !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
+}
+
 HOST_FUNCTION(host_time_now)
 {
     m3ApiReturnType(int64_t);
@@ -520,6 +576,8 @@ static const struct {
     { "timer_set", "i(ii)", host_timer_set },
     { "kv_get", "i(*i*i)", host_kv_get },
     { "kv_set", "i(*i*i)", host_kv_set },
+    { "file_size", "i(ii)", host_file_size },
+    { "file_read", "i(iiiii)", host_file_read },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
     { "time_local", "i(i)", host_time_local },

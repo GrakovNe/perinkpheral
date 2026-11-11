@@ -115,7 +115,7 @@ static void test_read_module(void)
     free(module);
 }
 
-static bool put_file(const char *name, app_file_t file, const char *content)
+static bool put_file(const char *name, const char *file, const char *content)
 {
     char path[APP_STORE_PATH_MAX];
     if (!app_store_begin_file(root, name, file, path)) {
@@ -166,6 +166,26 @@ static void test_install_files(void)
     CHECK(!app_store_commit_file(root, "a/b", APP_FILE_MODULE));
     /* nothing was begun */
     CHECK(!app_store_commit_file(root, "absent", APP_FILE_MODULE));
+
+    /* a data file beside them, read back in pieces */
+    CHECK(put_file("fresh", "frames.bin", "0123456789"));
+    char piece[8] = { 0 };
+    CHECK(app_store_file_size(root, "fresh", "frames.bin") == 10);
+    CHECK(app_store_read_file(root, "fresh", "frames.bin", 4, piece, 3) == 3 && piece[0] == '4');
+    CHECK(app_store_read_file(root, "fresh", "frames.bin", 8, piece, 8) == 2);
+    CHECK(app_store_read_file(root, "fresh", "frames.bin", 10, piece, 8) == 0);
+    CHECK(app_store_file_size(root, "fresh", "absent.bin") < 0);
+    CHECK(app_store_read_file(root, "fresh", "absent.bin", 0, piece, 8) < 0);
+    CHECK(app_store_read_file(root, "fresh", "frames.bin", -1, piece, 8) < 0);
+    /* a file's name is not a path either, and not an upload in progress */
+    CHECK(!app_store_is_file_name("../frames.bin") && !app_store_is_file_name("a/b"));
+    CHECK(!app_store_is_file_name(".hidden") && !app_store_is_file_name(""));
+    CHECK(!app_store_is_file_name("Frames.bin") && !app_store_is_file_name("app.wasm.new"));
+    CHECK(!app_store_is_file_name("012345678901234567890123"));
+    CHECK(app_store_is_file_name("01234567890123456789012") && app_store_is_file_name("a"));
+    CHECK(!app_store_begin_file(root, "fresh", "../x", path));
+    CHECK(app_store_file_size(root, "fresh", "../fresh/frames.bin") < 0);
+    CHECK(app_store_file_max_bytes("frames.bin") == APP_FILES_MAX_BYTES);
 
     CHECK(app_store_file_max_bytes(APP_FILE_MODULE) == APP_MODULE_MAX_BYTES);
     CHECK(app_store_file_max_bytes(APP_FILE_MANIFEST) < APP_MODULE_MAX_BYTES);

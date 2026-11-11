@@ -108,42 +108,85 @@ char *app_store_read_manifest(const char *root, const char *name)
     return (char *)read_file(path, MANIFEST_MAX_BYTES, &size);
 }
 
-size_t app_store_file_max_bytes(app_file_t file)
+bool app_store_is_file_name(const char *file)
 {
-    return file == APP_FILE_MANIFEST ? MANIFEST_MAX_BYTES : APP_MODULE_MAX_BYTES;
+    size_t length = strlen(file);
+    if (length == 0 || length > APP_FILE_NAME_MAX || file[0] == '.') {
+        return false;
+    }
+    for (const char *character = file; *character != '\0'; character++) {
+        bool allowed = (*character >= 'a' && *character <= 'z') ||
+                       (*character >= '0' && *character <= '9') || *character == '.' ||
+                       *character == '-' || *character == '_';
+        if (!allowed) {
+            return false;
+        }
+    }
+    /* A name of an upload in progress is not a file's. */
+    return length < sizeof INCOMING_SUFFIX ||
+           strcmp(file + length - (sizeof INCOMING_SUFFIX - 1), INCOMING_SUFFIX) != 0;
 }
 
-static const char *file_name(app_file_t file)
+size_t app_store_file_max_bytes(const char *file)
 {
-    return file == APP_FILE_MANIFEST ? MANIFEST_FILE : MODULE_FILE;
+    if (strcmp(file, APP_FILE_MANIFEST) == 0) {
+        return MANIFEST_MAX_BYTES;
+    }
+    return strcmp(file, APP_FILE_MODULE) == 0 ? APP_MODULE_MAX_BYTES : APP_FILES_MAX_BYTES;
 }
 
-static bool incoming_path_of(char *path, const char *root, const char *name, app_file_t file)
+static bool file_path_of(char *path, const char *root, const char *name, const char *file,
+                         const char *suffix)
 {
-    int written = snprintf(path, PATH_MAX_BYTES, "%s/%s/%s" INCOMING_SUFFIX, root, name,
-                           file_name(file));
+    if (!app_manifest_is_valid_name(name) || !app_store_is_file_name(file)) {
+        return false;
+    }
+    int written = snprintf(path, PATH_MAX_BYTES, "%s/%s/%s%s", root, name, file, suffix);
     return written > 0 && written < PATH_MAX_BYTES;
 }
 
-bool app_store_begin_file(const char *root, const char *name, app_file_t file,
+bool app_store_begin_file(const char *root, const char *name, const char *file,
                           char path[APP_STORE_PATH_MAX])
 {
     char folder[PATH_MAX_BYTES];
-    if (!app_manifest_is_valid_name(name) ||
+    if (!file_path_of(path, root, name, file, INCOMING_SUFFIX) ||
         snprintf(folder, sizeof folder, "%s/%s", root, name) >= (int)sizeof folder) {
         return false;
     }
     struct stat found;
-    bool folder_is_there = stat(folder, &found) == 0 || mkdir(folder, FOLDER_MODE) == 0;
-    return folder_is_there && incoming_path_of(path, root, name, file);
+    return stat(folder, &found) == 0 || mkdir(folder, FOLDER_MODE) == 0;
 }
 
-bool app_store_commit_file(const char *root, const char *name, app_file_t file)
+bool app_store_commit_file(const char *root, const char *name, const char *file)
 {
     char incoming[PATH_MAX_BYTES], installed[PATH_MAX_BYTES];
-    if (!app_manifest_is_valid_name(name) || !incoming_path_of(incoming, root, name, file) ||
-        !path_of(installed, root, name, file_name(file))) {
-        return false;
+    return file_path_of(incoming, root, name, file, INCOMING_SUFFIX) &&
+           file_path_of(installed, root, name, file, "") && rename(incoming, installed) == 0;
+}
+
+long app_store_file_size(const char *root, const char *name, const char *file)
+{
+    char        path[PATH_MAX_BYTES];
+    struct stat found;
+    if (!file_path_of(path, root, name, file, "") || stat(path, &found) != 0) {
+        return -1;
     }
-    return rename(incoming, installed) == 0;
+    return (long)found.st_size;
+}
+
+long app_store_read_file(const char *root, const char *name, const char *file, long offset,
+                         void *bytes, size_t capacity)
+{
+    char path[PATH_MAX_BYTES];
+    if (offset < 0 || !file_path_of(path, root, name, file, "")) {
+        return -1;
+    }
+    FILE *opened = fopen(path, "rb");
+    if (opened == NULL) {
+        return -1;
+    }
+    long count = fseek(opened, offset, SEEK_SET) == 0 ? (long)fread(bytes, 1, capacity, opened)
+                                                      : -1;
+    fclose(opened);
+    return count;
 }

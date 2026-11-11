@@ -38,6 +38,8 @@ URL_MAX = 255
 HEADERS_MAX = 4
 PICK_PATHS_MAX = 16
 PICK_PATH_MAX = 63
+FILE_NAME_MAX = 23
+FILES_MAX_BYTES = 100 * 1024
 HEADER_NAME_MAX = 31
 HEADER_VALUE_MAX = 127
 
@@ -260,6 +262,26 @@ def check_manifest(app_dir):
     return path
 
 
+def copy_data_files(app_dir, out_dir):
+    """What is in the application's `files` folder goes onto the device beside the module."""
+    files_dir = os.path.join(app_dir, "files")
+    if not os.path.isdir(files_dir):
+        return
+    total = 0
+    for name in sorted(os.listdir(files_dir)):
+        path = os.path.join(files_dir, name)
+        if name.startswith(".") and not os.path.isfile(path):
+            continue
+        if not re.fullmatch(r"[a-z0-9_-][a-z0-9._-]{0,%d}" % (FILE_NAME_MAX - 1), name):
+            sys.exit("%s: a file's name is 1-%d of a-z, 0-9, '.', '-' and '_', not starting "
+                     "with a dot" % (path, FILE_NAME_MAX))
+        total += os.path.getsize(path)
+        shutil.copy(path, os.path.join(out_dir, name))
+    if total > FILES_MAX_BYTES:
+        sys.exit("%s: %d bytes of files, and an application may have %d"
+                 % (files_dir, total, FILES_MAX_BYTES))
+
+
 def main():
     args = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -273,6 +295,7 @@ def main():
     build(options.app_dir, wasm_path)
     imports = check(wasm_path)
     shutil.copy(manifest_path, os.path.join(options.out, "manifest.json"))
+    copy_data_files(options.app_dir, options.out)
     print("%s: %d bytes, %d host calls" % (wasm_path, os.path.getsize(wasm_path), len(imports)))
 
 

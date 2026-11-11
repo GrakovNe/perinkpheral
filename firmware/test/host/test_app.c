@@ -138,6 +138,30 @@ static int32_t fake_kv_set(const char *app_name, const char *key, const void *va
     return HOST_OK;
 }
 
+/* The application has one file, ten bytes long. */
+#define FAKE_FILE_NAME    "data.bin"
+#define FAKE_FILE_CONTENT "0123456789"
+
+static int32_t fake_file_size(const char *app_name, const char *file)
+{
+    (void)app_name;
+    return strcmp(file, FAKE_FILE_NAME) == 0 ? (int32_t)strlen(FAKE_FILE_CONTENT)
+                                             : HOST_ERR_NOT_FOUND;
+}
+
+static int32_t fake_file_read(const char *app_name, const char *file, int32_t offset,
+                              void *bytes, int32_t capacity)
+{
+    int32_t size = fake_file_size(app_name, file);
+    if (size < 0) {
+        return size;
+    }
+    int32_t left = offset < size ? size - offset : 0;
+    int32_t count = left < capacity ? left : capacity;
+    memcpy(bytes, &FAKE_FILE_CONTENT[offset], (size_t)count);
+    return count;
+}
+
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
@@ -146,6 +170,8 @@ static const app_services_t SERVICES = {
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
     .kv_set = fake_kv_set,
+    .file_size = fake_file_size,
+    .file_read = fake_file_read,
 };
 
 static app_t *load_probe_as(const char *name)
@@ -440,6 +466,8 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 4, ROW_VALUES) && gfx_get(&surface, 6, ROW_VALUES));
     /* and a call through a function pointer, which the trimmed interpreter still has */
     CHECK(gfx_get(&surface, 8, ROW_VALUES));
+    /* its file: the length, a piece from the middle, the end, the names it may not use */
+    CHECK(gfx_get(&surface, 10, ROW_VALUES));
     CHECK(!app_has_stopped(app));
     app_unload(app);
 }
