@@ -14,10 +14,11 @@ interrupted, and one such loop in an application would hang the host.
 The lines are marked `perinkpheral`. When updating Wasm3, carry them
 over or check whether upstream has closed its own TODO at that spot.
 
-`wasm3/m3_core.c`, the allocator: with `d_m3ReservedBlockBytes` defined, a
-block of at least that size - a module's linear memory - is taken from
-`m3_reserve.c` instead of the heap, and given back there. That file is
-ours: it keeps one block of 64 KB for as long as the device runs, because
-a heap that has the bytes may not have them in one piece after a TLS
-session, and the application on the screen then could not be loaded
-again. The lines are marked `perinkpheral`.
+`wasm3/m3_env.c`, where a module's linear memory is allocated
+(`ResizeMemory`) and released: with `d_m3ReservedBlockBytes` defined it is
+taken from `m3_reserve.c` instead of the heap, and given back there. That
+file is ours: it keeps one block of 64 KB for as long as the device runs,
+because a heap that has the bytes may not have them in one piece after a
+TLS session, and the application on the screen then could not be loaded
+again. Only linear memory goes there, and the block is never resized. The
+lines are marked `perinkpheral`.

@@ -15,7 +15,7 @@
 
 static const char *TAG = "launcher";
 
-#define BUILT_IN_PAGES     2 /* the system applications: Device and About */
+#define BUILT_IN_PAGES     3 /* the system applications: Settings, Device and About */
 #define INSTALLED_APPS_MAX (LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES)
 
 /* The titles in here are what the menu points at. */
@@ -37,11 +37,12 @@ static int          s_entry_count;
     extern const uint8_t system_##name##_wasm_end[] asm("_binary_system_" #name "_wasm_end"); \
     extern const char system_##name##_manifest_start[] asm("_binary_system_" #name          \
                                                              "_manifest_start")
+SYSTEM_APP(settings);
 SYSTEM_APP(device);
 SYSTEM_APP(about);
 
 /* In the order the menu lists them, after the installed ones. */
-enum { SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_APP_COUNT };
+enum { SYSTEM_SETTINGS, SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_APP_COUNT };
 
 static app_manifest_t s_system[SYSTEM_APP_COUNT];
 static scene_t       *s_system_scenes[SYSTEM_APP_COUNT];
@@ -78,6 +79,10 @@ void launcher_start(void)
                                 s_app_scenes[i] };
         }
     }
+    s_system_scenes[SYSTEM_SETTINGS] =
+        system_app_scene(&s_system[SYSTEM_SETTINGS], system_settings_manifest_start,
+                         system_settings_wasm_start,
+                         (size_t)(system_settings_wasm_end - system_settings_wasm_start));
     s_system_scenes[SYSTEM_DEVICE] =
         system_app_scene(&s_system[SYSTEM_DEVICE], system_device_manifest_start,
                          system_device_wasm_start,

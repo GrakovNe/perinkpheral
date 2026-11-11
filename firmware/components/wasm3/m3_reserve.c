@@ -28,7 +28,7 @@ void m3_reserve(void)
     }
 }
 
-/* For m3_core.c. NULL when the block is in use, was never there or is too
+/* For m3_env.c, where linear memory is taken and let go. NULL when the block is in use, was never there or is too
  * small: the interpreter then asks the heap, as it would have. */
 void *m3_Reserved_Take(size_t size)
 {
@@ -39,6 +39,11 @@ void *m3_Reserved_Take(size_t size)
     s_is_taken = true;
     memset(s_block, 0, size);
     return s_block;
+}
+
+bool m3_Reserved_Is(void *pointer)
+{
+    return pointer != NULL && pointer == s_block;
 }
 
 /* True when the pointer was the block, which is free again. */

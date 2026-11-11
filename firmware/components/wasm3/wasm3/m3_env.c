@@ -13,6 +13,13 @@
 #include "m3_exception.h"
 #include "m3_info.h"
 
+#ifdef d_m3ReservedBlockBytes
+// perinkpheral: m3_reserve.c
+void *  m3_Reserved_Take  (size_t i_size);
+bool    m3_Reserved_Give  (void * i_ptr);
+bool    m3_Reserved_Is    (void * i_ptr);
+#endif
+
 
 IM3Environment  m3_NewEnvironment  ()
 {
@@ -249,6 +256,12 @@ void  Runtime_Release  (IM3Runtime i_runtime)
     Environment_ReleaseCodePages (i_runtime->environment, i_runtime->pagesFull);
 
     m3_Free (i_runtime->originStack);
+#ifdef d_m3ReservedBlockBytes
+    // perinkpheral: the linear memory may be the reserved block, which is
+    // not the heap's to free
+    if (m3_Reserved_Give (i_runtime->memory.mallocated))
+        i_runtime->memory.mallocated = NULL;
+#endif
     m3_Free (i_runtime->memory.mallocated);
 }
 
@@ -413,7 +426,20 @@ M3Result  ResizeMemory  (IM3Runtime io_runtime, u32 i_numPages)
         if (numPreviousBytes)
             numPreviousBytes += sizeof (M3MemoryHeader);
 
+#ifdef d_m3ReservedBlockBytes
+        // perinkpheral: linear memory, and nothing else, comes from the block
+        // m3_reserve.c keeps between modules; a heap that has the bytes may
+        // not have them in one piece. It is taken once and never resized.
+        void* newMem = NULL;
+        if (memory->mallocated == NULL)
+            newMem = m3_Reserved_Take (numBytes);
+        else if (m3_Reserved_Is (memory->mallocated))
+            _throw ("linear memory limitation exceeded");
+        if (newMem == NULL)
+            newMem = m3_Realloc ("Wasm Linear Memory", memory->mallocated, numBytes, numPreviousBytes);
+#else
         void* newMem = m3_Realloc ("Wasm Linear Memory", memory->mallocated, numBytes, numPreviousBytes);
+#endif
         _throwifnull(newMem);
 
         memory->mallocated = (M3MemoryHeader*)newMem;

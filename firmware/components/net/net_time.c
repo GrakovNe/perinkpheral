@@ -14,6 +14,7 @@
 /* A clock that was never set counts from 1970; anything before this is
  * that, not the time. */
 #define EARLIEST_REAL_TIME 1767225600 /* 2026-01-01 00:00:00 UTC */
+#define LATEST_TIME        4102444800LL /* 2100-01-01 00:00:00 UTC: by hand, no later */
 
 #define SERVER_NAME_MAX 64
 
@@ -40,7 +41,7 @@ void net_time_set_automatic(bool automatic)
 
 bool net_time_set(int64_t unix_seconds)
 {
-    if (s_automatic) {
+    if (s_automatic || unix_seconds < EARLIEST_REAL_TIME || unix_seconds > LATEST_TIME) {
         return false;
     }
     struct timeval now = { .tv_sec = (time_t)unix_seconds };
