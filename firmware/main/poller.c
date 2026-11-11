@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_heap_caps.h"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -40,7 +41,9 @@ static const char *TAG = "poller";
 #define ANSWER_MAX_BYTES    (256 * 1024)
 /* A TLS session takes about 45 KB while it is open; below this the
  * request waits for a better moment instead of taking the device down. */
-#define FREE_HEAP_NEEDED    (70 * 1024)
+#define FREE_HEAP_NEEDED    (60 * 1024)
+/* And its largest buffer is one piece of 16 KB: the sum is not enough. */
+#define FREE_BLOCK_NEEDED   (17 * 1024)
 #define USER_AGENT          "perinkpheral"
 #define HTTP_OK_FIRST       200
 #define HTTP_OK_LAST        299
@@ -617,6 +620,12 @@ static bool fail_request_without_network(void)
     return found;
 }
 
+static bool has_memory_for_a_session(void)
+{
+    return esp_get_free_heap_size() >= FREE_HEAP_NEEDED &&
+           heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) >= FREE_BLOCK_NEEDED;
+}
+
 /* Whether anything is waiting for the network now. */
 static bool wants_network(void)
 {
@@ -666,7 +675,7 @@ static void poller_task(void *arg)
         if (run_fetch_job()) {
             continue;
         }
-        bool can_ask = wifi_is_online() && esp_get_free_heap_size() >= FREE_HEAP_NEEDED;
+        bool can_ask = wifi_is_online() && has_memory_for_a_session();
         if (can_ask && run_pending_request()) {
             continue;
         }
@@ -695,7 +704,7 @@ static void poller_task(void *arg)
         }
         /* Without a network, or without the memory for a session, the
          * poll stays due and is looked at again in a moment. */
-        if (!wifi_is_online() || esp_get_free_heap_size() < FREE_HEAP_NEEDED) {
+        if (!wifi_is_online() || !has_memory_for_a_session()) {
             vTaskDelay(pdMS_TO_TICKS(IDLE_CHECK_MS));
             continue;
         }

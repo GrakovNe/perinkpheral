@@ -14,7 +14,9 @@ extern "C" {
 /* What the device can show: the installed applications, each as a scene,
  * and the host's own pages. */
 
-#define LAUNCHER_ENTRIES_MAX 26
+/* Five applications from the catalog, a few more a developer uploaded, and
+ * the system ones. */
+#define LAUNCHER_ENTRIES_MAX 11
 
 /* Reads the store and builds the scenes; once, at start. */
 void launcher_start(void);

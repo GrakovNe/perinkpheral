@@ -36,3 +36,24 @@ CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
 # With a computer on the other end of the cable it does not: the console
 # and flashing over USB go on working on the bench.
 CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y
+
+# Memory. The radio's buffers at their defaults are sized for a device that
+# moves megabytes; this one asks for a kilobyte a few times an hour and
+# serves one page. Every static buffer here is 1.6 KB that an application
+# or a TLS session does not have.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_RX_BA_WIN=4
+CONFIG_ESP_WIFI_MGMT_SBUF_NUM=8
+# No enterprise networks, and the other radio of the chip (Thread, Zigbee)
+# is not used at all.
+CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n
+CONFIG_IEEE802154_ENABLED=n
+# TLS takes its buffers when it needs them and gives them back, instead of
+# holding 20 KB for as long as a session is open; and it does not keep the
+# server's certificate once it has checked it.
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CA_CERT=y
+CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE=n
