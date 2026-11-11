@@ -16,7 +16,7 @@ MAIN    := ../../main
 # Whatever draws is rebuilt when the drawing code changes.
 GFX_SRCS := $(GFX)/gfx.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota
+TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -84,6 +84,9 @@ test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wi
 
 test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildcard $(NET)/include/ota_*.h)
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_ota.c $(NET)/ota_stream.c $(NET)/ota_health.c
+
+test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
+	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
 
 CJSON := $(IDF_PATH)/components/json/cJSON
 MANIFEST_SRCS := $(APPSYS)/app_manifest.c build/cJSON.o

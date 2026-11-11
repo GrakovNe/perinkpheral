@@ -16,6 +16,7 @@ extern "C" {
  *
  *   GET  /            the page
  *   GET  /api/status  what the device is and how it is doing, as JSON
+ *   GET  /api/log     the end of the device's log, as text
  *   POST /api/wifi    {"ssid": "...", "password": "..."}: store and restart
  *   POST /api/ota     a firmware image as the request body: install and restart
  *

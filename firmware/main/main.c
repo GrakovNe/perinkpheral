@@ -16,6 +16,7 @@
 #include "display.h"
 #include "events.h"
 #include "host.h"
+#include "log_capture.h"
 #include "reset.h"
 #include "net_time.h"
 #include "ota.h"
@@ -55,6 +56,7 @@ static void on_button_event(uint8_t index, btn_event_t event)
 
 void app_main(void)
 {
+    log_capture_start();
     ESP_LOGI(TAG, "perINKpheral firmware %s (idf %s, built %s %s)",
              esp_app_get_description()->version, esp_get_idf_version(),
              __DATE__, __TIME__);

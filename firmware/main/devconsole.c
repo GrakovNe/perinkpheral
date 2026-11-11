@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 
 #include "events.h"
+#include "log_capture.h"
 
 static const char *TAG = "devconsole";
 
@@ -22,6 +23,7 @@ static const char *TAG = "devconsole";
 #define LONG_PRESS_KEYS  "qwer"
 #define DUMP_FRAME_KEY   'p'
 #define MEMORY_KEY       'm'
+#define LOG_KEY          'l'
 #define READ_RETRY_MS    100
 
 /* The position of key in keys, or -1. */
@@ -29,6 +31,14 @@ static int key_index(const char *keys, char key)
 {
     const char *found = key != '\0' ? strchr(keys, key) : NULL;
     return found != NULL ? (int)(found - keys) : -1;
+}
+
+/* What GET /api/log would send, between two marker lines. */
+static void print_kept_log(void)
+{
+    static char log[LOG_CAPTURE_BYTES + 1];
+    log_capture_read(log, sizeof log);
+    printf("LOG BEGIN\n%sLOG END\n", log);
 }
 
 static void handle_key(char key)
@@ -46,6 +56,8 @@ static void handle_key(char key)
     if (key == DUMP_FRAME_KEY) {
         event_t event = { .kind = EVENT_DUMP_FRAME };
         events_post(&event);
+    } else if (key == LOG_KEY) {
+        print_kept_log();
     } else if (key == MEMORY_KEY) {
         /* The host loop is the main task: applications run on its stack. */
         printf("MEMORY free %u least %u host-stack-least %u\n",
@@ -92,5 +104,5 @@ void devconsole_start(void)
 
     BaseType_t ok = xTaskCreate(devconsole_task, "devconsole", 3072, NULL, 2, NULL);
     configASSERT(ok == pdPASS);
-    ESP_LOGW(TAG, "development console is on: 1-4 short, q/w/e/r long, p frame, m memory");
+    ESP_LOGW(TAG, "development console is on: 1-4 short, q/w/e/r long, p frame, m memory, l log");
 }

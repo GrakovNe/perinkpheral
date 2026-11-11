@@ -146,7 +146,7 @@ The host is layers, and each knows only the ones under it:
 - **A scene never refreshes anything.** It reports that its picture changed and draws when asked; the window manager passes on why the frame changed (a switch, a press, data), and the display service decides what the panel does.
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
-- **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons and print the frame the panel shows; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
+- **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons, print the frame the panel shows, the kept log and the free memory; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
 
 ### Power-up
 The splash is drawn once and the device moves on by itself after a few seconds (a press does it at once):
@@ -228,6 +228,7 @@ Not configurable:
 What exists:
 - `GET /` - the page: what the device is, a form for the Wi-Fi network, a form for a firmware image. One HTML file, no frameworks, in the device's own black and paper.
 - `GET /api/status` - name, firmware, slot, whether the image is on probation, Wi-Fi phase, network, address, free memory.
+- `GET /api/log` - the last 4 KB of the device's log, as text: what the console would have shown, kept in memory for when there is no cable.
 - `POST /api/wifi` `{"ssid", "password"}` - validated like every setting, stored, and the device restarts to join.
 - `POST /api/ota` - a firmware image as the request body (`curl --data-binary @build/perinkpheral.bin http://<address>/api/ota`): written into the spare slot, and the device restarts into it.
 
@@ -237,7 +238,6 @@ Still to come:
 - `GET /api/apps` - installed ones; `POST /api/apps/install {url}` - download `.wasm` + `manifest.json` from the catalog; `DELETE /api/apps/<name>`.
 - `GET/PUT /api/apps/<name>/settings` - by the `settings` schema from the manifest.
 - `GET /api/catalog` - proxies the catalog's static JSON (the catalog URL is a host setting).
-- `GET /api/log` - the log ring buffer.
 - `POST /api/focus/<name>` - bring onto the scene.
 - Host settings (power profile, e-paper policy, time zone, catalog URL).
 

@@ -15,6 +15,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 
+#include "log_capture.h"
 #include "ota.h"
 #include "settings.h"
 #include "wifi.h"
@@ -134,6 +135,19 @@ static int receive(httpd_req_t *request, char *buffer, size_t length)
         }
     }
     return 0;
+}
+
+static esp_err_t handle_log(httpd_req_t *request)
+{
+    char *log = malloc(LOG_CAPTURE_BYTES + 1);
+    if (log == NULL) {
+        return httpd_resp_send_500(request);
+    }
+    size_t length = log_capture_read(log, LOG_CAPTURE_BYTES + 1);
+    httpd_resp_set_type(request, "text/plain; charset=utf-8");
+    esp_err_t err = httpd_resp_send(request, log, (ssize_t)length);
+    free(log);
+    return err;
 }
 
 /* The whole body as a terminated string; false when it is missing, too
@@ -263,6 +277,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
     static const httpd_uri_t ROUTES[] = {
         { .uri = "/", .method = HTTP_GET, .handler = handle_page },
         { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },
+        { .uri = "/api/log", .method = HTTP_GET, .handler = handle_log },
         { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
         { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
     };

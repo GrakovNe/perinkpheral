@@ -94,6 +94,9 @@ keeps it only if it comes back reachable; `GET /api/status` says
 whether it is still on probation. The address is on the device page of
 the menu.
 
+The log without the cable: `curl http://<address>/api/log` gives the
+last 4 KB of it; `l` in the development console prints the same.
+
 `firmware/CMakeLists.txt` takes the version from `APP_VERSION` when it
 is set.
 

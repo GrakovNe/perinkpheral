@@ -16,6 +16,7 @@ extern "C" {
  *   1 2 3 4   a short press of that button
  *   q w e r   a long press of button 1 2 3 4
  *   p         print the frame the panel shows (see tools/devshot)
+ *   l         print the end of the log the device keeps in memory
  *   m         print the free heap, now and at its lowest since boot, and the
  *             least stack the host task ever had left */
 void devconsole_start(void);
