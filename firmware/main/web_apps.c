@@ -10,14 +10,17 @@
 
 #include "cJSON.h"
 #include "esp_log.h"
+#include "mbedtls/sha256.h"
 
 #include "app_delivery.h"
 #include "app_kv.h"
 #include "app_manifest.h"
 #include "app_store.h"
+#include "catalog.h"
 #include "host_api.h"
 #include "launcher.h"
 #include "poller.h"
+#include "settings.h"
 #include "storage.h"
 #include "web_server.h"
 
@@ -26,6 +29,9 @@ static const char *TAG = "web_apps";
 #define QUERY_MAX       64
 #define APP_NAME_BUFFER (APP_NAME_MAX + 1)
 #define BODY_MAX        2048
+#define SHA256_BYTES    32
+/* 500 applications of a few hundred bytes each. */
+#define CATALOG_INDEX_MAX_BYTES (512 * 1024)
 
 static esp_err_t send_json(httpd_req_t *request, const char *status, cJSON *json)
 {
@@ -200,22 +206,320 @@ static esp_err_t handle_settings(httpd_req_t *request)
     return result;
 }
 
+/* ---- where applications come from ---- */
+
+static esp_err_t handle_sources(httpd_req_t *request)
+{
+    char *sources = malloc(CATALOG_SOURCES_TEXT_MAX);
+    if (sources == NULL) {
+        return httpd_resp_send_500(request);
+    }
+    settings_load_sources(sources, CATALOG_SOURCES_TEXT_MAX);
+    cJSON *list = cJSON_CreateArray();
+    char   source[CATALOG_SOURCE_URL_MAX + 1];
+    for (int i = 0; catalog_source_at(sources, i, source, sizeof source); i++) {
+        cJSON_AddItemToArray(list, cJSON_CreateString(source));
+    }
+    free(sources);
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddItemToObject(json, "sources", list);
+    return send_json(request, "200 OK", json);
+}
+
+static esp_err_t handle_set_sources(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char  *body = read_body(request);
+    cJSON *json = body != NULL ? cJSON_Parse(body) : NULL;
+    free(body);
+    const cJSON *list = cJSON_GetObjectItemCaseSensitive(json, "sources");
+    char        *sources = calloc(1, CATALOG_SOURCES_TEXT_MAX + 1);
+    bool         fits = cJSON_IsArray(list) && sources != NULL;
+    size_t       used = 0;
+    const cJSON *source;
+    cJSON_ArrayForEach(source, list)
+    {
+        size_t length = cJSON_IsString(source) ? strlen(source->valuestring) : 0;
+        fits = fits && length > 0 && used + length + 1 <= CATALOG_SOURCES_TEXT_MAX;
+        if (fits) {
+            memcpy(sources + used, source->valuestring, length);
+            sources[used + length] = '\n';
+            used += length + 1;
+        }
+    }
+    esp_err_t result;
+    if (!fits || !catalog_sources_are_valid(sources)) {
+        result = send_message(request, "400 Bad Request", "error",
+                              "send {\"sources\": [...]}: up to 4 http(s) addresses");
+    } else if (settings_save_sources(sources) != ESP_OK) {
+        result = send_message(request, "500 Internal Server Error", "error",
+                              "the sources could not be stored");
+    } else {
+        result = send_message(request, "200 OK", "ok", "saved");
+    }
+    cJSON_Delete(json);
+    free(sources);
+    return result;
+}
+
+/* The source the request names by its number, as an address. */
+static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MAX + 1])
+{
+    char query[QUERY_MAX], number[4];
+    if (httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
+        httpd_query_key_value(query, "source", number, sizeof number) != ESP_OK) {
+        return false;
+    }
+    char *sources = malloc(CATALOG_SOURCES_TEXT_MAX);
+    if (sources == NULL) {
+        return false;
+    }
+    settings_load_sources(sources, CATALOG_SOURCES_TEXT_MAX);
+    bool found = catalog_source_at(sources, atoi(number), source, CATALOG_SOURCE_URL_MAX + 1);
+    free(sources);
+    return found;
+}
+
+/* The index of a source goes to the page as it comes: the device does
+ * not read it, and it may be longer than the device has memory for. */
+typedef struct {
+    httpd_req_t *request;
+    bool         has_started;
+} passing_t;
+
+static bool pass_on(void *context, const uint8_t *piece, size_t length)
+{
+    passing_t *passing = context;
+    if (!passing->has_started) {
+        httpd_resp_set_type(passing->request, "application/json");
+        passing->has_started = true;
+    }
+    return httpd_resp_send_chunk(passing->request, (const char *)piece, (ssize_t)length) == ESP_OK;
+}
+
+static esp_err_t handle_catalog(httpd_req_t *request)
+{
+    char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
+    if (!asked_source(request, source) ||
+        !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
+        return send_message(request, "404 Not Found", "error", "no such source");
+    }
+    passing_t passing = { request, false };
+    int       http_status;
+    bool      is_whole = poller_fetch(url, CATALOG_INDEX_MAX_BYTES, pass_on, &passing,
+                                      &http_status);
+    if (!passing.has_started) {
+        char message[64];
+        snprintf(message, sizeof message, "the source did not give its index (HTTP %d)",
+                 http_status);
+        return send_message(request, "502 Bad Gateway", "error", message);
+    }
+    /* Cut short after the beginning went out: closing the connection
+     * without the last chunk is how the page learns of it. */
+    return is_whole ? httpd_resp_send_chunk(request, NULL, 0) : ESP_FAIL;
+}
+
+/* ---- installing one ---- */
+
+typedef struct {
+    FILE                  *file;
+    mbedtls_sha256_context hash;
+    size_t                 received;
+} download_t;
+
+static bool store_piece(void *context, const uint8_t *piece, size_t length)
+{
+    download_t *download = context;
+    download->received += length;
+    return mbedtls_sha256_update(&download->hash, piece, length) == 0 &&
+           fwrite(piece, 1, length, download->file) == length;
+}
+
+/* "0af3…" as the bytes it stands for; false when it is not SHA-256 in hex. */
+static bool read_hash(const char *hex, uint8_t hash[SHA256_BYTES])
+{
+    if (strlen(hex) != 2 * SHA256_BYTES) {
+        return false;
+    }
+    for (int i = 0; i < SHA256_BYTES; i++) {
+        char byte[3] = { hex[2 * i], hex[2 * i + 1], '\0' }, *end;
+        hash[i] = (uint8_t)strtoul(byte, &end, 16);
+        if (*end != '\0') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* One file of the application from the source to its place on the
+ * device, taken only if it is what the index said it would be. The
+ * manifest is also read: the device installs nothing it would not list. */
+static const char *install_file(const char *source, const char *app_name, const cJSON *entry)
+{
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
+    const cJSON *size = cJSON_GetObjectItemCaseSensitive(entry, "size");
+    const cJSON *sha256 = cJSON_GetObjectItemCaseSensitive(entry, "sha256");
+    uint8_t      wanted_hash[SHA256_BYTES], hash[SHA256_BYTES];
+    char         url[CATALOG_URL_MAX + 1], path[APP_STORE_PATH_MAX];
+    if (!cJSON_IsString(name) || !cJSON_IsNumber(size) || !cJSON_IsString(sha256) ||
+        !app_store_is_file_name(name->valuestring) || !read_hash(sha256->valuestring, wanted_hash) ||
+        size->valuedouble < 1 || size->valuedouble > app_store_file_max_bytes(name->valuestring) ||
+        !catalog_url(source, app_name, name->valuestring, url, sizeof url)) {
+        return "the index describes a file the device cannot take";
+    }
+    if (!app_store_begin_file(STORAGE_APPS_ROOT, app_name, name->valuestring, path)) {
+        return "the storage refused";
+    }
+    download_t download = { .file = fopen(path, "wb") };
+    if (download.file == NULL) {
+        return "the storage refused";
+    }
+    mbedtls_sha256_init(&download.hash);
+    mbedtls_sha256_starts(&download.hash, 0);
+    int  http_status;
+    bool fetched = poller_fetch(url, (size_t)size->valuedouble, store_piece, &download,
+                                &http_status);
+    mbedtls_sha256_finish(&download.hash, hash);
+    mbedtls_sha256_free(&download.hash);
+    bool stored = fclose(download.file) == 0;
+    const char *problem = NULL;
+    if (!fetched || !stored) {
+        problem = "a file could not be downloaded";
+    } else if (download.received != (size_t)size->valuedouble ||
+               memcmp(hash, wanted_hash, SHA256_BYTES) != 0) {
+        problem = "a file is not what the index says: the catalog is out of step";
+    } else if (strcmp(name->valuestring, APP_FILE_MANIFEST) == 0) {
+        /* Still under its temporary name: read it there. */
+        char          *text = malloc(download.received + 1);
+        FILE          *incoming = text != NULL ? fopen(path, "rb") : NULL;
+        app_manifest_t manifest;
+        bool is_read = incoming != NULL &&
+                       fread(text, 1, download.received, incoming) == download.received;
+        if (incoming != NULL) {
+            fclose(incoming);
+        }
+        if (is_read) {
+            text[download.received] = '\0';
+        }
+        app_manifest_result_t result = is_read ? app_manifest_parse(text, &manifest)
+                                               : APP_MANIFEST_NOT_JSON;
+        if (result == APP_MANIFEST_OTHER_ABI) {
+            problem = "the application is made for another version of the firmware";
+        } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
+            problem = "its manifest is not one this device accepts";
+        }
+        free(text);
+    }
+    if (problem == NULL &&
+        !app_store_commit_file(STORAGE_APPS_ROOT, app_name, name->valuestring)) {
+        problem = "the storage refused";
+    }
+    if (problem != NULL) {
+        remove(path);
+    }
+    return problem;
+}
+
+static bool is_installed(const char *app_name)
+{
+    return launcher_app_scene(app_name) != NULL;
+}
+
+/* The files as the page read them from the index: the module first, the
+ * manifest last, and both there. */
+static bool is_sound_file_list(const cJSON *files)
+{
+    int count = cJSON_IsArray(files) ? cJSON_GetArraySize(files) : 0;
+    if (count < 2 || count > CATALOG_APP_FILES_MAX) {
+        return false;
+    }
+    const cJSON *first = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, 0), "name");
+    const cJSON *last =
+        cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, count - 1), "name");
+    return cJSON_IsString(first) && strcmp(first->valuestring, APP_FILE_MODULE) == 0 &&
+           cJSON_IsString(last) && strcmp(last->valuestring, APP_FILE_MANIFEST) == 0;
+}
+
+static esp_err_t handle_install(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char query[QUERY_MAX], app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];
+    if (!asked_source(request, source) ||
+        httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
+        httpd_query_key_value(query, "app", app_name, sizeof app_name) != ESP_OK ||
+        !app_manifest_is_valid_name(app_name)) {
+        return send_message(request, "400 Bad Request", "error", "source=<number>&app=<name>");
+    }
+    int count;
+    launcher_installed(&count);
+    bool was_installed = is_installed(app_name);
+    if (!was_installed && count >= CATALOG_INSTALLED_MAX) {
+        return send_message(request, "409 Conflict", "error",
+                            "the device holds 5 applications: remove one first");
+    }
+    char  *body = read_body(request);
+    cJSON *json = body != NULL ? cJSON_Parse(body) : NULL;
+    free(body);
+    const cJSON *files = cJSON_GetObjectItemCaseSensitive(json, "files");
+    if (!is_sound_file_list(files)) {
+        cJSON_Delete(json);
+        return send_message(request, "400 Bad Request", "error",
+                            "send the application's \"files\" as the index lists them");
+    }
+    const char  *problem = NULL;
+    const cJSON *entry;
+    cJSON_ArrayForEach(entry, files)
+    {
+        problem = install_file(source, app_name, entry);
+        if (problem != NULL) {
+            break;
+        }
+    }
+    cJSON_Delete(json);
+    if (problem != NULL) {
+        /* Half of a new application is nothing: take it away again. Half of
+         * an update leaves the old manifest with newer files, which the
+         * next try puts right. */
+        if (!was_installed) {
+            app_store_remove(STORAGE_APPS_ROOT, app_name);
+        }
+        ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
+        return send_message(request, "502 Bad Gateway", "error", problem);
+    }
+    ESP_LOGW(TAG, "\"%s\" installed, restarting", app_name);
+    esp_err_t result = send_message(request, "200 OK", "ok", "installed, restarting");
+    web_server_restart_soon();
+    return result;
+}
+
 /* The list of applications is read once, at start, and a scene of the
- * removed one may be on the screen: the device starts over without it. */
+ * removed one may be on the screen: the device starts over without it.
+ * What the application stored - its settings among it - stays unless the
+ * user asks otherwise: with five places for applications they come and
+ * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
     }
-    char app_name[APP_NAME_BUFFER];
+    char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[4] = "";
     if (!asked_app(request, app_name)) {
         return send_message(request, "404 Not Found", "error", "no such application");
+    }
+    if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
+        httpd_query_key_value(query, "forget", forget, sizeof forget);
     }
     if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
         return send_message(request, "500 Internal Server Error", "error",
                             "its files could not be removed");
     }
-    app_kv_erase(app_name);
+    if (strcmp(forget, "1") == 0) {
+        app_kv_erase(app_name);
+    }
     ESP_LOGW(TAG, "\"%s\" removed, restarting", app_name);
     esp_err_t result = send_message(request, "200 OK", "ok", "removed, restarting");
     web_server_restart_soon();
@@ -228,6 +532,10 @@ void web_apps_register(httpd_handle_t server)
         { .uri = "/api/apps", .method = HTTP_GET, .handler = handle_list },
         { .uri = "/api/apps/settings", .method = HTTP_POST, .handler = handle_settings },
         { .uri = "/api/apps/remove", .method = HTTP_POST, .handler = handle_remove },
+        { .uri = "/api/apps/install", .method = HTTP_POST, .handler = handle_install },
+        { .uri = "/api/catalog", .method = HTTP_GET, .handler = handle_catalog },
+        { .uri = "/api/sources", .method = HTTP_GET, .handler = handle_sources },
+        { .uri = "/api/sources", .method = HTTP_POST, .handler = handle_set_sources },
     };
     for (int i = 0; i < WEB_APPS_ROUTES; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));

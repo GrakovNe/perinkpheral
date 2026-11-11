@@ -229,11 +229,19 @@ build strings. It is unloaded whenever it leaves the screen, so what
 must survive goes into its own small store with `kv_set` and comes
 back with `kv_get`.
 
-An application is a folder with `app.wasm` and `manifest.json`. Today
-the ones in `sdk/apps` are packed into the device's file system when
-the firmware is built; installing from a catalog comes later, and the
+An application is a folder with `app.wasm` and `manifest.json`. The
 contract is not frozen yet: it changes while the first applications are
 written.
+
+Applications reach a device from a **catalog**: a folder of static files
+with an index, served from anywhere over HTTPS, the way a Debian
+repository is. The device's page lists what its catalogs hold and
+installs with a click. A device has five places for applications, and
+one that is removed keeps its settings for when it comes back. The
+official applications - a clock, the weather, a timer - are in
+[perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps);
+`tools/catalog/mkcatalog.py` makes a catalog of your own, and its
+address goes onto the device's page next to the official one.
 
 While you work on one, the device takes it over the network, no
 reflashing and no cable:
@@ -253,20 +261,21 @@ the rest: the log, the status, flashing the firmware itself.
 
 1. **Applications without the network - done.** The host kernel
    (display service, window manager, scenes), the wasm runtime, the
-   host API, applications on the device's file system, two samples
-   (`hello`, `clock`). Left: a run from the battery without USB.
-2. **Drivers and the SDK - in progress.** Done: Wi-Fi with setup from a
-   browser, firmware updates over the network, time, timers, a store
-   for applications, fonts, and the half of data delivery that needs no
-   network. Not yet run on a real network. Left: the poller that
-   fetches, requests from applications, the first real application
-   (Plex "now playing"), button down and up events.
+   host API, applications on the device's file system.
+2. **Drivers and the SDK - done.** Wi-Fi with setup from a phone,
+   firmware updates over the network, time in the user's zone, HTTPS,
+   polls on a schedule with the answer picked apart by the host,
+   requests of an application's own, delivery to an application that is
+   not on the screen, files, an alarm, settings through the device's
+   page. The contract is not frozen.
 3. **Host screens - started.** Done: the menu, power-up, the Wi-Fi
-   setup screen. Left: status and error screens, a second font.
+   setup screen with a QR code. Left: icons of applications in the
+   menu, status and error screens, a second font.
 4. **Power.** Sleep between polls, measured current and real battery
    life numbers, then extreme power saving.
-5. **Web UI and catalog.** Installing applications from a catalog,
-   settings, the log, firmware updates from releases.
+5. **Web UI and catalog - mostly done.** Done: installing from
+   catalogs, settings of applications, the log. Left: the host's own
+   settings on the page, firmware updates from releases.
 
 Version 1 is ASCII only; other scripts are a task for version 2.
 
@@ -281,7 +290,7 @@ firmware/              the ESP-IDF project
 sdk/
   host_api.h           the contract between host and applications
   lib/                 what applications link instead of a C library
-  apps/                the sample applications: hello, clock
+  apps/                the sample application, hello; the rest are in perinkpheral-apps
 tools/
   preview/             renders the host's screens to PNG without the device
   devtool/             the device over the network: screenshots, presses, upload and run an app

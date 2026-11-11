@@ -19,7 +19,7 @@ GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick
+TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -99,6 +99,9 @@ test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_
 
 test_json_pick: test_json_pick.c tinytest.h $(APPSYS)/json_pick.c $(APPSYS)/include/json_pick.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_pick.c $(APPSYS)/json_pick.c
+
+test_catalog: test_catalog.c tinytest.h $(APPSYS)/catalog.c $(APPSYS)/include/catalog.h
+	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_catalog.c $(APPSYS)/catalog.c
 
 test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildcard $(NET)/include/ota_*.h)
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_ota.c $(NET)/ota_stream.c $(NET)/ota_health.c

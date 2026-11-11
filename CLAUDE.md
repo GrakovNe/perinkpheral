@@ -272,12 +272,16 @@ What exists:
 **Firmware over the network.** The upload is refused before a byte is written unless it is an image of this project (the image and description magic numbers and the project name). The new image starts on probation: it is confirmed only once the way the next update would arrive is open again - the web server is up and the device is on its network, or, with no network stored, its setup access point has stayed up for 20 seconds. An image that is not there within 3 minutes is rolled back by the bootloader. The receiving (`ota_stream.c`) and the verdict (`ota_health.c`) are pure and host-tested; `main/ota.c` writes the slot.
 
 Still to come:
-- `POST /api/apps/install {url}` - download `.wasm` + `manifest.json` from the catalog.
-- `GET /api/catalog` - proxies the catalog's static JSON (the catalog URL is a host setting).
 - `POST /api/focus/<name>` - bring onto the scene.
 - Host settings (power profile, e-paper policy, time zone, catalog URL).
 
-The catalog is static files (GitHub Pages/Releases): `catalog.json` + `.wasm`/`manifest.json` by URL, no server.
+### Catalogs
+Applications are installed the way a Debian system installs packages: the device knows a few **sources**, each the address of a folder of static files, and reads the index in it; nothing but the index tells it what is there. No server, no git on the device, no building: any hosting that serves files over HTTPS will do.
+- `tools/catalog/mkcatalog.py <folder> --out <catalog>` builds every application of a folder and writes `catalog.json` beside them: for each its name, title, version, `abi`, and its files with their sizes and SHA-256.
+- The official applications are a repository of their own, https://github.com/GrakovNe/perinkpheral-apps - `clock`, `weather`, `timer`, `badapple` - and its `catalog` folder is the one source a device has from the start. What the firmware's image carries is `hello` alone. This repository keeps the SDK, the tools and the sample.
+- **Five places.** A device holds at most 5 applications; a catalog may hold five hundred. The page installs and removes in a click, and **an application that is removed keeps what it stored** - its settings among it - for when it comes back (`&forget=1` on the removal erases that too).
+- The page passes the index on from the source as it comes (`GET /api/catalog?source=<n>`): the device does not read it. Installing (`POST /api/apps/install`) downloads the files the index lists, takes each only if its size and SHA-256 are what the index says, reads the manifest with the parser that runs applications - one made for another `abi` is refused with those words - and restarts. `GET` / `POST /api/sources` are the list.
+- There are no signatures: what vouches for an application is HTTPS to the source the user chose. The application is in the sandbox all the same.
 
 ### Power and profiles
 The battery is connected. There is no USB detector and there will be none, so the profile is the host setting `power_profile: plugged | battery`, `plugged` by default; "extreme power saving" is a separate setting on top of `battery`.
@@ -317,13 +321,8 @@ sdk/
   host_api.h           the only contract; applications and the host's import table are built from it
   lib/                 what applications link instead of a C library
   apps/
-    hello/             sample: text + reaction to a button
-    timer/             a countdown that ends wherever the user has gone: the alarm, request_focus
-    weather/           the first application with data: now and three days, from Open-Meteo
-    clock/             the time, the day of the week and the date
-    badapple/          a test of the panel and the interpreter: a 1-bit video from a file
-    plex/              the first real one: now playing + play/pause/next
-    trmnl/             TRMNL BYOS client: polls /api/display, parses JSON, downloads the picture, draws with gfx_bitmap
+    hello/             the sample: text, a reaction to a button, a value that survives. The one
+                       application built into the firmware's image
 tools/
   fontgen/             TTF → bitmap (ASCII)
   preview/             renders the host's views to PNG on the development machine - look before flashing
@@ -331,7 +330,7 @@ tools/
   devshot/             the same over USB for a device with no network: presses and the frame its panel shows
   mkapp/               builds app.wasm (wasi-sdk) and checks its imports and memory
   mkvideo/             a video into a 1-bit stream small enough to be a file of an application
-  catalog/             generates catalog.json (milestone 5)
+  catalog/             builds a folder of applications into a catalog a device installs from
 assets/
   fonts/               DepartureMono-Regular.otf (OFL), its license
 hardware/              everything about the physical device

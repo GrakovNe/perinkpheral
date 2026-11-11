@@ -5,6 +5,10 @@
 #include "settings.h"
 
 #include <stdlib.h>
+
+#include "catalog.h"
+
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -21,6 +25,7 @@ static const char *TAG = "settings";
 #define KEY_NTP     "ntp"
 #define KEY_TZ      "tz"
 #define KEY_LAST_APP "last_app"
+#define KEY_SOURCES  "sources"
 #define KEY_REFRESH_DATA   "rf_data"
 #define KEY_REFRESH_BUTTON "rf_button"
 #define KEY_REFRESH_FULL   "rf_full"
@@ -153,4 +158,40 @@ void settings_save_last_app(const char *name)
         nvs_commit(h);
     }
     nvs_close(h);
+}
+
+void settings_load_sources(char *sources, size_t sources_size)
+{
+    snprintf(sources, sources_size, "%s", CATALOG_DEFAULT_SOURCES);
+    nvs_handle_t h;
+    if (nvs_open(CFG_NS, NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    /* Left at the default when nothing is stored or it does not fit. */
+    size_t length = sources_size;
+    char  *stored = malloc(sources_size);
+    if (stored != NULL && nvs_get_str(h, KEY_SOURCES, stored, &length) == ESP_OK &&
+        catalog_sources_are_valid(stored)) {
+        snprintf(sources, sources_size, "%s", stored);
+    }
+    free(stored);
+    nvs_close(h);
+}
+
+esp_err_t settings_save_sources(const char *sources)
+{
+    if (!catalog_sources_are_valid(sources)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_str(h, KEY_SOURCES, sources);
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
 }

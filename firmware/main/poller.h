@@ -56,6 +56,16 @@ bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
  * 0 takes the alarm back. Kept in memory: a restart forgets it. */
 bool poller_alarm_set(const char *app_name, uint32_t seconds);
 
+/* Fetches `url` on the poller's task - the one with the stack for TLS -
+ * and hands the answer to `take` piece by piece, there. Waits until it is
+ * done. `take` returns false to stop. False when the request could not be
+ * made, broke off, was stopped, or the answer was longer than max_bytes;
+ * *http_status is 0 unless the server answered. From any task but the
+ * poller's own, one caller at a time. */
+typedef bool (*poller_take_fn)(void *context, const uint8_t *piece, size_t length);
+bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *context,
+                  int *http_status);
+
 /* Gives something to the host loop for an application and waits until
  * the application has had it. From any task but the host's own. */
 void poller_hand_over(const char *app_name, const app_delivery_t *delivery);

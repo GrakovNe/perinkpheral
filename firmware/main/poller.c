@@ -30,7 +30,7 @@ static const char *TAG = "poller";
 
 #define TASK_STACK_BYTES    8192 /* the TLS handshake runs on it */
 #define TASK_PRIORITY       4
-#define IDLE_CHECK_MS       1000
+#define IDLE_CHECK_MS       250
 #define REQUEST_TIMEOUT_MS  15000
 #define ANSWER_MAX_BYTES    (256 * 1024)
 /* A TLS session takes about 45 KB while it is open; below this the
@@ -435,6 +435,84 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
     return result;
 }
 
+/* ---- a file for somebody else: the catalog, an application being installed ---- */
+
+typedef struct {
+    const char    *url;
+    size_t         max_bytes;
+    poller_take_fn take;
+    void          *context;
+    int            http_status;
+    bool           is_whole;
+} fetch_job_t;
+
+static fetch_job_t      *s_fetch_job;  /* the one waiting to be done, or NULL */
+static SemaphoreHandle_t s_fetch_done; /* given when it is */
+static SemaphoreHandle_t s_fetch_turn; /* one caller at a time */
+
+static void do_fetch(fetch_job_t *job)
+{
+    static uint8_t piece[HOST_DATA_CHUNK_MAX]; /* only this task fetches */
+    esp_http_client_config_t config = {
+        .url = job->url,
+        .timeout_ms = REQUEST_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .user_agent = USER_AGENT,
+        .buffer_size = HOST_DATA_CHUNK_MAX,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (client == NULL) {
+        return;
+    }
+    if (esp_http_client_open(client, 0) == ESP_OK) {
+        esp_http_client_fetch_headers(client);
+        job->http_status = esp_http_client_get_status_code(client);
+    }
+    bool   is_ok = job->http_status >= HTTP_OK_FIRST && job->http_status <= HTTP_OK_LAST;
+    size_t total = 0;
+    int    length = 0;
+    while (is_ok && (length = read_piece(client, piece)) > 0) {
+        total += (size_t)length;
+        if (total > job->max_bytes || !job->take(job->context, piece, (size_t)length)) {
+            is_ok = false;
+        }
+    }
+    job->is_whole = is_ok && length == 0;
+    esp_http_client_cleanup(client);
+}
+
+static bool run_fetch_job(void)
+{
+    lock();
+    fetch_job_t *job = s_fetch_job;
+    s_fetch_job = NULL;
+    unlock();
+    if (job == NULL) {
+        return false;
+    }
+    do_fetch(job);
+    xSemaphoreGive(s_fetch_done);
+    return true;
+}
+
+bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *context,
+                  int *http_status)
+{
+    *http_status = 0;
+    if (s_lock == NULL || !wifi_is_online()) {
+        return false;
+    }
+    fetch_job_t job = { .url = url, .max_bytes = max_bytes, .take = take, .context = context };
+    xSemaphoreTake(s_fetch_turn, portMAX_DELAY);
+    lock();
+    s_fetch_job = &job;
+    unlock();
+    xSemaphoreTake(s_fetch_done, portMAX_DELAY);
+    xSemaphoreGive(s_fetch_turn);
+    *http_status = job.http_status;
+    return job.is_whole;
+}
+
 /* An alarm that has come is handed to its application like an answer. */
 static bool ring_due_alarm(void)
 {
@@ -454,6 +532,10 @@ static void poller_task(void *arg)
     (void)arg;
     for (;;) {
         if (ring_due_alarm()) {
+            continue;
+        }
+        /* Somebody is waiting for this one: before the polls. */
+        if (run_fetch_job()) {
             continue;
         }
         bool can_ask = wifi_is_online() && esp_get_free_heap_size() >= FREE_HEAP_NEEDED;
@@ -498,8 +580,10 @@ void poller_start(void)
             }
         }
     }
+    s_fetch_done = xSemaphoreCreateBinary();
+    s_fetch_turn = xSemaphoreCreateMutex();
     s_lock = xSemaphoreCreateMutex();
-    configASSERT(s_lock != NULL);
+    configASSERT(s_lock != NULL && s_fetch_done != NULL && s_fetch_turn != NULL);
     /* Started even with nothing to fetch: alarms are rung from here too. */
     BaseType_t ok = xTaskCreate(poller_task, "poller", TASK_STACK_BYTES, NULL, TASK_PRIORITY,
                                 NULL);

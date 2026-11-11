@@ -23,6 +23,12 @@
            border-radius: 0; }
   button:disabled { opacity: .5; cursor: wait; }
   p.note { color: var(--dim); margin: .5rem 0 0; }
+  textarea { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
+             color: var(--ink); background: transparent; border: 1px solid var(--ink);
+             border-radius: 0; resize: vertical; }
+  .row { display: flex; align-items: baseline; gap: .75rem; margin-top: .5rem; }
+  .row span { flex: 1; }
+  .row button { margin-top: 0; }
   select { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
            color: var(--ink); background: transparent; border: 1px solid var(--ink);
            border-radius: 0; }
@@ -54,6 +60,18 @@
 
 <h2>Applications</h2>
 <div id="apps"><p class="note">Loading</p></div>
+
+<h2>Catalog</h2>
+<p class="note" id="slots"></p>
+<div id="catalog"><p class="note">Loading</p></div>
+<form id="sources">
+  <label for="source-list">Where applications come from</label>
+  <textarea id="source-list" rows="3" spellcheck="false"></textarea>
+  <button>Save</button>
+  <p class="note">The address of a catalog folder, one on a line, four at most. A link to a
+  repository on GitHub, GitLab or Codeberg is read as its <code>catalog</code> folder.</p>
+  <p class="result" id="sources-result"></p>
+</form>
 
 <h2>Time</h2>
 <form id="time">
@@ -264,19 +282,102 @@ function appBlock(app) {
   remove.className = "quiet";
   remove.textContent = "Remove";
   remove.addEventListener("click", () => {
-    if (!confirm("Remove " + app.title + " and everything it stored? The device restarts.")) return;
+    if (!confirm("Remove " + app.title + "? Its settings stay for when it comes back. "
+                 + "The device restarts.")) return;
     send(block, result.id, "/api/apps/remove" + query, { method: "POST" });
   });
   block.append(remove, result);
   return block;
 }
 
+const SLOTS = 5;
+let installed = [];
+
 async function loadApps() {
   const list = document.getElementById("apps");
-  const apps = await (await fetch("/api/apps")).json();
-  list.replaceChildren(...apps.map(appBlock));
-  if (!apps.length) list.textContent = "No applications are installed.";
+  installed = await (await fetch("/api/apps")).json();
+  list.replaceChildren(...installed.map(appBlock));
+  if (!installed.length) list.textContent = "No applications are installed.";
+  show("slots", installed.length + " of " + SLOTS + " places taken. A removed application "
+       + "keeps its settings for when it comes back.");
 }
+
+/* A link to a repository as people paste it, read as the catalog folder in it. */
+function catalogAddress(line) {
+  const repository = line.trim().replace(/\/+$/, "").replace(/\.git$/, "");
+  let match = repository.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/);
+  if (match) return "https://raw.githubusercontent.com/" + match[1] + "/" + match[2] + "/HEAD/catalog";
+  match = repository.match(/^https:\/\/gitlab\.com\/(.+)$/);
+  if (match && !repository.includes("/-/")) return repository + "/-/raw/HEAD/catalog";
+  match = repository.match(/^https:\/\/codeberg\.org\/[^/]+\/[^/]+$/);
+  if (match) return repository + "/raw/branch/main/catalog";
+  return repository;
+}
+
+/* One line of a catalog: what it is, and the one thing to do with it. */
+function catalogRow(source, app) {
+  const row = document.createElement("form"), name = document.createElement("span");
+  row.className = "row";
+  name.textContent = app.title + " " + app.version;
+  const have = installed.find(other => other.name === app.name);
+  const button = document.createElement("button"), result = document.createElement("span");
+  result.id = "install-" + source + "-" + app.name;
+  if (have && have.version === app.version) {
+    button.textContent = "Installed";
+    button.disabled = true;
+  } else if (have) {
+    button.textContent = "Update from " + have.version;
+  } else if (installed.length >= SLOTS) {
+    button.textContent = "No place";
+    button.disabled = true;
+  } else {
+    button.textContent = "Install";
+  }
+  row.append(name, button, result);
+  row.addEventListener("submit", async event => {
+    event.preventDefault();
+    await send(row, result.id, "/api/apps/install?source=" + source + "&app="
+               + encodeURIComponent(app.name),
+               { method: "POST", body: JSON.stringify({ files: app.files }) });
+    /* The device restarts to list what it now has. */
+    setTimeout(() => { loadApps().then(loadCatalog); }, 15000);
+  });
+  return row;
+}
+
+async function loadCatalog() {
+  const list = document.getElementById("catalog");
+  const sources = (await (await fetch("/api/sources")).json()).sources;
+  document.getElementById("source-list").value = sources.join("\n");
+  list.replaceChildren();
+  for (let source = 0; source < sources.length; source++) {
+    const title = document.createElement("h3"), address = document.createElement("small");
+    address.textContent = sources[source];
+    title.append(address);
+    list.append(title);
+    try {
+      const answer = await fetch("/api/catalog?source=" + source);
+      const catalog = await answer.json();
+      if (!answer.ok) throw new Error(catalog.error);
+      list.append(...catalog.apps.map(app => catalogRow(source, app)));
+    } catch (error) {
+      const problem = document.createElement("p");
+      problem.className = "note";
+      problem.textContent = "No catalog there: " + error.message;
+      list.append(problem);
+    }
+  }
+  if (!sources.length) list.textContent = "No sources: add the address of a catalog below.";
+}
+
+document.getElementById("sources").addEventListener("submit", async event => {
+  event.preventDefault();
+  const lines = document.getElementById("source-list").value.split("\n");
+  const sources = lines.map(catalogAddress).filter(line => line);
+  await send(event.target, "sources-result", "/api/sources",
+             { method: "POST", body: JSON.stringify({ sources }) });
+  loadCatalog();
+});
 
 document.getElementById("tz-detect").addEventListener("click", () => {
   document.getElementById("tz").value = posixZone();
@@ -302,7 +403,7 @@ document.getElementById("reset").addEventListener("submit", event => {
 });
 
 loadStatus();
-loadApps();
+loadApps().then(loadCatalog);
 </script>
 </body>
 </html>

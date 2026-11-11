@@ -26,6 +26,12 @@ esp_err_t settings_save(const appconf_t *c);
 void settings_load_last_app(char *name, size_t name_size);
 void settings_save_last_app(const char *name);
 
+/* Where applications are installed from: the addresses of the catalogs,
+ * a line each (see catalog.h). The official one until the user says
+ * otherwise. sources_size is at least CATALOG_SOURCES_TEXT_MAX. */
+void      settings_load_sources(char *sources, size_t sources_size);
+esp_err_t settings_save_sources(const char *sources);
+
 #ifdef __cplusplus
 }
 #endif
