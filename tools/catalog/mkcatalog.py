@@ -3,9 +3,9 @@
 # Copyright (c) 2026 GrakovNe
 """Make a catalog: a folder a device can install applications from.
 
-    mkcatalog.py <folder with applications> --out <catalog folder>
+    mkcatalog.py <folder with applications> [<another>...] --out <catalog folder>
 
-Every application in the folder - a subfolder with a manifest.json - is
+Every application in the folders - a subfolder with a manifest.json - is
 built with tools/mkapp and put into the catalog as it will lie on a
 device, and one index is written beside them:
 
@@ -70,15 +70,17 @@ def entry_of(built_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("apps_dir")
+    parser.add_argument("apps_dirs", nargs="+")
     parser.add_argument("--out", required=True)
     options = parser.parse_args()
 
-    app_dirs = sorted(os.path.join(options.apps_dir, name) for name in os.listdir(options.apps_dir)
-                      if os.path.isfile(os.path.join(options.apps_dir, name, "manifest.json")))
+    app_dirs = sorted((os.path.join(apps_dir, name) for apps_dir in options.apps_dirs
+                       for name in os.listdir(apps_dir)
+                       if os.path.isfile(os.path.join(apps_dir, name, "manifest.json"))),
+                      key=os.path.basename)
     if not app_dirs:
         sys.exit("no applications in %s: an application is a folder with a manifest.json"
-                 % options.apps_dir)
+                 % ", ".join(options.apps_dirs))
     # Whatever the catalog held before is gone: an application that was taken
     # out of the folder must not stay in the catalog.
     if os.path.isdir(options.out):

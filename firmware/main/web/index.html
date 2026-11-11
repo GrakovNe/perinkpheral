@@ -15,9 +15,9 @@
   nav h1 { font-size: 1.15rem; letter-spacing: .08em; margin: 0 1.25rem 1.5rem; }
   nav a { display: block; padding: .5rem 1.25rem; color: var(--ink); text-decoration: none; }
   nav a.current { background: var(--ink); color: var(--paper); }
-  nav a.current .count { color: var(--paper); }
+
   nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; overflow-wrap: anywhere; }
-  nav .count { float: right; }
+
   main { padding: 1.5rem 2rem 4rem; min-width: 0; }
   section { display: none; }
   section.current { display: block; }
@@ -72,10 +72,21 @@
            gap: 1rem; }
   .tile { border: 1px solid var(--ink); padding: 1rem; display: flex; flex-direction: column;
           position: relative; min-height: 13rem; }
-  .tile.absent { border-color: var(--line); }
+  button.tile.add { margin: 0; height: auto; font-size: 2.5rem; color: var(--ink);
+                    background: transparent; }
+  button.tile.add:disabled { border-color: var(--line); color: var(--line); opacity: 1; }
+  .tile .action + .action { margin-top: .5rem; }
+  .offers { display: grid; margin: .5rem 0; max-height: 60vh; overflow: auto; }
+  .offer { display: flex; align-items: center; gap: 1rem; padding: .75rem 0;
+           border-bottom: 1px solid var(--line); }
+  .offer > div:nth-child(2) { flex: 1; min-width: 0; }
+  .offer b, .offer small { display: block; }
+  .offer small { color: var(--dim); }
+  .offer button { margin: 0; }
+  .picture { flex: none; }
   .tile .icon { position: absolute; top: .5rem; right: .5rem; }
-  .tile .picture { width: 55px; height: 55px; margin-bottom: .75rem; }
-  .tile .picture.none { border: 1px solid var(--line); }
+  .tile .picture { margin-bottom: .75rem; }
+  .picture.none { border: 1px solid var(--line); }
   .tile b { display: block; }
   .tile small { color: var(--dim); }
   .tile .spring { flex: 1; }
@@ -105,7 +116,7 @@
     nav { border-right: none; border-bottom: 1px solid var(--ink); padding: 1rem 0 0;
           flex-direction: row; flex-wrap: wrap; align-items: center; position: static;
           height: auto; }
-    nav .count { float: none; margin-left: .5rem; }
+
     nav h1 { margin: 0 1rem .75rem; width: 100%; }
     nav a { padding: .5rem 1rem; }
     nav p { display: none; }
@@ -119,7 +130,7 @@
 <div class="shell">
 <nav>
   <h1>perINKpheraL</h1>
-  <a href="#apps">Apps<span class="count" id="slots"></span></a>
+  <a href="#apps">Apps</a>
   <a href="#device">Device</a>
   <a href="#settings">Settings</a>
   <a href="#about">About</a>
@@ -266,6 +277,12 @@ DEALINGS IN THE SOFTWARE.</pre>
       <button type="button" class="quiet" data-close>Close</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="store-dialog">
+  <h2>Add app</h2>
+  <div class="offers" id="store-rows"></div>
+  <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
 </dialog>
 
 <dialog id="confirm-dialog">
@@ -512,62 +529,80 @@ function openAppSettings(app) {
   byId("app-dialog").showModal();
 }
 
-function tile(app, have, source) {
-  const box = make("div", { className: "tile" + (have ? "" : " absent") });
-  const picture = make("div", { className: "picture" + (app.icon ? "" : " none") });
-  if (app.icon) picture.append(pixels(app.icon, 5));
-  box.append(picture, make("b", { textContent: app.title }),
-             make("small", { textContent: app.version }),
+/* Installs the application from its source, or installs it over itself: an update. */
+async function install(button, offer) {
+  const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
+  if (await send(button, url, post({ files: offer.app.files }))) afterRestart();
+}
+
+function picture(icon, cell) {
+  const box = make("div", { className: "picture" + (icon ? "" : " none") });
+  box.style.width = box.style.height = 11 * cell + "px";
+  if (icon) box.append(pixels(icon, cell));
+  return box;
+}
+
+/* An application on the device. `offer` is what a catalog has under its name, if any. */
+function tile(have, offer) {
+  const box = make("div", { className: "tile" });
+  box.append(picture(have.icon || (offer && offer.app.icon), 5),
+             make("b", { textContent: have.title }), make("small", { textContent: have.version }),
              make("div", { className: "spring" }));
-  if (have && have.settings.length) {
+  if (have.settings.length) {
     const gear = make("button", { className: "icon", title: "Settings" });
     gear.append(pixels(GEAR, 2));
     gear.addEventListener("click", () => openAppSettings(have));
     box.append(gear);
   }
-  const action = make("button", { className: "action" });
-  const query = "app=" + encodeURIComponent(app.name);
-  const run = async (url, options) => {
-    if (await send(action, url, options)) afterRestart();
-  };
-  const install = () => run("/api/apps/install?source=" + source + "&" + query,
-                            post({ files: app.files }));
-  if (have && source !== null && have.version !== app.version) {
-    action.textContent = "Update to " + app.version;
-    action.addEventListener("click", install);
-  } else if (have) {
-    action.textContent = "Remove";
-    action.classList.add("quiet");
-    action.addEventListener("click", async () => {
-      if (await confirmed("Remove " + app.title + "? Settings are kept.", "Remove"))
-        run("/api/apps/remove?" + query, { method: "POST" });
-    });
-  } else {
-    action.textContent = "Install";
-    action.disabled = installed.length >= SLOTS;
-    action.addEventListener("click", install);
+  if (offer && offer.app.version !== have.version) {
+    const update = make("button", { className: "action", textContent: "Update" });
+    update.title = offer.app.version;
+    update.addEventListener("click", () => install(update, offer));
+    box.append(update);
   }
-  box.append(action);
+  const remove = make("button", { className: "action quiet", textContent: "Remove" });
+  remove.addEventListener("click", async () => {
+    if (await confirmed("Remove " + have.title + "? Settings are kept.", "Remove") &&
+        await send(remove, "/api/apps/remove?app=" + encodeURIComponent(have.name),
+                   { method: "POST" }))
+      afterRestart();
+  });
+  box.append(remove);
   return box;
 }
 
+/* What the catalogs have and the device does not. */
+const available = () => offered.filter(offer => !installed.some(have => have.name === offer.app.name));
+
+/* The last tile: a way to add an application, while there is a place for one. */
+function addTile() {
+  const add = make("button", { className: "tile add", textContent: "+", title: "Add app" });
+  add.disabled = installed.length >= SLOTS;
+  add.addEventListener("click", openStore);
+  return add;
+}
+
+function openStore() {
+  const rows = available().map(offer => {
+    const row = make("div", { className: "offer" }), text = make("div");
+    text.append(make("b", { textContent: offer.app.title }),
+                make("small", { textContent: offer.app.version }));
+    const button = make("button", { textContent: "Install" });
+    button.addEventListener("click", async () => {
+      await install(button, offer);
+      byId("store-dialog").close();
+    });
+    row.append(picture(offer.app.icon, 3), text, button);
+    return row;
+  });
+  byId("store-rows").replaceChildren(...rows);
+  if (!rows.length) byId("store-rows").textContent = "No apps available.";
+  byId("store-dialog").showModal();
+}
+
 function drawTiles() {
-  const tiles = [];
-  /* What is on the device first, in the catalog's words when a catalog has it too. */
-  for (const have of installed) {
-    const found = offered.find(offer => offer.app.name === have.name);
-    const isNewer = found && found.app.version !== have.version;
-    /* An application installed before it had an icon borrows the catalog's. */
-    const shown = isNewer ? found.app
-                          : Object.assign({}, have, { icon: have.icon || (found && found.app.icon) });
-    tiles.push(tile(shown, have, found ? found.source : null));
-  }
-  for (const offer of offered)
-    if (!installed.some(have => have.name === offer.app.name))
-      tiles.push(tile(offer.app, null, offer.source));
-  byId("tiles").replaceChildren(...tiles);
-  if (!tiles.length) byId("tiles").textContent = "No apps.";
-  show("slots", installed.length + " / " + SLOTS);
+  const tiles = installed.map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
+  byId("tiles").replaceChildren(...tiles, addTile());
 }
 
 async function loadApps() {
