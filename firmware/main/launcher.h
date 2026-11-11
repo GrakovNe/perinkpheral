@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "app_manifest.h"
 #include "scenes.h"
 
 #ifdef __cplusplus
@@ -20,6 +21,9 @@ void launcher_start(void);
 
 /* What the menu lists: applications by title, then the host's pages. */
 const menu_entry_t *launcher_entries(int *count);
+
+/* The installed applications that can be started, as their manifests say. */
+const app_manifest_t *launcher_installed(int *count);
 
 /* The scene of an installed application; NULL when there is none by that
  * name. */

@@ -21,6 +21,7 @@ typedef enum {
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
     EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
+    EVENT_APP_DELIVERY, /* an answer from the network for an application, see poller.h */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -42,6 +43,7 @@ typedef struct {
         uint8_t id;
     } timer;
     void *dev_request; /* a devtools request, see devtools.h */
+    void *delivery;    /* a poller_delivery_t */
 } event_t;
 
 void events_start(void);

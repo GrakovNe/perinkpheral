@@ -20,3 +20,11 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # The host loop is the main task and applications run on its stack: the
 # interpreter may take 6 KB of it (d_m3MaxNativeStack), the host needs the rest.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
+
+# Built for size: the firmware has to fit a 1.44 MB slot with TLS and the
+# full set of root certificates in it. It is also what lets the wasm
+# interpreter chain its operations as tail calls instead of growing the stack.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# The device asks servers and is never one over TLS: its own page is plain HTTP.
+CONFIG_MBEDTLS_TLS_CLIENT_ONLY=y

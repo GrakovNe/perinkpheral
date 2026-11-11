@@ -35,6 +35,11 @@ int app_store_list(const char *root, app_manifest_t *manifests, int capacity);
  * NULL when it is missing, empty, too large, or there is no memory. */
 uint8_t *app_store_read_module(const char *root, const char *name, size_t *size);
 
+/* The manifest of an installed application as text, terminated, in
+ * memory the caller frees; NULL when it cannot be read. For what the
+ * parsed manifest does not keep: a poll in full, the settings. */
+char *app_store_read_manifest(const char *root, const char *name);
+
 /* The two files an application is made of. */
 typedef enum {
     APP_FILE_MANIFEST,

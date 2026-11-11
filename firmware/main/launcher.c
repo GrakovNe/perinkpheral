@@ -50,6 +50,12 @@ const menu_entry_t *launcher_entries(int *count)
     return s_entries;
 }
 
+const app_manifest_t *launcher_installed(int *count)
+{
+    *count = s_installed_count;
+    return s_installed;
+}
+
 scene_t *launcher_app_scene(const char *app_name)
 {
     for (int i = 0; i < s_installed_count; i++) {

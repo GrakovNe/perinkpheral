@@ -1,0 +1,323 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 GrakovNe
+ */
+#include "poller.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "esp_crt_bundle.h"
+#include "esp_http_client.h"
+#include "esp_log.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+#include "freertos/task.h"
+
+#include "app_kv.h"
+#include "app_manifest.h"
+#include "app_store.h"
+#include "events.h"
+#include "host_api.h"
+#include "json_pick.h"
+#include "launcher.h"
+#include "poll_schedule.h"
+#include "storage.h"
+#include "text_template.h"
+#include "wifi.h"
+
+static const char *TAG = "poller";
+
+#define TASK_STACK_BYTES    8192 /* the TLS handshake runs on it */
+#define TASK_PRIORITY       4
+#define IDLE_CHECK_MS       1000
+#define REQUEST_TIMEOUT_MS  15000
+#define ANSWER_MAX_BYTES    (256 * 1024)
+/* A TLS session takes about 45 KB while it is open; below this the
+ * request waits for a better moment instead of taking the device down. */
+#define FREE_HEAP_NEEDED    (70 * 1024)
+#define USER_AGENT          "perinkpheral"
+#define HTTP_OK_FIRST       200
+#define HTTP_OK_LAST        299
+
+static poll_schedule_t       s_schedule;
+static const app_manifest_t *s_apps;
+static SemaphoreHandle_t     s_handed_over;
+
+static int64_t now_ms(void)
+{
+    return esp_timer_get_time() / 1000;
+}
+
+/* Gives the answer, or a piece of it, to the host loop and waits until
+ * the application has had it. */
+static void hand_over(const char *app_name, const app_delivery_t *delivery)
+{
+    poller_delivery_t handed = { .app_name = app_name, .delivery = *delivery,
+                                 .handed_over = s_handed_over };
+    event_t event = { .kind = EVENT_APP_DELIVERY, .delivery = &handed };
+    while (!events_post(&event)) {
+        vTaskDelay(pdMS_TO_TICKS(50)); /* the queue is full: the host is busy with the panel */
+    }
+    xSemaphoreTake(s_handed_over, portMAX_DELAY);
+}
+
+static void hand_over_values(const char *app_name, int request, int http_status,
+                             const char *const *values, int count)
+{
+    app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = request,
+                                .http_status = http_status, .values = values,
+                                .value_count = count };
+    hand_over(app_name, &delivery);
+}
+
+static void hand_over_piece(const char *app_name, int request, int http_status,
+                            const uint8_t *data, size_t length, int flags)
+{
+    app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = request,
+                                .http_status = http_status, .data = data, .length = length,
+                                .flags = flags };
+    hand_over(app_name, &delivery);
+}
+
+/* The settings of an application are values in its own store; a poll's
+ * {{key}} is one of them. */
+static bool setting_of(void *context, const char *key, char *value, size_t value_size)
+{
+    const char *app_name = context;
+    int32_t length = app_kv_get(app_name, key, value, (int32_t)value_size - 1);
+    if (length < 0) {
+        return false;
+    }
+    value[length] = '\0';
+    return true;
+}
+
+/* Everything one request needs, in one block: none of it fits a stack. */
+typedef struct {
+    app_poll_t poll;
+    char       url[APP_URL_MAX + 1];
+    char       header_value[APP_HEADER_VALUE_MAX + 1];
+    const char *paths[JSON_PICK_PATHS_MAX];
+    const char *values[JSON_PICK_PATHS_MAX];
+    json_pick_t pick;
+    uint8_t     piece[HOST_DATA_CHUNK_MAX];
+    uint8_t     next_piece[HOST_DATA_CHUNK_MAX];
+} request_t;
+
+/* The poll as the manifest has it, the settings put in. False when the
+ * manifest cannot be read or a setting the poll needs is not there yet. */
+static bool prepare(request_t *request, const char *app_name, int poll_number,
+                    esp_http_client_handle_t *client)
+{
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    bool  parsed = manifest != NULL && app_manifest_parse_poll(manifest, poll_number,
+                                                               &request->poll) == APP_MANIFEST_OK;
+    free(manifest);
+    if (!parsed || !text_template_fill(request->poll.url, setting_of, (void *)app_name,
+                                       request->url, sizeof request->url)) {
+        return false;
+    }
+    esp_http_client_config_t config = {
+        .url = request->url,
+        .timeout_ms = REQUEST_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .user_agent = USER_AGENT,
+        .buffer_size = HOST_DATA_CHUNK_MAX,
+    };
+    *client = esp_http_client_init(&config);
+    if (*client == NULL) {
+        return false;
+    }
+    for (int i = 0; i < request->poll.header_count; i++) {
+        const app_header_t *header = &request->poll.headers[i];
+        if (!text_template_fill(header->value, setting_of, (void *)app_name,
+                                request->header_value, sizeof request->header_value)) {
+            esp_http_client_cleanup(*client);
+            *client = NULL;
+            return false;
+        }
+        esp_http_client_set_header(*client, header->name, request->header_value);
+    }
+    return true;
+}
+
+/* Up to a whole piece, however the network cuts it; less only at the end.
+ * Negative when the connection broke. */
+static int read_piece(esp_http_client_handle_t client, uint8_t *piece)
+{
+    int length = 0;
+    while (length < HOST_DATA_CHUNK_MAX) {
+        int count = esp_http_client_read(client, (char *)piece + length,
+                                         HOST_DATA_CHUNK_MAX - length);
+        if (count < 0) {
+            return count;
+        }
+        if (count == 0) {
+            break;
+        }
+        length += count;
+    }
+    return length;
+}
+
+/* The answer is read to its end, the connection closed, and only then
+ * is the application called: off the screen it would have to be loaded
+ * next to an open TLS session otherwise. */
+static void fetch_values(request_t *request, esp_http_client_handle_t client,
+                         const char *app_name, int poll_number, int http_status)
+{
+    int path_count = request->poll.pick_count;
+    for (int i = 0; i < path_count; i++) {
+        request->paths[i] = request->poll.pick[i];
+    }
+    json_pick_init(&request->pick, request->paths, path_count);
+    size_t total = 0;
+    int    length;
+    while ((length = read_piece(client, request->piece)) > 0) {
+        total += (size_t)length;
+        if (total > ANSWER_MAX_BYTES || !json_pick_feed(&request->pick, (char *)request->piece,
+                                                        (size_t)length)) {
+            break;
+        }
+    }
+    json_pick_finish(&request->pick);
+    esp_http_client_close(client);
+    if (length < 0) {
+        http_status = 0; /* broke off: what was read so far is not an answer */
+    }
+    for (int i = 0; i < path_count; i++) {
+        request->values[i] = json_pick_value(&request->pick, i);
+    }
+    hand_over_values(app_name, poll_number, http_status, request->values, path_count);
+}
+
+/* The answer as it comes. A piece is handed over once the next one is in
+ * hand, so that the last one can be told to be the last. */
+static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
+                         const char *app_name, int poll_number, int http_status)
+{
+    uint8_t *piece = request->piece, *next = request->next_piece;
+    int      length = read_piece(client, piece);
+    int      flags = HOST_DATA_FIRST;
+    size_t   total = 0;
+    while (length >= 0) {
+        total += (size_t)length;
+        int next_length = length == HOST_DATA_CHUNK_MAX ? read_piece(client, next) : 0;
+        if (next_length < 0 || total > ANSWER_MAX_BYTES) {
+            break;
+        }
+        if (next_length == 0) {
+            flags |= HOST_DATA_LAST;
+        }
+        hand_over_piece(app_name, poll_number, http_status, piece, (size_t)length, flags);
+        if (flags & HOST_DATA_LAST) {
+            return;
+        }
+        flags = 0;
+        uint8_t *swapped = piece;
+        piece = next;
+        next = swapped;
+        length = next_length;
+    }
+    hand_over_piece(app_name, poll_number, 0, NULL, 0, HOST_DATA_FAILED);
+}
+
+static void tell_failure(const request_t *request, const char *app_name, int poll_number,
+                         bool wants_values)
+{
+    if (wants_values) {
+        hand_over_values(app_name, poll_number, 0, NULL, 0);
+    } else {
+        hand_over_piece(app_name, poll_number, 0, NULL, 0, HOST_DATA_FAILED);
+    }
+    (void)request;
+}
+
+static void run_poll(const char *app_name, int poll_number)
+{
+    request_t *request = calloc(1, sizeof *request);
+    if (request == NULL) {
+        ESP_LOGW(TAG, "%s/%d: no memory for the request", app_name, poll_number);
+        return;
+    }
+    esp_http_client_handle_t client = NULL;
+    if (!prepare(request, app_name, poll_number, &client)) {
+        /* Most likely a setting that is not there yet: the application is
+         * told, so that it can say what it is waiting for. */
+        ESP_LOGI(TAG, "%s/%d: cannot be asked yet", app_name, poll_number);
+        tell_failure(request, app_name, poll_number, request->poll.pick_count > 0);
+        free(request);
+        return;
+    }
+    bool      wants_values = request->poll.pick_count > 0;
+    int64_t   started_ms = now_ms();
+    esp_err_t err = esp_http_client_open(client, 0);
+    int       http_status = 0;
+    if (err == ESP_OK) {
+        esp_http_client_fetch_headers(client);
+        http_status = esp_http_client_get_status_code(client);
+    }
+    if (err != ESP_OK || http_status == 0) {
+        ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, poll_number, esp_err_to_name(err));
+        tell_failure(request, app_name, poll_number, wants_values);
+    } else {
+        if (wants_values) {
+            fetch_values(request, client, app_name, poll_number, http_status);
+        } else {
+            fetch_pieces(request, client, app_name, poll_number, http_status);
+        }
+        bool is_ok = http_status >= HTTP_OK_FIRST && http_status <= HTTP_OK_LAST;
+        ESP_LOG_LEVEL(is_ok ? ESP_LOG_INFO : ESP_LOG_WARN, TAG, "%s/%d: HTTP %d in %d ms",
+                      app_name, poll_number, http_status, (int)(now_ms() - started_ms));
+    }
+    esp_http_client_cleanup(client);
+    free(request);
+}
+
+static void poller_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        uint32_t            wait_ms;
+        const poll_entry_t *due = poll_schedule_due(&s_schedule, now_ms(), &wait_ms);
+        if (due == NULL) {
+            vTaskDelay(pdMS_TO_TICKS(wait_ms < IDLE_CHECK_MS ? wait_ms : IDLE_CHECK_MS));
+            continue;
+        }
+        /* Without a network, or without the memory for a session, the
+         * poll stays due and is looked at again in a moment. */
+        if (!wifi_is_online() || esp_get_free_heap_size() < FREE_HEAP_NEEDED) {
+            vTaskDelay(pdMS_TO_TICKS(IDLE_CHECK_MS));
+            continue;
+        }
+        run_poll(s_apps[due->app].name, due->poll);
+        poll_schedule_done(&s_schedule, due, now_ms());
+    }
+}
+
+void poller_start(void)
+{
+    int app_count;
+    s_apps = launcher_installed(&app_count);
+    poll_schedule_init(&s_schedule);
+    int polls = 0;
+    for (int app = 0; app < app_count; app++) {
+        for (int poll = 0; poll < s_apps[app].poll_count; poll++) {
+            if (poll_schedule_add(&s_schedule, app, poll, s_apps[app].poll_every_s[poll],
+                                  now_ms())) {
+                polls++;
+            }
+        }
+    }
+    if (polls == 0) {
+        ESP_LOGI(TAG, "no application has anything to fetch");
+        return;
+    }
+    s_handed_over = xSemaphoreCreateBinary();
+    configASSERT(s_handed_over != NULL);
+    BaseType_t ok = xTaskCreate(poller_task, "poller", TASK_STACK_BYTES, NULL, TASK_PRIORITY,
+                                NULL);
+    configASSERT(ok == pdPASS);
+    ESP_LOGI(TAG, "%d polls of the installed applications are scheduled", polls);
+}

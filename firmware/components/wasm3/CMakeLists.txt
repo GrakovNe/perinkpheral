@@ -27,7 +27,18 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
     # this platform, which would let recursion run through the stack.
     d_m3MaxNativeStack=6144
     d_m3VerboseErrorMessages=0
-    d_m3LogOutput=0)
+    d_m3LogOutput=0
+    # What an application may be made of is kept to what a 64 KB module
+    # built without a C library uses. No floating point: the chip has no
+    # FPU and every such operation would be the host's soft float, 34 KB
+    # of it; a module with float operations loads and traps when it gets
+    # to one, and tools/mkapp refuses it at build time. No reference
+    # types, extended constants or compact imports: a module may still
+    # have its one table of functions and call through it.
+    d_m3HasFloat=0
+    d_m3HasRefTypes=0
+    d_m3HasExtendedConst=0
+    d_m3HasCompactImports=0)
 
 # An interpreter lives in its dispatch loop: optimize it for speed whatever
 # the rest of the firmware is built with. The warnings are upstream's.

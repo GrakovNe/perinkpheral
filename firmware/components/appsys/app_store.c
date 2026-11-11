@@ -98,6 +98,16 @@ uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)
                                                   : NULL;
 }
 
+char *app_store_read_manifest(const char *root, const char *name)
+{
+    char   path[PATH_MAX_BYTES];
+    size_t size;
+    if (!app_manifest_is_valid_name(name) || !path_of(path, root, name, MANIFEST_FILE)) {
+        return NULL;
+    }
+    return (char *)read_file(path, MANIFEST_MAX_BYTES, &size);
+}
+
 size_t app_store_file_max_bytes(app_file_t file)
 {
     return file == APP_FILE_MANIFEST ? MANIFEST_MAX_BYTES : APP_MODULE_MAX_BYTES;

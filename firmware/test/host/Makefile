@@ -72,7 +72,8 @@ test_scenes: test_scenes.c tinytest.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.
 # The native stack budget is the device's, scaled to the frames an
 # unoptimized build with sanitizers makes.
 WASM3_FLAGS := -std=c11 -O1 -w -Dd_m3MaxLinearMemoryPages=1 -Dd_m3MaxNativeStack=262144 \
-               -Dd_m3VerboseErrorMessages=0 -Dd_m3LogOutput=0
+               -Dd_m3VerboseErrorMessages=0 -Dd_m3LogOutput=0 \
+               -Dd_m3HasFloat=0 -Dd_m3HasRefTypes=0 -Dd_m3HasExtendedConst=0 -Dd_m3HasCompactImports=0
 WASM3_OBJS  := $(patsubst $(WASM3)/%.c,build/wasm3/%.o,$(wildcard $(WASM3)/*.c))
 
 build/wasm3/%.o: $(WASM3)/%.c

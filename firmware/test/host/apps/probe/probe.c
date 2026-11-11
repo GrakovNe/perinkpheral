@@ -201,6 +201,20 @@ void app_on_values(int32_t request, int32_t http_status)
     request_redraw(HOST_REDRAW_NORMAL);
 }
 
+/* Called through a table of functions, the way a C function pointer is. */
+static int32_t add_one(int32_t number) { return number + 1; }
+static int32_t add_two(int32_t number) { return number + 2; }
+
+static bool calls_through_pointers(void)
+{
+    static int32_t (*volatile const steps[])(int32_t) = { add_one, add_two };
+    int32_t number = 0;
+    for (int32_t i = 0; i < 2; i++) {
+        number = steps[i](number);
+    }
+    return number == 3;
+}
+
 static bool numbers_parse(void)
 {
     int32_t number = 0;
@@ -328,6 +342,9 @@ void app_on_draw(void)
     }
     if (numbers_parse()) {
         mark(6, ROW_VALUES);
+    }
+    if (calls_through_pointers()) {
+        mark(8, ROW_VALUES);
     }
 
     host_local_time_t now;

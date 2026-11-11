@@ -438,6 +438,8 @@ static void test_values(void)
      * and the SDK's numbers */
     CHECK(gfx_get(&surface, 0, ROW_VALUES) && gfx_get(&surface, 2, ROW_VALUES));
     CHECK(gfx_get(&surface, 4, ROW_VALUES) && gfx_get(&surface, 6, ROW_VALUES));
+    /* and a call through a function pointer, which the trimmed interpreter still has */
+    CHECK(gfx_get(&surface, 8, ROW_VALUES));
     CHECK(!app_has_stopped(app));
     app_unload(app);
 }

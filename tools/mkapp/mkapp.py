@@ -49,14 +49,18 @@ SECTION_MEMORY = 5
 IMPORT_KIND_FUNCTION = 0
 
 
-def clang():
+def sdk_tool(name):
     sdk_path = os.environ.get("WASI_SDK_PATH")
     if not sdk_path:
         sys.exit("WASI_SDK_PATH is not set: point it at an unpacked wasi-sdk")
-    path = os.path.join(sdk_path, "bin", "clang")
+    path = os.path.join(sdk_path, "bin", name)
     if not os.path.exists(path):
-        sys.exit("no clang in %s" % os.path.join(sdk_path, "bin"))
+        sys.exit("no %s in %s" % (name, os.path.join(sdk_path, "bin")))
     return path
+
+
+def clang():
+    return sdk_tool("clang")
 
 
 def build(app_dir, wasm_path):
@@ -143,8 +147,21 @@ def host_imports():
     return names
 
 
+def float_operations(wasm_path):
+    """The floating point operations in the module's code, as the disassembler names them."""
+    listing = subprocess.run([sdk_tool("llvm-objdump"), "-d", wasm_path],
+                             capture_output=True, text=True, check=True).stdout
+    return sorted(set(re.findall(r"\b\w*f(?:32|64)[._]\w+", listing)))
+
+
 def check(wasm_path):
     imports, memory = inspect(wasm_path)
+    floats = float_operations(wasm_path)
+    if floats:
+        sys.exit("%s uses floating point (%s). The device's interpreter has none, and the "
+                 "application would stop there: keep numbers as integers - tenths, "
+                 "hundredths - the way sdk/lib/app_values.h reads them"
+                 % (wasm_path, ", ".join(floats[:4])))
     offered = host_imports()
     for module, name in imports:
         if module != HOST_MODULE or name not in offered:

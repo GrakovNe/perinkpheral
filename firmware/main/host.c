@@ -5,14 +5,17 @@
 #include "host.h"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "sdkconfig.h"
 
 #include "app_manifest.h"
 #include "devconsole.h"
+#include "app_delivery.h"
 #include "devtools.h"
 #include "display.h"
 #include "events.h"
 #include "launcher.h"
+#include "poller.h"
 #include "scenes.h"
 #include "screens.h"
 #include "settings.h"
@@ -148,6 +151,10 @@ void host_run(void)
     wm_t wm;
     wm_init(&wm, menu, scene_boot_splash(scene_after_boot(menu), timers_set), draw_header, NULL);
 
+    app_delivery_state_t delivery_state;
+    app_delivery_init(&delivery_state);
+    poller_start();
+
     for (;;) {
         uint32_t wait_ms = show_pending_frame(&wm, &screen);
 
@@ -173,6 +180,16 @@ void host_run(void)
             devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #endif
             break;
+        case EVENT_APP_DELIVERY: {
+            poller_delivery_t *handed = event.delivery;
+            scene_t *owner = launcher_app_scene(handed->app_name);
+            if (owner != NULL) {
+                app_deliver(&delivery_state, &wm, owner, &handed->delivery,
+                            esp_timer_get_time() / 1000);
+            }
+            xSemaphoreGive(handed->handed_over);
+            break;
+        }
         case EVENT_DEV_REQUEST:
 #ifdef CONFIG_APP_DEV_CONSOLE
             devtools_serve(event.dev_request, &wm, s_frames_shown,
