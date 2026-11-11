@@ -71,11 +71,23 @@ Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
 the window manager and `firmware/main/screens.c` natively and writes a
 PNG per screen. Look at them; the panel shows exactly that.
 
-The device without hands on it: `tools/devshot/devshot.py $PORT --keys
-3,2 --out shot.png` types keys into the development console (`1`-`4` a
-short press of that button, `q` `w` `e` `r` a long press of button 1-4),
-then saves the frame the panel shows. Verify a change to the host on
-the real device this way, not only in the preview.
+The device without hands on it, over the network: `tools/devtool/devtool.py`
+with `PERINKPHERAL_HOST` set to the device's address (the Device page of
+its menu shows it).
+- `shot out.png` saves the frame the panel shows;
+- `press 3 3 2 --shot out.png` presses buttons (`1`-`4` short, `1L`-`4L`
+  long) and waits for the panel after each;
+- `open clock` puts an installed application on the screen;
+- `run sdk/apps/clock --shot out.png` builds the application, uploads it
+  and restarts the device into it - the loop for working on an
+  application, no reflashing;
+- `flash` uploads `firmware/build/perinkpheral.bin` and waits for the
+  device to come back; `status` and `log` print what the names say.
+
+Verify a change on the real device this way, not only in the preview.
+With no network, `tools/devshot/devshot.py $PORT --keys 3,2 --out
+shot.png` does presses and the frame over the USB console (`1`-`4` a
+short press, `q` `w` `e` `r` a long press of button 1-4).
 
 Fonts: `tools/fontgen/fontgen.py <ttf> --px N --name <id> --out
 firmware/components/gfx/fonts/<id>.h --preview <file>.png` rasterizes a

@@ -1,12 +1,14 @@
 menu "perINKpheral"
 
     config APP_DEV_CONSOLE
-        bool "Development console on USB (presses and frame dumps)"
+        bool "Development tools: the USB console and /api/dev"
         default y
         help
-            Single characters typed into the USB console press buttons and
-            print the frame the panel shows, so the device can be driven
-            and looked at without hands on it. Turn it off for a release.
+            The device can be driven and looked at without hands on it:
+            characters typed into the USB console and requests to /api/dev
+            press buttons, give the frame the panel shows, open an
+            application and take a new build of one. Turn it off for a
+            release.
 
     config APP_BUNDLE_APPS
         bool "Build the applications in sdk/apps into the image"

@@ -26,6 +26,10 @@ void web_server_start(appconf_t *config, const char device_id[5]);
 
 bool web_server_is_up(void);
 
+/* Restarts the device in a moment: long enough for the answer that says
+ * so to reach whoever asked. */
+void web_server_restart_soon(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -229,6 +229,20 @@ the ones in `sdk/apps` are packed into the device's file system when
 the firmware is built; installing from a catalog comes later, and the
 contract may still change until it freezes at the end of milestone 2.
 
+While you work on one, the device takes it over the network, no
+reflashing and no cable:
+
+```
+export PERINKPHERAL_HOST=<the device's address>
+tools/devtool/devtool.py run sdk/apps/hello --shot hello.png
+tools/devtool/devtool.py press 2 2 --shot pressed.png
+```
+
+`run` builds the application, uploads it and restarts the device into
+it, about ten seconds in all; `--shot` saves what the panel shows as a
+PNG, and `press` presses the buttons for you. `devtool.py --help` has
+the rest: the log, the status, flashing the firmware itself.
+
 ## Roadmap
 
 1. **Applications without the network - done.** The host kernel
@@ -264,7 +278,8 @@ sdk/
   apps/                the sample applications: hello, clock
 tools/
   preview/             renders the host's screens to PNG without the device
-  devshot/             presses buttons on a real device over USB and saves its frame
+  devtool/             the device over the network: screenshots, presses, upload and run an app
+  devshot/             the same over USB for a device with no network
   mkapp/               builds an application to app.wasm and checks it
   fontgen/             TTF -> 1-bit bitmap font header
 assets/fonts/          Departure Mono (SIL OFL 1.1), the UI font, and its license

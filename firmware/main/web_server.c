@@ -17,6 +17,7 @@
 
 #include <time.h>
 
+#include "devtools.h"
 #include "log_capture.h"
 #include "net_time.h"
 #include "ota.h"
@@ -37,6 +38,7 @@ static const char *TAG = "web";
 #define QUIET_PERIODS_MAX     3
 #define HOST_HEADER_MAX       64
 #define LOCAL_TIME_MAX        24
+#define OWN_ROUTES            7
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
@@ -51,7 +53,7 @@ static void restart_now(void *arg)
     esp_restart();
 }
 
-static void restart_soon(void)
+void web_server_restart_soon(void)
 {
     static esp_timer_handle_t timer;
     esp_timer_create_args_t args = { .callback = restart_now, .name = "restart" };
@@ -135,6 +137,7 @@ static esp_err_t handle_status(httpd_req_t *request)
         cJSON_AddStringToObject(json, "time", local_time);
     }
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
+    cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
     return send_json(request, "200 OK", json);
 }
 
@@ -234,7 +237,7 @@ static esp_err_t handle_wifi(httpd_req_t *request)
         appconf_derive(s_config, s_device_id);
         ESP_LOGW(TAG, "Wi-Fi settings changed, restarting");
         result = send_ok(request, "stored, restarting");
-        restart_soon();
+        web_server_restart_soon();
     }
     free(wanted);
     return result;
@@ -286,7 +289,7 @@ static esp_err_t handle_reset(httpd_req_t *request)
     ESP_LOGW(TAG, "factory reset asked for, restarting");
     reset_mark_factory();
     esp_err_t result = send_ok(request, "erased, restarting");
-    restart_soon();
+    web_server_restart_soon();
     return result;
 }
 
@@ -324,7 +327,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
         return send_error(request, error);
     }
     esp_err_t result = send_ok(request, "installed, restarting");
-    restart_soon();
+    web_server_restart_soon();
     return result;
 }
 
@@ -356,13 +359,14 @@ void web_server_start(appconf_t *config, const char device_id[5])
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
+    server_config.max_uri_handlers = OWN_ROUTES + DEVTOOLS_ROUTES;
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &server_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "cannot start: %s", esp_err_to_name(err));
         return;
     }
-    static const httpd_uri_t ROUTES[] = {
+    static const httpd_uri_t ROUTES[OWN_ROUTES] = {
         { .uri = "/", .method = HTTP_GET, .handler = handle_page },
         { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },
         { .uri = "/api/log", .method = HTTP_GET, .handler = handle_log },
@@ -374,6 +378,9 @@ void web_server_start(appconf_t *config, const char device_id[5])
     for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
     }
+#ifdef CONFIG_APP_DEV_CONSOLE
+    devtools_register(server);
+#endif
     ESP_ERROR_CHECK(httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, handle_not_found));
     s_is_up = true;
     ESP_LOGI(TAG, "serving on port %d", server_config.server_port);

@@ -115,11 +115,68 @@ static void test_read_module(void)
     free(module);
 }
 
+static bool put_file(const char *name, app_file_t file, const char *content)
+{
+    char path[APP_STORE_PATH_MAX];
+    if (!app_store_begin_file(root, name, file, path)) {
+        return false;
+    }
+    FILE *incoming = fopen(path, "wb");
+    if (incoming == NULL) {
+        return false;
+    }
+    fwrite(content, 1, strlen(content), incoming);
+    fclose(incoming);
+    return app_store_commit_file(root, name, file);
+}
+
+static void test_install_files(void)
+{
+    fresh_root();
+    app_manifest_t apps[4];
+    const char *manifest = "{\"name\":\"fresh\",\"title\":\"Fresh\",\"version\":\"1\",\"abi\":1}";
+
+    /* a new application: its folder is made, and it is listed once both files are in */
+    CHECK(put_file("fresh", APP_FILE_MODULE, "first"));
+    CHECK(app_store_list(root, apps, 4) == 0);
+    CHECK(put_file("fresh", APP_FILE_MANIFEST, manifest));
+    CHECK(app_store_list(root, apps, 4) == 1);
+
+    /* a newer file takes the place of the one that was there */
+    CHECK(put_file("fresh", APP_FILE_MODULE, "second!"));
+    size_t size = 0;
+    uint8_t *module = app_store_read_module(root, "fresh", &size);
+    CHECK(module != NULL && size == 7 && memcmp(module, "second!", 7) == 0);
+    free(module);
+
+    /* an upload that never finished leaves what was installed */
+    char path[APP_STORE_PATH_MAX];
+    CHECK(app_store_begin_file(root, "fresh", APP_FILE_MODULE, path));
+    FILE *cut_short = fopen(path, "wb");
+    fputs("hal", cut_short);
+    fclose(cut_short);
+    module = app_store_read_module(root, "fresh", &size);
+    CHECK(module != NULL && size == 7);
+    free(module);
+
+    /* a name is not a path */
+    CHECK(!app_store_begin_file(root, "../escape", APP_FILE_MODULE, path));
+    CHECK(!app_store_begin_file(root, "", APP_FILE_MODULE, path));
+    CHECK(!app_store_begin_file(root, "Capital", APP_FILE_MODULE, path));
+    CHECK(!app_store_commit_file(root, "a/b", APP_FILE_MODULE));
+    /* nothing was begun */
+    CHECK(!app_store_commit_file(root, "absent", APP_FILE_MODULE));
+
+    CHECK(app_store_file_max_bytes(APP_FILE_MODULE) == APP_MODULE_MAX_BYTES);
+    CHECK(app_store_file_max_bytes(APP_FILE_MANIFEST) < APP_MODULE_MAX_BYTES);
+}
+
 int main(void)
 {
     test_list_is_sorted_by_title();
     test_broken_ones_are_passed_over();
     test_capacity_and_missing_root();
     test_read_module();
+    test_install_files();
     REPORT();
 }

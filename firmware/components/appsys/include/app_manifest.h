@@ -82,6 +82,9 @@ app_manifest_result_t app_manifest_parse_poll(const char *json, int poll, app_po
 /* For the log and for the tool that checks a manifest before it ships. */
 const char *app_manifest_result_text(app_manifest_result_t result);
 
+/* 1-13 of a-z, 0-9, - and _: what an application may be called. */
+bool app_manifest_is_valid_name(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

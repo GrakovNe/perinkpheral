@@ -146,7 +146,7 @@ The host is layers, and each knows only the ones under it:
 - **A scene never refreshes anything.** It reports that its picture changed and draws when asked; the window manager passes on why the frame changed (a switch, a press, data), and the display service decides what the panel does.
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
-- **Development console** (`APP_DEV_CONSOLE`, on by default, off for a release): characters typed into the USB console press buttons, print the frame the panel shows, the kept log and the free memory; `tools/devshot` turns that into a PNG. This is how the device is driven and looked at without hands on it.
+- **Development tools** (`APP_DEV_CONSOLE`, on by default, off for a release): the device is driven and looked at without hands on it. Over the network, `/api/dev` gives the frame the panel shows, takes presses, opens an application and takes a new build of one; `tools/devtool` is the command line for it, and `devtool.py run <app dir>` builds an application, uploads it and restarts the device into it in about ten seconds, with no reflashing. Over the cable, characters typed into the USB console do the same for a device with no network (`tools/devshot`). Whatever touches the frame or the scenes is handed to the host loop through the event queue.
 
 ### Power-up
 The splash is drawn once and the device moves on by itself after a few seconds (a press does it at once):
@@ -234,6 +234,7 @@ What exists:
 - `POST /api/wifi` `{"ssid", "password"}` - validated like every setting, stored, and the device restarts to join.
 - `POST /api/time` `{"tz"}` - the time zone, a POSIX TZ string; it takes effect at once, with no restart. The page works the string out from the browser's own zone and offers it; a device that was never told its zone gets it along with the Wi-Fi network, so setting the device up is one step.
 - `POST /api/reset` - factory reset: the settings and the applications' stores are erased on the way up, and the device comes back with its setup access point. The page has a button for it. Like the upload, it asks for nothing.
+- `/api/dev/...` - the development tools, only in a build with `APP_DEV_CONSOLE`: `GET screen` (a 1-bit BMP of what the panel shows), `POST button`, `POST open`, `POST app` (upload a file of an application), `POST run` (restart into an application).
 - `POST /api/ota` - a firmware image as the request body (`curl --data-binary @build/perinkpheral.bin http://<address>/api/ota`): written into the spare slot, and the device restarts into it.
 
 **Firmware over the network.** The upload is refused before a byte is written unless it is an image of this project (the image and description magic numbers and the project name). The new image starts on probation: it is confirmed only once the way the next update would arrive is open again - the web server is up and the device is on its network, or, with no network stored, its setup access point has stayed up for 20 seconds. An image that is not there within 3 minutes is rolled back by the bootloader. The receiving (`ota_stream.c`) and the verdict (`ota_health.c`) are pure and host-tested; `main/ota.c` writes the slot.
@@ -292,7 +293,8 @@ sdk/
 tools/
   fontgen/             TTF → bitmap (ASCII)
   preview/             renders the host's views to PNG on the development machine - look before flashing
-  devshot/             presses buttons on a real device over USB and saves the frame its panel shows
+  devtool/             the device over the network: screenshots, presses, the log, upload and run an application, flash
+  devshot/             the same over USB for a device with no network: presses and the frame its panel shows
   mkapp/               builds app.wasm (wasi-sdk) and checks its imports and memory
   catalog/             generates catalog.json (milestone 5)
 assets/
@@ -326,7 +328,8 @@ Open:
 - Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
 Open:
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
-- The down and up events of real buttons have not been seen on the device: the development console types only short and long presses.
+- The down and up events of real buttons have not been seen on the device.
+- An application uploaded with the development tools is started by restarting the device: the list of applications is read once, at start. Installing from the catalog will need the launcher to reload it.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 

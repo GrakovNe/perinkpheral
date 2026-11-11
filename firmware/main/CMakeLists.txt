@@ -2,7 +2,7 @@ set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_hos
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "log_ring.c" "log_capture.c"
          "scene_menu.c" "scene_device.c" "scene_splash.c" "scene_setup.c" "launcher.c")
 if(CONFIG_APP_DEV_CONSOLE)
-    list(APPEND srcs "devconsole.c")
+    list(APPEND srcs "devconsole.c" "devtools.c")
 endif()
 
 idf_component_register(SRCS ${srcs}

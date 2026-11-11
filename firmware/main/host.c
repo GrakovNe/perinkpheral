@@ -9,6 +9,7 @@
 
 #include "app_manifest.h"
 #include "devconsole.h"
+#include "devtools.h"
 #include "display.h"
 #include "events.h"
 #include "launcher.h"
@@ -74,6 +75,10 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
 
+/* How many times the panel was refreshed since start: lets a tool tell a
+ * new picture from the one it has already seen. */
+static uint32_t s_frames_shown;
+
 /* Puts the frame together and offers it to the display if anything
  * changed. Returns how long to wait before offering again, or
  * NOTHING_TO_SHOW when the panel is up to date. */
@@ -92,6 +97,8 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
         ESP_LOGW(TAG, "the panel did not take the frame");
         return RETRY_FAILED_SHOW_MS;
     case DISPLAY_SHOWN:
+        s_frames_shown++;
+        break;
     case DISPLAY_UNCHANGED:
         break;
     }
@@ -160,6 +167,12 @@ void host_run(void)
         case EVENT_DUMP_FRAME:
 #ifdef CONFIG_APP_DEV_CONSOLE
             devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
+#endif
+            break;
+        case EVENT_DEV_REQUEST:
+#ifdef CONFIG_APP_DEV_CONSOLE
+            devtools_serve(event.dev_request, &wm, s_frames_shown,
+                           wm_pending_change(&wm) != WM_CLEAN);
 #endif
             break;
         }

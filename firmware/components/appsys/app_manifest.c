@@ -15,7 +15,7 @@ static bool is_name_character(char character)
            character == '-' || character == '_';
 }
 
-static bool is_valid_name(const char *name)
+bool app_manifest_is_valid_name(const char *name)
 {
     if (name[0] == '\0') {
         return false;
@@ -100,7 +100,7 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_NOT_JSON;
     }
     if (!read_string(root, "name", manifest->name, sizeof manifest->name) ||
-        !is_valid_name(manifest->name)) {
+        !app_manifest_is_valid_name(manifest->name)) {
         return APP_MANIFEST_BAD_NAME;
     }
     if (!read_string(root, "title", manifest->title, sizeof manifest->title) ||

@@ -20,6 +20,7 @@ typedef enum {
     EVENT_TIMER,      /* a timer of the scene on the screen ran out */
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
+    EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -40,6 +41,7 @@ typedef struct {
     struct {
         uint8_t id;
     } timer;
+    void *dev_request; /* a devtools request, see devtools.h */
 } event_t;
 
 void events_start(void);
