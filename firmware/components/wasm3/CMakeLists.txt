@@ -40,6 +40,8 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
     d_m3HasExtendedConst=0
     d_m3HasCompactImports=0)
 
-# An interpreter lives in its dispatch loop: optimize it for speed whatever
-# the rest of the firmware is built with. The warnings are upstream's.
-target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -w)
+# Built for size like the rest of the firmware. Measured on the device with
+# a loop of arithmetic, memory and calls: -O2 was 7 % faster (359 ms
+# against 385 ms) and 12.7 KB larger, and flash is what runs out first.
+# The warnings are upstream's.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Os -w)

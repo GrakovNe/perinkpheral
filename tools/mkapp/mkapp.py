@@ -151,7 +151,10 @@ def float_operations(wasm_path):
     """The floating point operations in the module's code, as the disassembler names them."""
     listing = subprocess.run([sdk_tool("llvm-objdump"), "-d", wasm_path],
                              capture_output=True, text=True, check=True).stdout
-    return sorted(set(re.findall(r"\b\w*f(?:32|64)[._]\w+", listing)))
+    # The disassembler prints the plain "select" as "f32.select"; that one is not a
+    # float operation, whatever its name.
+    operations = re.findall(r"\b(?:f(?:32|64)\.(?!select\b)\w+|[\w.]+_f(?:32|64)\w*)", listing)
+    return sorted(set(operations))
 
 
 def check(wasm_path):
