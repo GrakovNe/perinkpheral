@@ -39,6 +39,8 @@ REQUEST_TIMEOUT_S = 10
 UPLOAD_TIMEOUT_S = 120
 PNG_SCALE = 2
 BUSY_RETRIES = 3
+BMP_HEADER_BYTES = 62
+FRAME_SIDE_MAX = 4096
 POLL_S = 0.3
 # A press that changes the picture shows within this; one that changes
 # nothing is not waited for any longer.
@@ -74,6 +76,8 @@ class Device:
     def screen(self):
         """Returns (rows of bools where True is ink, refresh count, a newer frame is waiting)."""
         bmp, headers = self.request("/api/dev/screen")
+        if headers.get("X-Frame") is None:
+            sys.exit("the answer is not a frame: is the firmware built with APP_DEV_CONSOLE?")
         return bmp_rows(bmp), int(headers["X-Frame"]), headers["X-Pending"] == "1"
 
     def settled_screen(self, seen_frame):
@@ -112,6 +116,10 @@ def bmp_rows(bmp):
     width = int.from_bytes(bmp[18:22], "little")
     height = int.from_bytes(bmp[22:26], "little")
     row_bytes = (width + 31) // 32 * 4
+    is_whole = (len(bmp) >= BMP_HEADER_BYTES and 0 < width <= FRAME_SIDE_MAX
+                and 0 < height <= FRAME_SIDE_MAX and pixels_at + height * row_bytes <= len(bmp))
+    if not is_whole:
+        sys.exit("the frame came through cut short: %d bytes" % len(bmp))
     rows = []
     for row in range(height - 1, -1, -1):  # stored from the bottom up
         line = bmp[pixels_at + row * row_bytes:pixels_at + (row + 1) * row_bytes]

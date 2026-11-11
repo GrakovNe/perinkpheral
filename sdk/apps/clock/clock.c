@@ -66,6 +66,9 @@ static bool local_time(local_time_t *now)
         return false;
     }
     int64_t seconds = utc_seconds + time_zone_offset();
+    if (seconds < 0) {
+        return false; /* before 1970: not a time this calendar counts */
+    }
     int64_t days = seconds / SECONDS_PER_DAY;
     int32_t second_of_day = (int32_t)(seconds % SECONDS_PER_DAY);
     now->hour = second_of_day / (SECONDS_PER_MINUTE * MINUTES_PER_HOUR);
