@@ -29,24 +29,24 @@ static void cancel_timers(const app_services_t *services)
     }
 }
 
-static void app_scene_enter(scene_t *scene)
+/* Reads the module and starts it. False, with load_error saying why,
+ * when it cannot be done; true as well when it is loaded already. */
+static bool load(app_scene_t *self)
 {
-    app_scene_t *self = (app_scene_t *)scene;
     if (self->module != NULL) {
-        return; /* already on the screen: nothing to load twice */
+        return self->app != NULL;
     }
     self->load_error = NULL;
     size_t module_size;
     self->module = app_store_read_module(self->store_root, self->manifest.name, &module_size);
     if (self->module == NULL) {
         self->load_error = "Its file cannot be read.";
-        return;
+        return false;
     }
     switch (app_load(self->manifest.name, self->module, module_size, self->services,
                      &self->app)) {
     case APP_OK:
-        app_focus(self->app);
-        return;
+        return true;
     case APP_ERR_NO_MEMORY:
         self->load_error = "Not enough memory.";
         break;
@@ -56,6 +56,24 @@ static void app_scene_enter(scene_t *scene)
     }
     free(self->module);
     self->module = NULL;
+    return false;
+}
+
+static void unload(app_scene_t *self)
+{
+    app_unload(self->app);
+    self->app = NULL;
+    free(self->module);
+    self->module = NULL;
+}
+
+static void app_scene_enter(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    bool was_loaded = self->module != NULL;
+    if (load(self) && !was_loaded) {
+        app_focus(self->app);
+    }
 }
 
 static void app_scene_leave(scene_t *scene)
@@ -66,10 +84,7 @@ static void app_scene_leave(scene_t *scene)
     }
     app_blur(self->app);
     cancel_timers(self->services);
-    app_unload(self->app);
-    self->app = NULL;
-    free(self->module);
-    self->module = NULL;
+    unload(self);
 }
 
 static bool is_running(const app_scene_t *self)
@@ -163,6 +178,47 @@ static const scene_ops_t APP_SCENE_OPS = {
     .timer = app_scene_timer,
     .draw = app_scene_draw,
 };
+
+static bool is_app_scene(const scene_t *scene)
+{
+    return scene != NULL && scene->ops == &APP_SCENE_OPS;
+}
+
+app_t *app_scene_app(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    return is_app_scene(scene) && is_running(self) ? self->app : NULL;
+}
+
+scene_reaction_t app_scene_take_reaction(scene_t *scene)
+{
+    scene_reaction_t ignored = { SCENE_IGNORED, NULL };
+    app_scene_t *self = (app_scene_t *)scene;
+    if (!is_app_scene(scene) || self->app == NULL) {
+        return ignored;
+    }
+    /* Data is no reason to leave: only a button or a timer may ask for that. */
+    app_take_exit_request(self->app);
+    return reaction_of(self);
+}
+
+app_t *app_scene_begin_background(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    if (!is_app_scene(scene) || self->module != NULL) {
+        return NULL; /* on the screen: there is nothing to do in the background */
+    }
+    return load(self) ? self->app : NULL;
+}
+
+void app_scene_end_background(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    if (is_app_scene(scene) && self->module != NULL) {
+        /* It never had the screen: no blur, and no timers of its own to cancel. */
+        unload(self);
+    }
+}
 
 scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root,
                           const app_services_t *services)

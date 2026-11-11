@@ -35,6 +35,14 @@ else
 $(info WASI_SDK_PATH is not set: skipping test_app)
 endif
 
+# The whole way of an answer to an application needs the manifest reader
+# and a built application both.
+ifdef IDF_PATH
+ifdef WASI_SDK_PATH
+TESTS   += test_delivery
+endif
+endif
+
 .PHONY: test clean
 
 test: $(TESTS)
@@ -113,6 +121,11 @@ test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $
 		$(APPSYS)/poll_schedule.c -lm
 
 # mkdtemp and friends are POSIX, not C11.
+test_delivery: test_delivery.c tinytest.h build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(WASM3_OBJS) $(MANIFEST_SRCS)
+	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
+		-Dd_m3MaxLinearMemoryPages=1 -o $@ test_delivery.c $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
+		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
+
 test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -o $@ test_app_store.c \
 		$(APPSYS)/app_store.c $(MANIFEST_SRCS) -lm

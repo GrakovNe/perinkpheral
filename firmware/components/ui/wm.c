@@ -116,6 +116,14 @@ void wm_timer(wm_t *wm, int timer_id)
     }
 }
 
+void wm_scene_reacted(wm_t *wm, const scene_t *scene, scene_reaction_t reaction,
+                      wm_change_t cause)
+{
+    if (!wm->suspended && scene == wm->current) {
+        react(wm, reaction, cause);
+    }
+}
+
 void wm_suspend(wm_t *wm)
 {
     if (wm->suspended) {

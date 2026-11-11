@@ -67,6 +67,11 @@ void wm_resume(wm_t *wm);
  * the host agreed. Ends a suspension without bringing the old scene back. */
 void wm_show(wm_t *wm, scene_t *scene);
 
+/* A scene reacted to something that did not reach it through the window
+ * manager - data arrived for it. Counts only for the scene on the screen. */
+void wm_scene_reacted(wm_t *wm, const scene_t *scene, scene_reaction_t reaction,
+                      wm_change_t cause);
+
 /* Something outside the scene changed what the frame shows. */
 void wm_invalidate(wm_t *wm, wm_change_t change);
 
