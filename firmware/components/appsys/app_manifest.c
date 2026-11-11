@@ -447,6 +447,11 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_BAD_FIELD;
     }
     manifest->fullscreen = cJSON_IsTrue(fullscreen);
+    const cJSON *system = cJSON_GetObjectItemCaseSensitive(root, "system");
+    if (system != NULL && !cJSON_IsBool(system)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
+    manifest->system = cJSON_IsTrue(system);
 
     const cJSON *abi = cJSON_GetObjectItemCaseSensitive(root, "abi");
     if (!cJSON_IsNumber(abi) || abi->valuedouble != HOST_API_VERSION) {

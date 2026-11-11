@@ -22,6 +22,11 @@ extern "C" {
 scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root,
                           const app_services_t *services);
 
+/* The same for an application that is part of the firmware: its module is
+ * `wasm`, which stays where it is, and nothing is read from a store. */
+scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,
+                                   size_t wasm_size, const app_services_t *services);
+
 /* The application of this scene while it is loaded and running; NULL
  * for a scene that is not an application's, one that is not loaded and
  * one that has stopped. */

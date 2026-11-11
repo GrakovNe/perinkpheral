@@ -405,3 +405,34 @@ HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));
 #define HOST_LOG_INFO  3
 #define HOST_LOG_DEBUG 4
 HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length));
+
+/* ---- the system API ----
+ *
+ * What the host's own applications are written with: About, and later the
+ * device's page and its settings. Any application may have it - the device
+ * is its owner's - but has to ask: "system": true in its manifest, which
+ * the page says aloud before it installs one. A module that imports any
+ * of these without having asked is refused. */
+#ifdef __wasm__
+#define HOST_SYSTEM_IMPORT(name, ...) \
+    __attribute__((import_module("host"), import_name(#name))) __VA_ARGS__
+#else
+#define HOST_SYSTEM_IMPORT(name, ...)
+#endif
+
+/* What the device knows about itself, as text: the length, HOST_ERR_NO_SPACE
+ * when it does not fit, 0 for what is not known now (no address while it
+ * is off the network). */
+#define SYS_INFO_VERSION 0 /* of the firmware, as it was built */
+#define SYS_INFO_NAME    1 /* "Perinkpheral-C7B0" */
+#define SYS_INFO_NETWORK 2 /* the Wi-Fi network it is set up for */
+#define SYS_INFO_ADDRESS 3 /* its address there */
+HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t capacity));
+
+/* The mark, "perINKpheraL" in its square font, its top left corner at
+ * x, y: `scale` 1 to 5, and 5 is the splash's, 357 px wide. Drawn inside
+ * app_on_draw(); how large it is can be asked anywhere. */
+#define SYS_LOGO_SCALE_MAX 5
+HOST_SYSTEM_IMPORT(sys_logo, int32_t sys_logo(int32_t x, int32_t y, int32_t scale));
+HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
+HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));

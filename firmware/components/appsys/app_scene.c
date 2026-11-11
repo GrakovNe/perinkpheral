@@ -18,7 +18,9 @@ typedef struct {
     app_manifest_t        manifest;
     const char           *store_root;
     const app_services_t *services;
-    uint8_t              *module;     /* the file's bytes, kept while the application runs */
+    const uint8_t        *built_in;   /* the module of an application that is in the firmware */
+    size_t                built_in_size;
+    const uint8_t        *module;     /* the module's bytes while the application runs */
     app_t                *app;        /* NULL while not on the screen or not loadable */
     const char           *load_error; /* why app is NULL although the scene is on the screen */
     /* The header's texts as the application last gave them: they outlive
@@ -55,6 +57,14 @@ static void cancel_timers(const app_services_t *services)
     }
 }
 
+static void release_module(app_scene_t *self)
+{
+    if (self->built_in == NULL) {
+        free((uint8_t *)self->module);
+    }
+    self->module = NULL;
+}
+
 /* Reads the module and starts it. False, with load_error saying why,
  * when it cannot be done; true as well when it is loaded already. */
 static bool load(app_scene_t *self)
@@ -63,14 +73,16 @@ static bool load(app_scene_t *self)
         return self->app != NULL;
     }
     self->load_error = NULL;
-    size_t module_size;
-    self->module = app_store_read_module(self->store_root, self->manifest.name, &module_size);
+    size_t module_size = self->built_in_size;
+    self->module = self->built_in != NULL ? self->built_in
+                                          : app_store_read_module(self->store_root,
+                                                                  self->manifest.name, &module_size);
     if (self->module == NULL) {
         self->load_error = "File not found.";
         return false;
     }
-    switch (app_load(self->manifest.name, self->module, module_size, self->services,
-                     &self->app)) {
+    switch (app_load(self->manifest.name, self->module, module_size, self->manifest.system,
+                     self->services, &self->app)) {
     case APP_OK:
         return true;
     case APP_ERR_NO_MEMORY:
@@ -80,8 +92,7 @@ static bool load(app_scene_t *self)
         self->load_error = "Invalid app.";
         break;
     }
-    free(self->module);
-    self->module = NULL;
+    release_module(self);
     return false;
 }
 
@@ -89,8 +100,7 @@ static void unload(app_scene_t *self)
 {
     app_unload(self->app);
     self->app = NULL;
-    free(self->module);
-    self->module = NULL;
+    release_module(self);
 }
 
 static void app_scene_enter(scene_t *scene)
@@ -270,4 +280,15 @@ scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root
     self->store_root = store_root;
     self->services = services;
     return &self->scene;
+}
+
+scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,
+                                   size_t wasm_size, const app_services_t *services)
+{
+    scene_t *scene = app_scene_create(manifest, NULL, services);
+    if (scene != NULL) {
+        ((app_scene_t *)scene)->built_in = wasm;
+        ((app_scene_t *)scene)->built_in_size = wasm_size;
+    }
+    return scene;
 }

@@ -149,13 +149,13 @@ def inspect(wasm_path):
     return imports, memory
 
 
-def host_imports():
+def host_imports(macro="HOST_IMPORT"):
     """The names host_api.h declares, read from the header itself."""
     names = set()
     with open(os.path.join(SDK, "host_api.h")) as f:
         for line in f:
-            if line.startswith("HOST_IMPORT("):
-                names.add(line[len("HOST_IMPORT("):line.index(",")])
+            if line.startswith(macro + "("):
+                names.add(line[len(macro) + 1:line.index(",")])
     return names
 
 
@@ -169,7 +169,7 @@ def float_operations(wasm_path):
     return sorted(set(operations))
 
 
-def check(wasm_path):
+def check(wasm_path, asks_for_system):
     imports, memory = inspect(wasm_path)
     floats = float_operations(wasm_path)
     if floats:
@@ -177,9 +177,12 @@ def check(wasm_path):
                  "application would stop there: keep numbers as integers - tenths, "
                  "hundredths - the way sdk/lib/app_values.h reads them"
                  % (wasm_path, ", ".join(floats[:4])))
-    offered = host_imports()
+    offered, system = host_imports(), host_imports("HOST_SYSTEM_IMPORT")
     for module, name in imports:
-        if module != HOST_MODULE or name not in offered:
+        if module == HOST_MODULE and name in system and not asks_for_system:
+            sys.exit("the module imports %s, which is the system API: an application that "
+                     "wants it says \"system\": true in its manifest" % name)
+        if module != HOST_MODULE or name not in offered | system:
             sys.exit("the module imports %s.%s, which the host does not offer" % (module, name))
     if memory != (1, 1):
         sys.exit("the module's memory is %r pages, it must be exactly one" % (memory,))
@@ -310,6 +313,8 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    if not isinstance(manifest.get("system", False), bool):
+        sys.exit("%s: \"system\" must be true or false" % path)
     icon = manifest.get("icon")
     if icon is not None and (not isinstance(icon, list) or len(icon) != ICON_CELLS
                              or any(not isinstance(row, str)
@@ -371,7 +376,9 @@ def main():
     os.makedirs(options.out, exist_ok=True)
     wasm_path = os.path.join(options.out, "app.wasm")
     build(options.app_dir, wasm_path)
-    imports = check(wasm_path)
+    with open(manifest_path) as f:
+        asks_for_system = json.load(f).get("system", False)
+    imports = check(wasm_path, asks_for_system)
     shutil.copy(manifest_path, os.path.join(options.out, "manifest.json"))
     copy_data_files(options.app_dir, options.out)
     print("%s: %d bytes, %d host calls" % (wasm_path, os.path.getsize(wasm_path), len(imports)))

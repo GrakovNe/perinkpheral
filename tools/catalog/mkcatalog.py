@@ -62,6 +62,9 @@ def entry_of(built_dir):
     entry = {"name": manifest["name"], "title": manifest["title"],
              "version": manifest.get("version", ""), "abi": manifest["abi"], "files": files}
     # What a page shows of an application before it is installed.
+    if manifest.get("system"):
+        # The page asks before it installs an application with the system API.
+        entry["system"] = True
     if "icon" in manifest:
         entry["icon"] = manifest["icon"]
     return entry

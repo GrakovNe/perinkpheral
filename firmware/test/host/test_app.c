@@ -245,7 +245,7 @@ static app_t *load_probe_as(const char *name)
     clock_runs = false;
     clock_ms = FAKE_UPTIME_MS;
     app_t *app = NULL;
-    CHECK(app_load(name, probe_wasm, probe_wasm_len, &SERVICES, &app) == APP_OK);
+    CHECK(app_load(name, probe_wasm, probe_wasm_len, false, &SERVICES, &app) == APP_OK);
     return app;
 }
 
@@ -481,16 +481,16 @@ static void test_bad_modules(void)
 {
     app_t *app = NULL;
     static const uint8_t garbage[] = { 'n', 'o', 't', ' ', 'w', 'a', 's', 'm' };
-    CHECK(app_load("x", garbage, sizeof garbage, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", garbage, sizeof garbage, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* a valid header and then nothing sensible */
     static const uint8_t truncated[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00, 0x05, 0x7F };
-    CHECK(app_load("x", truncated, sizeof truncated, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", truncated, sizeof truncated, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* (module (memory 2)): more than the one page an application gets */
     static const uint8_t two_pages[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00,
                                          0x05, 0x03, 0x01, 0x00, 0x02 };
-    CHECK(app_load("x", two_pages, sizeof two_pages, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", two_pages, sizeof two_pages, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
     CHECK(app == NULL);
 
     /* (module (type (func)) (import "host" "evil" (func (type 0)))) */
@@ -498,7 +498,19 @@ static void test_bad_modules(void)
                                               0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x02, 0x0D,
                                               0x01, 0x04, 'h',  'o',  's',  't',  0x04, 'e',
                                               'v',  'i',  'l',  0x00, 0x00 };
-    CHECK(app_load("x", unknown_import, sizeof unknown_import, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", unknown_import, sizeof unknown_import, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+
+    /* (module (type (func (param i32 i32 i32) (result i32)))
+     *         (import "host" "sys_info" (func (type 0))))
+     * the system API is for an application that asked for it */
+    static const uint8_t system_import[] = { 0x00, 'a',  's',  'm',  0x01, 0x00, 0x00, 0x00,
+                                             0x01, 0x08, 0x01, 0x60, 0x03, 0x7F, 0x7F, 0x7F,
+                                             0x01, 0x7F, 0x02, 0x11, 0x01, 0x04, 'h',  'o',
+                                             's',  't',  0x08, 's',  'y',  's',  '_',  'i',
+                                             'n',  'f',  'o',  0x00, 0x00 };
+    CHECK(app_load("x", system_import, sizeof system_import, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", system_import, sizeof system_import, true, &SERVICES, &app) == APP_OK);
+    app_unload(app);
 
     /* a name the host has, asked of another module */
     static const uint8_t other_module[] = { 0x00, 'a',  's',  'm',  0x01, 0x00, 0x00, 0x00,
@@ -506,12 +518,12 @@ static void test_bad_modules(void)
                                             0x01, 0x03, 'e',  'n',  'v',  0x0A, 'g',  'f',
                                             'x',  '_',  'h',  'e',  'i',  'g',  'h',  't',
                                             0x00, 0x00 };
-    CHECK(app_load("x", other_module, sizeof other_module, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", other_module, sizeof other_module, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* an import section that says it is longer than the file */
     static const uint8_t lying_section[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00,
                                              0x02, 0x7F, 0x01 };
-    CHECK(app_load("x", lying_section, sizeof lying_section, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", lying_section, sizeof lying_section, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     app_unload(NULL); /* allowed */
 }

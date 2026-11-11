@@ -47,4 +47,32 @@ if(CONFIG_APP_BUNDLE_APPS)
     endforeach()
 endif()
 add_custom_target(bundled_apps DEPENDS ${built_apps})
+
+# The system applications in firmware/system are built the same way and are
+# part of the firmware itself: an update over the network brings them along,
+# so they always speak the API of the host they run on.
+if(NOT DEFINED ENV{WASI_SDK_PATH})
+    message(FATAL_ERROR "WASI_SDK_PATH is not set. The firmware carries applications of its "
+                        "own, and building them needs wasi-sdk.")
+endif()
+set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
+file(GLOB system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+                                               "${repo_dir}/tools/mkapp/mkapp.py")
+foreach(system_app about)
+    set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
+    set(system_app_out "${system_apps_dir}/${system_app}")
+    file(GLOB system_app_sources CONFIGURE_DEPENDS "${system_app_dir}/*")
+    add_custom_command(OUTPUT "${system_app_out}/app.wasm" "${system_app_out}/manifest.json"
+                       COMMAND "${repo_dir}/tools/mkapp/mkapp.py" "${system_app_dir}"
+                               --out "${system_app_out}"
+                       DEPENDS ${system_app_sources} ${system_sdk_sources}
+                       VERBATIM)
+    add_custom_target(system_app_${system_app}
+                      DEPENDS "${system_app_out}/app.wasm" "${system_app_out}/manifest.json")
+    target_add_binary_data(${COMPONENT_LIB} "${system_app_out}/app.wasm" BINARY
+                           RENAME_TO system_${system_app}_wasm DEPENDS system_app_${system_app})
+    target_add_binary_data(${COMPONENT_LIB} "${system_app_out}/manifest.json" TEXT
+                           RENAME_TO system_${system_app}_manifest
+                           DEPENDS system_app_${system_app})
+endforeach()
 littlefs_create_partition_image(apps "${apps_image_dir}" FLASH_IN_PROJECT DEPENDS bundled_apps)

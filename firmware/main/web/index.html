@@ -647,6 +647,9 @@ function openAppSettings(app) {
 
 /* Installs the application from its source, or installs it over itself: an update. */
 async function install(button, offer) {
+  /* The system API is the owner's to give: the page asks, once, in so many words. */
+  if (offer.app.system &&
+      !await confirmed(offer.app.title + " requests system access.", "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
   if (await send(button, url, post({ files: offer.app.files }))) afterRestart();
 }

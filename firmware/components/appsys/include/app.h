@@ -69,6 +69,9 @@ typedef struct {
     /* HOST_OK or a HOST_ERR_*; length 0 at offset 0 removes the file. */
     int32_t (*file_write)(const char *app_name, const char *file, int32_t offset,
                           const void *bytes, int32_t length);
+    /* For the system API: what the device knows about itself (SYS_INFO_*)
+     * as text; the length, or a HOST_ERR_*. May be NULL. */
+    int32_t (*system_info)(int what, char *text, int32_t capacity);
 } app_services_t;
 
 typedef struct app app_t;
@@ -81,10 +84,11 @@ typedef enum {
 } app_load_result_t;
 
 /* wasm and name must stay where they are until app_unload(); the name is
- * whose store kv_* reads and writes. Runs app_init(). On failure *loaded
- * is NULL. */
+ * whose store kv_* reads and writes. `with_system`: the application asked
+ * for the system API and may import it. Runs app_init(). On failure
+ * *loaded is NULL. */
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
-                           const app_services_t *services, app_t **loaded);
+                           bool with_system, const app_services_t *services, app_t **loaded);
 
 /* NULL is fine. */
 void app_unload(app_t *app);

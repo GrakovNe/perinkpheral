@@ -163,6 +163,11 @@ static void test_settings(void)
         CHECK(parse(BAD_PLACES[i]) == APP_MANIFEST_BAD_SETTING);
     }
 
+    /* the system API is asked for in so many words */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && !manifest.system);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":true}") == APP_MANIFEST_OK && manifest.system);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":\"yes\"}") == APP_MANIFEST_BAD_FIELD);
+
     /* a default is a value the setting itself would take */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"1\"},{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"15\"},{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"b\",\"options\":[\"a\",\"b\"]}]}") == APP_MANIFEST_OK);
     static const char *const BAD_DEFAULTS[] = {

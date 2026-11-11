@@ -55,6 +55,7 @@ typedef struct {
     char title[APP_TITLE_MAX + 1];     /* what the menu shows */
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
     bool fullscreen;                   /* absent means false: under the header */
+    bool system;                       /* asks for the system API; absent means false */
     int      poll_count;
     uint32_t poll_every_s[APP_POLLS_MAX];
     /* The icon, when the manifest has one: a row a word, the leftmost cell

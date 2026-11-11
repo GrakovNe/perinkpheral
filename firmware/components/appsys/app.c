@@ -715,6 +715,62 @@ HOST_FUNCTION(host_log)
     m3ApiSuccess();
 }
 
+/* ---- the system API ---- */
+
+#define LOGO_WORD "perINKpheraL"
+
+HOST_FUNCTION(host_sys_info)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, what);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    app_t *app = APP_OF(runtime);
+    if (text == NULL || app->services->system_info == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_info(what, (char *)text, capacity));
+}
+
+HOST_FUNCTION(host_sys_logo)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, scale);
+    if (scale < 1 || scale > SYS_LOGO_SCALE_MAX || !is_drawable(x) || !is_drawable(y)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    /* One stroke between the letters, as on the splash. */
+    gfx_text_sq_ex(app->surface, x, y, LOGO_WORD, scale, true, scale);
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_sys_logo_width)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, scale);
+    if (scale < 1 || scale > SYS_LOGO_SCALE_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(gfx_text_sq_width_ex(LOGO_WORD, scale, scale));
+}
+
+HOST_FUNCTION(host_sys_logo_height)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, scale);
+    if (scale < 1 || scale > SYS_LOGO_SCALE_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(gfx_text_sq_height(scale));
+}
+
 /* wasm3 signatures: the result, then the arguments. v nothing, i i32,
  * I i64, * a pointer into the application's memory. */
 static const struct {
@@ -757,8 +813,21 @@ static const struct {
 };
 #define HOST_API_COUNT (sizeof HOST_API / sizeof HOST_API[0])
 
+/* The system API: for an application whose manifest asked for it. */
+static const struct {
+    const char *name;
+    const char *signature;
+    M3RawCall   function;
+} SYSTEM_API[] = {
+    { "sys_info", "i(i*i)", host_sys_info },
+    { "sys_logo", "i(iii)", host_sys_logo },
+    { "sys_logo_width", "i(i)", host_sys_logo_width },
+    { "sys_logo_height", "i(i)", host_sys_logo_height },
+};
+#define SYSTEM_API_COUNT (sizeof SYSTEM_API / sizeof SYSTEM_API[0])
+
 static bool is_offered(const uint8_t *module_name, uint32_t module_length,
-                       const uint8_t *field_name, uint32_t field_length)
+                       const uint8_t *field_name, uint32_t field_length, bool with_system)
 {
     if (module_length != strlen(HOST_MODULE) ||
         memcmp(module_name, HOST_MODULE, module_length) != 0) {
@@ -767,6 +836,12 @@ static bool is_offered(const uint8_t *module_name, uint32_t module_length,
     for (size_t i = 0; i < HOST_API_COUNT; i++) {
         if (field_length == strlen(HOST_API[i].name) &&
             memcmp(field_name, HOST_API[i].name, field_length) == 0) {
+            return true;
+        }
+    }
+    for (size_t i = 0; with_system && i < SYSTEM_API_COUNT; i++) {
+        if (field_length == strlen(SYSTEM_API[i].name) &&
+            memcmp(field_name, SYSTEM_API[i].name, field_length) == 0) {
             return true;
         }
     }
@@ -829,7 +904,7 @@ static const uint8_t *read_name(wasm_reader_t *reader, uint32_t *length)
  * The interpreter would load a module that imports something else and
  * trap only when it is called; an application that does not keep to the
  * contract is refused before it runs at all. */
-static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size)
+static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size, bool with_system)
 {
     if (wasm_size < WASM_HEADER_BYTES) {
         return false;
@@ -853,7 +928,7 @@ static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size)
             uint8_t kind = read_byte(&reader);
             read_leb_u32(&reader); /* the function's type */
             if (reader.failed || kind != WASM_IMPORT_FUNCTION ||
-                !is_offered(module_name, module_length, field_name, field_length)) {
+                !is_offered(module_name, module_length, field_name, field_length, with_system)) {
                 return false;
             }
         }
@@ -869,6 +944,14 @@ static bool link_host_api(IM3Module module)
     for (size_t i = 0; i < HOST_API_COUNT; i++) {
         M3Result result = m3_LinkRawFunction(module, HOST_MODULE, HOST_API[i].name,
                                              HOST_API[i].signature, HOST_API[i].function);
+        if (result != m3Err_none && result != m3Err_functionLookupFailed) {
+            return false;
+        }
+    }
+    /* Who may import these was settled before the module was parsed. */
+    for (size_t i = 0; i < SYSTEM_API_COUNT; i++) {
+        M3Result result = m3_LinkRawFunction(module, HOST_MODULE, SYSTEM_API[i].name,
+                                             SYSTEM_API[i].signature, SYSTEM_API[i].function);
         if (result != m3Err_none && result != m3Err_functionLookupFailed) {
             return false;
         }
@@ -954,10 +1037,10 @@ static void find_data_buffer(app_t *app)
 }
 
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
-                           const app_services_t *services, app_t **loaded)
+                           bool with_system, const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
-    if (!imports_only_host_api(wasm, wasm_size)) {
+    if (!imports_only_host_api(wasm, wasm_size, with_system)) {
         return APP_ERR_BAD_MODULE;
     }
     app_t *app = calloc(1, sizeof *app);

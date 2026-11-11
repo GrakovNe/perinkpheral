@@ -4,12 +4,15 @@
  */
 #include "app_host.h"
 
+#include <string.h>
+
 #include "esp_log.h"
 #include "esp_timer.h"
 
 #include "app_kv.h"
 #include "app_store.h"
 #include "storage.h"
+#include "sysinfo.h"
 #include "host_api.h"
 #include "net_time.h"
 #include "poller.h"
@@ -75,6 +78,40 @@ static int32_t file_write(const char *app_name, const char *file, int32_t offset
     return HOST_ERR_FAILED;
 }
 
+/* What an application with the system API may learn about the device. */
+static int32_t system_info(int what, char *text, int32_t capacity)
+{
+    sysinfo_t     info;
+    wifi_status_t wifi;
+    const char   *known;
+    switch (what) {
+    case SYS_INFO_VERSION:
+        sysinfo_read(&info);
+        known = info.firmware_version;
+        break;
+    case SYS_INFO_NAME:
+        sysinfo_read(&info);
+        known = info.device_name;
+        break;
+    case SYS_INFO_NETWORK:
+        wifi_get_status(&wifi);
+        known = wifi.ssid;
+        break;
+    case SYS_INFO_ADDRESS:
+        wifi_get_status(&wifi);
+        known = wifi.address;
+        break;
+    default:
+        return HOST_ERR_ARGUMENT;
+    }
+    size_t length = strlen(known);
+    if (length > (size_t)capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(text, known, length);
+    return (int32_t)length;
+}
+
 static const appconf_t *s_config;
 
 void app_host_use(const appconf_t *config)
@@ -106,6 +143,7 @@ const app_services_t *app_host_services(void)
         .file_size = file_size,
         .file_read = file_read,
         .file_write = file_write,
+        .system_info = system_info,
     };
     return &SERVICES;
 }
