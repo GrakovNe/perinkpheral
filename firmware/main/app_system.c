@@ -22,6 +22,7 @@
 #include "sysinfo.h"
 #include "web_server.h"
 #include "wifi.h"
+#include "wifi_qr.h"
 
 static const char *TAG = "system";
 
@@ -40,6 +41,7 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     wifi_status_t wifi;
     const char   *known;
     char          number[12];
+    char          join_code[WIFI_QR_TEXT_MAX];
     switch (what) {
     case SYS_INFO_VERSION:
         sysinfo_read(&info);
@@ -74,6 +76,13 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
         break;
     case SYS_INFO_TIME_ZONE:
         known = s_config->tz;
+        break;
+    case SYS_INFO_JOIN_CODE:
+        wifi_get_status(&wifi);
+        if (!wifi_qr_text(wifi.access_point_name, join_code, sizeof join_code)) {
+            return HOST_ERR_FAILED;
+        }
+        known = join_code;
         break;
     default:
         return HOST_ERR_ARGUMENT;

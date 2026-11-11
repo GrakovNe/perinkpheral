@@ -1,6 +1,6 @@
 set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
-         "scene_menu.c" "scene_splash.c" "scene_setup.c" "launcher.c" "poller.c")
+         "scene_menu.c" "scene_splash.c" "launcher.c" "poller.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c" "devtools.c")
 endif()
@@ -58,7 +58,7 @@ endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
 file(GLOB system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
                                                "${repo_dir}/tools/mkapp/mkapp.py")
-foreach(system_app about device settings)
+foreach(system_app about device settings setup)
     set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
     set(system_app_out "${system_apps_dir}/${system_app}")
     # What is embedded is named after the application: the file's name is

@@ -255,6 +255,16 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 #define HOST_HEADER_TEXT_MAX 31
 HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
 
+/* A QR code of `text`, its top left corner at x, y, each of its modules
+ * `cell` pixels square; the white a reader wants around it - four modules -
+ * is the application's to leave. Returns how many modules a side has, and
+ * with a cell of 0 only that, anywhere: for placing the code before it is
+ * drawn. HOST_ERR_NO_SPACE for a text too long for the largest code, 57
+ * modules a side. */
+#define HOST_QR_TEXT_MAX 200
+HOST_IMPORT(gfx_qr, int32_t gfx_qr(int32_t x, int32_t y, int32_t cell, const char *text,
+                                   int32_t length));
+
 /* From app_on_data() off the screen: what arrived is worth showing now.
  * The host decides; on the screen it means nothing. */
 HOST_IMPORT(request_focus, void request_focus(void));
@@ -432,6 +442,8 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define SYS_INFO_SLOT    5 /* the firmware slot it runs from: "ota_0" */
 #define SYS_INFO_FREE_MEMORY 6 /* of the host, in KB, as digits */
 #define SYS_INFO_TIME_ZONE   7 /* as a POSIX TZ string: "MSK-3" */
+#define SYS_INFO_JOIN_CODE   8 /* what a QR code says to join a phone to the device's own
+                                  access point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
 #define SYS_WIFI_SETUP      "setup" /* waiting on its own access point to be told a network */

@@ -120,7 +120,7 @@ void devtools_serve(void *opaque, wm_t *wm, uint32_t frames_shown, bool frame_pe
         request->frames_shown = frames_shown;
         request->frame_pending = frame_pending;
     } else {
-        scene_t *scene = launcher_app_scene(request->app_name);
+        scene_t *scene = launcher_scene(request->app_name);
         request->done = scene != NULL;
         if (scene != NULL) {
             wm_show(wm, scene);

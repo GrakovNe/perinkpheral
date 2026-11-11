@@ -90,7 +90,5 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    start_screen(&offline, &content);
-    screens_setup(&content, "Perinkpheral-C7B0", "192.168.4.1");
-    return save(dir, "setup");
+    return 0;
 }

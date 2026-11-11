@@ -131,7 +131,9 @@ static scene_t *scene_after_boot(scene_t *menu)
     wifi_status_t wifi;
     wifi_get_status(&wifi);
     if (wifi.ssid[0] == '\0') {
-        return scene_setup();
+        /* A firmware without the screen that says how leaves the user at the
+         * menu: Device has the access point's address. */
+        return launcher_setup() != NULL ? launcher_setup() : menu;
     }
     char last_app[APP_NAME_MAX + 1];
     settings_load_last_app(last_app, sizeof last_app);

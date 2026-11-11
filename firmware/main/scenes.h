@@ -40,9 +40,6 @@ typedef bool (*scenes_is_shown_fn)(scene_t *scene);
 scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t *picture,
                            scenes_is_shown_fn picture_is_shown);
 
-/* How to give the device a Wi-Fi network: shown when it has none. */
-scene_t *scene_setup(void);
-
 #ifdef __cplusplus
 }
 #endif

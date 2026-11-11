@@ -37,12 +37,14 @@ static int          s_entry_count;
     extern const uint8_t system_##name##_wasm_end[] asm("_binary_system_" #name "_wasm_end"); \
     extern const char system_##name##_manifest_start[] asm("_binary_system_" #name          \
                                                              "_manifest_start")
+SYSTEM_APP(setup);
 SYSTEM_APP(settings);
 SYSTEM_APP(device);
 SYSTEM_APP(about);
 
 /* In the order the menu lists them, after the installed ones. */
-enum { SYSTEM_SETTINGS, SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_APP_COUNT };
+enum { SYSTEM_SETTINGS, SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_IN_MENU, SYSTEM_SETUP = SYSTEM_IN_MENU,
+       SYSTEM_APP_COUNT };
 
 static app_manifest_t s_system[SYSTEM_APP_COUNT];
 static scene_t       *s_system_scenes[SYSTEM_APP_COUNT];
@@ -91,13 +93,33 @@ void launcher_start(void)
         system_app_scene(&s_system[SYSTEM_ABOUT], system_about_manifest_start,
                          system_about_wasm_start,
                          (size_t)(system_about_wasm_end - system_about_wasm_start));
-    for (int i = 0; i < SYSTEM_APP_COUNT; i++) {
+    /* Shown when the device has no network, and not something to open. */
+    s_system_scenes[SYSTEM_SETUP] =
+        system_app_scene(&s_system[SYSTEM_SETUP], system_setup_manifest_start,
+                         system_setup_wasm_start,
+                         (size_t)(system_setup_wasm_end - system_setup_wasm_start));
+    for (int i = 0; i < SYSTEM_IN_MENU; i++) {
         if (s_system_scenes[i] != NULL) {
             s_entries[s_entry_count++] = (menu_entry_t){
                 s_system[i].title, s_system[i].has_icon ? s_system[i].icon : NULL,
                 s_system_scenes[i] };
         }
     }
+}
+
+scene_t *launcher_setup(void)
+{
+    return s_system_scenes[SYSTEM_SETUP];
+}
+
+scene_t *launcher_scene(const char *name)
+{
+    for (int i = 0; i < SYSTEM_APP_COUNT; i++) {
+        if (s_system_scenes[i] != NULL && strcmp(s_system[i].name, name) == 0) {
+            return s_system_scenes[i];
+        }
+    }
+    return launcher_app_scene(name);
 }
 
 scene_t *launcher_about(void)

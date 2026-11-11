@@ -126,7 +126,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ### System applications and the system API
 The host's own pages are applications too - written with the same SDK, run by the same interpreter - so that the host is built with what it gives to others. They are **system applications**: built from `firmware/system`, carried inside the firmware image (an update over the network brings them along, so they always speak the API of the host they run on), never installed and never removed, and outside the five places. Their names begin with `sys.`, which no installed application's name can. `Settings`, `Device` and `About` are there today. `Settings` is the device's settings with four buttons and no keyboard: General (date and time - from the network or by hand, the time zone by a city from a list, power saving, which has one value yet), Apps (the installed ones, each can be removed), Display (the three numbers of the refresh policy), Wi-Fi (the network, the address, forgetting it) and Reset. Nothing is typed: a value is one of a few stepped through with UP and DOWN, a date is its parts stepped the same way with OK to the next and BACK to the one before, and what cannot be undone asks first. What needs text is set from the web page. `Device` is the device's name, its network and address, the firmware and its slot, memory and uptime, all asked of the host with `sys_info`. `About` is the mark, the version of the build (`v0.1.0-0adbfb4`: the version the project is at and the commit), a QR code of the project's address and, in the small font at the bottom, the author and the license. 
 
-What stays native is what has to work when nothing else does: the menu, the Wi-Fi setup screen and the message of an application that crashed. The splash at power-up is not among them: it is About's picture, and without it the device simply starts.
+What stays native is what has to work when nothing else does: the menu and the message of an application that crashed. The screen that says how to give the device a network is a system application too (`setup`, not in the menu): without it the device starts at the menu, and Device has the address. The splash at power-up is not among them: it is About's picture, and without it the device simply starts.
 
 They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (`sys_info`: the version, the name, the network and its state, the address, the slot, free memory, the time zone; `sys_number_get` / `sys_number_set` and `sys_text_set`: the host's settings; `sys_time_set`; `sys_app_title` / `sys_app_remove`; `sys_do`: restart, forget the network, factory reset; `sys_logo`). It is not fenced off: the device is its owner's, and any application may have it. It has to ask - `"system": true` in its manifest - and the page says "<title> requests system access." before it installs one. A module that imports a `sys_*` call without having asked is refused by `tools/mkapp` and by the host.
 
@@ -199,6 +199,7 @@ gfx_color(0..16)                       // how dark the calls below draw: 0 paper
 gfx_rect(x, y, w, h, fill)
 gfx_line(x0, y0, x1, y1)
 gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear one leaves what is there
+gfx_qr(x, y, cell, str_ptr, len)       // a QR code of the text, up to 57 modules a side; returns the modules, cell 0 only measures
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
 request_exit()                         // done: give the screen back, as BACK does in the host's pages
@@ -351,7 +352,7 @@ hardware/              everything about the physical device
   step/                the STEP model of the case
   render/              case renders from Blender (not in git)
 ```
-`firmware/system` holds the system applications: `settings`, `device` and `about`. `power`, `store`, `web`, the `plex` and `trmnl` applications and `tools/catalog` do not exist yet; the poller lives in `main/poller.c`, not in a component of its own.
+`firmware/system` holds the system applications: `settings`, `device`, `about` and `setup`. `power`, `store`, `web`, the `plex` and `trmnl` applications and `tools/catalog` do not exist yet; the poller lives in `main/poller.c`, not in a component of its own.
 
 ## Milestones
 1. **Applications without the network.** The host loads `hello.wasm` from LittleFS; the application draws text and reacts to a button; `clock.wasm` is switched to through a minimal host menu (long press 4). A check of running on battery without USB. Host API of the milestone: `gfx_clear`, `gfx_text`, `gfx_rect`, `gfx_bitmap`, `gfx_text_width`, `gfx_flush`, `timer_set`, `time_now`, `log`; exports `app_init`, `app_on_button`, `app_on_timer`, `app_on_focus`, `app_on_blur`. Start with `sdk/host_api.h` and `components/appsys`.

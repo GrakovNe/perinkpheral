@@ -23,6 +23,14 @@ void launcher_start(void);
  * the firmware was built without a sound one. */
 scene_t *launcher_about(void);
 
+/* The screen that says how to give the device a network; NULL like the
+ * one above. */
+scene_t *launcher_setup(void);
+
+/* Any scene there is by its application's name, a system one ("sys.about")
+ * included; for the development tools. NULL when there is none. */
+scene_t *launcher_scene(const char *name);
+
 /* What the menu lists: applications by title, then the host's pages. */
 const menu_entry_t *launcher_entries(int *count);
 

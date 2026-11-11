@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include "host_api.h"
+#include "qrcodegen.h"
 #include "wasm3.h"
 
 /* The interpreter's own stack of values, apart from the application's
@@ -351,6 +352,56 @@ HOST_FUNCTION(host_data_value)
     }
     memcpy(text, app->values[index], length);
     m3ApiReturn((int32_t)length);
+}
+
+/* The largest code an application gets: 57 modules a side. Both buffers
+ * of the generator are on the host's stack while it works. */
+#define QR_VERSION_MAX 10
+#define QR_CELL_MAX    16
+
+HOST_FUNCTION(host_gfx_qr)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, cell);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    app_t *app = APP_OF(runtime);
+    if (text == NULL || length > HOST_QR_TEXT_MAX || cell < 0 || cell > QR_CELL_MAX ||
+        !is_drawable(x) || !is_drawable(y)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (cell > 0 && app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char terminated[HOST_QR_TEXT_MAX + 1];
+    memcpy(terminated, text, (size_t)length);
+    terminated[length] = '\0';
+    uint8_t modules[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
+    uint8_t scratch[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
+    if (!qrcodegen_encodeText(terminated, scratch, modules, qrcodegen_Ecc_MEDIUM,
+                              qrcodegen_VERSION_MIN, QR_VERSION_MAX, qrcodegen_Mask_AUTO, true)) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    int size = qrcodegen_getSize(modules);
+    for (int row = 0; cell > 0 && row < size; row++) {
+        /* A run of dark modules in a row is one rectangle. */
+        for (int column = 0; column < size;) {
+            if (!qrcodegen_getModule(modules, column, row)) {
+                column++;
+                continue;
+            }
+            int run_start = column;
+            while (column < size && qrcodegen_getModule(modules, column, row)) {
+                column++;
+            }
+            gfx_fill(app->surface, x + run_start * cell, y + row * cell,
+                     (column - run_start) * cell, cell, true);
+        }
+    }
+    m3ApiReturn(size);
 }
 
 HOST_FUNCTION(host_request_redraw)
@@ -886,6 +937,7 @@ static const struct {
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
     { "gfx_color", "i(i)", host_gfx_color },
     { "data_value", "i(iii)", host_data_value },
+    { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },

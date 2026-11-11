@@ -7,19 +7,12 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "qrcodegen.h"
-#include "wifi_qr.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
  * logo word is the square font; everything else is Departure Mono. */
 
 /* The prototype shows this, not the build's version. */
-static void centered(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
-{
-    gfx_text_font(g, (g->w - gfx_text_font_width(font, text)) / 2, baseline, font, text, true);
-}
-
 #define MARGIN        16
 #define TEXT_BASELINE 30 /* of the first line under a top edge */
 
@@ -153,57 +146,4 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         }
         gfx_text_font(g, title_left, baseline, gfx_font_system(), item.title, !is_selected);
     }
-}
-
-/* The setup screen: a code that joins the phone to the device's access
- * point, and under it the same in words for whoever has no camera. */
-#define SETUP_TOP_GAP       8
-#define SETUP_LINE_HEIGHT   32
-#define SETUP_TEXT_LINES    2
-#define SETUP_TEXT_MAX      48
-#define SETUP_TEXT_DESCENT  10 /* from the bottom of a line to its baseline */
-#define QR_VERSION_MAX       5 /* 37 modules: more than any access point name needs */
-#define QR_QUIET_MODULES    4 /* the white a reader wants around the code */
-
-/* Draws the code centered in the given box; false when the text does not
- * fit into a code this small. */
-static bool qr_code(gfx_t *g, int top, int height, const char *text)
-{
-    uint8_t modules[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
-    uint8_t scratch[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
-    if (!qrcodegen_encodeText(text, scratch, modules, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN,
-                              QR_VERSION_MAX, qrcodegen_Mask_AUTO, true)) {
-        return false;
-    }
-    int size = qrcodegen_getSize(modules);
-    int module_pixels = height / (size + 2 * QR_QUIET_MODULES);
-    if (module_pixels < 1) {
-        return false;
-    }
-    int left = (g->w - size * module_pixels) / 2;
-    top += (height - size * module_pixels) / 2;
-    for (int row = 0; row < size; row++) {
-        for (int col = 0; col < size; col++) {
-            if (qrcodegen_getModule(modules, col, row)) {
-                gfx_fill(g, left + col * module_pixels, top + row * module_pixels, module_pixels,
-                         module_pixels, true);
-            }
-        }
-    }
-    return true;
-}
-
-void screens_setup(gfx_t *g, const char *access_point_name, const char *address)
-{
-    int text_top = g->h - SETUP_TEXT_LINES * SETUP_LINE_HEIGHT;
-    char qr_text[WIFI_QR_TEXT_MAX];
-    if (wifi_qr_text(access_point_name, qr_text, sizeof qr_text)) {
-        qr_code(g, SETUP_TOP_GAP, text_top - SETUP_TOP_GAP, qr_text);
-    }
-
-    char line[SETUP_TEXT_MAX];
-    snprintf(line, sizeof line, "Join %s", access_point_name);
-    centered(g, text_top + SETUP_LINE_HEIGHT - SETUP_TEXT_DESCENT, gfx_font_system(), line);
-    snprintf(line, sizeof line, "Open %s", address);
-    centered(g, text_top + 2 * SETUP_LINE_HEIGHT - SETUP_TEXT_DESCENT, gfx_font_system(), line);
 }
