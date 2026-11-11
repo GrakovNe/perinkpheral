@@ -243,6 +243,36 @@ static void test_a_request_that_broke_off(void)
     CHECK(app_scene_app(probe) == NULL);
 }
 
+static void test_something_else_in_the_middle_of_an_answer(void)
+{
+    start_on(&menu.scene);
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
+    app_t *taking = app_scene_app(probe);
+    CHECK(taking != NULL && state.is_mid_answer);
+    /* its settings change while the answer is still coming */
+    app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
+    app_deliver(&state, &wm, probe, &changed, 0);
+    /* the same instance goes on taking the answer */
+    CHECK(app_scene_app(probe) == taking && state.in_background == probe && wm.suspended);
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
+    deliver_piece(2500 - 2048, HOST_DATA_LAST, 0);
+    /* whole, and it asked for the screen: it had all 2500 bytes */
+    CHECK(wm.current == probe && state.in_background == NULL && !state.is_mid_answer);
+}
+
+static void test_opened_while_taking_an_answer(void)
+{
+    start_on(&menu.scene);
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
+    CHECK(state.in_background == probe);
+    /* the user opens it before the answer is whole */
+    wm_show(&wm, probe);
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
+    /* it is the scene now: an answer for anybody else must not unload it */
+    CHECK(state.in_background == NULL && wm.current == probe);
+    CHECK(app_scene_app(probe) != NULL);
+}
+
 static void test_a_scene_that_is_not_an_application(void)
 {
     start_on(&menu.scene);
@@ -260,6 +290,8 @@ int main(void)
     test_asks_for_the_screen();
     test_not_twice_in_a_row();
     test_a_request_that_broke_off();
+    test_something_else_in_the_middle_of_an_answer();
+    test_opened_while_taking_an_answer();
     test_a_scene_that_is_not_an_application();
     REPORT();
 }

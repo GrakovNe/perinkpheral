@@ -39,7 +39,7 @@ static void write_file(const char *folder, const char *file, const void *content
 static void install(const char *folder, const char *name, const char *title)
 {
     char manifest[160];
-    snprintf(manifest, sizeof manifest, "{\"name\":\"%s\",\"title\":\"%s\",\"abi\":1}", name, title);
+    snprintf(manifest, sizeof manifest, "{\"name\":\"%s\",\"title\":\"%s\",\"abi\":2}", name, title);
     write_file(folder, "manifest.json", manifest, strlen(manifest));
     write_file(folder, "app.wasm", "\0asm", 4);
 }
@@ -134,7 +134,7 @@ static void test_install_files(void)
 {
     fresh_root();
     app_manifest_t apps[4];
-    const char *manifest = "{\"name\":\"fresh\",\"title\":\"Fresh\",\"version\":\"1\",\"abi\":1}";
+    const char *manifest = "{\"name\":\"fresh\",\"title\":\"Fresh\",\"version\":\"1\",\"abi\":2}";
 
     /* a new application: its folder is made, and it is listed once both files are in */
     CHECK(put_file("fresh", APP_FILE_MODULE, "first"));

@@ -204,17 +204,21 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     json_pick_init(&request->pick, request->paths, path_count);
     size_t total = 0;
     int    length;
+    bool   is_whole = true;
     while ((length = read_piece(client, request->piece)) > 0) {
         total += (size_t)length;
         if (total > ANSWER_MAX_BYTES || !json_pick_feed(&request->pick, (char *)request->piece,
                                                         (size_t)length)) {
+            is_whole = false;
             break;
         }
     }
     json_pick_finish(&request->pick);
     esp_http_client_close(client);
-    if (length < 0) {
-        http_status = 0; /* broke off: what was read so far is not an answer */
+    if (length < 0 || !is_whole) {
+        /* Broke off, too long, or not JSON: what was read so far is not
+         * an answer, and half of one must not pass for a whole one. */
+        http_status = 0;
     }
     for (int i = 0; i < path_count; i++) {
         request->values[i] = json_pick_value(&request->pick, i);

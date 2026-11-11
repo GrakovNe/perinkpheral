@@ -755,7 +755,7 @@ async function loadAll() {
 window.addEventListener("hashchange", showSection);
 showSection();
 showPane("general");
-loadAll();
+loadAll().catch(() => { byId("tiles").textContent = "The device does not answer."; afterRestart(); });
 </script>
 </body>
 </html>

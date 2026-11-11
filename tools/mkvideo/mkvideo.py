@@ -30,6 +30,10 @@ import subprocess
 import sys
 
 
+PLAYER_WIDTH_MAX = 400
+PLAYER_FRAME_BYTES_MAX = 2048
+
+
 def read_frames(video, width, height, fps, threshold):
     """Every frame as a list of bools, True where the picture is dark."""
     raw = subprocess.run(
@@ -88,6 +92,14 @@ def main():
     if not frames:
         sys.exit("no frames came out of %s" % options.video)
     encoded = [encode_frame(frame, options.width) for frame in frames]
+    # What sdk players take: say so here, not on the device's screen.
+    largest = max(len(frame) for frame in encoded)
+    if options.width > PLAYER_WIDTH_MAX or largest > PLAYER_FRAME_BYTES_MAX:
+        sys.exit("the player takes frames up to %d wide and %d bytes; this is %d wide and %d "
+                 "bytes: use a smaller picture" % (PLAYER_WIDTH_MAX, PLAYER_FRAME_BYTES_MAX,
+                                                    options.width, largest))
+    if round(options.fps * 10) < 1:
+        sys.exit("--fps is at least 0.1")
     header_bytes = 8 + 4 * (len(frames) + 1)
     starts, at = [], header_bytes
     for frame in encoded:

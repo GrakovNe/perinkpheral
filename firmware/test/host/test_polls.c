@@ -11,7 +11,7 @@
 
 /* ---- polls in the manifest ---- */
 
-#define MANIFEST_START "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"polls\":"
+#define MANIFEST_START "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"polls\":"
 
 static void test_polls_in_the_manifest(void)
 {
@@ -280,7 +280,7 @@ static void test_pick(void)
 {
     static app_poll_t poll;
     const char *with_pick =
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"https://a.example/x\","
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"https://a.example/x\","
         "\"every\":600,\"pick\":[\"current.temperature_2m\",\"daily.weather_code[0]\"]},"
         "{\"url\":\"http://b.example/y\",\"every\":60}]}";
     app_manifest_t manifest;
@@ -293,10 +293,10 @@ static void test_pick(void)
     CHECK(app_manifest_parse_poll(with_pick, 1, &poll) == APP_MANIFEST_OK && poll.pick_count == 0);
 
     const char *bad[] = {
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":\"a.b\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[1]}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[\"\"]}]}",
-        ("{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":["
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":\"a.b\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[1]}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[\"\"]}]}",
+        ("{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":["
          "\"0123456789012345678901234567890123456789012345678901234567890123\"]}]}"),
     };
     for (int i = 0; i < 4; i++) {

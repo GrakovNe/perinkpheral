@@ -146,8 +146,8 @@ static char *read_body(httpd_req_t *request)
     return body;
 }
 
-/* All of them or none: a form is saved as a whole. `problem` names the
- * first setting that cannot be stored. */
+/* A form is checked as a whole before any of it is stored: one value
+ * that does not fit refuses all of them. `problem` names it. */
 static bool are_acceptable(const char *manifest, const cJSON *wanted, const char **problem)
 {
     const cJSON *value;

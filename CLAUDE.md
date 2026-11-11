@@ -111,7 +111,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
   "settings": [
     { "key": "token", "type": "secret", "title": "Plex token" }
   ],
-  "abi": 1
+  "abi": 2
 }
 ```
 **An application may bring an icon**, in its manifest and optional: `"icon"` is 11 rows of 11 characters, `#` for ink and `.` for paper - the form the host's own icons have in the source, which a person can type, which follows the icon rules by construction and which scales. The device draws it beside the title in its menu, a cell two pixels; the web page draws it on the application's tile; a catalog's index carries it, so that an application has a face before it is installed.
@@ -177,7 +177,7 @@ The host draws a header above its own screens and above every application that d
 - The network name and the address are on the device page of the menu, not in the header.
 
 ### Host API (wasm imports)
-The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and `tools/mkapp` refuses a module that imports anything else. It is not frozen: it changes while the first applications are being written, and the `abi` number of the manifest moves with it. What exists today:
+The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and `tools/mkapp` refuses a module that imports anything else. It is not frozen and, until the first release, not versioned: the contract is simply changed, with no backward compatibility, and the applications are rebuilt - the ones in `sdk/apps` with the firmware, the ones in perinkpheral-apps by `build.sh` there. `HOST_API_VERSION` and the manifest's `abi` exist for later and stay at 2 until then. What exists today:
 ```
 gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x260 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
@@ -394,7 +394,7 @@ Milestone 1 is done, the run from the battery included (seen by the owner). Next
 - Do not build a declarative JSON layout into the core (it can be one of the applications).
 - Do not keep more than one wasm instance in memory or more than one TLS connection.
 - Do not use pointer callbacks in the ABI - named exports only.
-- Do not change `host_api.h` signatures without an ABI version in the manifest.
+- Do not version the host API before the first release: change `host_api.h` freely and rebuild the applications. After a release a changed signature will mean a new `abi`.
 - Do not design for PSRAM: there is none.
 - Do not measure the battery voltage and do not detect USB - decided.
 - Do not "optimize" the panel driver: CS per byte, one SPI device, bounded BUSY waits.

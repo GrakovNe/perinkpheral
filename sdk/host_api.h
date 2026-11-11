@@ -6,15 +6,17 @@
  * the wasm applications. Applications include this header and link the
  * imports; the host builds its import table from the same names.
  *
- * The contract is still moving and is not frozen: it changes while the
- * first applications are written, and the "abi" field of manifest.json
- * moves with HOST_API_VERSION.
+ * The contract is still moving, and until the first release it is not
+ * versioned either: it is simply changed, with no regard for applications
+ * built before, and whoever changes it rebuilds the applications.
+ * HOST_API_VERSION and the "abi" of a manifest are there for the day that
+ * ends; until then the number stays where it is.
  */
 #pragma once
 
 #include <stdint.h>
 
-#define HOST_API_VERSION 1
+#define HOST_API_VERSION 2
 
 /* The host firmware reads this header too, for the constants. It has
  * functions of its own under some of these names, so outside a wasm build

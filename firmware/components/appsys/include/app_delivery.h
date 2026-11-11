@@ -51,6 +51,7 @@ typedef struct {
 
 typedef struct {
     scene_t *in_background; /* the owner loaded off the screen, between its first piece and its last */
+    bool     is_mid_answer; /* pieces of an answer are still to come for it */
     bool     has_given_focus;
     int64_t  last_focus_ms;
 } app_delivery_state_t;

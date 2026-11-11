@@ -10,6 +10,7 @@
 void app_delivery_init(app_delivery_state_t *state)
 {
     state->in_background = NULL;
+    state->is_mid_answer = false;
     state->has_given_focus = false;
     state->last_focus_ms = 0;
 }
@@ -47,6 +48,7 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     bool wants_screen = app != NULL && app_take_focus_request(app) && !app_has_stopped(app);
     app_scene_end_background(owner);
     state->in_background = NULL;
+    state->is_mid_answer = false;
     if (wants_screen && may_give_focus(state, now_ms)) {
         state->has_given_focus = true;
         state->last_focus_ms = now_ms;
@@ -68,6 +70,13 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
             app_take_focus_request(app);
             wm_scene_reacted(wm, owner, app_scene_take_reaction(owner), WM_CHANGED_BY_DATA);
         }
+        /* It came onto the screen while it was loaded for an answer - the
+         * user opened it: it is the scene's now, and not to be unloaded as
+         * a background one when the next answer comes for somebody else. */
+        if (state->in_background == owner) {
+            state->in_background = NULL;
+            state->is_mid_answer = false;
+        }
         return;
     }
 
@@ -88,7 +97,13 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     if (app != NULL) {
         call(app, delivery);
     }
-    if (is_last(delivery)) {
+    if (delivery->kind == APP_DELIVERY_PIECE) {
+        state->is_mid_answer = !is_last(delivery);
+    }
+    /* Something else for it in the middle of an answer - its settings
+     * changed, its alarm came - is taken by the instance that is taking
+     * the answer; unloading it now would lose what is still to come. */
+    if (!state->is_mid_answer) {
         end_background(state, wm, app, now_ms);
     }
 }

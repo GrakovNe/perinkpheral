@@ -327,8 +327,11 @@ def copy_data_files(app_dir, out_dir):
     total = 0
     for name in sorted(os.listdir(files_dir)):
         path = os.path.join(files_dir, name)
-        if name.startswith(".") and not os.path.isfile(path):
+        # What a file manager leaves behind, and folders, are not the application's.
+        if name.startswith(".") or not os.path.isfile(path):
             continue
+        if name in ("app.wasm", "manifest.json"):
+            sys.exit("%s: this name is the application's own" % path)
         if not re.fullmatch(r"[a-z0-9_-][a-z0-9._-]{0,%d}" % (FILE_NAME_MAX - 1), name):
             sys.exit("%s: a file's name is 1-%d of a-z, 0-9, '.', '-' and '_', not starting "
                      "with a dot" % (path, FILE_NAME_MAX))
