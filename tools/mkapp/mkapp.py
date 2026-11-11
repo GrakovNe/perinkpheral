@@ -47,6 +47,7 @@ SETTING_TITLE_MAX = 31
 SETTING_HELP_MAX = 95
 SETTING_OPTIONS_MAX = 8
 SETTING_OPTION_MAX = 23
+INTENTS = ("time_changed", "network_up")
 SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place")
 FILE_NAME_MAX = 23
 FILES_MAX_BYTES = 100 * 1024
@@ -328,6 +329,9 @@ def check_manifest(app_dir):
                    for host in hosts)):
         sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes"
                  % (path, HOSTS_MAX, HOST_MAX))
+    intents = manifest.get("intents", [])
+    if not isinstance(intents, list) or any(intent not in INTENTS for intent in intents):
+        sys.exit("%s: \"intents\" must be a list of %s" % (path, ", ".join(INTENTS)))
     check_settings(path, manifest.get("settings", []))
     polls = manifest.get("polls", [])
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:

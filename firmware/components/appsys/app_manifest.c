@@ -395,6 +395,44 @@ bool app_manifest_allows_url(const char *json, const char *url)
     return allowed;
 }
 
+/* The kinds of news an application may ask for, by the names a manifest
+ * has for them. */
+static const struct {
+    const char *name;
+    int         intent;
+} INTENTS[] = {
+    { "time_changed", HOST_INTENT_TIME_CHANGED },
+    { "network_up", HOST_INTENT_NETWORK_UP },
+};
+
+/* A kind the host does not know is a mistake, not something to pass over:
+ * the application would wait for news that never comes. */
+static bool read_intents(const cJSON *intents, uint32_t *asked)
+{
+    *asked = 0;
+    if (intents == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(intents)) {
+        return false;
+    }
+    const cJSON *intent;
+    cJSON_ArrayForEach(intent, intents)
+    {
+        bool is_known = false;
+        for (size_t i = 0; cJSON_IsString(intent) && i < sizeof INTENTS / sizeof INTENTS[0]; i++) {
+            if (strcmp(intent->valuestring, INTENTS[i].name) == 0) {
+                *asked |= 1u << INTENTS[i].intent;
+                is_known = true;
+            }
+        }
+        if (!is_known) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool read_icon(const cJSON *icon, app_manifest_t *manifest)
 {
     manifest->has_icon = false;
@@ -466,6 +504,9 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     }
     if (!are_sound_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
         return APP_MANIFEST_BAD_SETTING;
+    }
+    if (!read_intents(cJSON_GetObjectItemCaseSensitive(root, "intents"), &manifest->intents)) {
+        return APP_MANIFEST_BAD_INTENT;
     }
 
     const cJSON *polls = cJSON_GetObjectItemCaseSensitive(root, "polls");
@@ -543,6 +584,8 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"settings\" must be a list of at most 8, each with a key, a type "
                "(text, secret, number, choice, toggle, place) and a title; a place names two "
                "number settings as its \"latitude\" and \"longitude\"";
+    case APP_MANIFEST_BAD_INTENT:
+        return "\"intents\" must be a list of time_changed, network_up";
     case APP_MANIFEST_OTHER_ABI:
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:

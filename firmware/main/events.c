@@ -95,6 +95,12 @@ void events_answer_call(void *asked)
     xSemaphoreGive(call->done);
 }
 
+bool events_post_intent(int intent)
+{
+    event_t event = { .kind = EVENT_INTENT, .intent = intent };
+    return events_post(&event);
+}
+
 bool events_post_apps_changed(void)
 {
     event_t event = { .kind = EVENT_APPS_CHANGED };

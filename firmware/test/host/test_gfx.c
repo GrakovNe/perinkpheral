@@ -178,11 +178,11 @@ static void test_bitmap(void)
 
 static void test_text_square(void)
 {
-    /* scale 5: strokes 5, gaps 6, the 27 px square of the voc glyphs */
+    /* scale 5: strokes 5, gaps 6, the 27 px square of the glyphs */
     CHECK(gfx_text_sq_height(5) == 27);
     CHECK(gfx_text_sq_width("0", 5) == 27);
     CHECK(gfx_text_sq_width("l", 5) == 5);           /* one stroke */
-    CHECK(gfx_text_sq_width("1", 5) == 11);          /* flag and stem: 6 + 5, as in voc */
+    CHECK(gfx_text_sq_width("1", 5) == 11);          /* flag and stem: 6 + 5 */
     CHECK(gfx_text_sq_width("00", 5) == 27 + 5 + 27);
     CHECK(gfx_text_sq_width_ex("00", 5, 10) == 64);
     CHECK(gfx_text_sq_width("a b", 5) == 27 + 5 + 11 + 5 + 27); /* space is stroke + gap */

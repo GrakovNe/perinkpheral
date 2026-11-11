@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include <string.h>
+
 #include "host.h"
 
 #include "esp_log.h"
@@ -261,6 +263,27 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
     }
 }
 
+/* Tells every application that asked for this kind of news, loading each
+ * for the call. Those that did not ask are left asleep. */
+static void broadcast(int intent)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    /* Names first: a delivery does not change the list, but the list is
+     * not this function's to hold on to across calls into applications. */
+    char names[LAUNCHER_INSTALLED_MAX][APP_NAME_MAX + 1];
+    int  asked = 0;
+    for (int i = 0; i < count; i++) {
+        if ((installed[i].intents & (1u << intent)) != 0) {
+            strcpy(names[asked++], installed[i].name);
+        }
+    }
+    app_delivery_t news = { .kind = APP_DELIVERY_INTENT, .request = intent };
+    for (int i = 0; i < asked; i++) {
+        host_deliver(names[i], &news);
+    }
+}
+
 void host_run(void)
 {
     launcher_start();
@@ -332,6 +355,9 @@ void host_run(void)
             break;
         case EVENT_CALL:
             events_answer_call(event.call);
+            break;
+        case EVENT_INTENT:
+            broadcast(event.intent);
             break;
         case EVENT_STOP:
             stop((host_stop_t)event.stop);

@@ -37,6 +37,20 @@
 static const char *TAG = "main";
 
 
+/* The wall clock was set to another time, by the network or by hand.
+ * Alarms for a time of day follow it; applications are told only of a
+ * change somebody could notice, not of every correction by a few
+ * milliseconds. */
+#define CLOCK_CHANGE_WORTH_TELLING_MS 2000
+
+static void on_clock_moved(int64_t delta_ms)
+{
+    poller_clock_moved(delta_ms);
+    if (delta_ms >= CLOCK_CHANGE_WORTH_TELLING_MS || delta_ms <= -CLOCK_CHANGE_WORTH_TELLING_MS) {
+        app_host_tell_time_changed();
+    }
+}
+
 /* Runs in the Wi-Fi task whenever the connection comes or goes. */
 static void on_wifi_changed(void)
 {
@@ -44,6 +58,7 @@ static void on_wifi_changed(void)
         /* The clock was asked before there was a network to answer. */
         net_time_sync_now();
         poller_network_is_back();
+        app_host_tell_network_is_up();
     }
     status_check();
 }
@@ -109,7 +124,7 @@ void app_main(void)
     status_start();
     wifi_start(&wifi);
     power_start(cfg->power_saving != 0);
-    net_time_on_change(poller_clock_moved);
+    net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
     web_server_start();
     /* An image installed over the network has to prove that the network

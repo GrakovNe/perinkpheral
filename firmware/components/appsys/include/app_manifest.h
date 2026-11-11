@@ -56,6 +56,9 @@ typedef struct {
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */
+    /* The kinds of news it asked for under "intents": bit HOST_INTENT_*
+     * of each. */
+    uint32_t intents;
     /* Not from the manifest: what the host calls this application - a
      * number made of its code and its manifest, never 0. Whoever lists the
      * installed applications fills it in. */
@@ -95,6 +98,7 @@ typedef enum {
     APP_MANIFEST_OTHER_ABI, /* missing, or not the ABI this host speaks */
     APP_MANIFEST_BAD_HOSTS,   /* "hosts" is not a list of a few host names */
     APP_MANIFEST_BAD_SETTING, /* "settings" is not a list of sound settings */
+    APP_MANIFEST_BAD_INTENT,  /* "intents" is not a list of kinds the host knows */
     APP_MANIFEST_BAD_POLL,  /* too many polls, or one without a sound url and every */
 } app_manifest_result_t;
 

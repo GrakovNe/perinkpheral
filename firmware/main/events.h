@@ -25,6 +25,7 @@ typedef enum {
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
     EVENT_STOP,       /* the device is to stop: see host_stop_soon() */
+    EVENT_INTENT,     /* news for the applications that asked for the kind */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -49,6 +50,7 @@ typedef struct {
     void *delivery;    /* a poller_delivery_t */
     void *call;        /* of events_call() */
     int   stop;        /* a host_stop_t */
+    int   intent;      /* a HOST_INTENT_* */
 } event_t;
 
 void events_start(void);
@@ -69,6 +71,10 @@ bool events_call(events_call_fn run, void *argument);
 /* For the host loop: marks the task that is one, and answers a call. */
 void events_this_is_the_host_loop(void);
 void events_answer_call(void *call);
+
+/* Something happened that applications may have asked to be told of (a
+ * HOST_INTENT_*). Safe from any task; false when the queue is full. */
+bool events_post_intent(int intent);
 
 /* An application was installed or removed. Safe from any task. */
 bool events_post_apps_changed(void);

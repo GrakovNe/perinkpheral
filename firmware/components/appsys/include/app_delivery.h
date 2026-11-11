@@ -32,6 +32,7 @@ extern "C" {
 typedef enum {
     APP_DELIVERY_PIECE,  /* a piece of an answer as it came: app_on_data() */
     APP_DELIVERY_VALUES, /* the values picked out of an answer: app_on_values() */
+    APP_DELIVERY_INTENT,   /* news it asked for: app_on_intent(); `request` is which */
     APP_DELIVERY_ALARM,    /* the alarm it set has come: app_on_alarm() */
     APP_DELIVERY_SETTINGS, /* the user changed its settings: app_on_settings() */
 } app_delivery_kind_t;

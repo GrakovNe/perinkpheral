@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * The square font, after the glyphs of GrakovNe/voc-sensor: every glyph
+ * The square font: every glyph
  * is a square built on a grid of three strokes and two gaps, in both
  * directions (27 px = 5 + 6 + 5 + 6 + 5). No ascenders, no descenders:
  * lower case is drawn in the same square. Straight bars on the grid

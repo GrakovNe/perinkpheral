@@ -14,6 +14,7 @@
 
 #include "esp_log.h"
 
+#include "events.h"
 #include "app_host.h"
 #include "display.h"
 #include "net_time.h"
@@ -272,6 +273,7 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
         return SETTINGS_NOT_STORED;
     }
     bool power_changed = wanted->power_saving != s_live.power_saving;
+    bool zone_changed = strcmp(wanted->tz, s_live.tz) != 0;
     if (needs_restart != NULL) {
         *needs_restart = strcmp(wanted->device_name, s_live.device_name) != 0 ||
                          strcmp(wanted->ntp_server, s_live.ntp_server) != 0 ||
@@ -290,6 +292,9 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
          * them anew is not something to do for a change of the time zone. */
         power_set_saving(s_live.power_saving != 0);
         poller_reschedule();
+    }
+    if (zone_changed) {
+        app_host_tell_time_changed();
     }
     status_check(); /* the date in the header may be another now */
     return SETTINGS_CHANGED;

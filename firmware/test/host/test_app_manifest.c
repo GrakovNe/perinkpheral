@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "host_api.h"
 #include "tinytest.h"
 
 static app_manifest_t manifest;
@@ -162,6 +163,13 @@ static void test_settings(void)
     for (size_t i = 0; i < sizeof BAD_PLACES / sizeof BAD_PLACES[0]; i++) {
         CHECK(parse(BAD_PLACES[i]) == APP_MANIFEST_BAD_SETTING);
     }
+
+    /* the news an application asks for, by name; an unknown kind is a mistake */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && manifest.intents == 0);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":[\"time_changed\",\"network_up\"]}") == APP_MANIFEST_OK);
+    CHECK(manifest.intents == ((1u << HOST_INTENT_TIME_CHANGED) | (1u << HOST_INTENT_NETWORK_UP)));
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":[\"moon_phase\"]}") == APP_MANIFEST_BAD_INTENT);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":\"time_changed\"}") == APP_MANIFEST_BAD_INTENT);
 
     /* the system API is asked for in so many words */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && !manifest.system);

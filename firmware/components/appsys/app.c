@@ -47,6 +47,7 @@ struct app {
     IM3Function on_data;
     IM3Function on_values;
     IM3Function on_settings;
+    IM3Function on_intent;
     IM3Function on_alarm;
     /* Set only while app_on_values() runs: what data_value() reads. */
     const char *const *values;
@@ -1257,6 +1258,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_data = find_export(app, "app_on_data");
     app->on_values = find_export(app, "app_on_values");
     app->on_settings = find_export(app, "app_on_settings");
+    app->on_intent = find_export(app, "app_on_intent");
     app->on_alarm = find_export(app, "app_on_alarm");
     find_data_buffer(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
@@ -1353,6 +1355,11 @@ void app_alarm(app_t *app, int id)
 void app_settings_changed(app_t *app)
 {
     CALL_HANDLER(app, app->on_settings);
+}
+
+void app_intent(app_t *app, int intent)
+{
+    CALL_HANDLER(app, app->on_intent, (int32_t)intent);
 }
 
 const char *app_header_text(const app_t *app, int side)

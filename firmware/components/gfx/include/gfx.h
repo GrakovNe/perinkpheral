@@ -65,7 +65,7 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
  * 1 = white, rows padded to a byte). */
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits);
 
-/* The square font (font_square.c), after the voc-sensor glyphs: every
+/* The square font (font_square.c): every
  * glyph is a square on a grid of three strokes and two gaps, `scale`
  * pixels per stroke (scale 5 gives the 27 px original); no ascenders or
  * descenders, lower case in the same square. Proportional: a glyph is as

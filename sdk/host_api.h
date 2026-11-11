@@ -365,6 +365,21 @@ HOST_IMPORT(http_request,
  * now, until the device restarts. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
 
+/* ---- Intents ----
+ *
+ * News of the device an application may want although it is not on the
+ * screen. It names the kinds in its manifest -
+ *
+ *     "intents": ["time_changed", "network_up"]
+ *
+ * - and gets each through app_on_intent(), loaded for the call if it is
+ * not loaded, like an answer from the network. An application that named
+ * none is never woken for one. */
+#define HOST_INTENT_TIME_CHANGED 1 /* the clock or the time zone was set to another: what
+                                      was worked out from the time is to be worked out again */
+#define HOST_INTENT_NETWORK_UP   2 /* the device is on its network again */
+APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
+
 /* ---- Alarms ---- */
 
 /* Call app_on_alarm(id) once, when the time comes, whether the application

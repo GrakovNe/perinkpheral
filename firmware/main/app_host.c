@@ -11,6 +11,7 @@
 #include "app_store.h"
 #include "app_system.h"
 #include "storage.h"
+#include "events.h"
 #include "host_api.h"
 #include "net_time.h"
 #include "poller.h"
@@ -74,6 +75,23 @@ static int32_t file_write(const char *app_name, const char *file, int32_t offset
         break;
     }
     return HOST_ERR_FAILED;
+}
+
+static void tell(int intent)
+{
+    if (!events_post_intent(intent)) {
+        ESP_LOGW(TAG, "the queue is full: applications are not told (%d)", intent);
+    }
+}
+
+void app_host_tell_time_changed(void)
+{
+    tell(HOST_INTENT_TIME_CHANGED);
+}
+
+void app_host_tell_network_is_up(void)
+{
+    tell(HOST_INTENT_NETWORK_UP);
 }
 
 static bool s_dithers = true;

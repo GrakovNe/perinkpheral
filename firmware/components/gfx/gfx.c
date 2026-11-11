@@ -270,7 +270,7 @@ static int sq_glyph_width(const sq_glyph_t *gl, int scale)
 }
 
 /* A stroke-wide diagonal between two cell centres: a square brush walked
- * along the line, as the leg of the voc "r" is drawn. */
+ * along the line, as the leg of the "r" is drawn. */
 static void sq_diag(gfx_t *g, int x, int y, int scale, int x0c, int y0c, int x1c, int y1c, bool black)
 {
     int x0 = x + sq_cell_pos(x0c, scale) + (sq_cell_size(x0c, scale) - scale) / 2;
