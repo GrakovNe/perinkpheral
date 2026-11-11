@@ -493,12 +493,16 @@ function showPane(name) {
 
 let installed = [], sources = [], offered = [];
 
-const PLACES_URL = "https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name=";
+/* Photon: a search of OpenStreetMap made for typing, in any language the name has. */
+const PLACES_URL = "https://photon.komoot.io/api/?limit=8&lang=en&layer=city&q=";
+const PLACES_OFFERED = 6;
 const PLACE_TYPING_PAUSE_MS = 250;
 
-/* The device keeps ASCII: "Sao Paulo" for what the service calls "São Paulo". */
+/* The device keeps ASCII: "Sao Paulo" for what the service calls "São Paulo". A name
+   that is not Latin letters under its accents has no such form. */
 function ascii(text) {
-  return text.normalize("NFD").replace(/[^ -~]/g, "");
+  const apart = text.normalize("NFD");
+  return /^[ -~\u0300-\u036f]*$/.test(apart) ? apart.replace(/[^ -~]/g, "") : "";
 }
 
 /* A place is typed by its name and chosen from what the name finds; the choice fills
@@ -538,10 +542,13 @@ function placeField(input, latitude, longitude) {
       try {
         const answer = await (await fetch(PLACES_URL + encodeURIComponent(name))).json();
         if (question !== asked) return;
-        offer((answer.results || []).map(place => ({
-          name: ascii([place.name, place.admin1, place.country].filter(part => part).join(", "))
-            .slice(0, input.maxLength),
-          latitude: place.latitude.toFixed(4), longitude: place.longitude.toFixed(4) })));
+        offer((answer.features || []).map(({ properties: place, geometry }) => ({
+          name: [place.name, place.state, place.country].map(part => ascii(part || "")),
+          longitude: geometry.coordinates[0].toFixed(4), latitude: geometry.coordinates[1].toFixed(4) }))
+          .filter(place => place.name[0])
+          .map(place => ({ ...place, name: place.name.filter(part => part).join(", ").slice(0, input.maxLength) }))
+          .filter((place, index, all) => all.findIndex(other => other.name === place.name) === index)
+          .slice(0, PLACES_OFFERED));
       } catch (error) {
         offer([]);
       }
