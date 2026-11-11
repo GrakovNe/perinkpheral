@@ -30,6 +30,7 @@ static const char *TAG = "web";
 /* How long a sender may say nothing in the middle of a request. */
 #define RECEIVE_TIMEOUT_S     10
 #define QUIET_PERIODS_MAX     3
+#define HOST_HEADER_MAX       64
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
@@ -261,6 +262,27 @@ static esp_err_t handle_ota(httpd_req_t *request)
     return result;
 }
 
+/* A phone on the setup access point asks for pages of its own to find out
+ * whether it is online; every name leads here (captive_dns), and being
+ * sent to the device's page is what makes it show that page. Anybody who
+ * asked the device by its address just gets "not found". */
+static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
+{
+    (void)error;
+    char host[HOST_HEADER_MAX];
+    bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    bool asked_us_by_address = has_host && (strcmp(host, WIFI_SETUP_ADDRESS) == 0 ||
+                                            strcmp(host, wifi.address) == 0);
+    if (asked_us_by_address) {
+        return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
+    }
+    httpd_resp_set_status(request, "302 Found");
+    httpd_resp_set_hdr(request, "Location", "http://" WIFI_SETUP_ADDRESS "/");
+    return httpd_resp_send(request, NULL, 0);
+}
+
 void web_server_start(appconf_t *config, const char device_id[5])
 {
     s_config = config;
@@ -284,6 +306,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
     for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
     }
+    ESP_ERROR_CHECK(httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, handle_not_found));
     s_is_up = true;
     ESP_LOGI(TAG, "serving on port %d", server_config.server_port);
 }

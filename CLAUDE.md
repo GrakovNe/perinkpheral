@@ -156,7 +156,7 @@ The splash is drawn once and the device moves on by itself after a few seconds (
 A device on a shelf has to come back from a restart showing what it showed, without a press.
 
 ### Wi-Fi
-- **No network stored** - the device puts up an open access point named after itself (`Perinkpheral-XXXX`) and waits to be set up at `192.168.4.1`.
+- **No network stored** - the device puts up an open access point named after itself (`Perinkpheral-XXXX`) and waits to be set up at `192.168.4.1`. The setup screen shows a QR code that joins a phone to that access point, with the network name and the address in words under it. A QR code cannot both join a network and open a page, so the access point is a captive portal: its name server (`captive_dns.c`) answers every name with the device, the web server redirects whatever it does not know to its page, and the phone opens the page by itself. The name server answers only while the access point is up. Not yet tried with a phone.
 - **A network stored** - it connects; a lost or failed connection is tried again after 2, 4, 8 ... at most 30 seconds.
 - **Two minutes without success** - rescue: the setup access point comes up as well and the device keeps trying once a minute, so a wrong password never needs the cable. Connected again, the access point goes away.
 - The rules are `components/net/wifi_plan.c`, pure and host-tested; `wifi.c` only carries them out. The Wi-Fi library keeps nothing in flash: the credentials are the host's settings.
@@ -271,7 +271,8 @@ firmware/              the ESP-IDF project (build from this folder)
     power/             plugged/battery/extreme profiles, light and deep sleep, wake-up sources (milestone 4)
     appsys/            one wasm application in memory, the host API as it sees it, the application as a scene, manifests and the store of installed applications (pure)
     wasm3/             the interpreter, v0.9.0 (MIT), with one local change described in its README
-    net/               Wi-Fi (the plan of what to do when is pure, the radio carries it out), the clock from SNTP, receiving a firmware image and judging a fresh one (pure)
+; the setup access point's name server
+    qr/                QR codes: Project Nayuki's generator v1.8.0 (MIT), and the text that joins a phone to a network (pure)
     poller/            polls schedule, http_request queue, HTTP client, streamed app_on_data delivery (milestone 2)
     store/             catalog, install/remove in LittleFS, settings in NVS (milestone 5)
     web/               the rest of the web UI: applications, catalog, settings (milestone 5)

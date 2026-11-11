@@ -16,6 +16,8 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include "captive_dns.h"
+
 static const char *TAG = "wifi";
 
 #define PASSWORD_MAX            64
@@ -112,6 +114,7 @@ static void start_access_point(void)
         return;
     }
     s_wifi.access_point_up = true;
+    captive_dns_enable(true);
     ESP_LOGI(TAG, "setup access point \"%s\" is up", s_wifi.access_point_name);
 }
 
@@ -123,6 +126,7 @@ static void stop_access_point(void)
         return;
     }
     s_wifi.access_point_up = false;
+    captive_dns_enable(false);
     ESP_LOGI(TAG, "setup access point is down");
 }
 
@@ -214,6 +218,10 @@ void wifi_start(const wifi_config_in_t *config)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_ap();
+    /* A phone that joins the access point is told that every name is the
+     * device, so it opens the device's page without being asked. */
+    static const uint8_t SETUP_ADDRESS[4] = { 192, 168, 4, 1 };
+    captive_dns_start(SETUP_ADDRESS);
     esp_netif_t *station = esp_netif_create_default_wifi_sta();
     /* A name the network stack will not take is not worth refusing to
      * start over: the device then goes by its default name. */

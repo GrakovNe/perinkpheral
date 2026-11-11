@@ -16,7 +16,10 @@ MAIN    := ../../main
 # Whatever draws is rebuilt when the drawing code changes.
 GFX_SRCS := $(GFX)/gfx.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring
+QR      := $(COMP)/qr
+QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
+QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
+TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -53,8 +56,8 @@ test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/include/wm.h $(UI)/include/scene.
 	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_wm.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c
 
 test_scenes: test_scenes.c tinytest.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
-	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_scenes.c \
-		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(GFX)/gfx.c $(GFX)/font_square.c
+	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
+		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/screens.c $(GFX)/gfx.c $(GFX)/font_square.c $(QR_SRCS)
 
 # The interpreter is upstream code: built once, without our warnings, and
 # limited to one page of memory exactly as on the device.
@@ -81,6 +84,9 @@ test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/inc
 
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
+
+test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_dns.h $(QR_SRCS) $(QR)/include/wifi_qr.h
+	$(CC) $(CFLAGS) -I$(NET)/include $(QR_INCS) -o $@ test_setup.c $(NET)/captive_dns.c $(QR_SRCS)
 
 test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildcard $(NET)/include/ota_*.h)
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_ota.c $(NET)/ota_stream.c $(NET)/ota_health.c

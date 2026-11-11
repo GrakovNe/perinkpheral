@@ -23,9 +23,12 @@ SRCS = [
     os.path.join(FW, "components", "gfx", "font_square.c"),
     os.path.join(FW, "components", "ui", "wm.c"),
     os.path.join(FW, "main", "screens.c"),
+    os.path.join(FW, "components", "qr", "qrcodegen", "qrcodegen.c"),
+    os.path.join(FW, "components", "qr", "wifi_qr.c"),
 ]
 INCS = [os.path.join(FW, "components", "gfx", "include"), os.path.join(FW, "components", "gfx", "fonts"),
-        os.path.join(FW, "components", "ui", "include"), os.path.join(FW, "main")]
+        os.path.join(FW, "components", "ui", "include"), os.path.join(FW, "main"),
+        os.path.join(FW, "components", "qr", "include"), os.path.join(FW, "components", "qr", "qrcodegen")]
 SCALE = 2
 
 

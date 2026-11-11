@@ -105,6 +105,6 @@ int main(int argc, char **argv)
     }
 
     start_screen(&offline, &content);
-    screens_setup(&content, "Perinkpheral-1A2B", "192.168.4.1");
+    screens_setup(&content, "Perinkpheral-C7B0", "192.168.4.1");
     return save(dir, "setup");
 }
