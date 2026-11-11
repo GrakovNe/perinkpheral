@@ -114,7 +114,11 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
   "abi": 1
 }
 ```
-User settings (`settings`) are edited in the web UI, stored in NVS, substituted by the host into URLs/headers (`{{key}}`) and available to the application through `kv_get`.
+**Settings are declared in the manifest, not by code**, the way Pebble did it with a companion page: nobody types a token with four buttons. The device's web page has an Applications section - what is installed, and a settings form for each, drawn from the manifest without running the application; the catalog will live in the same place. A field is a text, a secret (the page can write it and cannot read it back), a number, a choice from a list or a switch. The values are stored in the application's own store under the keys the manifest names, so the code reads a setting with `kv_get` by the same key, and the host substitutes it into URLs and headers (`{{key}}`). A change arrives as `app_on_settings()`; an application that is not on the screen is loaded for the call and unloaded after it, as for data.
+
+**JSON is picked apart by the host.** A poll or a request names the paths it wants (`current.temperature_2m`, `daily.weather_code[0]`); the host finds them in the stream and hands the application the values, so an application does not parse anything. One that wants the answer as it came asks for it raw and gets the pieces through `app_on_data`. Ease of writing an application is worth the host's memory here.
+
+**HTTPS** verifies the server against the full set of root certificates, the browsers' one, carried in the firmware (60-70 KB of flash, to be measured). If the firmware stops fitting into its slot, this is the first thing to think about again. A server in the home network with a certificate of its own making is not trusted; plain `http` is what works there until somebody needs more.
 
 ### Execution model
 - **Scene** - one application, it owns the screen and the buttons.
@@ -170,8 +174,8 @@ The host draws a header above its own screens and above every application that d
 - An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×260 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.
 - The network name and the address are on the device page of the menu, not in the header.
 
-### Host API (wasm imports, a stable ABI after the first third-party application)
-The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and `tools/mkapp` refuses a module that imports anything else. It freezes as ABI 1 at the end of milestone 2. What exists today:
+### Host API (wasm imports)
+The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and `tools/mkapp` refuses a module that imports anything else. It is not frozen: it changes while the first applications are being written, and the `abi` number of the manifest moves with it. What exists today:
 ```
 gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x260 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
@@ -194,7 +198,7 @@ time_zone_offset() -> seconds          // add to time_now() for the user's local
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
-**What ABI 1 still needs** - agreed, not written yet; in the order it will be built:
+**What the contract still needs** - agreed, not written yet; in the order it will be built:
 - **Colour**: ink or paper in `gfx_text`, `gfx_rect`, `gfx_line`, `gfx_bitmap`, so that an application can invert a row the way the menu does.
 - **Local time taken apart**: year, month, day, day of the week, hour, minute - no application should carry its own calendar.
 - **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
@@ -322,12 +326,13 @@ hardware/              everything about the physical device
 
 ## Milestones
 1. **Applications without the network.** The host loads `hello.wasm` from LittleFS; the application draws text and reacts to a button; `clock.wasm` is switched to through a minimal host menu (long press 4). A check of running on battery without USB. Host API of the milestone: `gfx_clear`, `gfx_text`, `gfx_rect`, `gfx_bitmap`, `gfx_text_width`, `gfx_flush`, `timer_set`, `time_now`, `log`; exports `app_init`, `app_on_button`, `app_on_timer`, `app_on_focus`, `app_on_blur`. Start with `sdk/host_api.h` and `components/appsys`.
-2. **Drivers and the SDK.** Everything the host offers an application, finished and frozen as ABI 1, each piece with its side of `host_api.h`:
-   - **Wi-Fi** - provisioning through the web UI in AP mode on first start, reconnects, SNTP. **OTA comes right after it**: the firmware is uploaded to the device over the network (`POST /api/ota`, the image goes into the spare slot). An image that is not a perinkpheral build is refused before it is written; a new image is on probation until the network and the web server are up, and is rolled back if they do not come up, so that from this point on nobody needs the cable to flash.
-   - **Screen** - the whole `gfx_*` set with fonts by id, `gfx_line`, `gfx_font_height`, the flush policy as seen by an application.
-   - **Buttons** - down/up events next to short/long.
-   - **Host services** - `kv_*`, `time_now`/`time_tz_offset`, timers with ids, `log` and the log ring buffer, `poller`, `http_request`, streamed `app_on_data`, `request_focus` and the scene swap on background delivery.
-   - **SDK** - `tools/mkapp`, the samples, and the first real application, `plex`, as the proof that the API is enough.
+2. **Drivers and the SDK.** Done when a user can write an application by the rules of the day, make a network request with the host's tools and come out of the background when the answer arrives; use the SDK for the buttons and for state; and set the application up through the web. The contract is **not frozen** at the end of it.
+   - **Done**: Wi-Fi with setup and rescue, SNTP and the time zone, OTA over the network, fonts by size, down/up next to short/long, `kv_*`, timers, the log, `tools/mkapp`, the development tools.
+   - **Drawing and time**: colour, local time taken apart, system icons, the redraw flags.
+   - **The network for applications**: the `poller`, `http_request`, poll control, HTTPS with the full set of root certificates in the firmware, JSON picked apart by the host, delivery to an application that is not on the screen and `request_focus`.
+   - **Settings through the web**: an Applications section on the device's page - what is installed, and a form for each from its manifest; `app_on_settings()`.
+   - **Files and the alarm.**
+   - **The first real application is `weather`** (Open-Meteo: no key, no account), with icons drawn for it; `plex` comes after.
 3. **Host screens.** The operating system's own interface, designed and drawn: the menu and application list, the first-start and Wi-Fi setup screens, status and error screens, what the device shows while it updates or has nothing to show.
 4. **Power.** The `battery` profile on light sleep (wake-up by timer and button, rounding of `every`, switching profiles by the setting), measured current and real battery life numbers, then "extreme power saving" on deep sleep.
 5. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, firmware updates pulled from releases (`esp_https_ota`).
@@ -347,7 +352,7 @@ Open:
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-Milestone 1 is done, the run from the battery included (seen by the owner). Next - what is left of milestone 2: the rest of ABI 1 as listed under Host API, the poller (the device half of data for applications), `http_request`, the first application with data, and the ABI freeze.
+Milestone 1 is done, the run from the battery included (seen by the owner). Next - what is left of milestone 2: the rest of ABI 1 as listed under Host API, the poller (the device half of data for applications), `http_request`, and `weather` as the first application with data.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.

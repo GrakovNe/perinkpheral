@@ -227,7 +227,8 @@ back with `kv_get`.
 An application is a folder with `app.wasm` and `manifest.json`. Today
 the ones in `sdk/apps` are packed into the device's file system when
 the firmware is built; installing from a catalog comes later, and the
-contract may still change until it freezes at the end of milestone 2.
+contract is not frozen yet: it changes while the first applications are
+written.
 
 While you work on one, the device takes it over the network, no
 reflashing and no cable:

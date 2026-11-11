@@ -6,9 +6,9 @@
  * the wasm applications. Applications include this header and link the
  * imports; the host builds its import table from the same names.
  *
- * The contract is still moving. It freezes as ABI 1 at the end of
- * milestone 2; from then on any change to a signature bumps
- * HOST_API_VERSION and the "abi" field of manifest.json.
+ * The contract is still moving and is not frozen: it changes while the
+ * first applications are written, and the "abi" field of manifest.json
+ * moves with HOST_API_VERSION.
  */
 #pragma once
 
