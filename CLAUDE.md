@@ -160,7 +160,7 @@ A device on a shelf has to come back from a restart showing what it showed, with
 - **A network stored** - it connects; a lost or failed connection is tried again after 2, 4, 8 ... at most 30 seconds.
 - **Two minutes without success** - rescue: the setup access point comes up as well and the device keeps trying once a minute, so a wrong password never needs the cable. Connected again, the access point goes away.
 - The rules are `components/net/wifi_plan.c`, pure and host-tested; `wifi.c` only carries them out. The Wi-Fi library keeps nothing in flash: the credentials are the host's settings.
-- Time comes from SNTP whenever there is a network, in the user's time zone (a POSIX TZ string in the settings). Until the first answer the device does not know the time: the header shows no date and `time_now()` is 0.
+- Time comes from SNTP whenever there is a network, in the user's time zone (a POSIX TZ string in the settings). Everything a person reads is local time: the header, the status page, the applications through `time_zone_offset()`. Until the first answer the device does not know the time: the header shows no date and `time_now()` is 0.
 
 ### Header
 The host draws a header above its own screens and above every application that does not ask for the full screen:
@@ -232,6 +232,7 @@ What exists:
 - `GET /api/status` - name, firmware, slot, whether the image is on probation, Wi-Fi phase, network, address, free memory.
 - `GET /api/log` - the last 4 KB of the device's log, as text: what the console would have shown, kept in memory for when there is no cable.
 - `POST /api/wifi` `{"ssid", "password"}` - validated like every setting, stored, and the device restarts to join.
+- `POST /api/time` `{"tz"}` - the time zone, a POSIX TZ string; it takes effect at once, with no restart. The page works the string out from the browser's own zone and offers it; a device that was never told its zone gets it along with the Wi-Fi network, so setting the device up is one step.
 - `POST /api/reset` - factory reset: the settings and the applications' stores are erased on the way up, and the device comes back with its setup access point. The page has a button for it. Like the upload, it asks for nothing.
 - `POST /api/ota` - a firmware image as the request body (`curl --data-binary @build/perinkpheral.bin http://<address>/api/ota`): written into the spare slot, and the device restarts into it.
 

@@ -45,6 +45,17 @@
   <p class="result" id="wifi-result"></p>
 </form>
 
+<h2>Time</h2>
+<form id="time">
+  <label for="tz">Time zone</label>
+  <input id="tz" name="tz" maxlength="47" autocomplete="off" required>
+  <button type="button" id="tz-detect">Use this browser's</button>
+  <button>Save</button>
+  <p class="note">A POSIX time zone, the way the device keeps it. The button fills in the
+  zone of the computer or phone this page is open on.</p>
+  <p class="result" id="time-result"></p>
+</form>
+
 <h2>Firmware</h2>
 <form id="firmware">
   <label for="image">Image (perinkpheral.bin)</label>
@@ -66,7 +77,54 @@
 
 <script>
 const LABELS = { name: "Name", firmware: "Firmware", slot: "Slot", wifi: "Wi-Fi",
-                 ssid: "Network", address: "Address", free_memory: "Free memory" };
+                 ssid: "Network", address: "Address", time: "Time", free_memory: "Free memory" };
+const ZONE_NOT_SET = "UTC0";
+let deviceZone = ZONE_NOT_SET;
+
+/* The browser's time zone as a POSIX TZ string, which is what the device
+ * understands: found by asking the browser where this year's clock changes are. */
+function posixZone() {
+  const QUARTER_HOUR = 15 * 60 * 1000, year = new Date().getFullYear();
+  const offsetAt = time => -new Date(time).getTimezoneOffset();  /* minutes east of UTC */
+  const pad = number => String(number).padStart(2, "0");
+  const name = minutes => {
+    const size = Math.abs(minutes), rest = size % 60;
+    return "<" + (minutes < 0 ? "-" : "+") + pad((size - rest) / 60) + (rest ? pad(rest) : "") + ">";
+  };
+  const clock = (minutes, sign) => {
+    const size = Math.abs(minutes), rest = size % 60;
+    return sign + (size - rest) / 60 + (rest ? ":" + pad(rest) : "");
+  };
+  /* POSIX counts the other way: hours to add to local time to get UTC. */
+  const zone = minutes => name(minutes) + clock(minutes, minutes > 0 ? "-" : "");
+
+  const changes = [];
+  const start = Date.UTC(year, 0, 1), end = Date.UTC(year + 1, 0, 1);
+  for (let time = start + QUARTER_HOUR; time < end; time += QUARTER_HOUR) {
+    const before = offsetAt(time - QUARTER_HOUR), after = offsetAt(time);
+    if (before !== after) changes.push({ time, before, after });
+  }
+  const isYearlyPair = changes.length === 2 && changes[0].before === changes[1].after &&
+                       changes[0].after === changes[1].before;
+  if (!isYearlyPair) return zone(offsetAt(Date.now()));
+
+  /* "the last Sunday of March at 2": month, week of the month (5 is the last), day of the week */
+  const rule = change => {
+    const wall = new Date(change.time + change.before * 60 * 1000);
+    const month = wall.getUTCMonth() + 1, day = wall.getUTCDate();
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const week = day + 7 > daysInMonth ? 5 : Math.ceil(day / 7);
+    const minutes = wall.getUTCHours() * 60 + wall.getUTCMinutes();
+    return "M" + month + "." + week + "." + wall.getUTCDay() + (minutes === 120 ? "" : "/" + clock(minutes, ""));
+  };
+  const toSummer = changes.find(change => change.after > change.before);
+  const toWinter = changes.find(change => change.after < change.before);
+  const summerIsOneHour = toSummer.after - toSummer.before === 60;
+  return zone(toSummer.before) + name(toSummer.after) +
+         (summerIsOneHour ? "" : clock(toSummer.after, toSummer.after > 0 ? "-" : "")) +
+         "," + rule(toSummer) + "," + rule(toWinter);
+}
+
 
 function show(element, text) { document.getElementById(element).textContent = text; }
 
@@ -84,11 +142,14 @@ async function loadStatus() {
     list.append(term, value);
   }
   document.getElementById("ssid").value ||= status.ssid;
+  deviceZone = status.tz;
+  /* A device that was never told its zone is offered the browser's. */
+  document.getElementById("tz").value ||= deviceZone === ZONE_NOT_SET ? posixZone() : deviceZone;
 }
 
 /* Sends the request and puts the device's answer, or what went wrong, on the page. */
 async function send(form, resultId, url, options) {
-  const button = form.querySelector("button");
+  const button = form.querySelector("button:not([type=button])");
   button.disabled = true;
   show(resultId, "Sending...");
   try {
@@ -102,9 +163,22 @@ async function send(form, resultId, url, options) {
 
 document.getElementById("wifi").addEventListener("submit", event => {
   event.preventDefault();
-  const body = JSON.stringify({ ssid: event.target.ssid.value,
-                                password: event.target.password.value });
+  const settings = { ssid: event.target.ssid.value, password: event.target.password.value };
+  /* Setting the device up is one step: it learns where it is along with the network. */
+  if (deviceZone === ZONE_NOT_SET) settings.tz = posixZone();
+  const body = JSON.stringify(settings);
   send(event.target, "wifi-result", "/api/wifi", { method: "POST", body });
+});
+
+document.getElementById("tz-detect").addEventListener("click", () => {
+  document.getElementById("tz").value = posixZone();
+});
+
+document.getElementById("time").addEventListener("submit", async event => {
+  event.preventDefault();
+  const body = JSON.stringify({ tz: event.target.tz.value });
+  await send(event.target, "time-result", "/api/time", { method: "POST", body });
+  loadStatus();
 });
 
 document.getElementById("firmware").addEventListener("submit", event => {

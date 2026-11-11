@@ -23,8 +23,10 @@
 
 #define TIME_FONT HOST_FONT_HUGE
 #define DATE_FONT HOST_FONT_MEDIUM
-/* Between the digits and the date, and between the two lines of the date. */
-#define TIME_TO_DATE_GAP 34
+/* Where the tops of the digits are, the room between the digits and the
+ * date, and between the two lines of the date. */
+#define TIME_CAP_TOP     61
+#define TIME_TO_DATE_GAP 50
 #define DATE_LINE_GAP    16
 
 static const char *const WEEKDAYS[DAYS_PER_WEEK] = { "Sunday",   "Monday", "Tuesday", "Wednesday",
@@ -143,13 +145,7 @@ void app_on_draw(void)
         app_text_add(&text, "Waiting for Wi-Fi");
     }
 
-    /* The block is the digits and the two lines under them, measured by
-     * what is inked - capitals and digits - and centered as one. */
-    int32_t date_cap_height = gfx_font_cap_height(DATE_FONT);
-    int32_t block_height = gfx_font_cap_height(TIME_FONT) + TIME_TO_DATE_GAP + date_cap_height +
-                           DATE_LINE_GAP + date_cap_height;
-    int32_t top = (gfx_height() - block_height) / 2;
-    int32_t time_bottom = draw_centered(top, TIME_FONT, time_line);
+    int32_t time_bottom = draw_centered(TIME_CAP_TOP, TIME_FONT, time_line);
     int32_t weekday_bottom = draw_centered(time_bottom + TIME_TO_DATE_GAP, DATE_FONT, weekday_line);
     draw_centered(weekday_bottom + DATE_LINE_GAP, DATE_FONT, date_line);
 }

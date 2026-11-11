@@ -15,10 +15,14 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 
+#include <time.h>
+
 #include "log_capture.h"
+#include "net_time.h"
 #include "ota.h"
 #include "reset.h"
 #include "settings.h"
+#include "status.h"
 #include "wifi.h"
 
 static const char *TAG = "web";
@@ -32,6 +36,7 @@ static const char *TAG = "web";
 #define RECEIVE_TIMEOUT_S     10
 #define QUIET_PERIODS_MAX     3
 #define HOST_HEADER_MAX       64
+#define LOCAL_TIME_MAX        24
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
@@ -120,6 +125,15 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddStringToObject(json, "wifi", phase_name(wifi.phase));
     cJSON_AddStringToObject(json, "ssid", wifi.ssid);
     cJSON_AddStringToObject(json, "address", wifi.address);
+    cJSON_AddStringToObject(json, "tz", s_config->tz);
+    if (net_time_is_known()) {
+        char   local_time[LOCAL_TIME_MAX];
+        time_t now = (time_t)net_time_now();
+        struct tm local;
+        localtime_r(&now, &local);
+        strftime(local_time, sizeof local_time, "%a %d %b %H:%M", &local);
+        cJSON_AddStringToObject(json, "time", local_time);
+    }
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
     return send_json(request, "200 OK", json);
 }
@@ -204,12 +218,13 @@ static esp_err_t handle_wifi(httpd_req_t *request)
     char problem[VALIDATION_TEXT_MAX] = "";
     bool fields_fit =
         take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
-        take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password);
+        take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
+        take_string(json, "tz", wanted->tz, sizeof wanted->tz);
     cJSON_Delete(json);
 
     esp_err_t result;
     if (!fields_fit) {
-        result = send_error(request, "the network name or the password is too long");
+        result = send_error(request, "the network name, the password or the time zone is too long");
     } else if (!appconf_validate(wanted, problem, sizeof problem)) {
         result = send_error(request, problem);
     } else if (settings_save(wanted) != ESP_OK) {
@@ -220,6 +235,44 @@ static esp_err_t handle_wifi(httpd_req_t *request)
         ESP_LOGW(TAG, "Wi-Fi settings changed, restarting");
         result = send_ok(request, "stored, restarting");
         restart_soon();
+    }
+    free(wanted);
+    return result;
+}
+
+/* The time zone takes effect at once: the header and the applications
+ * read local time anew whenever they draw. */
+static esp_err_t handle_time(httpd_req_t *request)
+{
+    char body[SETTINGS_BODY_MAX];
+    if (!read_body(request, body, sizeof body)) {
+        return send_error(request, "send {\"tz\": \"...\"}");
+    }
+    cJSON *json = cJSON_Parse(body);
+    appconf_t *wanted = malloc(sizeof *wanted);
+    if (json == NULL || wanted == NULL) {
+        cJSON_Delete(json);
+        free(wanted);
+        return send_error(request, "the request is not JSON");
+    }
+    *wanted = *s_config;
+    char problem[VALIDATION_TEXT_MAX] = "";
+    bool has_zone = cJSON_GetObjectItemCaseSensitive(json, "tz") != NULL;
+    bool zone_fits = take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+    cJSON_Delete(json);
+
+    esp_err_t result;
+    if (!has_zone || !zone_fits) {
+        result = send_error(request, "send a time zone that fits");
+    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
+        result = send_error(request, problem);
+    } else if (settings_save(wanted) != ESP_OK) {
+        result = send_error(request, "the settings could not be stored");
+    } else {
+        *s_config = *wanted;
+        net_time_set_zone(s_config->tz);
+        status_check(); /* the date in the header may have just changed */
+        result = send_ok(request, "stored");
     }
     free(wanted);
     return result;
@@ -314,6 +367,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
         { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },
         { .uri = "/api/log", .method = HTTP_GET, .handler = handle_log },
         { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
+        { .uri = "/api/time", .method = HTTP_POST, .handler = handle_time },
         { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
         { .uri = "/api/reset", .method = HTTP_POST, .handler = handle_reset },
     };

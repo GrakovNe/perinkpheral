@@ -16,14 +16,19 @@
 
 #define SERVER_NAME_MAX 64
 
+void net_time_set_zone(const char *time_zone)
+{
+    setenv("TZ", time_zone, 1);
+    tzset();
+}
+
 void net_time_start(const char *ntp_server, const char *time_zone)
 {
     /* SNTP keeps the pointer, not the name. */
     static char server[SERVER_NAME_MAX + 1];
     strlcpy(server, ntp_server, sizeof server);
 
-    setenv("TZ", time_zone, 1);
-    tzset();
+    net_time_set_zone(time_zone);
     esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, server);
     esp_sntp_init();
