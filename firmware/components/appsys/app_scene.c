@@ -100,9 +100,10 @@ static scene_reaction_t reaction_of(app_scene_t *self)
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {
         int flags = app_take_redraw_flags(self->app);
-        reaction.kind = (flags & HOST_REDRAW_CLEAN)  ? SCENE_REDRAW_CLEAN
-                        : (flags & HOST_REDRAW_SOON) ? SCENE_REDRAW_SOON
-                                                     : SCENE_REDRAW;
+        reaction.kind = (flags & HOST_REDRAW_CLEAN)      ? SCENE_REDRAW_CLEAN
+                        : (flags & HOST_REDRAW_NO_BLINK) ? SCENE_REDRAW_NO_BLINK
+                        : (flags & HOST_REDRAW_SOON)     ? SCENE_REDRAW_SOON
+                                                         : SCENE_REDRAW;
     }
     return reaction;
 }

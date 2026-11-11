@@ -50,7 +50,6 @@ struct app {
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
-    bool        draws_in_ink;  /* gfx_color(): what the drawing calls draw with */
     bool        exit_requested;
     bool        focus_requested;
     const char *stop_reason; /* NULL while the application is alive */
@@ -90,6 +89,7 @@ static void stop_budget(void)
 
 /* ---- the host API as the application sees it ---- */
 
+_Static_assert(HOST_INK == GFX_SHADE_SOLID, "an application's ink is the solid shade");
 _Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_MEDIUM == GFX_FONT_MEDIUM &&
                    HOST_FONT_LARGE == GFX_FONT_LARGE && HOST_FONT_DISPLAY == GFX_FONT_DISPLAY &&
                    HOST_FONT_HUGE == GFX_FONT_HUGE,
@@ -187,8 +187,7 @@ HOST_FUNCTION(host_gfx_text)
         !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated,
-                              app->draws_in_ink));
+    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated, true));
 }
 
 HOST_FUNCTION(host_gfx_text_width)
@@ -247,9 +246,9 @@ HOST_FUNCTION(host_gfx_rect)
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (fill == HOST_RECT_FILLED) {
-        gfx_fill(app->surface, x, y, width, height, app->draws_in_ink);
+        gfx_fill(app->surface, x, y, width, height, true);
     } else {
-        gfx_frame(app->surface, x, y, width, height, 1, app->draws_in_ink);
+        gfx_frame(app->surface, x, y, width, height, 1, true);
     }
     m3ApiReturn(HOST_OK);
 }
@@ -269,7 +268,7 @@ HOST_FUNCTION(host_gfx_line)
     if (!is_drawable(x0) || !is_drawable(y0) || !is_drawable(x1) || !is_drawable(y1)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    gfx_line(app->surface, x0, y0, x1, y1, app->draws_in_ink);
+    gfx_line(app->surface, x0, y0, x1, y1, true);
     m3ApiReturn(HOST_OK);
 }
 
@@ -300,7 +299,7 @@ HOST_FUNCTION(host_gfx_bitmap)
         for (int32_t column = 0; column < width; column++) {
             bool is_set = (bits[row * bytes_per_row + column / 8] & (0x80 >> (column % 8))) != 0;
             if (is_set) {
-                gfx_pixel(app->surface, x + column, y + row, app->draws_in_ink);
+                gfx_pixel(app->surface, x + column, y + row, true);
             }
         }
     }
@@ -315,10 +314,10 @@ HOST_FUNCTION(host_gfx_color)
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
-    if (color != HOST_INK && color != HOST_PAPER) {
+    if (color < HOST_PAPER || color > HOST_INK) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    app->draws_in_ink = color == HOST_INK;
+    app->surface->shade = (uint8_t)color;
     m3ApiReturn(HOST_OK);
 }
 
@@ -352,7 +351,7 @@ HOST_FUNCTION(host_request_redraw)
     app_t *app = APP_OF(runtime);
     app->redraw_requested = true;
     /* Bits the host does not know are an application from the future. */
-    app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN);
+    app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN | HOST_REDRAW_NO_BLINK);
     m3ApiSuccess();
 }
 
@@ -797,8 +796,9 @@ void app_timer(app_t *app, int id)
 void app_draw(app_t *app, gfx_t *surface)
 {
     app->surface = surface;
-    app->draws_in_ink = true;
+    surface->shade = GFX_SHADE_SOLID;
     CALL_HANDLER(app, app->on_draw);
+    surface->shade = GFX_SHADE_SOLID;
     app->surface = NULL;
     app->exit_requested = false;
 }

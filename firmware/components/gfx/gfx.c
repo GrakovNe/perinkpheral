@@ -21,6 +21,7 @@ void gfx_init(gfx_t *g, uint8_t *bits, int w, int h)
     g->clip_y0 = 0;
     g->clip_x1 = w;
     g->clip_y1 = h;
+    g->shade = GFX_SHADE_SOLID;
 }
 
 static int imax(int a, int b)
@@ -81,11 +82,24 @@ static uint8_t *pixel_byte(const gfx_t *g, int buffer_x, int buffer_y)
     return &g->bits[buffer_y * g->stride + (buffer_x >> 3)];
 }
 
+/* The 4 x 4 Bayer matrix: at shade s a pixel is inked where its entry is
+ * below s. Taken by the pixel's place in the buffer, so that two shaded
+ * shapes side by side continue one pattern. */
+static const uint8_t DITHER[4][4] = {
+    { 0, 8, 2, 10 },
+    { 12, 4, 14, 6 },
+    { 3, 11, 1, 9 },
+    { 15, 7, 13, 5 },
+};
+
 void gfx_pixel(gfx_t *g, int x, int y, bool black)
 {
     int buffer_x, buffer_y;
     if (!locate(g, x, y, &buffer_x, &buffer_y)) {
         return;
+    }
+    if (black && g->shade < GFX_SHADE_SOLID) {
+        black = DITHER[buffer_y & 3][buffer_x & 3] < g->shade;
     }
     uint8_t *byte = pixel_byte(g, buffer_x, buffer_y);
     if (black) {

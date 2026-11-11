@@ -43,6 +43,7 @@ typedef enum {
     SCENE_IGNORED, /* nothing changed */
     SCENE_REDRAW,  /* the picture changed */
     SCENE_REDRAW_SOON,  /* it changed and should be seen now, though nobody pressed anything */
+    SCENE_REDRAW_NO_BLINK, /* it changed, should be seen now, and one of a row: no full refresh */
     SCENE_REDRAW_CLEAN, /* it changed and should be shown without traces of the old one */
     SCENE_OPEN,    /* give the screen to another scene */
     SCENE_BACK,    /* done here: return to where the user came from */

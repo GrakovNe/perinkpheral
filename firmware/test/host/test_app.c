@@ -458,6 +458,8 @@ static void test_redraw_flags(void)
     app_button(app, 10, HOST_PRESS_SHORT);
     app_button(app, 11, HOST_PRESS_SHORT);
     CHECK(app_take_redraw_flags(app) == (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN));
+    app_button(app, 12, HOST_PRESS_SHORT);
+    CHECK(app_take_redraw_flags(app) == HOST_REDRAW_NO_BLINK);
     app_unload(app);
 }
 
@@ -465,8 +467,10 @@ static void test_color_and_local_time(void)
 {
     app_t *app = load_probe();
     draw(app);
-    /* a bar of eight with a hole of two, and the mark for a refused colour */
-    CHECK(black_in_row(ROW_COLOR) == 7);
+    /* a bar of eight with a hole of two, the mark for a refused colour, and
+     * half of a bar of sixteen drawn in a grey */
+    CHECK(black_in_row(ROW_COLOR) == 7 + 8);
+    CHECK(gfx_get(&surface, 16, ROW_COLOR) && !gfx_get(&surface, 17, ROW_COLOR));
     CHECK(!gfx_get(&surface, 2, ROW_COLOR) && !gfx_get(&surface, 3, ROW_COLOR));
     /* every draw starts in ink again */
     draw(app);

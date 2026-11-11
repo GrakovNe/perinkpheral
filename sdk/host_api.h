@@ -145,11 +145,15 @@ HOST_IMPORT(gfx_font_height, int32_t gfx_font_height(int32_t font));
 HOST_IMPORT(gfx_font_ascent, int32_t gfx_font_ascent(int32_t font));
 HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
 
-/* What the calls below draw with, until the next gfx_color(): ink, which
- * every draw starts with, or paper - for text on a filled bar, a hole in
- * a shape. */
-#define HOST_INK   0
-#define HOST_PAPER 1
+/* What the calls below draw with, until the next gfx_color(): how dark,
+ * from HOST_PAPER to HOST_INK. Every draw starts in ink; paper is for
+ * text on a filled bar, a hole in a shape. Anything in between is a
+ * grey the panel does not have and the host makes by dithering: that
+ * many of every sixteen pixels are inked, in a fixed 4 x 4 pattern. A
+ * grey is for areas - a fill, a wide bar; thin lines and small text come
+ * out broken. */
+#define HOST_PAPER 0
+#define HOST_INK   16
 HOST_IMPORT(gfx_color, int32_t gfx_color(int32_t color));
 
 #define HOST_RECT_OUTLINE 0
@@ -173,13 +177,21 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
  *
  * HOST_REDRAW_SOON: show it now although nobody pressed anything - a
  * countdown that ran out. HOST_REDRAW_CLEAN: a full refresh, which blinks
- * and leaves no trace of the old picture - for a new image. Neither is
- * rationed: every refresh costs the battery and wears the panel, and how
- * much of both to spend is the application's call. The host only keeps
- * them a second apart. */
-#define HOST_REDRAW_NORMAL 0
-#define HOST_REDRAW_SOON   1
-#define HOST_REDRAW_CLEAN  2
+ * and leaves no trace of the old picture - for a new image.
+ * HOST_REDRAW_NO_BLINK: show it now and do not turn it into the full
+ * refresh the host makes after every few partial ones - for pictures that
+ * follow one another, where a three-second blink would spoil the row.
+ * The traces of the earlier pictures then pile up for as long as the
+ * application keeps asking; the panel is cleaned by the first refresh
+ * that does not ask, and when the application leaves the screen.
+ *
+ * None of this is rationed: every refresh costs the battery and wears
+ * the panel, and how much of both to spend is the application's call. The
+ * host only keeps such refreshes a second apart. */
+#define HOST_REDRAW_NORMAL   0
+#define HOST_REDRAW_SOON     1
+#define HOST_REDRAW_CLEAN    2
+#define HOST_REDRAW_NO_BLINK 4
 HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
 /* From app_on_data() off the screen: what arrived is worth showing now.

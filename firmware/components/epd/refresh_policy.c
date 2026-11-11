@@ -20,6 +20,7 @@ static int64_t least_gap_ms(const refresh_policy_cfg_t *cfg, refresh_reason_t wh
     case REFRESH_FOR_BUTTON:
         return (int64_t)cfg->min_button_ms;
     case REFRESH_FOR_REQUEST:
+    case REFRESH_FOR_ROW:
     case REFRESH_FOR_CLEAN:
         return REFRESH_ON_REQUEST_MIN_MS;
     case REFRESH_FOR_SWITCH:
@@ -44,6 +45,11 @@ refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
     }
     if (why == REFRESH_FOR_KEEPALIVE || why == REFRESH_FOR_CLEAN) {
         return REFRESH_FULL;
+    }
+    if (why == REFRESH_FOR_ROW) {
+        /* The partial ones still count: the first refresh that is not of
+         * the row finds the full one overdue and cleans the panel. */
+        return REFRESH_PARTIAL;
     }
     return p->partials >= cfg->full_every ? REFRESH_FULL : REFRESH_PARTIAL;
 }

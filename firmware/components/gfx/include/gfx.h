@@ -28,7 +28,13 @@ typedef struct {
     int      clip_y0;
     int      clip_x1;
     int      clip_y1;
+    /* How dark "black" comes out: GFX_SHADE_SOLID, or less - then only
+     * that many of every sixteen pixels are inked, in a fixed pattern, and
+     * the eye reads a grey. 0 draws paper. */
+    uint8_t  shade;
 } gfx_t;
+
+#define GFX_SHADE_SOLID 16
 
 /* The whole buffer. w must be a multiple of 8; bits holds w / 8 * h bytes. */
 void gfx_init(gfx_t *g, uint8_t *bits, int w, int h);

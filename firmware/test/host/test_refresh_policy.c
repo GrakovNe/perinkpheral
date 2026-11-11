@@ -140,6 +140,22 @@ static void test_on_request(void)
     CHECK(go(&p, REFRESH_FOR_REQUEST, 9000) == REFRESH_FULL);
 }
 
+static void test_a_row_of_pictures(void)
+{
+    refresh_policy_t p;
+    refresh_policy_init(&p);
+    /* even a row starts with a full refresh: the panel has nothing to compare with */
+    CHECK(go(&p, REFRESH_FOR_ROW, 0) == REFRESH_FULL);
+    for (int i = 1; i <= 20; i++) {
+        CHECK(go(&p, REFRESH_FOR_ROW, i * 1000) == REFRESH_PARTIAL);
+    }
+    CHECK(go(&p, REFRESH_FOR_ROW, 20500) == REFRESH_NONE); /* a second apart all the same */
+    CHECK(p.partials == 20);
+    /* the row is over: whatever comes next cleans up after it */
+    CHECK(go(&p, REFRESH_FOR_BUTTON, 30000) == REFRESH_FULL);
+    CHECK(p.partials == 0);
+}
+
 int main(void)
 {
     test_wait();
@@ -150,5 +166,6 @@ int main(void)
     test_switch_always_full();
     test_keepalive();
     test_on_request();
+    test_a_row_of_pictures();
     REPORT();
 }

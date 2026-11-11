@@ -83,6 +83,10 @@ static void react(wm_t *wm, scene_reaction_t reaction, wm_change_t cause)
         mark_changed(wm, WM_CHANGED_URGENTLY);
         mark_changed(wm, cause);
         break;
+    case SCENE_REDRAW_NO_BLINK:
+        /* Under a finger too: a press must not be what makes the row blink. */
+        mark_changed(wm, WM_CHANGED_IN_A_ROW);
+        break;
     case SCENE_REDRAW_CLEAN:
         mark_changed(wm, WM_CHANGED_CLEANLY);
         break;

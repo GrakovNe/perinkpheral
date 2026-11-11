@@ -20,6 +20,7 @@ extern "C" {
 typedef enum {
     REFRESH_FOR_DATA,      /* a poll result, a clock tick */
     REFRESH_FOR_REQUEST,   /* an application asked to be shown soon, with nobody pressing */
+    REFRESH_FOR_ROW,       /* one picture of a row an application shows: soon, and never full */
     REFRESH_FOR_BUTTON,    /* the user pressed something */
     REFRESH_FOR_CLEAN,     /* an application asked for a picture without traces: a full refresh */
     REFRESH_FOR_SWITCH,    /* another application takes the scene */

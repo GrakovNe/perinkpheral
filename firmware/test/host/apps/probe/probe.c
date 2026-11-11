@@ -32,6 +32,7 @@
 #define BUTTON_RECURSE       9
 #define BUTTON_REDRAW_SOON   10
 #define BUTTON_REDRAW_CLEAN  11
+#define BUTTON_REDRAW_STREAM 12
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
@@ -136,6 +137,10 @@ void app_on_button(int32_t button, int32_t press)
     }
     if (button == BUTTON_REDRAW_SOON || button == BUTTON_REDRAW_CLEAN) {
         request_redraw(button == BUTTON_REDRAW_SOON ? HOST_REDRAW_SOON : HOST_REDRAW_CLEAN);
+        return;
+    }
+    if (button == BUTTON_REDRAW_STREAM) {
+        request_redraw(HOST_REDRAW_NO_BLINK);
         return;
     }
     if (button == BUTTON_DRAW_OUTSIDE) {
@@ -326,7 +331,12 @@ void app_on_draw(void)
         static const uint8_t nothing_set[] = { 0x00 };
         gfx_bitmap(4, ROW_COLOR, 4, 1, nothing_set);
     }
-    if (gfx_color(2) == HOST_ERR_ARGUMENT && gfx_color(HOST_INK) == HOST_OK) {
+    /* half dark: every other pixel of this row, by the host's pattern */
+    if (gfx_color(8) == HOST_OK) {
+        gfx_rect(16, ROW_COLOR, 16, 1, HOST_RECT_FILLED);
+    }
+    if (gfx_color(HOST_INK + 1) == HOST_ERR_ARGUMENT && gfx_color(-1) == HOST_ERR_ARGUMENT &&
+        gfx_color(HOST_INK) == HOST_OK) {
         mark(10, ROW_COLOR);
     }
 
