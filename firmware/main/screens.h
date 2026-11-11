@@ -19,9 +19,6 @@ extern "C" {
  * about where the data came from. Pure: tools/preview renders them
  * without the device. */
 
-/* The brand splash, for the whole screen. */
-void screens_splash(gfx_t *g);
-
 /* The host's header: the Wi-Fi icon on the left, struck through when
  * the last connection attempt failed, a text beside it and a text against
  * the right edge, a rule along the bottom edge. A text that does not fit

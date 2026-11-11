@@ -110,43 +110,38 @@ static void record_timer(int id, int32_t milliseconds)
 
 static void test_boot_splash(void)
 {
-    scene_t *boot = scene_boot_splash(&first_target, record_timer, NULL, NULL);
+    scene_t *boot = scene_boot_splash(&first_target, record_timer, &picture, picture_is_shown);
     CHECK(boot->fullscreen);
 
-    /* it asks to be woken, and then moves on by itself */
+    /* it holds the picture, asks to be woken, and then moves on by itself */
+    picture_shown = true;
     timer_set_ms = 0;
     boot->ops->enter(boot);
-    CHECK(timer_set_ms > 0);
-    scene_reaction_t on_timer = boot->ops->timer(boot, timer_set_id);
-    CHECK(on_timer.kind == SCENE_OPEN && on_timer.open == &first_target);
-
-    /* a press does not wait for the timer */
-    scene_reaction_t on_press = press(boot, SCENE_BUTTON_OK);
-    CHECK(on_press.kind == SCENE_OPEN && on_press.open == &first_target);
-
-    /* leaving cancels the timer, or it would fire into the next scene */
-    boot->ops->leave(boot);
-    CHECK(timer_set_ms == 0);
-
-    /* a long press is somebody else's */
-    CHECK(boot->ops->button(boot, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
-
-    /* with a picture: it is held while the splash has the screen, and drawn
-     * only while it can be */
+    CHECK(picture_enters == 1 && timer_set_ms > 1000);
     static uint8_t frame[400 * 300 / 8];
     gfx_t surface;
     gfx_init(&surface, frame, 400, 300);
-    boot = scene_boot_splash(&first_target, record_timer, &picture, picture_is_shown);
-    boot->ops->enter(boot);
-    CHECK(picture_enters == 1 && timer_set_ms > 0);
-    picture_shown = true;
     boot->ops->draw(boot, &surface);
     CHECK(picture_draws == 1);
+    scene_reaction_t on_timer = boot->ops->timer(boot, timer_set_id);
+    CHECK(on_timer.kind == SCENE_OPEN && on_timer.open == &first_target);
+
+    /* a press does not wait for the timer; a long one is somebody else's */
+    scene_reaction_t on_press = press(boot, SCENE_BUTTON_OK);
+    CHECK(on_press.kind == SCENE_OPEN && on_press.open == &first_target);
+    CHECK(boot->ops->button(boot, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
+
+    /* leaving cancels the timer, or it would fire into the next scene */
+    boot->ops->leave(boot);
+    CHECK(picture_leaves == 1 && timer_set_ms == 0);
+
+    /* a picture that cannot be shown: nothing is drawn, and it does not wait */
     picture_shown = false;
+    boot->ops->enter(boot);
+    CHECK(timer_set_ms > 0 && timer_set_ms < 100);
     boot->ops->draw(boot, &surface);
     CHECK(picture_draws == 1);
     boot->ops->leave(boot);
-    CHECK(picture_leaves == 1 && timer_set_ms == 0);
 }
 
 int main(void)

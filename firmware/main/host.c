@@ -163,10 +163,14 @@ void host_run(void)
     gfx_init(&screen, s_frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     wm_t wm;
-    wm_init(&wm, menu,
-            scene_boot_splash(scene_after_boot(menu), timers_set, launcher_about(),
-                              about_is_shown),
-            draw_header, NULL);
+    /* The splash is the About application; a firmware without one starts
+     * where the splash would have led. */
+    scene_t *after_boot = scene_after_boot(menu);
+    scene_t *first = launcher_about() != NULL
+                         ? scene_boot_splash(after_boot, timers_set, launcher_about(),
+                                             about_is_shown)
+                         : after_boot;
+    wm_init(&wm, menu, first, draw_header, NULL);
 
     app_delivery_state_t delivery_state;
     app_delivery_init(&delivery_state);

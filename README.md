@@ -179,7 +179,7 @@ a screen that says how to set it up. A press leads to the menu (button
 1 up, 2 ok, 3 down, 4 back; a long press on button 4 returns to the
 menu from anywhere), which lists the installed wasm applications -
 `Hello` counts presses and keeps the count, `Clock` redraws once a
-minute - and the host's own pages: the device and the splash.
+minute - and the host's own pages: Device and About.
 
 Host tests of the hardware-independent modules need only a C compiler:
 

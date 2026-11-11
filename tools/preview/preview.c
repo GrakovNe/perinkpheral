@@ -73,12 +73,6 @@ int main(int argc, char **argv)
     const char *dir = argv[1];
     gfx_init(&g, fb, W, H);
 
-    gfx_clear(&g, false);
-    screens_splash(&g);
-    if (save(dir, "splash")) {
-        return 1;
-    }
-
     const screens_header_t online = { true, NULL, "Wed 11 Nov" };
     /* As the device shows it before there is a network: no Wi-Fi, no date. */
     const screens_header_t offline = { false, NULL, NULL };

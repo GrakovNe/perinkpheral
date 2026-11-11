@@ -38,8 +38,8 @@ typedef bool (*scenes_is_shown_fn)(scene_t *scene);
 
 /* The splash at power-up: it gives the screen to `next` by itself after
  * a few seconds, or at once on a press. What it shows is `picture`, a
- * full-screen scene - the About application - while `picture_is_shown`
- * says it can draw; without one, or when it cannot, the host's own mark. */
+ * full-screen scene - the About application; when `picture_is_shown` says
+ * that one cannot draw, it shows nothing and moves on at once. */
 scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t *picture,
                            scenes_is_shown_fn picture_is_shown);
 
