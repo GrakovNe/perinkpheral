@@ -1,4 +1,4 @@
-idf_component_register(SRCS "app.c" "app_scene.c" "app_manifest.c" "app_store.c"
+idf_component_register(SRCS "app.c" "app_scene.c" "app_manifest.c" "json_pick.c" "app_store.c"
                             "text_template.c" "poll_schedule.c"
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "../../../sdk"
