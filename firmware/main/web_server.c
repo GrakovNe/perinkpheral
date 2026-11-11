@@ -23,6 +23,7 @@
 #include "log_capture.h"
 #include "net_time.h"
 #include "ota.h"
+#include "poller.h"
 #include "reset.h"
 #include "settings.h"
 #include "web_apps.h"
@@ -42,7 +43,7 @@ static const char *TAG = "web";
 #define HOST_HEADER_MAX       64
 #define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
-#define OWN_ROUTES            10
+#define OWN_ROUTES            11
 #define SERVER_STACK_BYTES    6144
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -452,6 +453,66 @@ static esp_err_t handle_reset(httpd_req_t *request)
 
 /* The image is the request body:
  *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
+/* A release of the project: the device fetches the image itself - a page
+ * in a browser cannot, the file being on another site - from where the
+ * project's releases are and nowhere else. */
+#define RELEASE_URL_PREFIX "https://github.com/GrakovNe/perinkpheral/releases/download/"
+#define RELEASE_URL_MAX    255
+
+static bool take_release_piece(void *context, const uint8_t *piece, size_t length)
+{
+    const char **error = context;
+    *error = ota_upload_data(piece, length);
+    return *error == NULL;
+}
+
+static esp_err_t handle_ota_release(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char body[SETTINGS_BODY_MAX];
+    if (!read_body(request, body, sizeof body)) {
+        return send_error(request, "Invalid request.");
+    }
+    cJSON *json = cJSON_Parse(body);
+    const cJSON *url = cJSON_GetObjectItemCaseSensitive(json, "url");
+    const cJSON *size = cJSON_GetObjectItemCaseSensitive(json, "size");
+    char   address[RELEASE_URL_MAX + 1] = "";
+    size_t image_size = 0;
+    if (cJSON_IsString(url) && strlen(url->valuestring) <= RELEASE_URL_MAX &&
+        strncmp(url->valuestring, RELEASE_URL_PREFIX, strlen(RELEASE_URL_PREFIX)) == 0 &&
+        cJSON_IsNumber(size) && size->valuedouble > 0) {
+        strcpy(address, url->valuestring);
+        image_size = (size_t)size->valuedouble;
+    }
+    cJSON_Delete(json);
+    if (address[0] == '\0') {
+        return send_error(request, "Invalid request.");
+    }
+
+    ESP_LOGW(TAG, "installing the release at %s", address);
+    const char *error = ota_upload_begin(image_size);
+    if (error == NULL) {
+        int  http_status = 0;
+        bool is_whole = poller_fetch(address, image_size, take_release_piece, &error, &http_status);
+        if (error == NULL && !is_whole) {
+            error = http_status == 0 ? "GitHub unreachable." : "Download failed.";
+        }
+        if (error == NULL) {
+            error = ota_upload_end();
+        } else {
+            ota_upload_abort();
+        }
+    }
+    if (error != NULL) {
+        return send_error(request, error);
+    }
+    esp_err_t result = send_ok(request, "Installed. Restarting.");
+    web_server_restart_soon();
+    return result;
+}
+
 static esp_err_t handle_ota(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
@@ -545,6 +606,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
         { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
         { .uri = "/api/time", .method = HTTP_POST, .handler = handle_time },
         { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
+        { .uri = "/api/ota/release", .method = HTTP_POST, .handler = handle_ota_release },
         { .uri = "/api/reset", .method = HTTP_POST, .handler = handle_reset },
         { .uri = "/api/restart", .method = HTTP_POST, .handler = handle_restart },
         { .uri = "/api/settings", .method = HTTP_GET, .handler = handle_settings },

@@ -457,6 +457,9 @@ static fetch_job_t      *s_fetch_job;  /* the one waiting to be done, or NULL */
 static SemaphoreHandle_t s_fetch_done; /* given when it is */
 static SemaphoreHandle_t s_fetch_turn; /* one caller at a time */
 
+#define FETCH_HEADER_BYTES  4096
+#define FETCH_REDIRECTS_MAX 3
+
 static void do_fetch(fetch_job_t *job)
 {
     static uint8_t piece[HOST_DATA_CHUNK_MAX]; /* only this task fetches */
@@ -465,15 +468,27 @@ static void do_fetch(fetch_job_t *job)
         .timeout_ms = REQUEST_TIMEOUT_MS,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .user_agent = USER_AGENT,
-        .buffer_size = HOST_DATA_CHUNK_MAX,
+        /* A file of a release is behind a redirect to an address a kilobyte
+         * and more long, and a header has to fit here in one piece. */
+        .buffer_size = FETCH_HEADER_BYTES,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
         return;
     }
-    if (esp_http_client_open(client, 0) == ESP_OK) {
+    for (int hop = 0; hop <= FETCH_REDIRECTS_MAX; hop++) {
+        if (esp_http_client_open(client, 0) != ESP_OK) {
+            break;
+        }
         esp_http_client_fetch_headers(client);
         job->http_status = esp_http_client_get_status_code(client);
+        bool is_redirect = job->http_status == 301 || job->http_status == 302 ||
+                           job->http_status == 303 || job->http_status == 307 ||
+                           job->http_status == 308;
+        if (!is_redirect || esp_http_client_set_redirection(client) != ESP_OK) {
+            break;
+        }
+        esp_http_client_close(client);
     }
     bool   is_ok = job->http_status >= HTTP_OK_FIRST && job->http_status <= HTTP_OK_LAST;
     size_t total = 0;

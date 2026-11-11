@@ -325,6 +325,7 @@ DEALINGS IN THE SOFTWARE.</pre>
 <script>
 const SLOTS = 5, SOURCES_MAX = 4, ZONE_NOT_SET = "UTC0";
 const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
+const RELEASE_IMAGE = "perinkpheral.bin";
 const byId = id => document.getElementById(id);
 const show = (id, text) => { byId(id).textContent = text; };
 const make = (tag, properties) => Object.assign(document.createElement(tag), properties || {});
@@ -868,9 +869,15 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   let answer;
   try { answer = await fetch(RELEASES); } catch (error) { throw new Error("GitHub unreachable."); }
   const release = answer.ok ? await answer.json() : null;
-  toast(!release ? "No releases."
-        : release.tag_name === status.firmware ? "Up to date."
-        : "Update available: " + release.tag_name + ".");
+  /* A release is tagged "v0.1.0" and says "0.1.0" of itself. */
+  const version = release ? release.tag_name.replace(/^v/, "") : "";
+  const image = release ? release.assets.find(asset => asset.name === RELEASE_IMAGE) : null;
+  if (!release || !image) return toast("No releases.");
+  if (version === status.firmware) return toast("Up to date.");
+  if (!await confirmed("Update to " + version + "?", "Update")) return;
+  if (await send(event.target, "/api/ota/release",
+                 post({ url: image.browser_download_url, size: image.size })))
+    afterRestart();
 }));
 
 byId("firmware").addEventListener("submit", async event => {
