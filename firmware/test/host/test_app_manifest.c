@@ -4,6 +4,8 @@
  */
 #include "app_manifest.h"
 
+#include <string.h>
+
 #include "tinytest.h"
 
 static app_manifest_t manifest;
@@ -28,7 +30,7 @@ static void test_defaults_and_unknown_fields(void)
     /* no version, no fullscreen, and fields of a later host */
     CHECK(parse("{\"name\":\"plex\",\"title\":\"Now Playing\",\"abi\":1,"
                 "\"hosts\":[\"192.168.1.10\"],"
-                "\"settings\":[{\"key\":\"token\",\"type\":\"secret\"}]}") == APP_MANIFEST_OK);
+                "\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"}]}") == APP_MANIFEST_OK);
     CHECK_STR(manifest.version, "");
     CHECK(!manifest.fullscreen);
     CHECK(manifest.poll_count == 0);
@@ -90,6 +92,59 @@ static void test_abi(void)
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1.5}") == APP_MANIFEST_OTHER_ABI);
 }
 
+static void test_settings(void)
+{
+    const char *good = "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"},{\"key\":\"units\",\"type\":\"choice\",\"title\":\"Units\",\"options\":[\"celsius\",\"fahrenheit\"],\"help\":\"What the numbers are in.\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"Latitude\"},{\"key\":\"big\",\"type\":\"toggle\",\"title\":\"Large digits\"},{\"key\":\"city\",\"type\":\"text\",\"title\":\"City\"}]}";
+    CHECK(parse(good) == APP_MANIFEST_OK);
+    /* no settings at all is fine too */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_OK);
+
+    static const char *const BAD[] = {
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":\"nope\"}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"type\":\"text\",\"title\":\"No key\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"title\":\"No type\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"text\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"colour\",\"title\":\"Unknown type\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"has space\",\"type\":\"text\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"0123456789012345\",\"type\":\"text\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[1]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"options\":[\"a\"]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"help\":7}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"A\"},{\"key\":\"k\",\"type\":\"number\",\"title\":\"B\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":1,\"settings\":[{\"key\":\"k0\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k1\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k2\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k3\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k4\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k5\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k6\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k7\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k8\",\"type\":\"text\",\"title\":\"T\"}]}",
+    };
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        CHECK(parse(BAD[i]) == APP_MANIFEST_BAD_SETTING);
+    }
+
+    /* what the page may store, by the type the manifest gives the key */
+    bool is_secret = false;
+    CHECK(app_manifest_accepts_setting(good, "token", "s3cr3t", &is_secret) && is_secret);
+    CHECK(app_manifest_accepts_setting(good, "city", "Berlin", &is_secret) && !is_secret);
+    CHECK(app_manifest_accepts_setting(good, "units", "fahrenheit", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "units", "kelvin", NULL));
+    CHECK(app_manifest_accepts_setting(good, "lat", "-55.75", NULL));
+    CHECK(app_manifest_accepts_setting(good, "lat", "7", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "lat", "north", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "lat", "1.2.3", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "lat", "-", NULL));
+    CHECK(app_manifest_accepts_setting(good, "big", "1", NULL));
+    CHECK(!app_manifest_accepts_setting(good, "big", "yes", NULL));
+    /* empty takes a setting back, whatever its type */
+    CHECK(app_manifest_accepts_setting(good, "lat", "", NULL));
+    CHECK(app_manifest_accepts_setting(good, "units", "", NULL));
+    /* a key the manifest does not have is nobody's setting */
+    CHECK(!app_manifest_accepts_setting(good, "forecast", "x", NULL));
+    CHECK(!app_manifest_accepts_setting("{\"name\":\"a\"}", "token", "x", NULL));
+    char too_long[APP_SETTING_VALUE_MAX + 2];
+    memset(too_long, 'x', sizeof too_long - 1);
+    too_long[sizeof too_long - 1] = '\0';
+    CHECK(!app_manifest_accepts_setting(good, "city", too_long, NULL));
+}
+
 int main(void)
 {
     test_complete();
@@ -99,5 +154,6 @@ int main(void)
     test_title();
     test_other_fields();
     test_abi();
+    test_settings();
     REPORT();
 }

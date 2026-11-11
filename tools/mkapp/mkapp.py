@@ -38,6 +38,13 @@ URL_MAX = 255
 HEADERS_MAX = 4
 PICK_PATHS_MAX = 16
 PICK_PATH_MAX = 63
+SETTINGS_MAX = 8
+SETTING_KEY_MAX = 15
+SETTING_TITLE_MAX = 31
+SETTING_HELP_MAX = 95
+SETTING_OPTIONS_MAX = 8
+SETTING_OPTION_MAX = 23
+SETTING_TYPES = ("text", "secret", "number", "choice", "toggle")
 FILE_NAME_MAX = 23
 FILES_MAX_BYTES = 100 * 1024
 HEADER_NAME_MAX = 31
@@ -225,6 +232,39 @@ def check_poll(path, number, poll):
                      % (where, PICK_PATH_MAX, picked))
 
 
+def check_settings(path, settings):
+    if not isinstance(settings, list) or len(settings) > SETTINGS_MAX:
+        sys.exit("%s: \"settings\" must be a list of at most %d" % (path, SETTINGS_MAX))
+    keys = set()
+    for number, setting in enumerate(settings):
+        where = "%s: setting %d" % (path, number)
+        if not isinstance(setting, dict):
+            sys.exit("%s must be an object" % where)
+        key, title, kind = setting.get("key"), setting.get("title"), setting.get("type")
+        if (not isinstance(key, str) or not 0 < len(key) <= SETTING_KEY_MAX
+                or any(not "!" <= character <= "~" for character in key)):
+            sys.exit("%s: \"key\" must be 1-%d characters from '!' to '~'" % (where, SETTING_KEY_MAX))
+        if key in keys:
+            sys.exit("%s: the key \"%s\" is used twice" % (where, key))
+        keys.add(key)
+        if not isinstance(title, str) or not 0 < len(title.encode()) <= SETTING_TITLE_MAX:
+            sys.exit("%s: \"title\" must be 1-%d bytes" % (where, SETTING_TITLE_MAX))
+        if kind not in SETTING_TYPES:
+            sys.exit("%s: \"type\" must be one of %s" % (where, ", ".join(SETTING_TYPES)))
+        help_text = setting.get("help", "")
+        if not isinstance(help_text, str) or len(help_text.encode()) > SETTING_HELP_MAX:
+            sys.exit("%s: \"help\" must be a string of at most %d bytes" % (where, SETTING_HELP_MAX))
+        options = setting.get("options")
+        if kind != "choice":
+            if options is not None:
+                sys.exit("%s: only a choice has \"options\"" % where)
+        elif (not isinstance(options, list) or not 0 < len(options) <= SETTING_OPTIONS_MAX
+              or any(not isinstance(option, str)
+                     or not 0 < len(option.encode()) <= SETTING_OPTION_MAX for option in options)):
+            sys.exit("%s: \"options\" must be 1-%d strings of 1-%d bytes"
+                     % (where, SETTING_OPTIONS_MAX, SETTING_OPTION_MAX))
+
+
 def check_manifest(app_dir):
     """The rules of firmware/components/appsys/app_manifest.c, before the device sees it."""
     path = os.path.join(app_dir, "manifest.json")
@@ -249,6 +289,7 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    check_settings(path, manifest.get("settings", []))
     polls = manifest.get("polls", [])
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:
         sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))

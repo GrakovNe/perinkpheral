@@ -35,6 +35,14 @@ typedef struct {
  * After launcher_start(). */
 void poller_start(void);
 
+/* The application's settings changed: fetch its polls again now, not
+ * when their time comes. From any task. */
+void poller_hurry(const char *app_name);
+
+/* Gives something to the host loop for an application and waits until
+ * the application has had it. From any task but the host's own. */
+void poller_hand_over(const char *app_name, const app_delivery_t *delivery);
+
 #ifdef __cplusplus
 }
 #endif

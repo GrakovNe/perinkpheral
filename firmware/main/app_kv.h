@@ -20,6 +20,9 @@ int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t c
 /* value_length 0 removes the key. */
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length);
 
+/* Forgets everything the application stored: it is being removed. */
+void app_kv_erase(const char *app_name);
+
 #ifdef __cplusplus
 }
 #endif

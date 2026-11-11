@@ -120,6 +120,15 @@ void app_on_values(int32_t request, int32_t http_status)
     request_redraw(HOST_REDRAW_NORMAL);
 }
 
+/* The place changed: the forecast in hand is for somewhere else. The
+ * host fetches a new one at once. */
+void app_on_settings(void)
+{
+    has_forecast = false;
+    kv_set(FORECAST_KEY, sizeof FORECAST_KEY - 1, &forecast, 0);
+    request_redraw(HOST_REDRAW_NORMAL);
+}
+
 void app_on_button(int32_t event)
 {
     if (event == BTN_BACK_PRESSED) {

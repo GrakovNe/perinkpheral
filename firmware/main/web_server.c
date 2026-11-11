@@ -23,6 +23,7 @@
 #include "ota.h"
 #include "reset.h"
 #include "settings.h"
+#include "web_apps.h"
 #include "status.h"
 #include "wifi.h"
 
@@ -406,7 +407,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
 
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
-    server_config.max_uri_handlers = OWN_ROUTES + DEVTOOLS_ROUTES;
+    server_config.max_uri_handlers = OWN_ROUTES + WEB_APPS_ROUTES + DEVTOOLS_ROUTES;
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &server_config);
     if (err != ESP_OK) {
@@ -425,6 +426,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
     for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
     }
+    web_apps_register(server);
 #ifdef CONFIG_APP_DEV_CONSOLE
     devtools_register(server);
 #endif

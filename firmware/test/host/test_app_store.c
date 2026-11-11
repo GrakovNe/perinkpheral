@@ -188,6 +188,13 @@ static void test_install_files(void)
     CHECK(app_store_file_max_bytes("frames.bin") == APP_FILES_MAX_BYTES);
 
     CHECK(app_store_file_max_bytes(APP_FILE_MODULE) == APP_MODULE_MAX_BYTES);
+
+    /* and off the device again: every file, the unfinished upload, the folder */
+    CHECK(!app_store_remove(root, "../fresh") && !app_store_remove(root, "absent"));
+    CHECK(app_store_remove(root, "fresh"));
+    CHECK(app_store_list(root, apps, 4) == 0);
+    CHECK(app_store_file_size(root, "fresh", "frames.bin") < 0);
+    CHECK(!app_store_remove(root, "fresh"));
     CHECK(app_store_file_max_bytes(APP_FILE_MANIFEST) < APP_MODULE_MAX_BYTES);
 }
 

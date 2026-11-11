@@ -3,6 +3,20 @@
   "title": "Weather",
   "version": "0.1.0",
   "abi": 1,
+  "settings": [
+    {
+      "key": "lat",
+      "type": "number",
+      "title": "Latitude",
+      "help": "Of the place the forecast is for, in degrees: 55.75. North is positive."
+    },
+    {
+      "key": "lon",
+      "type": "number",
+      "title": "Longitude",
+      "help": "East is positive: 37.62."
+    }
+  ],
   "polls": [
     {
       "url": "https://api.open-meteo.com/v1/forecast?latitude={{lat}}&longitude={{lon}}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=3&timezone=auto",

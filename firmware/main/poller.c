@@ -4,6 +4,7 @@
  */
 #include "poller.h"
 
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,27 +40,41 @@ static const char *TAG = "poller";
 #define USER_AGENT          "perinkpheral"
 #define HTTP_OK_FIRST       200
 #define HTTP_OK_LAST        299
+#define NO_APP              (-1)
 
 static poll_schedule_t       s_schedule;
 static const app_manifest_t *s_apps;
-static SemaphoreHandle_t     s_handed_over;
+static int                   s_app_count;
+/* The application whose polls are to be fetched at once, or NO_APP. */
+static atomic_int            s_hurried_app = NO_APP;
 
 static int64_t now_ms(void)
 {
     return esp_timer_get_time() / 1000;
 }
 
-/* Gives the answer, or a piece of it, to the host loop and waits until
- * the application has had it. */
-static void hand_over(const char *app_name, const app_delivery_t *delivery)
+void poller_hand_over(const char *app_name, const app_delivery_t *delivery)
 {
+    /* A semaphore of its own for every hand-over: the poller and the web
+     * server may both be waiting, each for its own. */
+    SemaphoreHandle_t handed_over = xSemaphoreCreateBinary();
+    if (handed_over == NULL) {
+        ESP_LOGW(TAG, "%s: no memory to hand anything over", app_name);
+        return;
+    }
     poller_delivery_t handed = { .app_name = app_name, .delivery = *delivery,
-                                 .handed_over = s_handed_over };
+                                 .handed_over = handed_over };
     event_t event = { .kind = EVENT_APP_DELIVERY, .delivery = &handed };
     while (!events_post(&event)) {
         vTaskDelay(pdMS_TO_TICKS(50)); /* the queue is full: the host is busy with the panel */
     }
-    xSemaphoreTake(s_handed_over, portMAX_DELAY);
+    xSemaphoreTake(handed_over, portMAX_DELAY);
+    vSemaphoreDelete(handed_over);
+}
+
+static void hand_over(const char *app_name, const app_delivery_t *delivery)
+{
+    poller_hand_over(app_name, delivery);
 }
 
 static void hand_over_values(const char *app_name, int request, int http_status,
@@ -279,6 +294,10 @@ static void poller_task(void *arg)
 {
     (void)arg;
     for (;;) {
+        int hurried_app = atomic_exchange(&s_hurried_app, NO_APP);
+        if (hurried_app != NO_APP) {
+            poll_schedule_hurry(&s_schedule, hurried_app, now_ms());
+        }
         uint32_t            wait_ms;
         const poll_entry_t *due = poll_schedule_due(&s_schedule, now_ms(), &wait_ms);
         if (due == NULL) {
@@ -300,6 +319,7 @@ void poller_start(void)
 {
     int app_count;
     s_apps = launcher_installed(&app_count);
+    s_app_count = app_count;
     poll_schedule_init(&s_schedule);
     int polls = 0;
     for (int app = 0; app < app_count; app++) {
@@ -314,10 +334,19 @@ void poller_start(void)
         ESP_LOGI(TAG, "no application has anything to fetch");
         return;
     }
-    s_handed_over = xSemaphoreCreateBinary();
-    configASSERT(s_handed_over != NULL);
     BaseType_t ok = xTaskCreate(poller_task, "poller", TASK_STACK_BYTES, NULL, TASK_PRIORITY,
                                 NULL);
     configASSERT(ok == pdPASS);
     ESP_LOGI(TAG, "%d polls of the installed applications are scheduled", polls);
+}
+
+void poller_hurry(const char *app_name)
+{
+    for (int app = 0; app < s_app_count; app++) {
+        if (strcmp(s_apps[app].name, app_name) == 0) {
+            /* One at a time is enough: nobody changes the settings of two
+             * applications within a second. */
+            atomic_store(&s_hurried_app, app);
+        }
+    }
 }

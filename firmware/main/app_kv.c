@@ -81,3 +81,19 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
     }
     return err == ESP_OK ? HOST_OK : storage_failed(app_name, key, err);
 }
+
+void app_kv_erase(const char *app_name)
+{
+    nvs_handle_t store;
+    if (open_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
+        return;
+    }
+    esp_err_t err = nvs_erase_all(store);
+    if (err == ESP_OK) {
+        err = nvs_commit(store);
+    }
+    nvs_close(store);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "%s: the store could not be emptied: %s", app_name, esp_err_to_name(err));
+    }
+}

@@ -117,6 +117,159 @@ static bool read_poll(const cJSON *poll, app_poll_t *parsed)
            read_pick(cJSON_GetObjectItemCaseSensitive(poll, "pick"), parsed);
 }
 
+static const char *const SETTING_TYPES[] = {
+    [APP_SETTING_TEXT] = "text",     [APP_SETTING_SECRET] = "secret",
+    [APP_SETTING_NUMBER] = "number", [APP_SETTING_CHOICE] = "choice",
+    [APP_SETTING_TOGGLE] = "toggle",
+};
+#define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
+
+static bool is_text_of(const cJSON *item, size_t min_length, size_t max_length)
+{
+    return cJSON_IsString(item) && strlen(item->valuestring) >= min_length &&
+           strlen(item->valuestring) <= max_length;
+}
+
+/* A kv key: what kv_get and kv_set take. */
+static bool is_setting_key(const cJSON *key)
+{
+    if (!is_text_of(key, 1, APP_SETTING_KEY_MAX)) {
+        return false;
+    }
+    for (const char *character = key->valuestring; *character != '\0'; character++) {
+        if (*character < '!' || *character > '~') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* The type of a setting, or -1 when it is not a sound one. */
+static int setting_type(const cJSON *setting)
+{
+    const cJSON *type = cJSON_GetObjectItemCaseSensitive(setting, "type");
+    const cJSON *help = cJSON_GetObjectItemCaseSensitive(setting, "help");
+    if (!cJSON_IsObject(setting) || !cJSON_IsString(type) ||
+        !is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "key")) ||
+        !is_text_of(cJSON_GetObjectItemCaseSensitive(setting, "title"), 1,
+                    APP_SETTING_TITLE_MAX) ||
+        (help != NULL && !is_text_of(help, 0, APP_SETTING_HELP_MAX))) {
+        return -1;
+    }
+    for (int known = 0; known < SETTING_TYPE_COUNT; known++) {
+        if (strcmp(type->valuestring, SETTING_TYPES[known]) != 0) {
+            continue;
+        }
+        const cJSON *options = cJSON_GetObjectItemCaseSensitive(setting, "options");
+        if (known != APP_SETTING_CHOICE) {
+            return options == NULL ? known : -1;
+        }
+        int count = cJSON_IsArray(options) ? cJSON_GetArraySize(options) : 0;
+        if (count < 1 || count > APP_SETTING_OPTIONS_MAX) {
+            return -1;
+        }
+        const cJSON *option;
+        cJSON_ArrayForEach(option, options)
+        {
+            if (!is_text_of(option, 1, APP_SETTING_OPTION_MAX)) {
+                return -1;
+            }
+        }
+        return known;
+    }
+    return -1;
+}
+
+static bool are_sound_settings(const cJSON *settings)
+{
+    if (settings == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(settings) || cJSON_GetArraySize(settings) > APP_SETTINGS_MAX) {
+        return false;
+    }
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, settings)
+    {
+        if (setting_type(setting) < 0) {
+            return false;
+        }
+        /* Two settings under one key would be one value with two forms. */
+        const char *key = cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring;
+        for (const cJSON *earlier = settings->child; earlier != setting; earlier = earlier->next) {
+            if (strcmp(cJSON_GetObjectItemCaseSensitive(earlier, "key")->valuestring, key) == 0) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool is_number_text(const char *text)
+{
+    const char *at = text + (*text == '-' ? 1 : 0);
+    int digits = 0, points = 0;
+    for (; *at != '\0'; at++) {
+        if (*at == '.') {
+            points++;
+        } else if (*at >= '0' && *at <= '9') {
+            digits++;
+        } else {
+            return false;
+        }
+    }
+    return digits > 0 && points <= 1;
+}
+
+static bool fits_type(const cJSON *setting, int type, const char *value)
+{
+    /* Empty is "not set", whatever the type. */
+    if (value[0] == '\0') {
+        return true;
+    }
+    switch (type) {
+    case APP_SETTING_NUMBER:
+        return is_number_text(value);
+    case APP_SETTING_TOGGLE:
+        return strcmp(value, "0") == 0 || strcmp(value, "1") == 0;
+    case APP_SETTING_CHOICE: {
+        const cJSON *option;
+        cJSON_ArrayForEach(option, cJSON_GetObjectItemCaseSensitive(setting, "options"))
+        {
+            if (strcmp(option->valuestring, value) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    default:
+        return true;
+    }
+}
+
+bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
+                                  bool *is_secret)
+{
+    cJSON *root = cJSON_Parse(json);
+    bool   accepted = false;
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    {
+        int type = setting_type(setting);
+        if (type < 0 ||
+            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring, key) != 0) {
+            continue;
+        }
+        accepted = strlen(value) <= APP_SETTING_VALUE_MAX && fits_type(setting, type, value);
+        if (is_secret != NULL) {
+            *is_secret = type == APP_SETTING_SECRET;
+        }
+        break;
+    }
+    cJSON_Delete(root);
+    return accepted;
+}
+
 static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *manifest)
 {
     if (!cJSON_IsObject(root)) {
@@ -143,6 +296,10 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     const cJSON *abi = cJSON_GetObjectItemCaseSensitive(root, "abi");
     if (!cJSON_IsNumber(abi) || abi->valuedouble != HOST_API_VERSION) {
         return APP_MANIFEST_OTHER_ABI;
+    }
+
+    if (!are_sound_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
+        return APP_MANIFEST_BAD_SETTING;
     }
 
     const cJSON *polls = cJSON_GetObjectItemCaseSensitive(root, "polls");
@@ -214,6 +371,9 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"title\" is missing, empty or longer than 23";
     case APP_MANIFEST_BAD_FIELD:
         return "a field has the wrong type or is too long";
+    case APP_MANIFEST_BAD_SETTING:
+        return "\"settings\" must be a list of at most 8, each with a key, a type "
+               "(text, secret, number, choice, toggle) and a title";
     case APP_MANIFEST_OTHER_ABI:
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define MANIFEST_FILE      "manifest.json"
 #define MODULE_FILE        "app.wasm"
@@ -189,4 +190,29 @@ long app_store_read_file(const char *root, const char *name, const char *file, l
                                                       : -1;
     fclose(opened);
     return count;
+}
+
+bool app_store_remove(const char *root, const char *name)
+{
+    char folder[PATH_MAX_BYTES];
+    if (!app_manifest_is_valid_name(name) ||
+        snprintf(folder, sizeof folder, "%s/%s", root, name) >= (int)sizeof folder) {
+        return false;
+    }
+    DIR *directory = opendir(folder);
+    if (directory == NULL) {
+        return false;
+    }
+    bool emptied = true;
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        char path[PATH_MAX_BYTES + sizeof entry->d_name + 1];
+        snprintf(path, sizeof path, "%s/%s", folder, entry->d_name);
+        emptied = remove(path) == 0 && emptied;
+    }
+    closedir(directory);
+    return emptied && rmdir(folder) == 0;
 }

@@ -144,6 +144,12 @@ HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t ca
  * write this itself. */
 APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
 
+/* The user changed the application's settings on the device's web page.
+ * The settings are declared in the manifest; each is text in the store
+ * under its key, read with kv_get(). Called on the screen and off it,
+ * like the data handlers. */
+APP_EXPORT(app_on_settings, void app_on_settings(void));
+
 /* Paint the whole picture from the application's state. The surface
  * arrives white; gfx_* calls work only in here. The host calls it when
  * the frame is needed, which is after request_redraw() and whenever the

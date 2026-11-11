@@ -55,3 +55,12 @@ void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, in
     poll_entry_t *done = &schedule->entries[entry - schedule->entries];
     done->due_ms = now_ms + done->every_ms;
 }
+
+void poll_schedule_hurry(poll_schedule_t *schedule, int app, int64_t now_ms)
+{
+    for (int i = 0; i < schedule->count; i++) {
+        if (schedule->entries[i].app == app && schedule->entries[i].due_ms > now_ms) {
+            schedule->entries[i].due_ms = now_ms;
+        }
+    }
+}

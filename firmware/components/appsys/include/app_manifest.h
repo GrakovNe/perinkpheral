@@ -75,6 +75,7 @@ typedef enum {
     APP_MANIFEST_BAD_TITLE, /* missing, empty or too long */
     APP_MANIFEST_BAD_FIELD, /* a known field of the wrong type or too long */
     APP_MANIFEST_OTHER_ABI, /* missing, or not the ABI this host speaks */
+    APP_MANIFEST_BAD_SETTING, /* "settings" is not a list of sound settings */
     APP_MANIFEST_BAD_POLL,  /* too many polls, or one without a sound url and every */
 } app_manifest_result_t;
 
@@ -87,6 +88,40 @@ app_manifest_result_t app_manifest_parse_poll(const char *json, int poll, app_po
 
 /* For the log and for the tool that checks a manifest before it ships. */
 const char *app_manifest_result_text(app_manifest_result_t result);
+
+/* What the user sets for an application, declared in its manifest:
+ *
+ *     "settings": [
+ *       { "key": "token", "type": "secret", "title": "Plex token" },
+ *       { "key": "units", "type": "choice", "title": "Units",
+ *         "options": ["celsius", "fahrenheit"], "help": "..." }
+ *     ]
+ *
+ * The device's web page draws a form from it without running the
+ * application. A value is text in the application's own store under
+ * `key`, so the code reads it with kv_get() by the same name and the host
+ * puts it into URLs and headers as {{key}}. */
+#define APP_SETTINGS_MAX        8
+#define APP_SETTING_KEY_MAX     15 /* a kv key */
+#define APP_SETTING_TITLE_MAX   31
+#define APP_SETTING_HELP_MAX    95
+#define APP_SETTING_VALUE_MAX   127
+#define APP_SETTING_OPTIONS_MAX 8
+#define APP_SETTING_OPTION_MAX  23
+
+typedef enum {
+    APP_SETTING_TEXT,
+    APP_SETTING_SECRET, /* the page can write it and cannot read it back */
+    APP_SETTING_NUMBER,
+    APP_SETTING_CHOICE, /* one of "options" */
+    APP_SETTING_TOGGLE, /* "1" or "0" */
+} app_setting_type_t;
+
+/* Whether `value` may be stored under `key`: the manifest has such a
+ * setting, and the value fits its type. `is_secret` may be NULL. The
+ * manifest is one that app_manifest_parse() accepted. */
+bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
+                                  bool *is_secret);
 
 /* 1-13 of a-z, 0-9, - and _: what an application may be called. */
 bool app_manifest_is_valid_name(const char *name);

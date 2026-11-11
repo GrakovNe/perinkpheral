@@ -69,6 +69,10 @@ bool app_store_begin_file(const char *root, const char *name, const char *file,
                           char path[APP_STORE_PATH_MAX]);
 bool app_store_commit_file(const char *root, const char *name, const char *file);
 
+/* Takes an application off the device: its files and its folder. False
+ * when the name is not an application's or something could not go. */
+bool app_store_remove(const char *root, const char *name);
+
 /* How long a file of an application is; negative when there is none. */
 long app_store_file_size(const char *root, const char *name, const char *file);
 

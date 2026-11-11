@@ -23,6 +23,13 @@
            border-radius: 0; }
   button:disabled { opacity: .5; cursor: wait; }
   p.note { color: var(--dim); margin: .5rem 0 0; }
+  select { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
+           color: var(--ink); background: transparent; border: 1px solid var(--ink);
+           border-radius: 0; }
+  input[type=checkbox] { width: auto; margin-right: .5rem; }
+  h3 { font-size: 1rem; margin: 1.25rem 0 0; }
+  h3 small { color: var(--dim); font-weight: normal; }
+  button.quiet { color: var(--ink); background: transparent; margin-left: .5rem; }
   p.result { min-height: 1.5rem; margin: .75rem 0 0; }
 </style>
 </head>
@@ -44,6 +51,9 @@
   access point comes back after two minutes.</p>
   <p class="result" id="wifi-result"></p>
 </form>
+
+<h2>Applications</h2>
+<div id="apps"><p class="note">Loading</p></div>
 
 <h2>Time</h2>
 <form id="time">
@@ -149,7 +159,7 @@ async function loadStatus() {
 
 /* Sends the request and puts the device's answer, or what went wrong, on the page. */
 async function send(form, resultId, url, options) {
-  const button = form.querySelector("button:not([type=button])");
+  const button = form.querySelector("button:not([type=button])") || form.querySelector("button");
   button.disabled = true;
   show(resultId, "Sending...");
   try {
@@ -169,6 +179,104 @@ document.getElementById("wifi").addEventListener("submit", event => {
   const body = JSON.stringify(settings);
   send(event.target, "wifi-result", "/api/wifi", { method: "POST", body });
 });
+
+/* One field of an application's settings, as its manifest describes it. */
+function settingField(app, setting) {
+  const id = app.name + "-" + setting.key, value = app.values[setting.key];
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = setting.title;
+  let input;
+  if (setting.type === "choice") {
+    input = document.createElement("select");
+    for (const option of [""].concat(setting.options)) {
+      const item = document.createElement("option");
+      item.value = option;
+      item.textContent = option || "-";
+      input.append(item);
+    }
+    input.value = value;
+  } else {
+    input = document.createElement("input");
+    if (setting.type === "toggle") {
+      input.type = "checkbox";
+      input.checked = value === "1";
+      label.prepend(input);
+    } else if (setting.type === "secret") {
+      input.type = "password";
+      /* The device does not give a secret back: an empty field keeps the one it has. */
+      input.placeholder = value ? "set - type to replace" : "not set";
+    } else {
+      input.inputMode = setting.type === "number" ? "decimal" : "text";
+      input.value = value;
+    }
+    input.maxLength = 127;
+    input.autocomplete = "off";
+  }
+  input.id = id;
+  input.dataset.key = setting.key;
+  input.dataset.type = setting.type;
+  const parts = setting.type === "toggle" ? [label] : [label, input];
+  if (setting.help) {
+    const help = document.createElement("p");
+    help.className = "note";
+    help.textContent = setting.help;
+    parts.push(help);
+  }
+  return parts;
+}
+
+function settingsOf(form) {
+  const settings = {};
+  for (const input of form.querySelectorAll("[data-key]")) {
+    if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
+    else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
+  }
+  return settings;
+}
+
+function appBlock(app) {
+  const block = document.createElement("form"), title = document.createElement("h3");
+  title.textContent = app.title + " ";
+  const version = document.createElement("small");
+  version.textContent = app.version;
+  title.append(version);
+  block.append(title);
+  for (const setting of app.settings) block.append(...settingField(app, setting));
+  const result = document.createElement("p");
+  result.className = "result";
+  result.id = app.name + "-result";
+  const query = "?app=" + encodeURIComponent(app.name);
+  if (app.settings.length) {
+    const save = document.createElement("button");
+    save.textContent = "Save";
+    block.append(save);
+    block.addEventListener("submit", event => {
+      event.preventDefault();
+      send(block, result.id, "/api/apps/settings" + query,
+           { method: "POST", body: JSON.stringify(settingsOf(block)) });
+    });
+  } else {
+    block.addEventListener("submit", event => event.preventDefault());
+  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "quiet";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    if (!confirm("Remove " + app.title + " and everything it stored? The device restarts.")) return;
+    send(block, result.id, "/api/apps/remove" + query, { method: "POST" });
+  });
+  block.append(remove, result);
+  return block;
+}
+
+async function loadApps() {
+  const list = document.getElementById("apps");
+  const apps = await (await fetch("/api/apps")).json();
+  list.replaceChildren(...apps.map(appBlock));
+  if (!apps.length) list.textContent = "No applications are installed.";
+}
 
 document.getElementById("tz-detect").addEventListener("click", () => {
   document.getElementById("tz").value = posixZone();
@@ -194,6 +302,7 @@ document.getElementById("reset").addEventListener("submit", event => {
 });
 
 loadStatus();
+loadApps();
 </script>
 </body>
 </html>

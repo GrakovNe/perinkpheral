@@ -41,6 +41,7 @@ struct app {
     IM3Function on_draw;
     IM3Function on_data;
     IM3Function on_values;
+    IM3Function on_settings;
     /* Set only while app_on_values() runs: what data_value() reads. */
     const char *const *values;
     int                value_count;
@@ -808,6 +809,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_draw = find_export(app, "app_on_draw");
     app->on_data = find_export(app, "app_on_data");
     app->on_values = find_export(app, "app_on_values");
+    app->on_settings = find_export(app, "app_on_settings");
     find_data_buffer(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
     app->exit_requested = false;
@@ -884,6 +886,11 @@ void app_values(app_t *app, int request, int http_status, const char *const *val
     CALL_HANDLER(app, app->on_values, (int32_t)request, (int32_t)http_status);
     app->values = NULL;
     app->value_count = 0;
+}
+
+void app_settings_changed(app_t *app)
+{
+    CALL_HANDLER(app, app->on_settings);
 }
 
 bool app_take_focus_request(app_t *app)

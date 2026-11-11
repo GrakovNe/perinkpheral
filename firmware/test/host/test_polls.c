@@ -174,6 +174,33 @@ static void test_schedule(void)
     CHECK(poll_schedule_due(&schedule, much_later, &wait_ms) == NULL && wait_ms == 15000);
 }
 
+static void test_schedule_hurry(void)
+{
+    poll_schedule_t schedule;
+    poll_schedule_init(&schedule);
+    CHECK(poll_schedule_add(&schedule, 0, 0, 600, 0));
+    CHECK(poll_schedule_add(&schedule, 1, 0, 600, 0));
+    CHECK(poll_schedule_add(&schedule, 1, 1, 900, 0));
+    uint32_t wait_ms;
+    const poll_entry_t *due;
+    /* run everything once, so that all three wait for their periods */
+    while ((due = poll_schedule_due(&schedule, 100000, &wait_ms)) != NULL) {
+        poll_schedule_done(&schedule, due, 100000);
+    }
+    CHECK(wait_ms == 600000);
+
+    /* the settings of application 1 changed: both of its polls, and only they */
+    poll_schedule_hurry(&schedule, 1, 100500);
+    int hurried = 0;
+    while ((due = poll_schedule_due(&schedule, 100500, &wait_ms)) != NULL) {
+        CHECK(due->app == 1);
+        poll_schedule_done(&schedule, due, 100500);
+        hurried++;
+    }
+    CHECK(hurried == 2);
+    CHECK(wait_ms == 599500); /* application 0 kept its time */
+}
+
 static void test_schedule_is_bounded(void)
 {
     poll_schedule_t schedule;
@@ -220,5 +247,6 @@ int main(void)
     test_schedule();
     test_schedule_is_bounded();
     test_pick();
+    test_schedule_hurry();
     REPORT();
 }
