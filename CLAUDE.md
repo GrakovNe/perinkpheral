@@ -322,7 +322,7 @@ hardware/              everything about the physical device
 ## State
 Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page, the splash and the setup screen - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` shows the time, the day of the week and the date and redraws once a minute, host tests of the pure modules.
 
-Verified on the owner's network: joining it, SNTP and the date in the header, local time by the stored time zone, the web page, a firmware upload with its probation (both slots, several times), returning to the last application after a restart, the factory reset and the setup that follows it - the QR code, the captive portal and storing the network from a phone - and the development tools over the network.
+Verified on the owner's network: joining it, SNTP and the date in the header, local time by the stored time zone, the web page, a firmware upload with its probation (both slots, several times), returning to the last application after a restart, the factory reset and setting the device up again after it (the owner did it with the QR code and reported it working; which phones open the page by themselves was not written down), and the development tools over the network.
 
 Open:
 - **Milestone 1 has one item left, and it needs hands: a run from the battery without USB.**
