@@ -90,6 +90,11 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
 static const display_setting_t *edited; /* on PAGE_VALUE */
 static int32_t                  edited_choice;
 
+/* A page of settings is redrawn at every press, and a full refresh in the
+ * middle of stepping through a list is a second of a black screen: none
+ * of the host's making while this application is on the screen. */
+#define REDRAW HOST_REDRAW_NO_BLINK
+
 /* ---- small things ---- */
 
 static bool is_same(const char *text, const char *other)
@@ -409,8 +414,9 @@ static const char *page_title(page_t page)
     case PAGE_REMOVE_APP:
         return "Apps";
     case PAGE_DISPLAY:
-    case PAGE_VALUE:
         return "Display";
+    case PAGE_VALUE:
+        return edited->label;
     case PAGE_WIFI:
     case PAGE_FORGET:
         return "Wi-Fi";
@@ -428,7 +434,7 @@ static void show(void)
 {
     const char *title = page_title(HERE.page);
     header_text(HOST_HEADER_LEFT, title, app_text_length(title));
-    request_redraw(HOST_REDRAW_NORMAL);
+    request_redraw(REDRAW);
 }
 
 static void open(page_t page, int32_t selected)
@@ -594,11 +600,13 @@ static void press_up_or_down(int32_t by)
         /* UP is later, as on any clock that is set with two buttons. */
         clock_step(HERE.selected, -by);
     } else if (page == PAGE_VALUE) {
-        int32_t choice = edited_choice - by;
+        int32_t choice = edited_choice + by;
         if (choice < 0 || choice >= edited->choice_count) {
             return; /* the ends are ends: no wrapping from "Never" to "Always" */
         }
         edited_choice = choice;
+    } else if (page == PAGE_ZONE) {
+        HERE.selected = wrapped(HERE.selected + by, 0, CITY_COUNT - 1);
     } else if (is_question(page)) {
         HERE.selected = HERE.selected == ANSWER_CANCEL ? ANSWER_DO : ANSWER_CANCEL;
     } else if (is_list(page)) {
@@ -606,7 +614,7 @@ static void press_up_or_down(int32_t by)
     } else {
         return;
     }
-    request_redraw(HOST_REDRAW_NORMAL);
+    request_redraw(REDRAW);
 }
 
 static void press_ok(void)
@@ -615,7 +623,7 @@ static void press_ok(void)
     if (page == PAGE_CLOCK) {
         if (HERE.selected + 1 < CLOCK_PARTS) {
             HERE.selected++;
-            request_redraw(HOST_REDRAW_NORMAL);
+            request_redraw(REDRAW);
         } else if (clock_save()) {
             go_back();
         } else {
@@ -642,7 +650,7 @@ static void press_back(void)
 {
     if (HERE.page == PAGE_CLOCK && HERE.selected > 0) {
         HERE.selected--;
-        request_redraw(HOST_REDRAW_NORMAL);
+        request_redraw(REDRAW);
     } else if (HERE.page == PAGE_NOTICE && notice_is_final) {
         return;
     } else {
@@ -704,6 +712,46 @@ static void draw_centered(int32_t baseline, int32_t font, const char *text)
     draw_text((gfx_width() - text_width(font, text)) / 2, baseline, font, text);
 }
 
+/* ---- small pictures, in cells of two pixels like the host's icons ---- */
+
+#define CELL 2
+
+static void draw_cells(const char *const *rows, int32_t rows_count, int32_t left, int32_t top)
+{
+    for (int32_t row = 0; row < rows_count; row++) {
+        /* A run of ink in a row is one rectangle. */
+        for (int32_t column = 0; rows[row][column] != '\0';) {
+            if (rows[row][column] != '#') {
+                column++;
+                continue;
+            }
+            int32_t run_start = column;
+            while (rows[row][column] == '#') {
+                column++;
+            }
+            gfx_rect(left + run_start * CELL, top + row * CELL, (column - run_start) * CELL, CELL,
+                     HOST_RECT_FILLED);
+        }
+    }
+}
+
+#define CHEVRON_COLUMNS 9
+#define CHEVRON_ROWS    5
+#define CHEVRON_WIDTH   (CHEVRON_COLUMNS * CELL)
+#define CHEVRON_HEIGHT  (CHEVRON_ROWS * CELL)
+static const char *const CHEVRON_UP[CHEVRON_ROWS] = {
+    "....#....", "...###...", "..##.##..", ".##...##.", "##.....##",
+};
+static const char *const CHEVRON_DOWN[CHEVRON_ROWS] = {
+    "##.....##", ".##...##.", "..##.##..", "...###...", "....#....",
+};
+
+#define TRASH_CELLS 11
+static const char *const TRASH[TRASH_CELLS] = {
+    "....###....", ".#########.", "...........", "..#######..", "..#.#.#.#..", "..#.#.#.#..",
+    "..#.#.#.#..", "..#.#.#.#..", "..#.#.#.#..", "..#######..", "...........",
+};
+
 /* Cuts a value that would run into its label, with "..." for what is gone. */
 static void fit(char text[TEXT_MAX + 1], int32_t max_width)
 {
@@ -749,6 +797,14 @@ static void draw_list(page_t page, int32_t selected)
         char value[TEXT_MAX + 1];
         describe_row(page, first + slot, label, value);
         draw_row(slot, label, value, first + slot == selected);
+        if (page == PAGE_APPS && sys_app_title(first + slot, value, TEXT_MAX) >= 0) {
+            /* What OK does to an application here, said by a picture. */
+            int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
+            gfx_color(first + slot == selected ? HOST_PAPER : HOST_INK);
+            draw_cells(TRASH, TRASH_CELLS, gfx_width() - MARGIN - TRASH_CELLS * CELL,
+                       baseline - (TRASH_CELLS - 1) * CELL);
+            gfx_color(HOST_INK);
+        }
     }
 }
 
@@ -767,25 +823,44 @@ static void draw_question(const char *first, const char *second, const char *thi
     draw_row(visible - 1, action, no_value, selected == ANSWER_DO);
 }
 
-/* A part of the date or the time; the one being set is white on black. */
+/* ---- setting a value: what UP and DOWN lead to is on the screen ---- */
+
+#define BOX_STROKE 2
+
+/* A frame two pixels thick. */
+static void draw_box(int32_t left, int32_t top, int32_t width, int32_t height)
+{
+    for (int32_t inset = 0; inset < BOX_STROKE; inset++) {
+        gfx_rect(left + inset, top + inset, width - 2 * inset, height - 2 * inset,
+                 HOST_RECT_OUTLINE);
+    }
+}
+
+#define PART_PAD       6 /* from the text of a part to its frame */
+#define PART_ARROW_GAP 6 /* from the frame to the arrows over and under it */
+
+/* A part of the date or the time. The one being set is in a frame, with
+ * an arrow over it and one under it: UP and DOWN change this one. */
 static int32_t draw_part(int32_t left, int32_t baseline, int32_t font, const char *text,
                          bool is_selected)
 {
     int32_t width = text_width(font, text);
-    if (is_selected) {
-        int32_t pad = 4;
-        gfx_rect(left - pad, baseline - gfx_font_ascent(font) - pad, width + 2 * pad,
-                 gfx_font_height(font) + 2 * pad, HOST_RECT_FILLED);
-        gfx_color(HOST_PAPER);
-    }
     draw_text(left, baseline, font, text);
-    gfx_color(HOST_INK);
+    if (is_selected) {
+        int32_t top = baseline - gfx_font_cap_height(font) - PART_PAD;
+        int32_t height = gfx_font_cap_height(font) + 2 * PART_PAD;
+        draw_box(left - PART_PAD, top, width + 2 * PART_PAD, height);
+        int32_t arrow_left = left + (width - CHEVRON_WIDTH) / 2;
+        draw_cells(CHEVRON_UP, CHEVRON_ROWS, arrow_left, top - PART_ARROW_GAP - CHEVRON_HEIGHT);
+        draw_cells(CHEVRON_DOWN, CHEVRON_ROWS, arrow_left, top + height + PART_ARROW_GAP);
+    }
     return width;
 }
 
-#define CLOCK_TIME_BASELINE 110
-#define CLOCK_DATE_BASELINE 190
-#define CLOCK_HINT_BASELINE 244
+#define CLOCK_TIME_BASELINE 92
+#define CLOCK_DATE_BASELINE 186
+#define CLOCK_HINT_BASELINE 250
+#define CLOCK_PART_GAP      10 /* between the parts of a line, for their frames */
 
 static void draw_clock(int32_t part)
 {
@@ -801,36 +876,73 @@ static void draw_clock(int32_t part)
     app_text_add_number(&text, clock.year);
     const char *month = MONTHS[clock.month - 1];
 
-    int32_t font = HOST_FONT_DISPLAY;
+    int32_t font = HOST_FONT_LARGE;
     int32_t left = (gfx_width() - text_width(font, hour) - text_width(font, ":") -
-                    text_width(font, minute)) / 2;
-    left += draw_part(left, CLOCK_TIME_BASELINE, font, hour, part == CLOCK_HOUR);
-    left += draw_part(left, CLOCK_TIME_BASELINE, font, ":", false);
+                    text_width(font, minute) - 2 * CLOCK_PART_GAP) / 2;
+    left += draw_part(left, CLOCK_TIME_BASELINE, font, hour, part == CLOCK_HOUR) + CLOCK_PART_GAP;
+    left += draw_part(left, CLOCK_TIME_BASELINE, font, ":", false) + CLOCK_PART_GAP;
     draw_part(left, CLOCK_TIME_BASELINE, font, minute, part == CLOCK_MINUTE);
 
     font = HOST_FONT_MEDIUM;
-    int32_t space = text_width(font, " ");
+    int32_t gap = text_width(font, " ");
     left = (gfx_width() - text_width(font, day) - text_width(font, month) -
-            text_width(font, year) - 2 * space) / 2;
-    left += draw_part(left, CLOCK_DATE_BASELINE, font, day, part == CLOCK_DAY) + space;
-    left += draw_part(left, CLOCK_DATE_BASELINE, font, month, part == CLOCK_MONTH) + space;
+            text_width(font, year) - 2 * gap) / 2;
+    left += draw_part(left, CLOCK_DATE_BASELINE, font, day, part == CLOCK_DAY) + gap;
+    left += draw_part(left, CLOCK_DATE_BASELINE, font, month, part == CLOCK_MONTH) + gap;
     draw_part(left, CLOCK_DATE_BASELINE, font, year, part == CLOCK_YEAR);
 
     draw_centered(CLOCK_HINT_BASELINE, HOST_FONT_SMALL,
                   part + 1 < CLOCK_PARTS ? "OK: next   BACK: previous" : "OK: save   BACK: previous");
 }
 
-#define VALUE_LABEL_BASELINE 60
-#define VALUE_BASELINE       150
-#define VALUE_HINT_BASELINE  244
+/* One of a row of values: the chosen one in a frame in the middle, the one
+ * UP leads to over it and the one DOWN leads to under it. Empty text is
+ * the end of the row: no arrow that way. */
+#define WHEEL_BOX_LEFT       40
+#define WHEEL_BOX_TOP        96
+#define WHEEL_BOX_HEIGHT     56
+#define WHEEL_BASELINE       136
+#define WHEEL_ABOVE_BASELINE 76
+#define WHEEL_BELOW_BASELINE 196
+#define WHEEL_UP_TOP         26
+#define WHEEL_DOWN_TOP       212
+#define WHEEL_HINT_BASELINE  250
+
+static void draw_wheel(const char *above, const char *chosen, const char *below)
+{
+    int32_t arrow_left = (gfx_width() - CHEVRON_WIDTH) / 2;
+    if (above[0] != '\0') {
+        draw_cells(CHEVRON_UP, CHEVRON_ROWS, arrow_left, WHEEL_UP_TOP);
+        draw_centered(WHEEL_ABOVE_BASELINE, HOST_FONT_TEXT, above);
+    }
+    draw_box(WHEEL_BOX_LEFT, WHEEL_BOX_TOP, gfx_width() - 2 * WHEEL_BOX_LEFT, WHEEL_BOX_HEIGHT);
+    draw_centered(WHEEL_BASELINE, HOST_FONT_MEDIUM, chosen);
+    if (below[0] != '\0') {
+        draw_centered(WHEEL_BELOW_BASELINE, HOST_FONT_TEXT, below);
+        draw_cells(CHEVRON_DOWN, CHEVRON_ROWS, arrow_left, WHEEL_DOWN_TOP);
+    }
+    draw_centered(WHEEL_HINT_BASELINE, HOST_FONT_SMALL, "OK: save   BACK: cancel");
+}
 
 static void draw_value(void)
 {
-    char value[TEXT_MAX + 1];
-    format_choice(edited, edited->choices[edited_choice], value);
-    draw_centered(VALUE_LABEL_BASELINE, HOST_FONT_TEXT, edited->label);
-    draw_centered(VALUE_BASELINE, HOST_FONT_LARGE, value);
-    draw_centered(VALUE_HINT_BASELINE, HOST_FONT_SMALL, "OK: save   BACK: cancel");
+    char above[TEXT_MAX + 1] = "";
+    char chosen[TEXT_MAX + 1];
+    char below[TEXT_MAX + 1] = "";
+    if (edited_choice > 0) {
+        format_choice(edited, edited->choices[edited_choice - 1], above);
+    }
+    format_choice(edited, edited->choices[edited_choice], chosen);
+    if (edited_choice + 1 < edited->choice_count) {
+        format_choice(edited, edited->choices[edited_choice + 1], below);
+    }
+    draw_wheel(above, chosen, below);
+}
+
+static void draw_zone(int32_t city)
+{
+    draw_wheel(CITIES[wrapped(city - 1, 0, CITY_COUNT - 1)].name, CITIES[city].name,
+               CITIES[wrapped(city + 1, 0, CITY_COUNT - 1)].name);
 }
 
 void app_on_draw(void)
@@ -845,6 +957,9 @@ void app_on_draw(void)
         break;
     case PAGE_VALUE:
         draw_value();
+        break;
+    case PAGE_ZONE:
+        draw_zone(HERE.selected);
         break;
     case PAGE_REMOVE_APP:
         /* A title is a line of its own: the longest fills it. */
