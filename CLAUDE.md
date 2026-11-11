@@ -205,6 +205,8 @@ log(level, str, len)
 
 **Few applications, large ones**, the way Pebble did it: at most **5** installed, each with a module of up to 48 KB, 100 KB of files and 4 KB of `kv_*`. The partition is 1 MB; five such applications are about 780 KB of it. Whoever wants more rotates them - one day from a companion application on a phone.
 
+**Put off: BLE.** The chip has BLE 5 and no classic Bluetooth. As a host service it could be media keys - the device pairs as a keyboard and an application sends play, pause, next, volume to whatever it is paired with, with no API of the player. What plays now can be read that way only from an iPhone (Apple Media Service); Android and computers give it over classic Bluetooth, which is not here. It is not in ABI 1: the stack is estimated, not measured, at 200-300 KB of flash and 60-90 KB of memory, next to a firmware slot with about 300 KB left and a heap that TLS still has to fit into. Measure before deciding.
+
 What a handler may count on: one handler runs at a time and has 3 seconds; it returns nothing and leaves requests (`request_redraw`, `request_exit`, `request_focus`) that take effect when it returns; presses are not lost, timers of one id collapse into one, and the pieces of one answer arrive in order with nothing between them.
 
 There are no pointer callbacks. An application exports functions with fixed names (the host skips the missing ones):
