@@ -6,6 +6,8 @@
 
 #include <stdbool.h>
 
+#include "esp_http_server.h"
+
 #include "appconf.h"
 
 #ifdef __cplusplus
@@ -29,6 +31,10 @@ bool web_server_is_up(void);
 /* Restarts the device in a moment: long enough for the answer that says
  * so to reach whoever asked. */
 void web_server_restart_soon(void);
+
+/* For every handler that changes something: true when the request was
+ * made by a page of another site, and has been answered with a refusal. */
+bool web_server_refuses_cross_site(httpd_req_t *request);
 
 #ifdef __cplusplus
 }

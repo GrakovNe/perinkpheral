@@ -37,6 +37,7 @@ static const char *TAG = "web";
 #define RECEIVE_TIMEOUT_S     10
 #define QUIET_PERIODS_MAX     3
 #define HOST_HEADER_MAX       64
+#define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
 #define OWN_ROUTES            7
 
@@ -62,6 +63,30 @@ void web_server_restart_soon(void)
     }
     /* Already counting down is fine: the device restarts either way. */
     esp_timer_start_once(timer, RESTART_DELAY_US);
+}
+
+/* A page of some other site, open in a browser on the same network, can
+ * make that browser post to the device. The browser then says where the
+ * request comes from; one that does not come from the device's own page
+ * is refused. Tools that are not browsers send no Origin and pass. */
+bool web_server_refuses_cross_site(httpd_req_t *request)
+{
+    char origin[ORIGIN_HEADER_MAX], host[HOST_HEADER_MAX];
+    if (httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof origin) ==
+        ESP_ERR_NOT_FOUND) {
+        return false;
+    }
+    /* An Origin too long to read is not ours either. */
+    bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
+    const char *scheme_end = strstr(origin, "://");
+    bool is_own_page = has_host && scheme_end != NULL && strcmp(scheme_end + 3, host) == 0;
+    if (is_own_page) {
+        return false;
+    }
+    ESP_LOGW(TAG, "refused a request from another site");
+    httpd_resp_set_status(request, "403 Forbidden");
+    httpd_resp_sendstr(request, "requests from other sites are not taken");
+    return true;
 }
 
 static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON *json)
@@ -205,6 +230,9 @@ static bool take_string(const cJSON *json, const char *field, char *value, size_
 
 static esp_err_t handle_wifi(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "send {\"ssid\": \"...\", \"password\": \"...\"}");
@@ -247,6 +275,9 @@ static esp_err_t handle_wifi(httpd_req_t *request)
  * read local time anew whenever they draw. */
 static esp_err_t handle_time(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "send {\"tz\": \"...\"}");
@@ -286,6 +317,9 @@ static esp_err_t handle_time(httpd_req_t *request)
  * device comes back with its setup access point. */
 static esp_err_t handle_reset(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
     reset_mark_factory();
     esp_err_t result = send_ok(request, "erased, restarting");
@@ -297,6 +331,9 @@ static esp_err_t handle_reset(httpd_req_t *request)
  *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
 static esp_err_t handle_ota(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     if (request->content_len == 0) {
         return send_error(request, "send the firmware image as the request body");
     }
@@ -331,10 +368,19 @@ static esp_err_t handle_ota(httpd_req_t *request)
     return result;
 }
 
+/* True when the Host header names this address, with a port or without. */
+static bool is_address(const char *host, const char *address)
+{
+    size_t length = strlen(address);
+    return length > 0 && strncmp(host, address, length) == 0 &&
+           (host[length] == '\0' || host[length] == ':');
+}
+
 /* A phone on the setup access point asks for pages of its own to find out
  * whether it is online; every name leads here (captive_dns), and being
  * sent to the device's page is what makes it show that page. Anybody who
- * asked the device by its address just gets "not found". */
+ * asked the device by its address, and everybody while the access point
+ * is down, just gets "not found". */
 static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
 {
     (void)error;
@@ -342,9 +388,10 @@ static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
     bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
     wifi_status_t wifi;
     wifi_get_status(&wifi);
-    bool asked_us_by_address = has_host && (strcmp(host, WIFI_SETUP_ADDRESS) == 0 ||
-                                            strcmp(host, wifi.address) == 0);
-    if (asked_us_by_address) {
+    bool access_point_is_up = wifi.phase == WIFI_PHASE_SETUP || wifi.phase == WIFI_PHASE_RESCUE;
+    bool asked_us_by_address = has_host && (is_address(host, WIFI_SETUP_ADDRESS) ||
+                                            is_address(host, wifi.address));
+    if (!access_point_is_up || asked_us_by_address) {
         return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     }
     httpd_resp_set_status(request, "302 Found");

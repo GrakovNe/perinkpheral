@@ -209,6 +209,9 @@ static esp_err_t handle_screen(httpd_req_t *http)
 
 static esp_err_t handle_button(httpd_req_t *http)
 {
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
     static const char *const PRESSES[] = {
         [EVENT_PRESS_DOWN] = "down",
         [EVENT_PRESS_UP] = "up",
@@ -236,6 +239,9 @@ static esp_err_t handle_button(httpd_req_t *http)
 
 static esp_err_t handle_open(httpd_req_t *http)
 {
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
     request_t *request = new_request(REQUEST_OPEN);
     if (request == NULL) {
         return send_text(http, "503 Service Unavailable", "no memory");
@@ -271,6 +277,9 @@ static bool receive_into(httpd_req_t *http, FILE *file)
 
 static esp_err_t handle_app_file(httpd_req_t *http)
 {
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
     char name[QUERY_VALUE_MAX], file_name[QUERY_VALUE_MAX];
     if (!query_value(http, "name", name, sizeof name) ||
         !query_value(http, "file", file_name, sizeof file_name)) {
@@ -307,6 +316,9 @@ static esp_err_t handle_app_file(httpd_req_t *http)
  * last, and that is made to be this application. */
 static esp_err_t handle_run(httpd_req_t *http)
 {
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
     char name[QUERY_VALUE_MAX];
     if (!query_value(http, "app", name, sizeof name) || !app_manifest_is_valid_name(name)) {
         return refuse(http, "app=<name> is missing or is not an application's name");
