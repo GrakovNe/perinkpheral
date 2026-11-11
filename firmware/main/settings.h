@@ -6,6 +6,7 @@
 
 #include "esp_err.h"
 #include "appconf.h"
+#include "refresh_policy.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +26,9 @@ esp_err_t settings_save(const appconf_t *c);
  * none. Saving the name that is stored already writes nothing. */
 void settings_load_last_app(char *name, size_t name_size);
 void settings_save_last_app(const char *name);
+
+/* How the panel is to be treated, as the display service takes it. */
+refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c);
 
 /* Where applications are installed from: the addresses of the catalogs,
  * a line each (see catalog.h). The official one until the user says

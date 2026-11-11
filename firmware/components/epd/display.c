@@ -78,6 +78,11 @@ static void keepalive_task(void *arg)
     }
 }
 
+void display_set_policy(const refresh_policy_cfg_t *policy)
+{
+    s_cfg = *policy;
+}
+
 void display_start(const refresh_policy_cfg_t *policy)
 {
     s_cfg = *policy;

@@ -219,6 +219,7 @@ static int32_t fake_file_write(const char *app_name, const char *file, int32_t o
     return HOST_OK;
 }
 
+static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
@@ -227,7 +228,7 @@ static const app_services_t SERVICES = {
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
     .kv_set = fake_kv_set,
-    .is_online = fake_is_online,
+    .dithers = always_dithers, .is_online = fake_is_online,
     .poll_now = fake_poll_now,
     .http_request = fake_http_request,
     .poll_set_interval = fake_poll_set_interval,

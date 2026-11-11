@@ -240,6 +240,9 @@ static void test_pace_and_alarms(void)
     /* the server said: come again in an hour */
     CHECK(poll_schedule_set_interval(&schedule, 0, 0, 3600, 60000));
     CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 3600000);
+    /* said again a while later, it is the same pace: the hour is not started over */
+    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 3600, 1860000));
+    CHECK(poll_schedule_due(&schedule, 1860000, &wait_ms) == NULL && wait_ms == 1800000);
     /* the limits of a manifest hold */
     CHECK(poll_schedule_set_interval(&schedule, 0, 0, 1, 60000));
     CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 10000);

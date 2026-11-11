@@ -41,6 +41,15 @@ extern "C" {
 #define APP_HEADER_NAME_MAX      31
 #define APP_HEADER_VALUE_MAX     127
 
+/* An application may bring an icon, drawn like the host's own: 11 rows of
+ * 11 characters in the manifest, '#' for ink and '.' for paper.
+ *
+ *     "icon": [ "...........", "....###....", ... ]
+ *
+ * The device draws it beside the title in its list, a cell two pixels;
+ * the web page draws it larger. */
+#define APP_ICON_CELLS 11
+
 typedef struct {
     char name[APP_NAME_MAX + 1];       /* a-z, 0-9, '-' and '_' */
     char title[APP_TITLE_MAX + 1];     /* what the menu shows */
@@ -48,6 +57,10 @@ typedef struct {
     bool fullscreen;                   /* absent means false: under the header */
     int      poll_count;
     uint32_t poll_every_s[APP_POLLS_MAX];
+    /* The icon, when the manifest has one: a row a word, the leftmost cell
+     * the highest of its APP_ICON_CELLS bits, a set bit ink. */
+    bool     has_icon;
+    uint16_t icon[APP_ICON_CELLS];
 } app_manifest_t;
 
 typedef struct {

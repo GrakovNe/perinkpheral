@@ -4,6 +4,7 @@
  */
 #include "settings.h"
 
+#include <limits.h>
 #include <stdlib.h>
 
 #include "catalog.h"
@@ -30,6 +31,7 @@ static const char *TAG = "settings";
 #define KEY_REFRESH_BUTTON "rf_button"
 #define KEY_REFRESH_FULL   "rf_full"
 #define KEY_REFRESH_KEEP   "rf_keep"
+#define KEY_DITHER         "dither"
 
 void settings_nvs_init(void)
 {
@@ -87,6 +89,7 @@ void settings_load(appconf_t *c, const char device_id[5])
     nvs_get_u16(h, KEY_REFRESH_BUTTON, &c->refresh_min_button_ms);
     nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
     nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
+    nvs_get_u8(h, KEY_DITHER, &c->dither);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -122,6 +125,7 @@ esp_err_t settings_save(const appconf_t *c)
     PUT(nvs_set_u16(h, KEY_REFRESH_BUTTON, c->refresh_min_button_ms));
     PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
     PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
+    PUT(nvs_set_u8(h, KEY_DITHER, c->dither));
     PUT(nvs_commit(h));
 #undef PUT
 
@@ -194,4 +198,17 @@ esp_err_t settings_save_sources(const char *sources)
     }
     nvs_close(h);
     return err;
+}
+
+refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
+{
+    refresh_policy_cfg_t policy = {
+        .min_data_ms = c->refresh_min_data_s * 1000u,
+        .min_button_ms = c->refresh_min_button_ms,
+        /* "Never" is a count no row of partial refreshes reaches. */
+        .full_every = c->refresh_full_every == APPCONF_REFRESH_FULL_NEVER ? INT_MAX
+                                                                         : c->refresh_full_every,
+        .keepalive_ms = c->refresh_keepalive_h * 3600u * 1000u,
+    };
+    return policy;
 }

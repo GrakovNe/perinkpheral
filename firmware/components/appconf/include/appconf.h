@@ -30,8 +30,13 @@ extern "C" {
 #define APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT 0
 #define APPCONF_REFRESH_MIN_BUTTON_MS_MOST    10000
 #define APPCONF_REFRESH_FULL_EVERY_DEFAULT    5
-#define APPCONF_REFRESH_FULL_EVERY_LEAST      1
+/* 0: every refresh is a full one - the cleanest picture, a blink every
+ * time. APPCONF_REFRESH_FULL_NEVER: only when the application on the
+ * screen changes - the quietest, and traces pile up. The way e-readers
+ * let their owner choose. */
+#define APPCONF_REFRESH_FULL_EVERY_LEAST      0
 #define APPCONF_REFRESH_FULL_EVERY_MOST       50
+#define APPCONF_REFRESH_FULL_NEVER            255
 #define APPCONF_REFRESH_KEEPALIVE_H_DEFAULT   24
 #define APPCONF_REFRESH_KEEPALIVE_H_LEAST     1
 #define APPCONF_REFRESH_KEEPALIVE_H_MOST      168
@@ -50,6 +55,7 @@ typedef struct {
     uint16_t refresh_min_button_ms; /* least pause before answering a press */
     uint8_t  refresh_full_every;    /* partial refreshes before a full one */
     uint8_t  refresh_keepalive_h;   /* hours without a refresh before one is forced */
+    uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

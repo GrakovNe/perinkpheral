@@ -60,10 +60,11 @@ static int32_t no_file_read(const char *app, const char *file, int32_t offset, v
     (void)app; (void)file; (void)offset; (void)bytes; (void)capacity;
     return HOST_ERR_NOT_FOUND;
 }
+static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
     .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
-    .is_online = offline, .poll_now = no_poll_now, .poll_set_interval = no_interval,
+    .dithers = always_dithers, .is_online = offline, .poll_now = no_poll_now, .poll_set_interval = no_interval,
     .alarm_set = no_alarm, .http_request = no_request, .file_write = no_file_write,
     .file_size = no_file_size, .file_read = no_file_read,
 };

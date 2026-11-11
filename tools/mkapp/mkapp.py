@@ -38,6 +38,7 @@ URL_MAX = 255
 HEADERS_MAX = 4
 PICK_PATHS_MAX = 16
 PICK_PATH_MAX = 63
+ICON_CELLS = 11
 HOSTS_MAX = 4
 HOST_MAX = 63
 SETTINGS_MAX = 8
@@ -291,6 +292,13 @@ def check_manifest(app_dir):
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
+    icon = manifest.get("icon")
+    if icon is not None and (not isinstance(icon, list) or len(icon) != ICON_CELLS
+                             or any(not isinstance(row, str)
+                                    or not re.fullmatch(r"[#.]{%d}" % ICON_CELLS, row)
+                                    for row in icon)):
+        sys.exit("%s: \"icon\" must be %d rows of %d characters, '#' for ink and '.' for paper"
+                 % (path, ICON_CELLS, ICON_CELLS))
     hosts = manifest.get("hosts", [])
     if (not isinstance(hosts, list) or len(hosts) > HOSTS_MAX
             or any(not isinstance(host, str) or not 0 < len(host.encode()) <= HOST_MAX

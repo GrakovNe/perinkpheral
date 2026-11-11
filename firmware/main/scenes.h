@@ -18,8 +18,9 @@ extern "C" {
 
 /* Something the menu can open. */
 typedef struct {
-    const char *title;
-    scene_t    *scene;
+    const char     *title;
+    const uint16_t *icon; /* APP_ICON_CELLS rows, or NULL: see app_manifest.h */
+    scene_t        *scene;
 } menu_entry_t;
 
 /* entries must outlive the scene. */

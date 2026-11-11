@@ -18,6 +18,7 @@
 #include <time.h>
 
 #include "devtools.h"
+#include "display.h"
 #include "log_capture.h"
 #include "net_time.h"
 #include "ota.h"
@@ -40,7 +41,7 @@ static const char *TAG = "web";
 #define HOST_HEADER_MAX       64
 #define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
-#define OWN_ROUTES            7
+#define OWN_ROUTES            10
 #define SERVER_STACK_BYTES    6144
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -163,6 +164,10 @@ static esp_err_t handle_status(httpd_req_t *request)
         strftime(local_time, sizeof local_time, "%a %d %b %H:%M", &local);
         cJSON_AddStringToObject(json, "time", local_time);
     }
+    cJSON_AddStringToObject(json, "hostname", s_config->hostname);
+    cJSON_AddStringToObject(json, "idf", esp_app_get_description()->idf_ver);
+    cJSON_AddStringToObject(json, "built", esp_app_get_description()->date);
+    cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
     cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
     return send_json(request, "200 OK", json);
@@ -314,6 +319,114 @@ static esp_err_t handle_time(httpd_req_t *request)
     return result;
 }
 
+/* ---- the host's own settings ---- */
+
+static esp_err_t handle_settings(httpd_req_t *request)
+{
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "device_name", s_config->device_name);
+    cJSON_AddStringToObject(json, "hostname", s_config->hostname);
+    cJSON_AddStringToObject(json, "wifi_ssid", s_config->wifi_ssid);
+    cJSON_AddStringToObject(json, "ntp_server", s_config->ntp_server);
+    cJSON_AddStringToObject(json, "tz", s_config->tz);
+    cJSON_AddNumberToObject(json, "refresh_min_data_s", s_config->refresh_min_data_s);
+    cJSON_AddNumberToObject(json, "refresh_full_every", s_config->refresh_full_every);
+    cJSON_AddNumberToObject(json, "refresh_keepalive_h", s_config->refresh_keepalive_h);
+    cJSON_AddBoolToObject(json, "dither", s_config->dither != 0);
+    return send_json(request, "200 OK", json);
+}
+
+/* False when the field is there and is not a whole number in the range of
+ * its place. A missing field leaves the value as it is. */
+static bool take_number(const cJSON *json, const char *field, uint32_t most, uint32_t *value)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    if (item == NULL) {
+        return true;
+    }
+    if (!cJSON_IsNumber(item) || item->valuedouble < 0 || item->valuedouble > most ||
+        item->valuedouble != (double)(uint32_t)item->valuedouble) {
+        return false;
+    }
+    *value = (uint32_t)item->valuedouble;
+    return true;
+}
+
+/* Any of the settings handle_settings() lists, but the network: that one
+ * has a form of its own and restarts the device. What can take effect at
+ * once does; a new name or time server waits for the next start. */
+static esp_err_t handle_set_settings(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char body[SETTINGS_BODY_MAX];
+    if (!read_body(request, body, sizeof body)) {
+        return send_error(request, "send the settings as JSON");
+    }
+    cJSON     *json = cJSON_Parse(body);
+    appconf_t *wanted = malloc(sizeof *wanted);
+    if (json == NULL || wanted == NULL) {
+        cJSON_Delete(json);
+        free(wanted);
+        return send_error(request, "the request is not JSON");
+    }
+    *wanted = *s_config;
+    uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
+    uint32_t keepalive_h = wanted->refresh_keepalive_h;
+    const cJSON *dither = cJSON_GetObjectItemCaseSensitive(json, "dither");
+    bool fields_fit =
+        take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
+        take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
+        take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
+        take_number(json, "refresh_min_data_s", UINT16_MAX, &min_data_s) &&
+        take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
+        take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
+        (dither == NULL || cJSON_IsBool(dither));
+    wanted->refresh_min_data_s = (uint16_t)min_data_s;
+    wanted->refresh_full_every = (uint8_t)full_every;
+    wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
+    if (dither != NULL) {
+        wanted->dither = cJSON_IsTrue(dither) ? 1 : 0;
+    }
+    cJSON_Delete(json);
+
+    char      problem[VALIDATION_TEXT_MAX] = "";
+    esp_err_t result;
+    if (!fields_fit) {
+        result = send_error(request, "a setting is of the wrong kind or does not fit");
+    } else if (!appconf_validate(wanted, problem, sizeof problem)) {
+        result = send_error(request, problem);
+    } else if (settings_save(wanted) != ESP_OK) {
+        result = send_error(request, "the settings could not be stored");
+    } else {
+        bool needs_restart = strcmp(wanted->device_name, s_config->device_name) != 0 ||
+                             strcmp(wanted->ntp_server, s_config->ntp_server) != 0;
+        *s_config = *wanted;
+        appconf_derive(s_config, s_device_id);
+        net_time_set_zone(s_config->tz);
+        refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
+        display_set_policy(&policy);
+        status_check();
+        result = send_ok(request, needs_restart ? "saved; the name and the time server take "
+                                                  "effect after a restart"
+                                                : "saved");
+    }
+    free(wanted);
+    return result;
+}
+
+static esp_err_t handle_restart(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    ESP_LOGW(TAG, "restart asked for");
+    esp_err_t result = send_ok(request, "restarting");
+    web_server_restart_soon();
+    return result;
+}
+
 /* Back to how the device left the bench: the settings and everything the
  * applications stored are erased on the way up, and with no network the
  * device comes back with its setup access point. */
@@ -425,6 +538,9 @@ void web_server_start(appconf_t *config, const char device_id[5])
         { .uri = "/api/time", .method = HTTP_POST, .handler = handle_time },
         { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
         { .uri = "/api/reset", .method = HTTP_POST, .handler = handle_reset },
+        { .uri = "/api/restart", .method = HTTP_POST, .handler = handle_restart },
+        { .uri = "/api/settings", .method = HTTP_GET, .handler = handle_settings },
+        { .uri = "/api/settings", .method = HTTP_POST, .handler = handle_set_settings },
     };
     for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));

@@ -59,8 +59,12 @@ def entry_of(built_dir):
         with open(os.path.join(built_dir, name), "rb") as content:
             data = content.read()
         files.append({"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
-    return {"name": manifest["name"], "title": manifest["title"],
-            "version": manifest.get("version", ""), "abi": manifest["abi"], "files": files}
+    entry = {"name": manifest["name"], "title": manifest["title"],
+             "version": manifest.get("version", ""), "abi": manifest["abi"], "files": files}
+    # What a page shows of an application before it is installed.
+    if "icon" in manifest:
+        entry["icon"] = manifest["icon"]
+    return entry
 
 
 def main():

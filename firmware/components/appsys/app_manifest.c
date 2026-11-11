@@ -347,6 +347,36 @@ bool app_manifest_allows_url(const char *json, const char *url)
     return allowed;
 }
 
+static bool read_icon(const cJSON *icon, app_manifest_t *manifest)
+{
+    manifest->has_icon = false;
+    if (icon == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(icon) || cJSON_GetArraySize(icon) != APP_ICON_CELLS) {
+        return false;
+    }
+    int          row = 0;
+    const cJSON *line;
+    cJSON_ArrayForEach(line, icon)
+    {
+        if (!is_text_of(line, APP_ICON_CELLS, APP_ICON_CELLS)) {
+            return false;
+        }
+        uint16_t cells = 0;
+        for (int column = 0; column < APP_ICON_CELLS; column++) {
+            char cell = line->valuestring[column];
+            if (cell != '#' && cell != '.') {
+                return false;
+            }
+            cells = (uint16_t)(cells << 1 | (cell == '#'));
+        }
+        manifest->icon[row++] = cells;
+    }
+    manifest->has_icon = true;
+    return true;
+}
+
 static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *manifest)
 {
     if (!cJSON_IsObject(root)) {
@@ -375,6 +405,9 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_OTHER_ABI;
     }
 
+    if (!read_icon(cJSON_GetObjectItemCaseSensitive(root, "icon"), manifest)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
     if (!are_sound_hosts(cJSON_GetObjectItemCaseSensitive(root, "hosts"))) {
         return APP_MANIFEST_BAD_HOSTS;
     }

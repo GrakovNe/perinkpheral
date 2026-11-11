@@ -23,6 +23,9 @@ extern "C" {
  * `policy` is how the panel is to be treated; it is copied. */
 void display_start(const refresh_policy_cfg_t *policy);
 
+/* The user changed how the panel is to be treated; from the next frame on. */
+void display_set_policy(const refresh_policy_cfg_t *policy);
+
 typedef enum {
     DISPLAY_SHOWN,     /* the panel was refreshed with the frame */
     DISPLAY_UNCHANGED, /* the panel already shows exactly this */

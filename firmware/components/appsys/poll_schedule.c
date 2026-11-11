@@ -90,8 +90,12 @@ bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, ui
     for (int i = 0; i < schedule->count; i++) {
         poll_entry_t *entry = &schedule->entries[i];
         if (entry->app == app && entry->poll == poll) {
-            entry->every_ms = every_s * MS_PER_SECOND;
-            entry->due_ms = now_ms + entry->every_ms;
+            /* Asking for the pace it already has moves nothing: an
+             * application says it every time it is loaded. */
+            if (entry->every_ms != every_s * MS_PER_SECOND) {
+                entry->every_ms = every_s * MS_PER_SECOND;
+                entry->due_ms = now_ms + entry->every_ms;
+            }
             return true;
         }
     }

@@ -171,10 +171,18 @@ static void test_refresh_policy_settings(void)
     c.refresh_min_button_ms = 10000;
     CHECK(appconf_validate(&c, err, sizeof err));
 
-    c.refresh_full_every = 0;
+    c.refresh_full_every = 254;
     CHECK(!appconf_validate(&c, err, sizeof err));
     c.refresh_full_every = 51;
     CHECK(!appconf_validate(&c, err, sizeof err));
+    c.refresh_full_every = 0; /* always full */
+    CHECK(appconf_validate(&c, err, sizeof err));
+    c.refresh_full_every = APPCONF_REFRESH_FULL_NEVER;
+    CHECK(appconf_validate(&c, err, sizeof err));
+    c.dither = 2;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.dither = 0;
+    CHECK(appconf_validate(&c, err, sizeof err));
     c.refresh_full_every = 50;
 
     c.refresh_keepalive_h = 0;

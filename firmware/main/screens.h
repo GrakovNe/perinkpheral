@@ -34,12 +34,19 @@ void screens_header(gfx_t *g, const screens_header_t *header);
 
 /* The view asks for the rows it is about to draw, so a list can be of any
  * length and live anywhere. */
-typedef const char *(*screens_menu_title_fn)(void *context, int index);
+#define SCREENS_ICON_CELLS 11
 
-/* A list of titles; the selected row is white on a black bar. It scrolls
- * when it is longer than the surface. */
-void screens_menu(gfx_t *g, screens_menu_title_fn title_at, void *context, int count,
-                  int selected);
+typedef struct {
+    const char     *title;
+    const uint16_t *icon; /* SCREENS_ICON_CELLS rows, the leftmost cell the highest of
+                             that many bits; NULL: a row without an icon */
+} screens_menu_row_t;
+
+typedef void (*screens_menu_row_fn)(void *context, int index, screens_menu_row_t *row);
+
+/* A list of titles, each with its icon when it has one; the selected row
+ * is white on a black bar. It scrolls when it is longer than the surface. */
+void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected);
 
 /* The index of the top row shown: the window keeps the selection in the
  * middle and stops at both ends of the list. */

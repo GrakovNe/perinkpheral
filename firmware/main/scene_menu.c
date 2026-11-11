@@ -48,16 +48,17 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
     return reaction;
 }
 
-static const char *menu_title_at(void *context, int index)
+static void menu_row_at(void *context, int index, screens_menu_row_t *row)
 {
     const menu_scene_t *menu = context;
-    return menu->entries[index].title;
+    row->title = menu->entries[index].title;
+    row->icon = menu->entries[index].icon;
 }
 
 static void menu_draw(scene_t *scene, gfx_t *surface)
 {
     menu_scene_t *menu = (menu_scene_t *)scene;
-    screens_menu(surface, menu_title_at, menu, menu->count, menu->selected);
+    screens_menu(surface, menu_row_at, menu, menu->count, menu->selected);
 }
 
 static const scene_ops_t MENU_OPS = { .button = menu_button, .draw = menu_draw };

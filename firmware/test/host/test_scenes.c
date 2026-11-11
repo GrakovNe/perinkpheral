@@ -14,9 +14,9 @@
 
 static scene_t first_target, second_target, third_target;
 static const menu_entry_t ENTRIES[] = {
-    { "First", &first_target },
-    { "Second", &second_target },
-    { "Third", &third_target },
+    { "First", NULL, &first_target },
+    { "Second", NULL, &second_target },
+    { "Third", NULL, &third_target },
 };
 #define ENTRY_COUNT ((int)(sizeof ENTRIES / sizeof ENTRIES[0]))
 

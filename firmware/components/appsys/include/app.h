@@ -46,6 +46,9 @@ typedef struct {
     int32_t (*kv_get)(const char *app_name, const char *key, void *value, int32_t capacity);
     int32_t (*kv_set)(const char *app_name, const char *key, const void *value,
                       int32_t value_length);
+    /* Whether greys are dithered; when not, a grey is black or white,
+     * whichever is nearer. */
+    bool (*dithers)(void);
     /* Whether the device is on its network now. */
     bool (*is_online)(void);
     /* Fetch the application's poll number `poll` now instead of when it is

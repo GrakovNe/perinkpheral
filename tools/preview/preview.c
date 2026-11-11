@@ -36,9 +36,15 @@ static int write_pbm(const char *path)
     return 0;
 }
 
-static const char *title_from_array(void *context, int index)
+/* A small clock, the way an application's manifest would bring it. */
+static const uint16_t CLOCK_ICON[SCREENS_ICON_CELLS] = {
+    0x0F8, 0x104, 0x222, 0x421, 0x421, 0x439, 0x401, 0x401, 0x202, 0x104, 0x0F8,
+};
+
+static void row_from_array(void *context, int index, screens_menu_row_t *row)
 {
-    return ((const char *const *)context)[index];
+    row->title = ((const char *const *)context)[index];
+    row->icon = index == 0 ? CLOCK_ICON : NULL; /* the host's own pages have none */
 }
 
 static int save(const char *dir, const char *name)
@@ -80,12 +86,12 @@ int main(int argc, char **argv)
 
     const char *titles[] = { "Clock", "Hello", "Device", "About" };
     start_screen(&online, &content);
-    screens_menu(&content, title_from_array, titles, 4, 0);
+    screens_menu(&content, row_from_array, titles, 4, 0);
     if (save(dir, "menu")) {
         return 1;
     }
     start_screen(&offline, &content);
-    screens_menu(&content, title_from_array, titles, 4, 1);
+    screens_menu(&content, row_from_array, titles, 4, 1);
     if (save(dir, "menu-offline")) {
         return 1;
     }

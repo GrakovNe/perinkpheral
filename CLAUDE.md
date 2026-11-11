@@ -114,7 +114,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
   "abi": 1
 }
 ```
-**An application may bring an icon**, in its manifest and optional: the device draws it beside the title in its list, the web page beside the application's name. How it is written is not decided; the candidate is the form the host's own icons have in the source - 11 rows of 11 characters, `#` for ink - which a person can type, which follows the icon rules by construction and which scales on both sides.
+**An application may bring an icon**, in its manifest and optional: `"icon"` is 11 rows of 11 characters, `#` for ink and `.` for paper - the form the host's own icons have in the source, which a person can type, which follows the icon rules by construction and which scales. The device draws it beside the title in its menu, a cell two pixels; the web page draws it on the application's tile; a catalog's index carries it, so that an application has a face before it is installed.
 
 **Settings are declared in the manifest, not by code**, the way Pebble did it with a companion page: nobody types a token with four buttons. The device's web page has an Applications section - what is installed, and a settings form for each, drawn from the manifest without running the application; the catalog will live in the same place. A field is a `text`, a `secret` (the page can write it and cannot read it back), a `number`, a `choice` from a list of `options` or a `toggle`; it has a `key`, a `title` and may have a `help` line. At most 8 of them. The values are stored in the application's own store under the keys the manifest names, so the code reads a setting with `kv_get` by the same key, and the host substitutes it into URLs and headers (`{{key}}`). A change arrives as `app_on_settings()`; an application that is not on the screen is loaded for the call and unloaded after it, as for data.
 
@@ -259,7 +259,9 @@ Not configurable:
 
 ### Web UI (on the device, `esp_http_server`)
 What exists:
-- `GET /` - the page: what the device is, a form for the Wi-Fi network, a form for a firmware image. One HTML file, no frameworks, in the device's own black and paper.
+- `GET /` - the page. One HTML file, no frameworks, in the device's own black and paper: a menu on the left, the section on the right. **Apps** - a tile for every application on the device and in its catalogs, with its icon, its version and one button (install, update, remove); a gear on a tile opens the application's settings, the gear of the section the list of catalogs. **Device** - what the device is, the firmware (the latest release asked of GitHub by the browser, an image to install), the log, restart and reset. **Settings** - in tabs: the name, the time zone and the time server, the display, the network. **About** - the author, the licenses, what it is made with. `#apps:weather` and `#apps:catalogs` open the dialogs by a link.
+- `GET` / `POST /api/settings` - the host's own settings but the network: the name, the time server, the time zone, and how the panel is treated - seconds between refreshes nobody asked for, hours before a refresh is forced, the full refresh after so many quick ones (0: always full, 255: never, the way e-readers offer it), and whether greys are dithered. What can take effect at once does.
+- `POST /api/restart`.
 - `GET /api/status` - name, firmware, slot, whether the image is on probation, Wi-Fi phase, network, address, free memory.
 - `GET /api/log` - the last 4 KB of the device's log, as text: what the console would have shown, kept in memory for when there is no cable.
 - `POST /api/wifi` `{"ssid", "password"}` - validated like every setting, stored, and the device restarts to join.

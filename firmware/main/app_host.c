@@ -75,6 +75,18 @@ static int32_t file_write(const char *app_name, const char *file, int32_t offset
     return HOST_ERR_FAILED;
 }
 
+static const appconf_t *s_config;
+
+void app_host_use(const appconf_t *config)
+{
+    s_config = config;
+}
+
+static bool dithers(void)
+{
+    return s_config == NULL || s_config->dither != 0;
+}
+
 const app_services_t *app_host_services(void)
 {
     static const app_services_t SERVICES = {
@@ -85,6 +97,7 @@ const app_services_t *app_host_services(void)
         .timer_set = timers_set,
         .kv_get = app_kv_get,
         .kv_set = app_kv_set,
+        .dithers = dithers,
         .is_online = wifi_is_online,
         .poll_now = poller_poll_now,
         .http_request = poller_request,

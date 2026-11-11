@@ -9,6 +9,7 @@
 
 #include "sdkconfig.h"
 
+#include "app_host.h"
 #include "appconf.h"
 #include "board.h"
 #include "buttons.h"
@@ -79,13 +80,9 @@ void app_main(void)
      * network. */
     events_start();
     timers_start();
-    const refresh_policy_cfg_t refresh_policy = {
-        .min_data_ms = cfg->refresh_min_data_s * 1000u,
-        .min_button_ms = cfg->refresh_min_button_ms,
-        .full_every = cfg->refresh_full_every,
-        .keepalive_ms = cfg->refresh_keepalive_h * 3600u * 1000u,
-    };
+    const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
     display_start(&refresh_policy);
+    app_host_use(cfg);
     buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();

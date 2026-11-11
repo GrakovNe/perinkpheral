@@ -5,109 +5,652 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>perINKpheral</title>
 <style>
-  :root { --ink: #141413; --paper: #e9e7e1; --dim: #6b6862; }
+  :root { --ink: #141413; --paper: #e9e7e1; --dim: #6b6862; --line: #c9c6be; }
+  * { box-sizing: border-box; }
   body { margin: 0; background: var(--paper); color: var(--ink);
          font: 16px/1.5 ui-monospace, Menlo, Consolas, monospace; }
-  main { max-width: 34rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  h1 { font-size: 1.4rem; letter-spacing: .08em; margin: 0 0 1.5rem; }
-  h2 { font-size: 1rem; border-bottom: 1px solid var(--ink); padding-bottom: .25rem;
+  .shell { display: grid; grid-template-columns: 13rem 1fr; min-height: 100vh; }
+  nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; }
+  nav h1 { font-size: 1.15rem; letter-spacing: .08em; margin: 0 1.25rem 1.5rem; }
+  nav a { display: block; padding: .5rem 1.25rem; color: var(--ink); text-decoration: none; }
+  nav a.current { background: var(--ink); color: var(--paper); }
+  nav p { margin: 1.5rem 1.25rem 0; color: var(--dim); font-size: .85rem; }
+  main { padding: 1.5rem 2rem 4rem; max-width: 58rem; min-width: 0; }
+  section { display: none; }
+  section.current { display: block; }
+  h2 { font-size: 1.4rem; margin: 0; }
+  h3 { font-size: 1rem; border-bottom: 1px solid var(--ink); padding-bottom: .25rem;
        margin: 2rem 0 .75rem; }
+  .head { display: flex; align-items: center; gap: .5rem 1rem; margin-bottom: 1.25rem;
+          flex-wrap: wrap; }
+  .head h2 { flex: 1; }
+  .note { color: var(--dim); margin: .5rem 0 0; }
+  .result { min-height: 1.5rem; margin: .75rem 0 0; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem 1rem; margin: 0; }
-  dt { color: var(--dim); } dd { margin: 0; text-align: right; }
+  dt { color: var(--dim); } dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   label { display: block; margin: .75rem 0 .2rem; color: var(--dim); }
-  input { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
-          color: var(--ink); background: transparent; border: 1px solid var(--ink);
-          border-radius: 0; }
+  input, select, textarea { width: 100%; padding: .5rem; font: inherit; color: var(--ink);
+          background: transparent; border: 1px solid var(--ink); border-radius: 0; }
+  textarea { resize: vertical; }
+  input[type=checkbox] { width: auto; margin-right: .5rem; }
   button { margin-top: 1rem; padding: .5rem 1rem; font: inherit; cursor: pointer;
            color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
            border-radius: 0; }
-  button:disabled { opacity: .5; cursor: wait; }
-  p.note { color: var(--dim); margin: .5rem 0 0; }
-  textarea { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
-             color: var(--ink); background: transparent; border: 1px solid var(--ink);
-             border-radius: 0; resize: vertical; }
-  .row { display: flex; align-items: baseline; gap: .75rem; margin-top: .5rem; }
-  .row span { flex: 1; }
-  .row button { margin-top: 0; }
-  select { box-sizing: border-box; width: 100%; padding: .5rem; font: inherit;
-           color: var(--ink); background: transparent; border: 1px solid var(--ink);
-           border-radius: 0; }
-  input[type=checkbox] { width: auto; margin-right: .5rem; }
-  h3 { font-size: 1rem; margin: 1.25rem 0 0; }
-  h3 small { color: var(--dim); font-weight: normal; }
-  button.quiet { color: var(--ink); background: transparent; margin-left: .5rem; }
-  p.result { min-height: 1.5rem; margin: .75rem 0 0; }
+  button.quiet { color: var(--ink); background: transparent; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.icon { margin: 0; padding: .3rem; line-height: 0; color: var(--ink);
+                background: transparent; border-color: transparent; }
+  button.icon:hover { border-color: var(--ink); }
+  svg.pixels { display: block; fill: currentColor; shape-rendering: crispEdges; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+           gap: 1rem; }
+  .tile { border: 1px solid var(--ink); padding: 1rem; display: flex; flex-direction: column;
+          position: relative; min-height: 13rem; }
+  .tile.absent { border-color: var(--line); }
+  .tile .icon { position: absolute; top: .5rem; right: .5rem; }
+  .tile .picture { width: 55px; height: 55px; margin-bottom: .75rem; }
+  .tile .picture.none { border: 1px solid var(--line); }
+  .tile b { display: block; }
+  .tile small { color: var(--dim); }
+  .tile .spring { flex: 1; }
+  .tile button.action { width: 100%; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--ink); margin-bottom: 1rem; }
+  .tabs button { margin: 0; color: var(--ink); background: transparent;
+                 border: 1px solid transparent; border-bottom: none; }
+  .tabs button.current { color: var(--paper); background: var(--ink); }
+  .pane { display: none; max-width: 30rem; }
+  .pane.current { display: block; }
+  .buttons { display: flex; gap: .75rem; flex-wrap: wrap; }
+  pre { margin: 0; padding: .75rem; border: 1px solid var(--line); max-height: 22rem;
+        overflow: auto; font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  dialog { width: min(32rem, calc(100vw - 2rem)); padding: 1.5rem; color: var(--ink);
+           background: var(--paper); border: 1px solid var(--ink); border-radius: 0; }
+  dialog::backdrop { background: rgba(20, 20, 19, .55); }
+  dialog h2 { font-size: 1.15rem; margin-bottom: .5rem; }
+  ul.plain { list-style: none; padding: 0; margin: 0; }
+  ul.plain li { padding: .35rem 0; border-bottom: 1px solid var(--line); }
+  ul.plain small { color: var(--dim); display: block; }
+  a { color: var(--ink); }
+  @media (max-width: 44rem) {
+    .shell { grid-template-columns: 1fr; }
+    nav { border-right: none; border-bottom: 1px solid var(--ink); padding: 1rem 0 0;
+          display: flex; flex-wrap: wrap; align-items: center; }
+    nav h1 { margin: 0 1rem .75rem; width: 100%; }
+    nav a { padding: .5rem 1rem; }
+    nav p { display: none; }
+    main { padding: 1.25rem 1rem 3rem; }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .75rem; }
+    .tile { padding: .75rem; }
+  }
 </style>
 </head>
 <body>
+<div class="shell">
+<nav>
+  <h1>perINKpheraL</h1>
+  <a href="#apps">Apps</a>
+  <a href="#device">Device</a>
+  <a href="#settings">Settings</a>
+  <a href="#about">About</a>
+  <p id="nav-name"></p>
+</nav>
 <main>
-<h1>perINKpheraL</h1>
 
-<h2>Device</h2>
-<dl id="status"><dt>Loading</dt><dd></dd></dl>
+<section id="apps">
+  <div class="head">
+    <h2>Apps</h2>
+    <span class="note" id="slots" style="margin:0"></span>
+    <button class="icon" id="open-sources" title="Catalogs"></button>
+  </div>
+  <div class="tiles" id="tiles"><p class="note">Loading</p></div>
+  <p class="result" id="apps-result"></p>
+</section>
 
-<h2>Wi-Fi</h2>
-<form id="wifi">
-  <label for="ssid">Network name</label>
-  <input id="ssid" name="ssid" maxlength="32" autocomplete="off" required>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" maxlength="64" autocomplete="off">
-  <button>Save and restart</button>
-  <p class="note">The device restarts and joins this network. If it cannot, its own
-  access point comes back after two minutes.</p>
-  <p class="result" id="wifi-result"></p>
-</form>
+<section id="device">
+  <div class="head"><h2>Device</h2></div>
+  <dl id="status"><dt>Loading</dt><dd></dd></dl>
 
-<h2>Applications</h2>
-<div id="apps"><p class="note">Loading</p></div>
+  <h3>Firmware</h3>
+  <p class="note" id="release">The device runs the firmware shown above.</p>
+  <div class="buttons"><button class="quiet" id="check-release">Check for updates</button></div>
+  <form id="firmware">
+    <label for="image">Install an image (perinkpheral.bin)</label>
+    <input id="image" type="file" accept=".bin" required>
+    <button>Install and restart</button>
+    <p class="note">A new image is kept only if the device comes back reachable;
+    otherwise it returns to the one it runs now.</p>
+    <p class="result" id="firmware-result"></p>
+  </form>
 
-<h2>Catalog</h2>
-<p class="note" id="slots"></p>
-<div id="catalog"><p class="note">Loading</p></div>
-<form id="sources">
-  <label for="source-list">Where applications come from</label>
-  <textarea id="source-list" rows="3" spellcheck="false"></textarea>
-  <button>Save</button>
-  <p class="note">The address of a catalog folder, one on a line, four at most. A link to a
-  repository on GitHub, GitLab or Codeberg is read as its <code>catalog</code> folder.</p>
-  <p class="result" id="sources-result"></p>
-</form>
+  <h3>Languages</h3>
+  <p class="note">English, in ASCII. Other scripts come with version 2: there is
+  nothing to install yet.</p>
 
-<h2>Time</h2>
-<form id="time">
-  <label for="tz">Time zone</label>
-  <input id="tz" name="tz" maxlength="47" autocomplete="off" required>
-  <button type="button" id="tz-detect">Use this browser's</button>
-  <button>Save</button>
-  <p class="note">A POSIX time zone, the way the device keeps it. The button fills in the
-  zone of the computer or phone this page is open on.</p>
-  <p class="result" id="time-result"></p>
-</form>
+  <h3>Log</h3>
+  <pre id="log">-</pre>
+  <div class="buttons"><button class="quiet" id="load-log">Read the log</button></div>
 
-<h2>Firmware</h2>
-<form id="firmware">
-  <label for="image">Image (perinkpheral.bin)</label>
-  <input id="image" type="file" accept=".bin" required>
-  <button>Install and restart</button>
-  <p class="note">A new image is kept only if the device comes back reachable;
-  otherwise it returns to the one it runs now.</p>
-  <p class="result" id="firmware-result"></p>
-</form>
+  <h3>Restart and reset</h3>
+  <div class="buttons">
+    <button class="quiet" id="restart">Restart</button>
+    <button class="quiet" id="reset">Erase everything and restart</button>
+  </div>
+  <p class="note">Erasing forgets the Wi-Fi network, every setting and everything the
+  applications stored. The device comes back with its own access point, waiting to be
+  set up.</p>
+  <p class="result" id="device-result"></p>
+</section>
 
-<h2>Reset</h2>
-<form id="reset">
-  <button>Erase and restart</button>
-  <p class="note">Forgets the Wi-Fi network, every setting and everything the applications
-  stored. The device comes back with its own access point, waiting to be set up.</p>
-  <p class="result" id="reset-result"></p>
-</form>
+<section id="settings">
+  <div class="head"><h2>Settings</h2></div>
+  <div class="tabs" id="tabs">
+    <button data-pane="general">General</button>
+    <button data-pane="time">Time</button>
+    <button data-pane="display">Display</button>
+    <button data-pane="network">Network</button>
+  </div>
+
+  <form class="pane" id="general">
+    <label for="device_name">Name</label>
+    <input id="device_name" maxlength="32" autocomplete="off" required>
+    <p class="note">What the device calls itself, on its setup network too. On the local
+    network it answers to <span id="hostname">-</span>.</p>
+    <button>Save</button>
+    <p class="result" id="general-result"></p>
+  </form>
+
+  <form class="pane" id="time">
+    <label for="tz">Time zone</label>
+    <input id="tz" maxlength="47" autocomplete="off" required>
+    <div class="buttons"><button type="button" class="quiet" id="tz-detect">Use this
+    browser's</button></div>
+    <p class="note">A POSIX time zone, the way the device keeps it. The button fills in the
+    zone of the computer or phone this page is open on.</p>
+    <label for="ntp_server">Time server</label>
+    <input id="ntp_server" maxlength="64" autocomplete="off" required>
+    <button>Save</button>
+    <p class="result" id="time-result"></p>
+  </form>
+
+  <form class="pane" id="display">
+    <label for="refresh_full_every">Full refresh</label>
+    <select id="refresh_full_every">
+      <option value="0">Always: every picture is clean, every one blinks</option>
+      <option value="2">After 2 quick ones</option>
+      <option value="5">After 5 quick ones</option>
+      <option value="10">After 10 quick ones</option>
+      <option value="20">After 20 quick ones</option>
+      <option value="50">After 50 quick ones</option>
+      <option value="255">Never: no blinking, traces pile up</option>
+    </select>
+    <p class="note">A quick refresh leaves a faint trace of the picture before; a full one
+    blinks and wipes it. The screen is always wiped when another application takes it.</p>
+    <label for="refresh_min_data_s">Seconds between refreshes nobody asked for</label>
+    <input id="refresh_min_data_s" type="number" min="10" max="3600" required>
+    <p class="note">How often a clock or a forecast may change the picture by itself. A
+    press of a button is always answered at once. Fewer refreshes, longer life of the
+    panel.</p>
+    <label for="refresh_keepalive_h">Hours before the picture is refreshed anyway</label>
+    <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
+    <label><input id="dither" type="checkbox">Greys by dithering</label>
+    <p class="note">The panel is black and white. With this on, an application's grey is a
+    fine pattern of both; off, it is whichever of the two is nearer.</p>
+    <button>Save</button>
+    <p class="result" id="display-result"></p>
+  </form>
+
+  <form class="pane" id="network">
+    <label for="ssid">Wi-Fi network</label>
+    <input id="ssid" maxlength="32" autocomplete="off" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" maxlength="64" autocomplete="off">
+    <button>Save and restart</button>
+    <p class="note">The device restarts and joins this network. If it cannot, its own
+    access point comes back after two minutes.</p>
+    <p class="result" id="network-result"></p>
+  </form>
+</section>
+
+<section id="about">
+  <div class="head"><h2>About</h2></div>
+  <p>perINKpheral is a desk e-paper companion: a screen and four buttons that live on a
+  shelf and show what you glance at. The device does the work itself - it fetches the data,
+  runs the application and draws the frame - with no server of anybody's in between.</p>
+  <dl>
+    <dt>Author</dt><dd>Max Grakov</dd>
+    <dt>License</dt><dd>MIT</dd>
+    <dt>Firmware and SDK</dt>
+    <dd><a href="https://github.com/GrakovNe/perinkpheral">github.com/GrakovNe/perinkpheral</a></dd>
+    <dt>Applications</dt>
+    <dd><a href="https://github.com/GrakovNe/perinkpheral-apps">github.com/GrakovNe/perinkpheral-apps</a></dd>
+  </dl>
+
+  <h3>Made with</h3>
+  <ul class="plain">
+    <li>Departure Mono <small>the typeface on the panel - Helena Zhang, SIL Open Font License 1.1</small></li>
+    <li>Wasm3 <small>the interpreter applications run in - MIT</small></li>
+    <li>QR Code generator <small>Project Nayuki - MIT</small></li>
+    <li>ESP-IDF <small>Espressif Systems - Apache License 2.0</small></li>
+    <li>Mbed TLS <small>Apache License 2.0</small></li>
+    <li>cJSON <small>Dave Gamble and contributors - MIT</small></li>
+    <li>LittleFS and esp_littlefs <small>BSD 3-Clause, MIT</small></li>
+  </ul>
+
+  <h3>The MIT License</h3>
+  <pre>Copyright (c) 2026 Max Grakov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.</pre>
+</section>
+
 </main>
+</div>
+
+<dialog id="sources-dialog">
+  <form id="sources">
+    <h2>Catalogs</h2>
+    <p class="note">Where applications come from: the address of a catalog folder, one on a
+    line, four at most. A link to a repository on GitHub, GitLab or Codeberg is read as its
+    <code>catalog</code> folder.</p>
+    <label for="source-list">Addresses</label>
+    <textarea id="source-list" rows="4" spellcheck="false"></textarea>
+    <div class="buttons">
+      <button>Save</button>
+      <button type="button" class="quiet" id="refresh-catalogs">Read them again</button>
+      <button type="button" class="quiet" data-close>Close</button>
+    </div>
+    <p class="result" id="sources-result"></p>
+  </form>
+</dialog>
+
+<dialog id="app-dialog">
+  <form id="app-settings">
+    <h2 id="app-dialog-title"></h2>
+    <div id="app-fields"></div>
+    <div class="buttons">
+      <button>Save</button>
+      <button type="button" class="quiet" data-close>Close</button>
+    </div>
+    <p class="result" id="app-result"></p>
+  </form>
+</dialog>
 
 <script>
-const LABELS = { name: "Name", firmware: "Firmware", slot: "Slot", wifi: "Wi-Fi",
-                 ssid: "Network", address: "Address", time: "Time", free_memory: "Free memory" };
-const ZONE_NOT_SET = "UTC0";
-let deviceZone = ZONE_NOT_SET;
+const SLOTS = 5, ZONE_NOT_SET = "UTC0", FULL_REFRESH_NEVER = 255;
+const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
+const byId = id => document.getElementById(id);
+const show = (id, text) => { byId(id).textContent = text; };
+const make = (tag, properties) => Object.assign(document.createElement(tag), properties || {});
+
+/* ---- pictures: the device's own icons, eleven cells a side ---- */
+
+const GEAR = ["....###....", ".##.###.##.", ".#########.", "..###.###..", "###.....###",
+              "###.....###", "###.....###", "..###.###..", ".#########.", ".##.###.##.",
+              "....###...."];
+
+/* An icon as the manifest writes it - rows of '#' and '.' - drawn cell by cell. */
+function pixels(rows, cell) {
+  const NS = "http://www.w3.org/2000/svg", size = rows.length * cell;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "pixels");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.setAttribute("viewBox", "0 0 " + size + " " + size);
+  rows.forEach((row, y) => {
+    /* A run of ink in a row is one rectangle. */
+    for (const run of row.matchAll(/#+/g)) {
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("x", run.index * cell);
+      rect.setAttribute("y", y * cell);
+      rect.setAttribute("width", run[0].length * cell);
+      rect.setAttribute("height", cell);
+      svg.append(rect);
+    }
+  });
+  return svg;
+}
+
+/* ---- talking to the device ---- */
+
+async function ask(url, options) {
+  const answer = await fetch(url, options);
+  const json = await answer.json();
+  if (!answer.ok) throw new Error(json.error || "HTTP " + answer.status);
+  return json;
+}
+
+/* Sends the request and puts the device's answer, or what went wrong, where it is read. */
+async function send(resultId, url, options, button) {
+  if (button) button.disabled = true;
+  show(resultId, "Sending...");
+  let done = true;
+  try {
+    const answer = await ask(url, options);
+    show(resultId, answer.ok || "Done.");
+  } catch (error) {
+    show(resultId, error.message === "Failed to fetch" ? "No answer from the device."
+                                                       : error.message);
+    done = false;
+  }
+  if (button) button.disabled = false;
+  return done;
+}
+
+const post = body => ({ method: "POST", body: JSON.stringify(body) });
+
+/* After a restart the device is gone for a moment; then the page reads everything anew. */
+function afterRestart() {
+  setTimeout(async function retry() {
+    try { await loadAll(); } catch (error) { setTimeout(retry, 2000); }
+  }, 9000);
+}
+
+/* ---- sections ---- */
+
+/* "#settings" is a section; "#apps:weather" is the section with the settings of an
+ * application open in it, and "#apps:catalogs" with the list of catalogs: a link can
+ * lead straight to either. */
+function showSection() {
+  const [wanted, inside] = (location.hash.slice(1) || "apps").split(":");
+  openInside(inside);
+  const name = byId(wanted) && byId(wanted).tagName === "SECTION" ? wanted : "apps";
+  for (const section of document.querySelectorAll("section"))
+    section.classList.toggle("current", section.id === name);
+  for (const link of document.querySelectorAll("nav a"))
+    link.classList.toggle("current", link.hash === "#" + name);
+}
+
+let wantedInside = null;
+
+function openInside(what) {
+  wantedInside = what || null;
+  if (!wantedInside) return;
+  if (wantedInside === "catalogs") {
+    byId("sources-dialog").showModal();
+    wantedInside = null;
+    return;
+  }
+  /* An application's settings can open once the device has said what it holds. */
+  const app = installed.find(have => have.name === wantedInside);
+  if (app && app.settings.length) {
+    openAppSettings(app);
+    wantedInside = null;
+  }
+}
+
+function showPane(name) {
+  for (const pane of document.querySelectorAll(".pane"))
+    pane.classList.toggle("current", pane.id === name);
+  for (const tab of byId("tabs").children)
+    tab.classList.toggle("current", tab.dataset.pane === name);
+}
+
+/* ---- apps ---- */
+
+let installed = [], sources = [], offered = [];
+
+/* One field of an application's settings, as its manifest describes it. */
+function settingField(app, setting) {
+  const id = "setting-" + setting.key, value = app.values[setting.key];
+  const label = make("label", { htmlFor: id, textContent: setting.title });
+  let input;
+  if (setting.type === "choice") {
+    input = make("select");
+    for (const option of [""].concat(setting.options))
+      input.append(make("option", { value: option, textContent: option || "-" }));
+    input.value = value;
+  } else {
+    input = make("input", { maxLength: 127, autocomplete: "off" });
+    if (setting.type === "toggle") {
+      input.type = "checkbox";
+      input.checked = value === "1";
+      label.prepend(input);
+    } else if (setting.type === "secret") {
+      input.type = "password";
+      /* The device does not give a secret back: an empty field keeps the one it has. */
+      input.placeholder = value ? "set - type to replace" : "not set";
+    } else {
+      input.inputMode = setting.type === "number" ? "decimal" : "text";
+      input.value = value;
+    }
+  }
+  input.id = id;
+  input.dataset.key = setting.key;
+  input.dataset.type = setting.type;
+  const parts = setting.type === "toggle" ? [label] : [label, input];
+  if (setting.help) parts.push(make("p", { className: "note", textContent: setting.help }));
+  return parts;
+}
+
+let appInDialog = null;
+
+function openAppSettings(app) {
+  appInDialog = app;
+  show("app-dialog-title", app.title);
+  show("app-result", "");
+  byId("app-fields").replaceChildren(...app.settings.flatMap(setting => settingField(app, setting)));
+  byId("app-dialog").showModal();
+}
+
+function tile(app, have, source) {
+  const box = make("div", { className: "tile" + (have ? "" : " absent") });
+  const picture = make("div", { className: "picture" + (app.icon ? "" : " none") });
+  if (app.icon) picture.append(pixels(app.icon, 5));
+  box.append(picture, make("b", { textContent: app.title }),
+             make("small", { textContent: app.version || "no version" }),
+             make("div", { className: "spring" }));
+  if (have && have.settings.length) {
+    const gear = make("button", { className: "icon", title: "Settings" });
+    gear.append(pixels(GEAR, 2));
+    gear.addEventListener("click", () => openAppSettings(have));
+    box.append(gear);
+  }
+  const action = make("button", { className: "action" });
+  const query = "app=" + encodeURIComponent(app.name);
+  const run = async (url, options) => {
+    if (await send("apps-result", url, options, action)) afterRestart();
+  };
+  const install = () => run("/api/apps/install?source=" + source + "&" + query,
+                            post({ files: app.files }));
+  if (have && source !== null && have.version !== app.version) {
+    action.textContent = "Update to " + app.version;
+    action.addEventListener("click", install);
+  } else if (have) {
+    action.textContent = "Remove";
+    action.classList.add("quiet");
+    action.addEventListener("click", () => {
+      if (confirm("Remove " + app.title + "? Its settings stay for when it comes back. "
+                  + "The device restarts."))
+        run("/api/apps/remove?" + query, { method: "POST" });
+    });
+  } else {
+    action.textContent = installed.length >= SLOTS ? "No place" : "Install";
+    action.disabled = installed.length >= SLOTS;
+    action.addEventListener("click", install);
+  }
+  box.append(action);
+  return box;
+}
+
+function drawTiles() {
+  const tiles = [];
+  /* What is on the device first, in the catalog's words when a catalog has it too. */
+  for (const have of installed) {
+    const found = offered.find(offer => offer.app.name === have.name);
+    const isNewer = found && found.app.version !== have.version;
+    /* An application installed before it had an icon borrows the catalog's. */
+    const shown = isNewer ? found.app
+                          : Object.assign({}, have, { icon: have.icon || (found && found.app.icon) });
+    tiles.push(tile(shown, have, found ? found.source : null));
+  }
+  for (const offer of offered)
+    if (!installed.some(have => have.name === offer.app.name))
+      tiles.push(tile(offer.app, null, offer.source));
+  byId("tiles").replaceChildren(...tiles);
+  if (!tiles.length) byId("tiles").textContent = "Nothing is installed and no catalog answers.";
+  show("slots", installed.length + " of " + SLOTS + " places taken");
+}
+
+async function loadApps() {
+  installed = await ask("/api/apps");
+  drawTiles();
+  openInside(wantedInside);
+}
+
+async function loadCatalogs() {
+  sources = (await ask("/api/sources")).sources;
+  byId("source-list").value = sources.join("\n");
+  const found = [], silent = [];
+  for (let source = 0; source < sources.length; source++) {
+    try {
+      const catalog = await ask("/api/catalog?source=" + source);
+      /* The first catalog that has an application is the one it comes from. */
+      for (const app of catalog.apps)
+        if (!found.some(offer => offer.app.name === app.name)) found.push({ app, source });
+    } catch (error) {
+      silent.push(sources[source]);
+    }
+  }
+  offered = found;
+  drawTiles();
+  show("apps-result", silent.length ? "No catalog at " + silent.join(", ") : "");
+}
+
+/* A link to a repository as people paste it, read as the catalog folder in it. */
+function catalogAddress(line) {
+  const repository = line.trim().replace(/\/+$/, "").replace(/\.git$/, "");
+  let match = repository.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/);
+  if (match) return "https://raw.githubusercontent.com/" + match[1] + "/" + match[2] + "/HEAD/catalog";
+  match = repository.match(/^https:\/\/gitlab\.com\/(.+)$/);
+  if (match && !repository.includes("/-/")) return repository + "/-/raw/HEAD/catalog";
+  match = repository.match(/^https:\/\/codeberg\.org\/[^/]+\/[^/]+$/);
+  if (match) return repository + "/raw/branch/main/catalog";
+  return repository;
+}
+
+byId("open-sources").append(pixels(GEAR, 2));
+byId("open-sources").addEventListener("click", () => {
+  show("sources-result", "");
+  byId("sources-dialog").showModal();
+});
+
+byId("sources").addEventListener("submit", async event => {
+  event.preventDefault();
+  const lines = byId("source-list").value.split("\n").map(catalogAddress).filter(line => line);
+  if (await send("sources-result", "/api/sources", post({ sources: lines }), event.submitter))
+    loadCatalogs();
+});
+
+byId("refresh-catalogs").addEventListener("click", async event => {
+  event.target.disabled = true;
+  show("sources-result", "Reading...");
+  await loadCatalogs();
+  show("sources-result", offered.length + " applications in the catalogs.");
+  event.target.disabled = false;
+});
+
+byId("app-settings").addEventListener("submit", async event => {
+  event.preventDefault();
+  const settings = {};
+  for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
+    if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
+    else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
+  }
+  const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
+  if (await send("app-result", url, post(settings), event.submitter)) loadApps();
+});
+
+for (const close of document.querySelectorAll("[data-close]"))
+  close.addEventListener("click", () => close.closest("dialog").close());
+
+/* ---- device ---- */
+
+const LABELS = { name: "Name", hostname: "On the network", firmware: "Firmware", built: "Built",
+                 idf: "ESP-IDF", slot: "Slot", wifi: "Wi-Fi", ssid: "Network",
+                 address: "Address", time: "Time", uptime: "Running for",
+                 free_memory: "Free memory" };
+let status = {};
+
+function duration(seconds) {
+  const days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600);
+  const minutes = Math.floor(seconds % 3600 / 60);
+  return days ? days + " d " + hours + " h" : hours ? hours + " h " + minutes + " min"
+                                                    : minutes + " min";
+}
+
+async function loadStatus() {
+  status = await ask("/api/status");
+  const shown = Object.assign({}, status, {
+    free_memory: Math.round(status.free_memory / 1024) + " KB",
+    uptime: duration(status.uptime_s),
+    firmware: status.firmware + (status.on_probation ? " (on probation)" : ""),
+  });
+  const rows = [];
+  for (const key in LABELS)
+    if (shown[key]) rows.push(make("dt", { textContent: LABELS[key] }),
+                              make("dd", { textContent: shown[key] }));
+  byId("status").replaceChildren(...rows);
+  show("nav-name", status.name);
+}
+
+byId("check-release").addEventListener("click", async event => {
+  event.target.disabled = true;
+  show("release", "Asking GitHub...");
+  try {
+    const answer = await fetch(RELEASES);
+    if (answer.status === 404) {
+      show("release", "No release has been published yet: the firmware comes as an image "
+                      + "you build and install below.");
+    } else {
+      const release = await answer.json();
+      show("release", release.tag_name === status.firmware
+           ? "The device runs the latest release, " + release.tag_name + "."
+           : "The latest release is " + release.tag_name + "; the device runs " + status.firmware
+             + ". Download its perinkpheral.bin from " + release.html_url
+             + " and install it below.");
+    }
+  } catch (error) {
+    show("release", "GitHub did not answer.");
+  }
+  event.target.disabled = false;
+});
+
+byId("firmware").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (await send("firmware-result", "/api/ota", { method: "POST", body: byId("image").files[0] },
+                 event.submitter)) afterRestart();
+});
+
+byId("load-log").addEventListener("click", async () => {
+  show("log", await (await fetch("/api/log")).text());
+  byId("log").scrollTop = byId("log").scrollHeight;
+});
+
+byId("restart").addEventListener("click", async event => {
+  if (await send("device-result", "/api/restart", { method: "POST" }, event.target)) afterRestart();
+});
+
+byId("reset").addEventListener("click", event => {
+  if (confirm("Erase all settings and everything the applications stored, and restart?"))
+    send("device-result", "/api/reset", { method: "POST" }, event.target);
+});
+
+/* ---- settings ---- */
+
+let settings = {};
 
 /* The browser's time zone as a POSIX TZ string, which is what the device
  * understands: found by asking the browser where this year's clock changes are. */
@@ -153,257 +696,66 @@ function posixZone() {
          "," + rule(toSummer) + "," + rule(toWinter);
 }
 
-
-function show(element, text) { document.getElementById(element).textContent = text; }
-
-async function loadStatus() {
-  const status = await (await fetch("/api/status")).json();
-  status.free_memory = Math.round(status.free_memory / 1024) + " KB";
-  if (status.on_probation) status.firmware += " (on probation)";
-  const list = document.getElementById("status");
-  list.replaceChildren();
-  for (const key in LABELS) {
-    if (!status[key]) continue;
-    const term = document.createElement("dt"), value = document.createElement("dd");
-    term.textContent = LABELS[key];
-    value.textContent = status[key];
-    list.append(term, value);
-  }
-  document.getElementById("ssid").value ||= status.ssid;
-  deviceZone = status.tz;
+async function loadSettings() {
+  settings = await ask("/api/settings");
+  for (const key of ["device_name", "ntp_server", "refresh_min_data_s", "refresh_keepalive_h"])
+    byId(key).value = settings[key];
   /* A device that was never told its zone is offered the browser's. */
-  document.getElementById("tz").value ||= deviceZone === ZONE_NOT_SET ? posixZone() : deviceZone;
+  byId("tz").value = settings.tz === ZONE_NOT_SET ? posixZone() : settings.tz;
+  const fullEvery = byId("refresh_full_every");
+  /* A value the list does not have - set some other way - gets a line of its own. */
+  if (![...fullEvery.options].some(option => Number(option.value) === settings.refresh_full_every))
+    fullEvery.append(make("option", { value: settings.refresh_full_every,
+                                      textContent: "After " + settings.refresh_full_every + " quick ones" }));
+  fullEvery.value = settings.refresh_full_every;
+  byId("dither").checked = settings.dither;
+  byId("ssid").value = settings.wifi_ssid;
+  show("hostname", settings.hostname);
 }
 
-/* Sends the request and puts the device's answer, or what went wrong, on the page. */
-async function send(form, resultId, url, options) {
-  const button = form.querySelector("button:not([type=button])") || form.querySelector("button");
-  button.disabled = true;
-  show(resultId, "Sending...");
-  try {
-    const answer = await (await fetch(url, options)).json();
-    show(resultId, answer.ok || answer.error);
-  } catch (error) {
-    show(resultId, "No answer from the device.");
-  }
-  button.disabled = false;
-}
-
-document.getElementById("wifi").addEventListener("submit", event => {
-  event.preventDefault();
-  const settings = { ssid: event.target.ssid.value, password: event.target.password.value };
-  /* Setting the device up is one step: it learns where it is along with the network. */
-  if (deviceZone === ZONE_NOT_SET) settings.tz = posixZone();
-  const body = JSON.stringify(settings);
-  send(event.target, "wifi-result", "/api/wifi", { method: "POST", body });
-});
-
-/* One field of an application's settings, as its manifest describes it. */
-function settingField(app, setting) {
-  const id = app.name + "-" + setting.key, value = app.values[setting.key];
-  const label = document.createElement("label");
-  label.htmlFor = id;
-  label.textContent = setting.title;
-  let input;
-  if (setting.type === "choice") {
-    input = document.createElement("select");
-    for (const option of [""].concat(setting.options)) {
-      const item = document.createElement("option");
-      item.value = option;
-      item.textContent = option || "-";
-      input.append(item);
-    }
-    input.value = value;
-  } else {
-    input = document.createElement("input");
-    if (setting.type === "toggle") {
-      input.type = "checkbox";
-      input.checked = value === "1";
-      label.prepend(input);
-    } else if (setting.type === "secret") {
-      input.type = "password";
-      /* The device does not give a secret back: an empty field keeps the one it has. */
-      input.placeholder = value ? "set - type to replace" : "not set";
-    } else {
-      input.inputMode = setting.type === "number" ? "decimal" : "text";
-      input.value = value;
-    }
-    input.maxLength = 127;
-    input.autocomplete = "off";
-  }
-  input.id = id;
-  input.dataset.key = setting.key;
-  input.dataset.type = setting.type;
-  const parts = setting.type === "toggle" ? [label] : [label, input];
-  if (setting.help) {
-    const help = document.createElement("p");
-    help.className = "note";
-    help.textContent = setting.help;
-    parts.push(help);
-  }
-  return parts;
-}
-
-function settingsOf(form) {
-  const settings = {};
-  for (const input of form.querySelectorAll("[data-key]")) {
-    if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
-    else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
-  }
-  return settings;
-}
-
-function appBlock(app) {
-  const block = document.createElement("form"), title = document.createElement("h3");
-  title.textContent = app.title + " ";
-  const version = document.createElement("small");
-  version.textContent = app.version;
-  title.append(version);
-  block.append(title);
-  for (const setting of app.settings) block.append(...settingField(app, setting));
-  const result = document.createElement("p");
-  result.className = "result";
-  result.id = app.name + "-result";
-  const query = "?app=" + encodeURIComponent(app.name);
-  if (app.settings.length) {
-    const save = document.createElement("button");
-    save.textContent = "Save";
-    block.append(save);
-    block.addEventListener("submit", event => {
-      event.preventDefault();
-      send(block, result.id, "/api/apps/settings" + query,
-           { method: "POST", body: JSON.stringify(settingsOf(block)) });
-    });
-  } else {
-    block.addEventListener("submit", event => event.preventDefault());
-  }
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "quiet";
-  remove.textContent = "Remove";
-  remove.addEventListener("click", () => {
-    if (!confirm("Remove " + app.title + "? Its settings stay for when it comes back. "
-                 + "The device restarts.")) return;
-    send(block, result.id, "/api/apps/remove" + query, { method: "POST" });
-  });
-  block.append(remove, result);
-  return block;
-}
-
-const SLOTS = 5;
-let installed = [];
-
-async function loadApps() {
-  const list = document.getElementById("apps");
-  installed = await (await fetch("/api/apps")).json();
-  list.replaceChildren(...installed.map(appBlock));
-  if (!installed.length) list.textContent = "No applications are installed.";
-  show("slots", installed.length + " of " + SLOTS + " places taken. A removed application "
-       + "keeps its settings for when it comes back.");
-}
-
-/* A link to a repository as people paste it, read as the catalog folder in it. */
-function catalogAddress(line) {
-  const repository = line.trim().replace(/\/+$/, "").replace(/\.git$/, "");
-  let match = repository.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/);
-  if (match) return "https://raw.githubusercontent.com/" + match[1] + "/" + match[2] + "/HEAD/catalog";
-  match = repository.match(/^https:\/\/gitlab\.com\/(.+)$/);
-  if (match && !repository.includes("/-/")) return repository + "/-/raw/HEAD/catalog";
-  match = repository.match(/^https:\/\/codeberg\.org\/[^/]+\/[^/]+$/);
-  if (match) return repository + "/raw/branch/main/catalog";
-  return repository;
-}
-
-/* One line of a catalog: what it is, and the one thing to do with it. */
-function catalogRow(source, app) {
-  const row = document.createElement("form"), name = document.createElement("span");
-  row.className = "row";
-  name.textContent = app.title + " " + app.version;
-  const have = installed.find(other => other.name === app.name);
-  const button = document.createElement("button"), result = document.createElement("span");
-  result.id = "install-" + source + "-" + app.name;
-  if (have && have.version === app.version) {
-    button.textContent = "Installed";
-    button.disabled = true;
-  } else if (have) {
-    button.textContent = "Update from " + have.version;
-  } else if (installed.length >= SLOTS) {
-    button.textContent = "No place";
-    button.disabled = true;
-  } else {
-    button.textContent = "Install";
-  }
-  row.append(name, button, result);
-  row.addEventListener("submit", async event => {
+function saveSettings(formId, read) {
+  byId(formId).addEventListener("submit", async event => {
     event.preventDefault();
-    await send(row, result.id, "/api/apps/install?source=" + source + "&app="
-               + encodeURIComponent(app.name),
-               { method: "POST", body: JSON.stringify({ files: app.files }) });
-    /* The device restarts to list what it now has. */
-    setTimeout(() => { loadApps().then(loadCatalog); }, 15000);
-  });
-  return row;
-}
-
-async function loadCatalog() {
-  const list = document.getElementById("catalog");
-  const sources = (await (await fetch("/api/sources")).json()).sources;
-  document.getElementById("source-list").value = sources.join("\n");
-  list.replaceChildren();
-  for (let source = 0; source < sources.length; source++) {
-    const title = document.createElement("h3"), address = document.createElement("small");
-    address.textContent = sources[source];
-    title.append(address);
-    list.append(title);
-    try {
-      const answer = await fetch("/api/catalog?source=" + source);
-      const catalog = await answer.json();
-      if (!answer.ok) throw new Error(catalog.error);
-      list.append(...catalog.apps.map(app => catalogRow(source, app)));
-    } catch (error) {
-      const problem = document.createElement("p");
-      problem.className = "note";
-      problem.textContent = "No catalog there: " + error.message;
-      list.append(problem);
+    if (await send(formId + "-result", "/api/settings", post(read()), event.submitter)) {
+      loadSettings();
+      loadStatus();
     }
-  }
-  if (!sources.length) list.textContent = "No sources: add the address of a catalog below.";
+  });
 }
 
-document.getElementById("sources").addEventListener("submit", async event => {
+saveSettings("general", () => ({ device_name: byId("device_name").value }));
+saveSettings("time", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value }));
+saveSettings("display", () => ({
+  refresh_full_every: Number(byId("refresh_full_every").value),
+  refresh_min_data_s: Number(byId("refresh_min_data_s").value),
+  refresh_keepalive_h: Number(byId("refresh_keepalive_h").value),
+  dither: byId("dither").checked,
+}));
+
+byId("tz-detect").addEventListener("click", () => { byId("tz").value = posixZone(); });
+
+byId("network").addEventListener("submit", async event => {
   event.preventDefault();
-  const lines = document.getElementById("source-list").value.split("\n");
-  const sources = lines.map(catalogAddress).filter(line => line);
-  await send(event.target, "sources-result", "/api/sources",
-             { method: "POST", body: JSON.stringify({ sources }) });
-  loadCatalog();
+  const network = { ssid: byId("ssid").value, password: byId("password").value };
+  /* Setting the device up is one step: it learns where it is along with the network. */
+  if (settings.tz === ZONE_NOT_SET) network.tz = posixZone();
+  if (await send("network-result", "/api/wifi", post(network), event.submitter)) afterRestart();
 });
 
-document.getElementById("tz-detect").addEventListener("click", () => {
-  document.getElementById("tz").value = posixZone();
-});
+for (const tab of byId("tabs").children)
+  tab.addEventListener("click", () => showPane(tab.dataset.pane));
 
-document.getElementById("time").addEventListener("submit", async event => {
-  event.preventDefault();
-  const body = JSON.stringify({ tz: event.target.tz.value });
-  await send(event.target, "time-result", "/api/time", { method: "POST", body });
-  loadStatus();
-});
+/* ---- start ---- */
 
-document.getElementById("firmware").addEventListener("submit", event => {
-  event.preventDefault();
-  const image = document.getElementById("image").files[0];
-  send(event.target, "firmware-result", "/api/ota", { method: "POST", body: image });
-});
+async function loadAll() {
+  await Promise.all([loadStatus(), loadSettings(), loadApps()]);
+  loadCatalogs();
+}
 
-document.getElementById("reset").addEventListener("submit", event => {
-  event.preventDefault();
-  if (!confirm("Erase all settings and restart the device?")) return;
-  send(event.target, "reset-result", "/api/reset", { method: "POST" });
-});
-
-loadStatus();
-loadApps().then(loadCatalog);
+window.addEventListener("hashchange", showSection);
+showSection();
+showPane("general");
+loadAll();
 </script>
 </body>
 </html>

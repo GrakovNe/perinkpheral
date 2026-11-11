@@ -319,6 +319,10 @@ HOST_FUNCTION(host_gfx_color)
     if (color < HOST_PAPER || color > HOST_INK) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
+    bool is_grey = color > HOST_PAPER && color < HOST_INK;
+    if (is_grey && !app->services->dithers()) {
+        color = color >= HOST_INK / 2 ? HOST_INK : HOST_PAPER;
+    }
     app->surface->shade = (uint8_t)color;
     m3ApiReturn(HOST_OK);
 }

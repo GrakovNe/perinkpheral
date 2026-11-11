@@ -79,7 +79,11 @@ static void add_settings(cJSON *app, const char *app_name)
     cJSON *manifest = manifest_text != NULL ? cJSON_Parse(manifest_text) : NULL;
     free(manifest_text);
     cJSON *settings = cJSON_DetachItemFromObjectCaseSensitive(manifest, "settings");
+    cJSON *icon = cJSON_DetachItemFromObjectCaseSensitive(manifest, "icon");
     cJSON_Delete(manifest);
+    if (icon != NULL) {
+        cJSON_AddItemToObject(app, "icon", icon);
+    }
     if (settings == NULL) {
         settings = cJSON_CreateArray();
     }

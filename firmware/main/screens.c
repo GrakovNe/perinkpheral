@@ -119,20 +119,42 @@ int screens_menu_first_row(int count, int selected, int visible_rows)
     return first > 0 ? first : 0;
 }
 
-void screens_menu(gfx_t *g, screens_menu_title_fn title_at, void *context, int count,
-                  int selected)
+#define MENU_ICON_GAP 12 /* between an icon and its title */
+
+/* An application's icon on the cells the host's own icons use. */
+static void menu_icon(gfx_t *g, int x, int y, const uint16_t *rows, bool black)
+{
+    for (int row = 0; row < SCREENS_ICON_CELLS; row++) {
+        for (int column = 0; column < SCREENS_ICON_CELLS; column++) {
+            if (rows[row] >> (SCREENS_ICON_CELLS - 1 - column) & 1) {
+                gfx_fill(g, x + column * ICON_CELL, y + row * ICON_CELL, ICON_CELL, ICON_CELL,
+                         black);
+            }
+        }
+    }
+}
+
+void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected)
 {
     int visible_rows = (g->h - MENU_TOP_GAP) / MENU_ROW_HEIGHT;
     int first = screens_menu_first_row(count, selected, visible_rows);
+    /* One column for the titles whether a row has an icon or not. */
+    int title_left = MARGIN + SCREENS_ICON_CELLS * ICON_CELL + MENU_ICON_GAP;
     for (int row = 0; row < visible_rows && first + row < count; row++) {
+        screens_menu_row_t item;
+        row_at(context, first + row, &item);
         int  baseline = MENU_TOP_GAP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
         bool is_selected = first + row == selected;
         if (is_selected) {
             gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE, g->w - 2 * MENU_BAR_INSET,
                      MENU_BAR_HEIGHT, true);
         }
-        gfx_text_font(g, MARGIN, baseline, gfx_font_system(), title_at(context, first + row),
+        if (item.icon != NULL) {
+            /* Standing on the baseline like a letter, two cells below its feet. */
+            menu_icon(g, MARGIN, baseline - (SCREENS_ICON_CELLS - 2) * ICON_CELL, item.icon,
                       !is_selected);
+        }
+        gfx_text_font(g, title_left, baseline, gfx_font_system(), item.title, !is_selected);
     }
 }
 
