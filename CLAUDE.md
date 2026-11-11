@@ -125,7 +125,7 @@ User settings (`settings`) are edited in the web UI, stored in NVS, substituted 
   - not on the scene - unload the scene (`app_on_blur`) → load the owner → deliver → if it called `request_focus()` it stays as the scene, otherwise unload it and bring the previous scene back (`app_on_focus`).
 - **State** - every application must restore itself from `kv_*`: the host unloads it on every scene change and background delivery. The framebuffer is not touched during the swap (the screen is not redrawn); the host remembers the scene's timers and restarts them after the return.
 - **Buttons** - the layout is the same everywhere in the host: 1 up, 2 ok, 3 down, 4 back. Applications are encouraged to keep it.
-- **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2, button 4 goes back to where the menu was opened from). All other button events go to the application on the scene.
+- **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2, button 4 goes back to where the menu was opened from). A row of the menu is a title and nothing else; the selected row is inverted, white on a black bar. All other button events go to the application on the scene.
 - **Preemption** - `request_focus()` from an application that received data in the background. Protection against a war for the screen: no more than one preemption per N seconds (30 by default), priority from the manifest on a conflict, a long press on button 4 always returns control to the user.
 
 ### Host kernel
@@ -164,7 +164,7 @@ A device on a shelf has to come back from a restart showing what it showed, with
 
 ### Header
 The host draws a header above its own screens and above every application that does not ask for the full screen:
-- On the left the Wi-Fi icon in one of two states - connected, or not connected (the icon with a cross). It shows the outcome of the last connection attempt, which is what matters in the profiles where Wi-Fi is off between polls.
+- On the left the Wi-Fi icon in one of two states - connected, or not connected (the same icon struck through). It shows the outcome of the last connection attempt, which is what matters in the profiles where Wi-Fi is off between polls.
 - On the right the date (`Wed 11 Nov`), blank while the time is unknown.
 - Nothing else: no application title, no network name, no clock - the date changes once a day, so the header never asks for a refresh of its own. There is no footer.
 - An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×257 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.

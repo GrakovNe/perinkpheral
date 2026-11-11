@@ -19,7 +19,6 @@ extern "C" {
 /* Something the menu can open. */
 typedef struct {
     const char *title;
-    const char *hint;
     scene_t    *scene;
 } menu_entry_t;
 

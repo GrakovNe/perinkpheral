@@ -45,7 +45,11 @@ static void right_aligned(gfx_t *g, int baseline, const gfx_font_t *font, const 
 #define WIFI_CELL  2
 #define WIFI_COLS  11
 #define WIFI_ROWS  8
-#define CROSS_SIZE 5 /* cells */
+/* The stroke through it runs from above its top right corner to below
+ * its bottom left one, a cell further out at both ends. */
+#define STRIKE_CELLS     11
+#define STRIKE_FIRST_COL 10
+#define STRIKE_FIRST_ROW (-1)
 static const char *const WIFI[WIFI_ROWS] = {
     "..#######..",
     ".#.......#.",
@@ -72,11 +76,12 @@ static void icon_wifi(gfx_t *g, int x, int y, bool connected)
         }
     }
     if (!connected) {
-        /* A cross beside it, on the baseline. */
-        int cross_col = WIFI_COLS + 1, cross_row = WIFI_ROWS - CROSS_SIZE;
-        for (int i = 0; i < CROSS_SIZE; i++) {
-            fill_cell(g, x, y, cross_col + i, cross_row + i);
-            fill_cell(g, x, y, cross_col + CROSS_SIZE - 1 - i, cross_row + i);
+        for (int step = 0; step < STRIKE_CELLS; step++) {
+            int col = STRIKE_FIRST_COL - step, row = STRIKE_FIRST_ROW + step;
+            /* White on both sides keeps the stroke apart from the arcs. */
+            gfx_fill(g, x + (col - 1) * WIFI_CELL, y + row * WIFI_CELL, 3 * WIFI_CELL, WIFI_CELL,
+                     false);
+            fill_cell(g, x, y, col, row);
         }
     }
 }
@@ -92,9 +97,10 @@ void screens_header(gfx_t *g, const screens_header_t *header)
 
 #define MENU_TOP_GAP    8
 #define MENU_ROW_HEIGHT 42
-#define MENU_MARKER     12 /* the square beside the selected row */
-#define MENU_MARKER_GAP 12
-#define MENU_MARKER_RISE 17 /* its top above the row's baseline */
+/* The bar behind the selected row. */
+#define MENU_BAR_INSET  8  /* from both sides of the surface */
+#define MENU_BAR_HEIGHT 36
+#define MENU_BAR_RISE   26 /* its top above the row's baseline */
 
 int screens_menu_first_row(int count, int selected, int visible_rows)
 {
@@ -105,22 +111,20 @@ int screens_menu_first_row(int count, int selected, int visible_rows)
     return first > 0 ? first : 0;
 }
 
-void screens_menu(gfx_t *g, screens_menu_item_fn item_at, void *context, int count, int selected)
+void screens_menu(gfx_t *g, screens_menu_title_fn title_at, void *context, int count,
+                  int selected)
 {
     int visible_rows = (g->h - MENU_TOP_GAP) / MENU_ROW_HEIGHT;
     int first = screens_menu_first_row(count, selected, visible_rows);
     for (int row = 0; row < visible_rows && first + row < count; row++) {
-        screens_menu_item_t item;
-        item_at(context, first + row, &item);
-        int baseline = MENU_TOP_GAP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
-        if (first + row == selected) {
-            gfx_fill(g, MARGIN, baseline - MENU_MARKER_RISE, MENU_MARKER, MENU_MARKER, true);
+        int  baseline = MENU_TOP_GAP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
+        bool is_selected = first + row == selected;
+        if (is_selected) {
+            gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE, g->w - 2 * MENU_BAR_INSET,
+                     MENU_BAR_HEIGHT, true);
         }
-        gfx_text_font(g, MARGIN + MENU_MARKER + MENU_MARKER_GAP, baseline, gfx_font_system(),
-                      item.title, true);
-        if (item.hint != NULL) {
-            right_aligned(g, baseline, gfx_font_system(), item.hint);
-        }
+        gfx_text_font(g, MARGIN, baseline, gfx_font_system(), title_at(context, first + row),
+                      !is_selected);
     }
 }
 

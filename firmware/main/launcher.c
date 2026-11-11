@@ -18,7 +18,7 @@ static const char *TAG = "launcher";
 #define BUILT_IN_PAGES     2
 #define INSTALLED_APPS_MAX (LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES)
 
-/* The titles and versions in here are what the menu points at. */
+/* The titles in here are what the menu points at. */
 static app_manifest_t s_installed[INSTALLED_APPS_MAX];
 static scene_t       *s_app_scenes[INSTALLED_APPS_MAX];
 static int            s_installed_count;
@@ -37,11 +37,11 @@ void launcher_start(void)
             app_scene_create(&s_installed[i], STORAGE_APPS_ROOT, app_host_services());
         if (s_app_scenes[i] != NULL) {
             s_entries[s_entry_count++] =
-                (menu_entry_t){ s_installed[i].title, s_installed[i].version, s_app_scenes[i] };
+                (menu_entry_t){ s_installed[i].title, s_app_scenes[i] };
         }
     }
-    s_entries[s_entry_count++] = (menu_entry_t){ "Device", "name, firmware", scene_device() };
-    s_entries[s_entry_count++] = (menu_entry_t){ "About", "logo, license", scene_splash() };
+    s_entries[s_entry_count++] = (menu_entry_t){ "Device", scene_device() };
+    s_entries[s_entry_count++] = (menu_entry_t){ "About", scene_splash() };
 }
 
 const menu_entry_t *launcher_entries(int *count)

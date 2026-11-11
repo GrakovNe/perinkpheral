@@ -22,7 +22,8 @@ extern "C" {
 /* The brand splash, for the whole screen. */
 void screens_splash(gfx_t *g);
 
-/* The host's header: the Wi-Fi state as of the last attempt on the left,
+/* The host's header: the Wi-Fi icon on the left, struck through when
+ * the last connection attempt failed,
  * the date on the right, a rule along the bottom edge. */
 typedef struct {
     bool        wifi; /* the last connection attempt succeeded */
@@ -31,18 +32,14 @@ typedef struct {
 
 void screens_header(gfx_t *g, const screens_header_t *header);
 
-typedef struct {
-    const char *title;
-    const char *hint; /* a few words on the right, may be NULL */
-} screens_menu_item_t;
-
 /* The view asks for the rows it is about to draw, so a list can be of any
  * length and live anywhere. */
-typedef void (*screens_menu_item_fn)(void *context, int index, screens_menu_item_t *item);
+typedef const char *(*screens_menu_title_fn)(void *context, int index);
 
-/* A list with a square marker on the selected row; it scrolls when it is
- * longer than the surface. */
-void screens_menu(gfx_t *g, screens_menu_item_fn item_at, void *context, int count, int selected);
+/* A list of titles; the selected row is white on a black bar. It scrolls
+ * when it is longer than the surface. */
+void screens_menu(gfx_t *g, screens_menu_title_fn title_at, void *context, int count,
+                  int selected);
 
 /* The index of the top row shown: the window keeps the selection in the
  * middle and stops at both ends of the list. */

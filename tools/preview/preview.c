@@ -36,9 +36,9 @@ static int write_pbm(const char *path)
     return 0;
 }
 
-static void item_from_array(void *context, int index, screens_menu_item_t *item)
+static const char *title_from_array(void *context, int index)
 {
-    *item = ((const screens_menu_item_t *)context)[index];
+    return ((const char *const *)context)[index];
 }
 
 static int save(const char *dir, const char *name)
@@ -78,17 +78,14 @@ int main(int argc, char **argv)
     const screens_header_t offline = { false, NULL };
     gfx_t content;
 
-    screens_menu_item_t items[] = {
-        { "Device", "name, firmware" },
-        { "About", "logo, license" },
-    };
+    const char *titles[] = { "Clock", "Hello", "Device", "About" };
     start_screen(&online, &content);
-    screens_menu(&content, item_from_array, items, 2, 0);
+    screens_menu(&content, title_from_array, titles, 4, 0);
     if (save(dir, "menu")) {
         return 1;
     }
     start_screen(&offline, &content);
-    screens_menu(&content, item_from_array, items, 2, 1);
+    screens_menu(&content, title_from_array, titles, 4, 1);
     if (save(dir, "menu-offline")) {
         return 1;
     }
