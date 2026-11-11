@@ -412,7 +412,7 @@ int gfx_font_cap_height(const gfx_font_t *font)
 static const gfx_font_t FONTS[GFX_FONT_COUNT] = {
     [GFX_FONT_TEXT] = DEPARTURE_MONO(2),    [GFX_FONT_MEDIUM] = DEPARTURE_MONO(3),
     [GFX_FONT_LARGE] = DEPARTURE_MONO(4),   [GFX_FONT_DISPLAY] = DEPARTURE_MONO(6),
-    [GFX_FONT_HUGE] = DEPARTURE_MONO(10),
+    [GFX_FONT_HUGE] = DEPARTURE_MONO(10),   [GFX_FONT_SMALL] = DEPARTURE_MONO(1),
 };
 
 const gfx_font_t *gfx_font(gfx_font_id_t id)

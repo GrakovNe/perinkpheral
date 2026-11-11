@@ -121,6 +121,7 @@ typedef enum {
     GFX_FONT_LARGE,   /* 44 px */
     GFX_FONT_DISPLAY, /* 66 px */
     GFX_FONT_HUGE,    /* 110 px */
+    GFX_FONT_SMALL,   /* 11 px: the bitmap as it is drawn; for what stands beside larger text */
     GFX_FONT_COUNT,
 } gfx_font_id_t;
 

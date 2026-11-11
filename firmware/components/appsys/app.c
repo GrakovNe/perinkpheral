@@ -94,7 +94,7 @@ static void stop_budget(void)
 _Static_assert(HOST_INK == GFX_SHADE_SOLID, "an application's ink is the solid shade");
 _Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_MEDIUM == GFX_FONT_MEDIUM &&
                    HOST_FONT_LARGE == GFX_FONT_LARGE && HOST_FONT_DISPLAY == GFX_FONT_DISPLAY &&
-                   HOST_FONT_HUGE == GFX_FONT_HUGE,
+                   HOST_FONT_HUGE == GFX_FONT_HUGE && HOST_FONT_SMALL == GFX_FONT_SMALL,
                "applications name the fonts by the numbers gfx gives them");
 
 static const gfx_font_t *font_by_id(int32_t font)

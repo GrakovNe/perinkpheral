@@ -78,7 +78,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 ## Stack
 - ESP-IDF 5.5, C. No Arduino, ESPHome, LVGL, GxEPD2.
 - Application runtime: **wasm3** v0.9.0 (interpreter, sandbox). Applications are built with wasi-sdk (found through `WASI_SDK_PATH`; verified with 34); the firmware build needs it too, since the image carries applications.
-- Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, for everything else: one bitmap of it at its own 11 px from `tools/fontgen`, drawn at whole multiples - 22 px for the host, and 22, 33, 44, 66 and 110 px for applications. ASCII only in version 1.
+- Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, for everything else: one bitmap of it at its own 11 px from `tools/fontgen`, drawn at whole multiples - 22 px for the host, and 11, 22, 33, 44, 66 and 110 px for applications. ASCII only in version 1.
 - FS: LittleFS (partition `apps`, 1 MB). NVS for the applications' `kv_*` and the host settings.
 - Network: `esp_http_client` (TLS through mbedTLS), `esp_http_server` for the web UI.
 - The display driver is our own, on top of `spi_master`: init, full refresh, partial refresh, panel deep sleep after every update. **SPI 2 MHz**, mode 0, CS toggled per byte - otherwise the refresh never finishes (see `AGENTS.md`).
@@ -181,7 +181,7 @@ The only contract is `sdk/host_api.h`; applications and the host's import table 
 ```
 gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x260 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
-                                       // fonts: 0 text 22 px, 1 medium 33, 2 large 44, 3 display 66, 4 huge 110; all of ASCII in each
+                                       // fonts: 0 text 22 px, 1 medium 33, 2 large 44, 3 display 66, 4 huge 110, 5 small 11; all of ASCII in each
 gfx_text_width(font_id, str_ptr, len) -> px
 gfx_font_height(font_id) -> px          // the whole line
 gfx_font_ascent(font_id) -> px          // from the top of the line to the baseline
@@ -385,7 +385,7 @@ Milestone 1 is done, the run from the battery included (seen by the owner). Next
 - **The logo is the word `perINKpheraL` set in the device's square font: lower case `per` and `phera`, capital `INK` and a capital `L` at the end, all of one height in the same squares, with no plate, frames or dots.** The mix of capitals and lower case inside one word is the mark itself. On the panel - black on white, scale 5 (27 px squares), 357 px.
 - The square font: every glyph is a square on a grid of 3 strokes × 2 gaps (5+6+5+6+5 = 27 px), no ascenders or descenders, diagonals allowed. Implementation: `firmware/components/gfx/font_square.c`.
 - Under the mark on the splash: `ver 1.234.5` (a prototype string, hard-coded), `(c) 2026 Max Grakov`, `MIT License`.
-- **The square font is for the word `perINKpheraL` only.** All other text on the device (splash, menu, host applications) is set in **Departure Mono** (SIL OFL 1.1, https://github.com/rektdeckard/departure-mono), a monospaced pixel font. It is rasterized by `tools/fontgen` once, at 11 px, where it lands on its own pixel grid; every size on the device is that bitmap with each dot drawn 2, 3, 4, 6 or 10 pixels large, so a new size costs no flash. It was chosen on the panel against Jersey 20, Jersey 25 and Terminus. **Jersey 25** (SIL OFL 1.1, heavier, proportional) comes later as an optional second font the user can pick in the host settings; it is not in the firmware yet. The file is `assets/fonts/DepartureMono-Regular.otf` with `OFL-DepartureMono.txt`. Outline fonts rasterized to 1 bit (Tektur was the first try) come out thin and ragged at this pixel density - use fonts drawn for the pixel grid. Fonts are OFL/CC0 only.
+- **The square font is for the word `perINKpheraL` only.** All other text on the device (splash, menu, host applications) is set in **Departure Mono** (SIL OFL 1.1, https://github.com/rektdeckard/departure-mono), a monospaced pixel font. It is rasterized by `tools/fontgen` once, at 11 px, where it lands on its own pixel grid; every size on the device is that bitmap with each dot drawn 1, 2, 3, 4, 6 or 10 pixels large, so a new size costs no flash. It was chosen on the panel against Jersey 20, Jersey 25 and Terminus. **Jersey 25** (SIL OFL 1.1, heavier, proportional) comes later as an optional second font the user can pick in the host settings; it is not in the firmware yet. The file is `assets/fonts/DepartureMono-Regular.otf` with `OFL-DepartureMono.txt`. Outline fonts rasterized to 1 bit (Tektur was the first try) come out thin and ragged at this pixel density - use fonts drawn for the pixel grid. Fonts are OFL/CC0 only.
 - Palette: black #141413 and paper #E9E7E1 (on the device - the panel's native grey-white). Every host screen is black on white. No halftones, dithering or gradients.
 - Do not propose: a plate or frame around `INK`, dithered letters, white on black, decorations on the splash, other typefaces.
 

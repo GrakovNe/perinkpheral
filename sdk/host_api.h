@@ -175,6 +175,7 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 #define HOST_FONT_LARGE   2 /* 44 px */
 #define HOST_FONT_DISPLAY 3 /* 66 px */
 #define HOST_FONT_HUGE    4 /* 110 px: five characters fill the width */
+#define HOST_FONT_SMALL   5 /* 11 px: secondary text beside something larger */
 
 /* y is the top of the line, not the baseline. Text longer than
  * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
