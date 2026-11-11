@@ -54,6 +54,14 @@
   otherwise it returns to the one it runs now.</p>
   <p class="result" id="firmware-result"></p>
 </form>
+
+<h2>Reset</h2>
+<form id="reset">
+  <button>Erase and restart</button>
+  <p class="note">Forgets the Wi-Fi network, every setting and everything the applications
+  stored. The device comes back with its own access point, waiting to be set up.</p>
+  <p class="result" id="reset-result"></p>
+</form>
 </main>
 
 <script>
@@ -103,6 +111,12 @@ document.getElementById("firmware").addEventListener("submit", event => {
   event.preventDefault();
   const image = document.getElementById("image").files[0];
   send(event.target, "firmware-result", "/api/ota", { method: "POST", body: image });
+});
+
+document.getElementById("reset").addEventListener("submit", event => {
+  event.preventDefault();
+  if (!confirm("Erase all settings and restart the device?")) return;
+  send(event.target, "reset-result", "/api/reset", { method: "POST" });
 });
 
 loadStatus();

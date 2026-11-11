@@ -17,6 +17,7 @@
 
 #include "log_capture.h"
 #include "ota.h"
+#include "reset.h"
 #include "settings.h"
 #include "wifi.h"
 
@@ -224,6 +225,18 @@ static esp_err_t handle_wifi(httpd_req_t *request)
     return result;
 }
 
+/* Back to how the device left the bench: the settings and everything the
+ * applications stored are erased on the way up, and with no network the
+ * device comes back with its setup access point. */
+static esp_err_t handle_reset(httpd_req_t *request)
+{
+    ESP_LOGW(TAG, "factory reset asked for, restarting");
+    reset_mark_factory();
+    esp_err_t result = send_ok(request, "erased, restarting");
+    restart_soon();
+    return result;
+}
+
 /* The image is the request body:
  *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
 static esp_err_t handle_ota(httpd_req_t *request)
@@ -302,6 +315,7 @@ void web_server_start(appconf_t *config, const char device_id[5])
         { .uri = "/api/log", .method = HTTP_GET, .handler = handle_log },
         { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
         { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
+        { .uri = "/api/reset", .method = HTTP_POST, .handler = handle_reset },
     };
     for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
