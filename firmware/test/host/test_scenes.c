@@ -87,14 +87,18 @@ static void test_menu_window(void)
     CHECK(screens_menu_first_row(0, 0, visible) == 0);
 }
 
-static void test_splash(void)
-{
-    scene_t *splash = scene_splash();
-    CHECK(splash->fullscreen);
-    CHECK(press(splash, SCENE_BUTTON_UP).kind == SCENE_BACK);
-    CHECK(press(splash, SCENE_BUTTON_OK).kind == SCENE_BACK);
-    CHECK(splash->ops->button(splash, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
-}
+/* What the splash shows: a scene that counts what is done to it. */
+static int picture_enters, picture_leaves, picture_draws;
+static bool picture_shown;
+
+static void picture_enter(scene_t *scene) { (void)scene; picture_enters++; }
+static void picture_leave(scene_t *scene) { (void)scene; picture_leaves++; }
+static void picture_draw(scene_t *scene, gfx_t *surface) { (void)scene; (void)surface; picture_draws++; }
+static bool picture_is_shown(scene_t *scene) { (void)scene; return picture_shown; }
+
+static const scene_ops_t PICTURE_OPS = { .enter = picture_enter, .leave = picture_leave,
+                                         .draw = picture_draw };
+static scene_t picture = { .ops = &PICTURE_OPS, .fullscreen = true };
 
 static int timer_set_id, timer_set_ms;
 
@@ -106,7 +110,7 @@ static void record_timer(int id, int32_t milliseconds)
 
 static void test_boot_splash(void)
 {
-    scene_t *boot = scene_boot_splash(&first_target, record_timer);
+    scene_t *boot = scene_boot_splash(&first_target, record_timer, NULL, NULL);
     CHECK(boot->fullscreen);
 
     /* it asks to be woken, and then moves on by itself */
@@ -124,12 +128,25 @@ static void test_boot_splash(void)
     boot->ops->leave(boot);
     CHECK(timer_set_ms == 0);
 
-    /* the splash opened from the menu has no timer and goes back */
-    scene_t *about = scene_splash();
-    timer_set_ms = -1;
-    about->ops->enter(about);
-    CHECK(timer_set_ms == -1);
-    CHECK(press(about, SCENE_BUTTON_OK).kind == SCENE_BACK);
+    /* a long press is somebody else's */
+    CHECK(boot->ops->button(boot, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
+
+    /* with a picture: it is held while the splash has the screen, and drawn
+     * only while it can be */
+    static uint8_t frame[400 * 300 / 8];
+    gfx_t surface;
+    gfx_init(&surface, frame, 400, 300);
+    boot = scene_boot_splash(&first_target, record_timer, &picture, picture_is_shown);
+    boot->ops->enter(boot);
+    CHECK(picture_enters == 1 && timer_set_ms > 0);
+    picture_shown = true;
+    boot->ops->draw(boot, &surface);
+    CHECK(picture_draws == 1);
+    picture_shown = false;
+    boot->ops->draw(boot, &surface);
+    CHECK(picture_draws == 1);
+    boot->ops->leave(boot);
+    CHECK(picture_leaves == 1 && timer_set_ms == 0);
 }
 
 int main(void)
@@ -139,6 +156,5 @@ int main(void)
     test_menu_back_and_long();
     test_empty_menu();
     test_menu_window();
-    test_splash();
     REPORT();
 }

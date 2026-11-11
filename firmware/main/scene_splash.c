@@ -13,26 +13,27 @@
 #define BOOT_LINGER_MS  6000
 #define BOOT_TIMER      0
 
+/* The splash is the About application's picture: one screen says what the
+ * device is, at power-up and from the menu. The application is somebody
+ * else's scene, held here for as long as the splash has the screen; when
+ * it cannot be shown the host draws the mark itself. */
 typedef struct {
-    scene_t            scene;
-    scene_t           *next;      /* NULL: the splash stays until a press */
+    scene_t             scene;
+    scene_t            *next;
     scenes_set_timer_fn set_timer;
+    scene_t            *picture; /* NULL: there is none */
+    scenes_is_shown_fn  picture_is_shown;
 } splash_scene_t;
 
-/* Any press is enough to leave it; at power-up that means: move on now. */
+/* Any press is enough to leave it: move on now. */
 static scene_reaction_t splash_button(scene_t *scene, scene_button_t button, scene_press_t press)
 {
     (void)button;
     const splash_scene_t *splash = (const splash_scene_t *)scene;
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
-    if (press != SCENE_PRESS_SHORT) {
-        return reaction;
-    }
-    if (splash->next != NULL) {
+    if (press == SCENE_PRESS_SHORT) {
         reaction.kind = SCENE_OPEN;
         reaction.open = splash->next;
-    } else {
-        reaction.kind = SCENE_BACK;
     }
     return reaction;
 }
@@ -40,16 +41,18 @@ static scene_reaction_t splash_button(scene_t *scene, scene_button_t button, sce
 static void splash_enter(scene_t *scene)
 {
     const splash_scene_t *splash = (const splash_scene_t *)scene;
-    if (splash->next != NULL) {
-        splash->set_timer(BOOT_TIMER, BOOT_LINGER_MS);
+    if (splash->picture != NULL && splash->picture->ops->enter != NULL) {
+        splash->picture->ops->enter(splash->picture);
     }
+    splash->set_timer(BOOT_TIMER, BOOT_LINGER_MS);
 }
 
 static void splash_leave(scene_t *scene)
 {
     const splash_scene_t *splash = (const splash_scene_t *)scene;
-    if (splash->next != NULL) {
-        splash->set_timer(BOOT_TIMER, 0);
+    splash->set_timer(BOOT_TIMER, 0);
+    if (splash->picture != NULL && splash->picture->ops->leave != NULL) {
+        splash->picture->ops->leave(splash->picture);
     }
 }
 
@@ -63,8 +66,12 @@ static scene_reaction_t splash_timer(scene_t *scene, int timer_id)
 
 static void splash_draw(scene_t *scene, gfx_t *surface)
 {
-    (void)scene;
-    screens_splash(surface);
+    const splash_scene_t *splash = (const splash_scene_t *)scene;
+    if (splash->picture != NULL && splash->picture_is_shown(splash->picture)) {
+        splash->picture->ops->draw(splash->picture, surface);
+    } else {
+        screens_splash(surface);
+    }
 }
 
 static const scene_ops_t SPLASH_OPS = {
@@ -75,16 +82,13 @@ static const scene_ops_t SPLASH_OPS = {
     .draw = splash_draw,
 };
 
-scene_t *scene_splash(void)
-{
-    static splash_scene_t about = { .scene = { .ops = &SPLASH_OPS, .fullscreen = true } };
-    return &about.scene;
-}
-
-scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer)
+scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t *picture,
+                           scenes_is_shown_fn picture_is_shown)
 {
     static splash_scene_t boot = { .scene = { .ops = &SPLASH_OPS, .fullscreen = true } };
     boot.next = next;
     boot.set_timer = set_timer;
+    boot.picture = picture_is_shown != NULL ? picture : NULL;
+    boot.picture_is_shown = picture_is_shown;
     return &boot.scene;
 }

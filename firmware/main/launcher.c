@@ -36,6 +36,7 @@ extern const uint8_t system_about_wasm_end[] asm("_binary_system_about_wasm_end"
 extern const char system_about_manifest_start[] asm("_binary_system_about_manifest_start");
 
 static app_manifest_t s_about;
+static scene_t       *s_about_scene;
 
 /* NULL when the manifest it was built with is not one this host reads:
  * a mistake of the build, said in the log. */
@@ -70,13 +71,18 @@ void launcher_start(void)
         }
     }
     s_entries[s_entry_count++] = (menu_entry_t){ "Device", NULL, scene_device() };
-    scene_t *about = system_app_scene(&s_about, system_about_manifest_start,
-                                      system_about_wasm_start,
-                                      (size_t)(system_about_wasm_end - system_about_wasm_start));
-    if (about != NULL) {
-        s_entries[s_entry_count++] =
-            (menu_entry_t){ s_about.title, s_about.has_icon ? s_about.icon : NULL, about };
+    s_about_scene = system_app_scene(&s_about, system_about_manifest_start,
+                                     system_about_wasm_start,
+                                     (size_t)(system_about_wasm_end - system_about_wasm_start));
+    if (s_about_scene != NULL) {
+        s_entries[s_entry_count++] = (menu_entry_t){
+            s_about.title, s_about.has_icon ? s_about.icon : NULL, s_about_scene };
     }
+}
+
+scene_t *launcher_about(void)
+{
+    return s_about_scene;
 }
 
 const menu_entry_t *launcher_entries(int *count)

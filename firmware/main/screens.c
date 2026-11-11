@@ -15,11 +15,10 @@
  * logo word is the square font; everything else is Departure Mono. */
 
 /* The prototype shows this, not the build's version. */
-#define SPLASH_VERSION "ver 1.234.5"
 #define LOGO_WORD      "perINKpheraL"
 #define LOGO_SCALE     5 /* 27 px squares, one stroke apart: 357 px wide */
 #define LOGO_CENTER_Y  118
-static const int SPLASH_LINE_BASELINES[] = { 222, 254, 282 };
+static const int SPLASH_LINE_BASELINES[] = { 238, 270 };
 
 static void centered(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
 {
@@ -33,9 +32,8 @@ void screens_splash(gfx_t *g)
     gfx_text_sq_ex(g, (g->w - logo_width) / 2, LOGO_CENTER_Y - logo_height / 2, LOGO_WORD,
                    LOGO_SCALE, true, LOGO_SCALE);
 
-    centered(g, SPLASH_LINE_BASELINES[0], gfx_font_system(), SPLASH_VERSION);
-    centered(g, SPLASH_LINE_BASELINES[1], gfx_font_system(), "(c) 2026 Max Grakov");
-    centered(g, SPLASH_LINE_BASELINES[2], gfx_font_system(), "MIT License");
+    centered(g, SPLASH_LINE_BASELINES[0], gfx_font_system(), "(c) 2026 Max Grakov");
+    centered(g, SPLASH_LINE_BASELINES[1], gfx_font_system(), "MIT License");
 }
 
 #define MARGIN        16

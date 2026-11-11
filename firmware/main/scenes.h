@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "scene.h"
@@ -29,15 +30,18 @@ scene_t *scene_menu(const menu_entry_t *entries, int count);
 /* The device's name, firmware, memory. */
 scene_t *scene_device(void);
 
-/* The splash, on the whole screen, until a press. */
-scene_t *scene_splash(void);
-
 /* A scene sets a timer through this; 0 ms cancels. */
 typedef void (*scenes_set_timer_fn)(int id, int32_t milliseconds);
 
+/* Whether a scene held by another has a picture of its own to draw now. */
+typedef bool (*scenes_is_shown_fn)(scene_t *scene);
+
 /* The splash at power-up: it gives the screen to `next` by itself after
- * a few seconds, or at once on a press. */
-scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer);
+ * a few seconds, or at once on a press. What it shows is `picture`, a
+ * full-screen scene - the About application - while `picture_is_shown`
+ * says it can draw; without one, or when it cannot, the host's own mark. */
+scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t *picture,
+                           scenes_is_shown_fn picture_is_shown);
 
 /* How to give the device a Wi-Fi network: shown when it has none. */
 scene_t *scene_setup(void);

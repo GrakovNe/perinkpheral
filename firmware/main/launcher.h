@@ -19,6 +19,10 @@ extern "C" {
 /* Reads the store and builds the scenes; once, at start. */
 void launcher_start(void);
 
+/* The About application, which is also what the splash shows; NULL when
+ * the firmware was built without a sound one. */
+scene_t *launcher_about(void);
+
 /* What the menu lists: applications by title, then the host's pages. */
 const menu_entry_t *launcher_entries(int *count);
 

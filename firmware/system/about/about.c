@@ -2,18 +2,16 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * About: the mark, the version of the firmware, whose it is, and where the
- * project lives - as a code a phone reads. A system application: it is
+ * About: the mark, the version of the firmware, where the project lives -
+ * as a code a phone reads - and whose it is. A system application: it is
  * part of the firmware and written with the same SDK as any other.
  */
 #include "app_text.h"
 #include "host_api.h"
 
-#define PROJECT_ADDRESS "github.com/GrakovNe/perinkpheral"
-
-/* "https://" PROJECT_ADDRESS as a QR code, medium error correction: made
- * once with the generator the host has (components/qr), since the address
- * does not change. */
+/* "https://github.com/GrakovNe/perinkpheral" as a QR code, medium error
+ * correction: made once with the generator the host has (components/qr),
+ * since the address does not change. */
 #define CODE_MODULES 29
 static const char *const CODE[CODE_MODULES] = {
     "#######..#.##...#####.#######",
@@ -48,12 +46,13 @@ static const char *const CODE[CODE_MODULES] = {
 };
 
 #define LOGO_SCALE    5
-#define LOGO_TOP      18
-#define VERSION_TOP   58
-#define LINE_STEP     28
-#define CODE_TOP      150
+#define LOGO_TOP      24
+#define VERSION_TOP   68
+#define CODE_TOP      112
 #define MODULE_PIXELS 4
-#define ADDRESS_TOP   274
+/* The small print at the bottom: two lines. */
+#define CREDITS_TOP   256
+#define CREDITS_STEP  16
 
 static void draw_centered(int32_t top, int32_t font, const char *text)
 {
@@ -94,14 +93,14 @@ void app_on_draw(void)
     char version[48];
     app_text_t text;
     app_text_start(&text, version, sizeof version);
-    app_text_add(&text, "ver ");
+    app_text_add(&text, "v");
     int32_t prefix = app_text_length(version);
     int32_t length = sys_info(SYS_INFO_VERSION, version + prefix, sizeof version - prefix - 1);
     version[prefix + (length > 0 ? length : 0)] = '\0';
     draw_centered(VERSION_TOP, HOST_FONT_TEXT, version);
-    draw_centered(VERSION_TOP + LINE_STEP, HOST_FONT_TEXT, "(c) 2026 Max Grakov");
-    draw_centered(VERSION_TOP + 2 * LINE_STEP, HOST_FONT_TEXT, "MIT License");
 
     draw_code((gfx_width() - CODE_MODULES * MODULE_PIXELS) / 2, CODE_TOP);
-    draw_centered(ADDRESS_TOP, HOST_FONT_SMALL, PROJECT_ADDRESS);
+
+    draw_centered(CREDITS_TOP, HOST_FONT_SMALL, "(c) 2026 Max Grakov");
+    draw_centered(CREDITS_TOP + CREDITS_STEP, HOST_FONT_SMALL, "MIT License");
 }

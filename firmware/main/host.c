@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
+#include "app_scene.h"
 #include "app_manifest.h"
 #include "devconsole.h"
 #include "app_delivery.h"
@@ -135,6 +136,13 @@ static scene_t *scene_after_boot(scene_t *menu)
     return last_scene != NULL ? last_scene : menu;
 }
 
+/* The About application as the splash: only while it is loaded and has
+ * not stopped, or the splash would be its message of a crash. */
+static bool about_is_shown(scene_t *about)
+{
+    return app_scene_app(about) != NULL;
+}
+
 /* An application took the screen: that is where to return after a restart. */
 static void remember_current_app(const wm_t *wm)
 {
@@ -155,7 +163,10 @@ void host_run(void)
     gfx_init(&screen, s_frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     wm_t wm;
-    wm_init(&wm, menu, scene_boot_splash(scene_after_boot(menu), timers_set), draw_header, NULL);
+    wm_init(&wm, menu,
+            scene_boot_splash(scene_after_boot(menu), timers_set, launcher_about(),
+                              about_is_shown),
+            draw_header, NULL);
 
     app_delivery_state_t delivery_state;
     app_delivery_init(&delivery_state);
