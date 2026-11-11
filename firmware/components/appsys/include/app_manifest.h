@@ -114,7 +114,17 @@ const char *app_manifest_result_text(app_manifest_result_t result);
  * The device's web page draws a form from it without running the
  * application. A value is text in the application's own store under
  * `key`, so the code reads it with kv_get() by the same name and the host
- * puts it into URLs and headers as {{key}}. */
+ * puts it into URLs and headers as {{key}}.
+ *
+ * A place is asked for by its name, and a request needs where it is:
+ *
+ *       { "key": "city", "type": "place", "title": "City",
+ *         "latitude": "lat", "longitude": "lon" },
+ *       { "key": "lat", "type": "number", "title": "Latitude" },
+ *       { "key": "lon", "type": "number", "title": "Longitude" }
+ *
+ * The page offers places as the name is typed and, with the one chosen,
+ * fills the two number settings the place names; it does not show them. */
 #define APP_SETTINGS_MAX        8
 #define APP_SETTING_KEY_MAX     15 /* a kv key */
 #define APP_SETTING_TITLE_MAX   31
@@ -129,6 +139,7 @@ typedef enum {
     APP_SETTING_NUMBER,
     APP_SETTING_CHOICE, /* one of "options" */
     APP_SETTING_TOGGLE, /* "1" or "0" */
+    APP_SETTING_PLACE,  /* the name of a place; see below */
 } app_setting_type_t;
 
 /* Whether `value` may be stored under `key`: the manifest has such a

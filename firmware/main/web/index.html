@@ -49,6 +49,12 @@
                          vertical-align: -.2rem; }
   input[type=file] { height: auto; }
   input:disabled { color: var(--dim); border-color: var(--line); }
+  .place { position: relative; }
+  .place ul { position: absolute; z-index: 1; left: 0; right: 0; top: 100%; margin: -1px 0 0;
+              padding: 0; list-style: none; background: var(--paper); border: 1px solid var(--ink); }
+  .place ul:empty { display: none; }
+  .place li { padding: .5rem; cursor: pointer; }
+  .place li:hover, .place li.current { background: var(--ink); color: var(--paper); }
   input, select, button { height: 2.6rem; }
   button { margin-top: 1rem; padding: 0 1rem; font: inherit; cursor: pointer;
            color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
@@ -487,6 +493,101 @@ function showPane(name) {
 
 let installed = [], sources = [], offered = [];
 
+const PLACES_URL = "https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name=";
+const PLACE_TYPING_PAUSE_MS = 250;
+
+/* The device keeps ASCII: "Sao Paulo" for what the service calls "São Paulo". */
+function ascii(text) {
+  return text.normalize("NFD").replace(/[^ -~]/g, "");
+}
+
+/* A place is typed by its name and chosen from what the name finds; the choice fills
+   the two hidden numbers its setting names. A name that was typed and not chosen is
+   not a place: the form says so when it is saved. */
+function placeField(input, latitude, longitude) {
+  const list = make("ul"), box = make("div", { className: "place" });
+  let found = [], current = -1, pause = 0, asked = 0;
+  input.dataset.chosen = input.value;
+  const offer = places => {
+    found = places;
+    current = -1;
+    list.replaceChildren(...places.map((place, index) => {
+      const row = make("li", { textContent: place.name });
+      row.addEventListener("mousedown", event => { event.preventDefault(); choose(index); });
+      return row;
+    }));
+  };
+  const choose = index => {
+    input.value = input.dataset.chosen = found[index].name;
+    latitude.value = found[index].latitude;
+    longitude.value = found[index].longitude;
+    offer([]);
+  };
+  const point = index => {
+    current = (index + found.length) % found.length;
+    [...list.children].forEach((row, at) => row.classList.toggle("current", at === current));
+  };
+  input.addEventListener("input", () => {
+    clearTimeout(pause);
+    const name = input.value.trim(), question = ++asked;
+    if (!name) {
+      input.dataset.chosen = latitude.value = longitude.value = "";
+      return offer([]);
+    }
+    pause = setTimeout(async () => {
+      try {
+        const answer = await (await fetch(PLACES_URL + encodeURIComponent(name))).json();
+        if (question !== asked) return;
+        offer((answer.results || []).map(place => ({
+          name: ascii([place.name, place.admin1, place.country].filter(part => part).join(", "))
+            .slice(0, input.maxLength),
+          latitude: place.latitude.toFixed(4), longitude: place.longitude.toFixed(4) })));
+      } catch (error) {
+        offer([]);
+      }
+    }, PLACE_TYPING_PAUSE_MS);
+  });
+  input.addEventListener("keydown", event => {
+    if (!found.length) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      point(current + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      choose(current < 0 ? 0 : current);
+    } else if (event.key === "Escape") {
+      event.stopPropagation();
+      event.preventDefault();
+      offer([]);
+    }
+  });
+  input.addEventListener("blur", () => offer([]));
+  box.append(input, list);
+  return box;
+}
+
+/* The fields of an application's settings, as its manifest describes them. */
+function settingFields(app) {
+  const filled = new Set(app.settings.filter(setting => setting.type === "place")
+    .flatMap(place => [place.latitude, place.longitude]));
+  const hidden = {}, parts = [];
+  for (const setting of app.settings) {
+    if (!filled.has(setting.key)) continue;
+    hidden[setting.key] = make("input", { type: "hidden", value: app.values[setting.key] });
+    hidden[setting.key].dataset.key = setting.key;
+    hidden[setting.key].dataset.type = setting.type;
+    parts.push(hidden[setting.key]);
+  }
+  for (const setting of app.settings) {
+    if (filled.has(setting.key)) continue;
+    const field = settingField(app, setting);
+    if (setting.type === "place")
+      field[1] = placeField(field[1], hidden[setting.latitude], hidden[setting.longitude]);
+    parts.push(...field);
+  }
+  return parts;
+}
+
 /* One field of an application's settings, as its manifest describes it. */
 function settingField(app, setting) {
   const id = "setting-" + setting.key, value = app.values[setting.key];
@@ -525,7 +626,7 @@ let appInDialog = null;
 function openAppSettings(app) {
   appInDialog = app;
   show("app-dialog-title", app.title);
-  byId("app-fields").replaceChildren(...app.settings.flatMap(setting => settingField(app, setting)));
+  byId("app-fields").replaceChildren(...settingFields(app));
   byId("app-dialog").showModal();
 }
 
@@ -695,6 +796,12 @@ byId("refresh-catalogs").addEventListener("click", event => busy(event.target, l
 byId("app-settings").addEventListener("submit", async event => {
   event.preventDefault();
   const settings = {};
+  for (const input of byId("app-fields").querySelectorAll("[data-type=place]")) {
+    if (input.value !== input.dataset.chosen) {
+      toast("Select a place from the list.", "error");
+      return input.focus();
+    }
+  }
   for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
     if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
     else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;

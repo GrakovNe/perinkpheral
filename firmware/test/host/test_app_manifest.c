@@ -146,6 +146,22 @@ static void test_settings(void)
     memset(too_long, 'x', sizeof too_long - 1);
     too_long[sizeof too_long - 1] = '\0';
     CHECK(!app_manifest_accepts_setting(good, "city", too_long, NULL));
+
+    /* a place is a name, and names the two numbers the page fills for it */
+    const char *with_place = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}";
+    CHECK(parse(with_place) == APP_MANIFEST_OK);
+    CHECK(app_manifest_accepts_setting(with_place, "city", "Berlin, Germany", NULL));
+    CHECK(app_manifest_accepts_setting(with_place, "lat", "52.52", NULL));
+    CHECK(!app_manifest_accepts_setting(with_place, "lon", "east", NULL));
+    static const char *const BAD_PLACES[] = {
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lat\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"text\",\"title\":\"N\"}]}",
+    };
+    for (size_t i = 0; i < sizeof BAD_PLACES / sizeof BAD_PLACES[0]; i++) {
+        CHECK(parse(BAD_PLACES[i]) == APP_MANIFEST_BAD_SETTING);
+    }
 }
 
 static void test_hosts(void)

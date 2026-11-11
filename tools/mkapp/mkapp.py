@@ -47,7 +47,7 @@ SETTING_TITLE_MAX = 31
 SETTING_HELP_MAX = 95
 SETTING_OPTIONS_MAX = 8
 SETTING_OPTION_MAX = 23
-SETTING_TYPES = ("text", "secret", "number", "choice", "toggle")
+SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place")
 FILE_NAME_MAX = 23
 FILES_MAX_BYTES = 100 * 1024
 HEADER_NAME_MAX = 31
@@ -266,6 +266,14 @@ def check_settings(path, settings):
                      or not 0 < len(option.encode()) <= SETTING_OPTION_MAX for option in options)):
             sys.exit("%s: \"options\" must be 1-%d strings of 1-%d bytes"
                      % (where, SETTING_OPTIONS_MAX, SETTING_OPTION_MAX))
+    numbers = {setting["key"] for setting in settings if setting["type"] == "number"}
+    for number, setting in enumerate(settings):
+        if setting["type"] != "place":
+            continue
+        latitude, longitude = setting.get("latitude"), setting.get("longitude")
+        if latitude == longitude or latitude not in numbers or longitude not in numbers:
+            sys.exit("%s: setting %d: a place names two number settings as its "
+                     "\"latitude\" and \"longitude\"" % (path, number))
 
 
 def check_manifest(app_dir):

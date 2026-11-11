@@ -120,7 +120,7 @@ static bool read_poll(const cJSON *poll, app_poll_t *parsed)
 static const char *const SETTING_TYPES[] = {
     [APP_SETTING_TEXT] = "text",     [APP_SETTING_SECRET] = "secret",
     [APP_SETTING_NUMBER] = "number", [APP_SETTING_CHOICE] = "choice",
-    [APP_SETTING_TOGGLE] = "toggle",
+    [APP_SETTING_TOGGLE] = "toggle", [APP_SETTING_PLACE] = "place",
 };
 #define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
 
@@ -161,6 +161,11 @@ static int setting_type(const cJSON *setting)
             continue;
         }
         const cJSON *options = cJSON_GetObjectItemCaseSensitive(setting, "options");
+        if (known == APP_SETTING_PLACE &&
+            (!is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "latitude")) ||
+             !is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "longitude")))) {
+            return -1;
+        }
         if (known != APP_SETTING_CHOICE) {
             return options == NULL ? known : -1;
         }
@@ -180,6 +185,30 @@ static int setting_type(const cJSON *setting)
     return -1;
 }
 
+/* Whether the settings have a number under the key that `named` holds. */
+static bool has_number_setting(const cJSON *settings, const cJSON *named)
+{
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, settings)
+    {
+        if (setting_type(setting) == APP_SETTING_NUMBER &&
+            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring,
+                   named->valuestring) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* A place fills two number settings: they have to be there, and be two. */
+static bool is_sound_place(const cJSON *settings, const cJSON *place)
+{
+    const cJSON *latitude = cJSON_GetObjectItemCaseSensitive(place, "latitude");
+    const cJSON *longitude = cJSON_GetObjectItemCaseSensitive(place, "longitude");
+    return strcmp(latitude->valuestring, longitude->valuestring) != 0 &&
+           has_number_setting(settings, latitude) && has_number_setting(settings, longitude);
+}
+
 static bool are_sound_settings(const cJSON *settings)
 {
     if (settings == NULL) {
@@ -191,7 +220,8 @@ static bool are_sound_settings(const cJSON *settings)
     const cJSON *setting;
     cJSON_ArrayForEach(setting, settings)
     {
-        if (setting_type(setting) < 0) {
+        int type = setting_type(setting);
+        if (type < 0 || (type == APP_SETTING_PLACE && !is_sound_place(settings, setting))) {
             return false;
         }
         /* Two settings under one key would be one value with two forms. */
@@ -488,7 +518,8 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"hosts\" must be a list of at most 4 host names";
     case APP_MANIFEST_BAD_SETTING:
         return "\"settings\" must be a list of at most 8, each with a key, a type "
-               "(text, secret, number, choice, toggle) and a title";
+               "(text, secret, number, choice, toggle, place) and a title; a place names two "
+               "number settings as its \"latitude\" and \"longitude\"";
     case APP_MANIFEST_OTHER_ABI:
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:
