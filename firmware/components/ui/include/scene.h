@@ -27,7 +27,12 @@ typedef enum {
     SCENE_BUTTON_BACK,
 } scene_button_t;
 
+/* A press arrives as it happens (down, up) and as what it meant (short,
+ * long): down, up, short - or down, long, up. A scene that only wants the
+ * meaning ignores the first two. */
 typedef enum {
+    SCENE_PRESS_DOWN,
+    SCENE_PRESS_UP,
     SCENE_PRESS_SHORT,
     SCENE_PRESS_LONG,
 } scene_press_t;

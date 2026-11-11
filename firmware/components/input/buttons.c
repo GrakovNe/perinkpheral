@@ -37,11 +37,12 @@ static void buttons_task(void *arg)
     for (;;) {
         uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
         for (int i = 0; i < BUTTONS_COUNT; i++) {
-            btn_event_t event = btn_core_feed(&core[i], gpio_get_level(s_gpio[i]), now_ms, &s_cfg);
-            if (event == BTN_NONE) {
-                continue;
+            btn_event_t events[BTN_EVENTS_PER_SAMPLE];
+            int count =
+                btn_core_feed(&core[i], gpio_get_level(s_gpio[i]), now_ms, &s_cfg, events);
+            for (int event = 0; event < count; event++) {
+                s_sink((uint8_t)i, events[event]);
             }
-            s_sink((uint8_t)i, event);
         }
         vTaskDelay(pdMS_TO_TICKS(SAMPLE_MS));
     }

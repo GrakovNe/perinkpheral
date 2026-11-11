@@ -48,8 +48,16 @@ APP_EXPORT(app_on_focus, void app_on_focus(void));
 APP_EXPORT(app_on_blur, void app_on_blur(void));
 
 /* button: 1..4, as they sit on the device. The host's own layout is 1 up,
- * 2 ok, 3 down, 4 back; a long press on 4 never arrives, it opens the
- * menu. */
+ * 2 ok, 3 down, 4 back.
+ *
+ * A press arrives twice over: as it happens, for an application that
+ * follows the finger - HOST_PRESS_DOWN, then HOST_PRESS_UP - and as what
+ * it meant: HOST_PRESS_SHORT right after the up, or HOST_PRESS_LONG while
+ * the button is still held, after which the release is only an up. Most
+ * applications look at short and long and ignore the rest. A long press
+ * on 4 never arrives: it opens the menu. */
+#define HOST_PRESS_DOWN  0
+#define HOST_PRESS_UP    1
 #define HOST_PRESS_SHORT 2
 #define HOST_PRESS_LONG  3
 APP_EXPORT(app_on_button, void app_on_button(int32_t button, int32_t press));

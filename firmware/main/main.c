@@ -42,9 +42,15 @@ static void on_wifi_changed(void)
 }
 
 /* Runs in the buttons task: only hands the press over to the host. */
-static void on_button_pressed(uint8_t index, btn_event_t press)
+static void on_button_event(uint8_t index, btn_event_t event)
 {
-    events_post_button(index, press == BTN_LONG);
+    static const event_press_t PRESS_OF[] = {
+        [BTN_DOWN] = EVENT_PRESS_DOWN,
+        [BTN_UP] = EVENT_PRESS_UP,
+        [BTN_SHORT] = EVENT_PRESS_SHORT,
+        [BTN_LONG] = EVENT_PRESS_LONG,
+    };
+    events_post_button(index, PRESS_OF[event]);
 }
 
 void app_main(void)
@@ -78,7 +84,7 @@ void app_main(void)
         .keepalive_ms = cfg->refresh_keepalive_h * 3600u * 1000u,
     };
     display_start(&refresh_policy);
-    buttons_start(on_button_pressed);
+    buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();
 

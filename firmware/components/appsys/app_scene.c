@@ -94,13 +94,21 @@ static scene_reaction_t app_scene_button(scene_t *scene, scene_button_t button,
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (!is_running(self)) {
-        /* Nothing answers there any more: any press leaves. */
-        scene_reaction_t leave = { SCENE_BACK, NULL };
-        return leave;
+        /* Nothing answers there any more: a press leaves. Only the press as
+         * a whole - leaving on the way down would hand the rest of it to
+         * the menu, which would open this application again. */
+        scene_reaction_t reaction = { press == SCENE_PRESS_SHORT ? SCENE_BACK : SCENE_IGNORED,
+                                      NULL };
+        return reaction;
     }
+    static const int HOST_PRESS_OF[] = {
+        [SCENE_PRESS_DOWN] = HOST_PRESS_DOWN,
+        [SCENE_PRESS_UP] = HOST_PRESS_UP,
+        [SCENE_PRESS_SHORT] = HOST_PRESS_SHORT,
+        [SCENE_PRESS_LONG] = HOST_PRESS_LONG,
+    };
     /* Applications count buttons 1..4, as they sit on the device. */
-    app_button(self->app, (int)button + 1,
-               press == SCENE_PRESS_LONG ? HOST_PRESS_LONG : HOST_PRESS_SHORT);
+    app_button(self->app, (int)button + 1, HOST_PRESS_OF[press]);
     return reaction_of(self);
 }
 

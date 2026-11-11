@@ -82,7 +82,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 - FS: LittleFS (partition `apps`, 1 MB). NVS for the applications' `kv_*` and the host settings.
 - Network: `esp_http_client` (TLS through mbedTLS), `esp_http_server` for the web UI.
 - The display driver is our own, on top of `spi_master`: init, full refresh, partial refresh, panel deep sleep after every update. **SPI 2 MHz**, mode 0, CS toggled per byte - otherwise the refresh never finishes (see `AGENTS.md`).
-- Buttons: `gpio_config` input without the internal pull-up (the pull-up is on the module), active LOW, debounce 20 ms, short press / long press (≥600 ms).
+- Buttons: `gpio_config` input without the internal pull-up (the pull-up is on the module), active LOW, debounce 20 ms. A press is reported as it happens (down, up) and as what it meant (short, or long at ≥600 ms).
 
 ## Memory budget (the hard limit of the C6)
 - SRAM 512 KB, about 250-300 KB free after Wi-Fi + TLS. There is no PSRAM and there will be none.
@@ -198,7 +198,7 @@ There are no pointer callbacks. An application exports functions with fixed name
 ```
 app_init()
 app_on_focus() / app_on_blur()
-app_on_button(button 1..4, press)   // 2 short, 3 long; 0 down and 1 up are reserved
+app_on_button(button 1..4, press)   // 0 down, 1 up as it happens; 2 short, 3 long as what it meant
 app_on_timer(id)
 app_on_draw()                       // paint the whole picture from the state
 app_on_data(request, ptr, len, flags, http_status)   // a piece of the answer to poll number `request`
@@ -321,7 +321,7 @@ Open:
 - Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
 Open:
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
-- There are no down/up button events yet, only short/long.
+- The down and up events of real buttons have not been seen on the device: the development console types only short and long presses.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 

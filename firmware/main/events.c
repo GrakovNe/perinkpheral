@@ -29,12 +29,9 @@ bool events_post(const event_t *event)
     return true;
 }
 
-void events_post_button(uint8_t index, bool long_press)
+void events_post_button(uint8_t index, event_press_t press)
 {
-    event_t event = {
-        .kind = EVENT_BUTTON,
-        .button = { .index = index, .long_press = long_press },
-    };
+    event_t event = { .kind = EVENT_BUTTON, .button = { .index = index, .press = press } };
     events_post(&event);
 }
 

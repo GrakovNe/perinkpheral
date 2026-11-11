@@ -35,12 +35,12 @@ static void handle_key(char key)
 {
     int button = key_index(SHORT_PRESS_KEYS, key);
     if (button >= 0) {
-        events_post_button((uint8_t)button, false);
+        events_post_button((uint8_t)button, EVENT_PRESS_SHORT);
         return;
     }
     button = key_index(LONG_PRESS_KEYS, key);
     if (button >= 0) {
-        events_post_button((uint8_t)button, true);
+        events_post_button((uint8_t)button, EVENT_PRESS_LONG);
         return;
     }
     if (key == DUMP_FRAME_KEY) {

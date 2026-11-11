@@ -60,10 +60,18 @@ static const scene_button_t BUTTON_ROLE[] = {
     SCENE_BUTTON_UP, SCENE_BUTTON_OK, SCENE_BUTTON_DOWN, SCENE_BUTTON_BACK,
 };
 
-static void on_button(wm_t *wm, uint8_t index, bool long_press)
+static void on_button(wm_t *wm, uint8_t index, event_press_t press)
 {
-    ESP_LOGI(TAG, "button %d %s", index + 1, long_press ? "long" : "short");
-    wm_button(wm, BUTTON_ROLE[index], long_press ? SCENE_PRESS_LONG : SCENE_PRESS_SHORT);
+    static const scene_press_t SCENE_PRESS_OF[] = {
+        [EVENT_PRESS_DOWN] = SCENE_PRESS_DOWN,
+        [EVENT_PRESS_UP] = SCENE_PRESS_UP,
+        [EVENT_PRESS_SHORT] = SCENE_PRESS_SHORT,
+        [EVENT_PRESS_LONG] = SCENE_PRESS_LONG,
+    };
+    if (press == EVENT_PRESS_SHORT || press == EVENT_PRESS_LONG) {
+        ESP_LOGI(TAG, "button %d %s", index + 1, press == EVENT_PRESS_LONG ? "long" : "short");
+    }
+    wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
 
 /* Puts the frame together and offers it to the display if anything
@@ -139,7 +147,7 @@ void host_run(void)
         const scene_t *scene_before = wm.current;
         switch (event.kind) {
         case EVENT_BUTTON:
-            on_button(&wm, event.button.index, event.button.long_press);
+            on_button(&wm, event.button.index, event.button.press);
             break;
         case EVENT_TIMER:
             if (timers_take_due(event.timer.id)) {

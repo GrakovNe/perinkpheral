@@ -15,8 +15,8 @@ extern "C" {
 
 #define BUTTONS_COUNT 4
 
-/* Called from the buttons task for every press: index 0..3, BTN_SHORT or
- * BTN_LONG. It must not block. */
+/* Called from the buttons task for everything a button does: index 0..3
+ * and the event. It must not block. */
 typedef void (*buttons_sink_fn)(uint8_t index, btn_event_t event);
 
 void buttons_start(buttons_sink_fn sink);
