@@ -61,7 +61,7 @@ static void device_draw(scene_t *scene, gfx_t *surface)
     const screens_field_t fields[] = {
         { "Name", info.device_name },
         { "Wi-Fi", network },
-        { "Address", on_network ? wifi.address : WIFI_SETUP_ADDRESS },
+        { "IP address", on_network ? wifi.address : WIFI_SETUP_ADDRESS },
         { "Firmware", info.firmware_version },
         { "Slot", info.running_slot },
         { "Free memory", free_memory },

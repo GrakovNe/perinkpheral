@@ -24,7 +24,11 @@
   .head { display: flex; align-items: center; gap: .5rem 1rem; margin-bottom: 1.25rem;
           flex-wrap: wrap; }
   .head h2 { flex: 1; }
+  .count { color: var(--dim); font-weight: normal; }
   .note { color: var(--dim); margin: .5rem 0 0; }
+  .rows { display: grid; gap: .5rem; margin-top: .75rem; }
+  .rows div { display: flex; gap: .5rem; }
+  .rows button { margin: 0; padding: .5rem .85rem; }
   .result { min-height: 1.5rem; margin: .75rem 0 0; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem 1rem; margin: 0; }
   dt { color: var(--dim); } dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
@@ -33,6 +37,7 @@
           background: transparent; border: 1px solid var(--ink); border-radius: 0; }
   textarea { resize: vertical; }
   input[type=checkbox] { width: auto; margin-right: .5rem; }
+  input:disabled { color: var(--dim); border-color: var(--line); }
   button { margin-top: 1rem; padding: .5rem 1rem; font: inherit; cursor: pointer;
            color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
            border-radius: 0; }
@@ -98,9 +103,8 @@
 
 <section id="apps">
   <div class="head">
-    <h2>Apps</h2>
-    <span class="note" id="slots" style="margin:0"></span>
-    <button class="icon" id="open-sources" title="Catalogs"></button>
+    <h2>Apps <span class="count" id="slots"></span></h2>
+    <button class="icon" id="open-sources" title="Sources"></button>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
   <p class="result" id="apps-result"></p>
@@ -111,33 +115,24 @@
   <dl id="status"><dt>Loading</dt><dd></dd></dl>
 
   <h3>Firmware</h3>
-  <p class="note" id="release">The device runs the firmware shown above.</p>
-  <div class="buttons"><button class="quiet" id="check-release">Check for updates</button></div>
   <form id="firmware">
-    <label for="image">Install an image (perinkpheral.bin)</label>
     <input id="image" type="file" accept=".bin" required>
-    <button>Install and restart</button>
-    <p class="note">A new image is kept only if the device comes back reachable;
-    otherwise it returns to the one it runs now.</p>
+    <div class="buttons">
+      <button>Install</button>
+      <button type="button" class="quiet" id="check-release">Check for updates</button>
+    </div>
     <p class="result" id="firmware-result"></p>
   </form>
 
-  <h3>Languages</h3>
-  <p class="note">English, in ASCII. Other scripts come with version 2: there is
-  nothing to install yet.</p>
-
   <h3>Log</h3>
   <pre id="log">-</pre>
-  <div class="buttons"><button class="quiet" id="load-log">Read the log</button></div>
+  <div class="buttons"><button class="quiet" id="load-log">Refresh</button></div>
 
-  <h3>Restart and reset</h3>
+  <h3>Reset</h3>
   <div class="buttons">
     <button class="quiet" id="restart">Restart</button>
-    <button class="quiet" id="reset">Erase everything and restart</button>
+    <button class="quiet" id="reset">Factory reset</button>
   </div>
-  <p class="note">Erasing forgets the Wi-Fi network, every setting and everything the
-  applications stored. The device comes back with its own access point, waiting to be
-  set up.</p>
   <p class="result" id="device-result"></p>
 </section>
 
@@ -151,22 +146,21 @@
   </div>
 
   <form class="pane" id="general">
-    <label for="device_name">Name</label>
+    <label for="device_name">Device name</label>
     <input id="device_name" maxlength="32" autocomplete="off" required>
-    <p class="note">What the device calls itself, on its setup network too. On the local
-    network it answers to <span id="hostname">-</span>.</p>
+    <label for="hostname">Hostname</label>
+    <input id="hostname" disabled>
     <button>Save</button>
     <p class="result" id="general-result"></p>
   </form>
 
   <form class="pane" id="time">
-    <label for="tz">Time zone</label>
-    <input id="tz" maxlength="47" autocomplete="off" required>
-    <div class="buttons"><button type="button" class="quiet" id="tz-detect">Use this
-    browser's</button></div>
-    <p class="note">A POSIX time zone, the way the device keeps it. The button fills in the
-    zone of the computer or phone this page is open on.</p>
-    <label for="ntp_server">Time server</label>
+    <label for="tz">Time zone (POSIX)</label>
+    <div class="rows"><div>
+      <input id="tz" maxlength="47" autocomplete="off" required>
+      <button type="button" class="quiet" id="tz-detect">Detect</button>
+    </div></div>
+    <label for="ntp_server">NTP server</label>
     <input id="ntp_server" maxlength="64" autocomplete="off" required>
     <button>Save</button>
     <p class="result" id="time-result"></p>
@@ -175,47 +169,36 @@
   <form class="pane" id="display">
     <label for="refresh_full_every">Full refresh</label>
     <select id="refresh_full_every">
-      <option value="0">Always: every picture is clean, every one blinks</option>
-      <option value="2">After 2 quick ones</option>
-      <option value="5">After 5 quick ones</option>
-      <option value="10">After 10 quick ones</option>
-      <option value="20">After 20 quick ones</option>
-      <option value="50">After 50 quick ones</option>
-      <option value="255">Never: no blinking, traces pile up</option>
+      <option value="0">Every update</option>
+      <option value="2">Every 2 updates</option>
+      <option value="5">Every 5 updates</option>
+      <option value="10">Every 10 updates</option>
+      <option value="20">Every 20 updates</option>
+      <option value="50">Every 50 updates</option>
+      <option value="255">Never</option>
     </select>
-    <p class="note">A quick refresh leaves a faint trace of the picture before; a full one
-    blinks and wipes it. The screen is always wiped when another application takes it.</p>
-    <label for="refresh_min_data_s">Seconds between refreshes nobody asked for</label>
+    <label for="refresh_min_data_s">Minimum update interval, s</label>
     <input id="refresh_min_data_s" type="number" min="10" max="3600" required>
-    <p class="note">How often a clock or a forecast may change the picture by itself. A
-    press of a button is always answered at once. Fewer refreshes, longer life of the
-    panel.</p>
-    <label for="refresh_keepalive_h">Hours before the picture is refreshed anyway</label>
+    <label for="refresh_keepalive_h">Keep-alive refresh, h</label>
     <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
-    <label><input id="dither" type="checkbox">Greys by dithering</label>
-    <p class="note">The panel is black and white. With this on, an application's grey is a
-    fine pattern of both; off, it is whichever of the two is nearer.</p>
+    <label><input id="dither" type="checkbox">Dithering</label>
     <button>Save</button>
     <p class="result" id="display-result"></p>
   </form>
 
   <form class="pane" id="network">
-    <label for="ssid">Wi-Fi network</label>
+    <label for="ssid">SSID</label>
     <input id="ssid" maxlength="32" autocomplete="off" required>
     <label for="password">Password</label>
     <input id="password" type="password" maxlength="64" autocomplete="off">
-    <button>Save and restart</button>
-    <p class="note">The device restarts and joins this network. If it cannot, its own
-    access point comes back after two minutes.</p>
+    <button>Connect</button>
     <p class="result" id="network-result"></p>
   </form>
 </section>
 
 <section id="about">
   <div class="head"><h2>About</h2></div>
-  <p>perINKpheral is a desk e-paper companion: a screen and four buttons that live on a
-  shelf and show what you glance at. The device does the work itself - it fetches the data,
-  runs the application and draws the frame - with no server of anybody's in between.</p>
+  <p>A desk e-paper companion. Runs applications, fetches its own data, needs no server.</p>
   <dl>
     <dt>Author</dt><dd>Max Grakov</dd>
     <dt>License</dt><dd>MIT</dd>
@@ -225,18 +208,18 @@
     <dd><a href="https://github.com/GrakovNe/perinkpheral-apps">github.com/GrakovNe/perinkpheral-apps</a></dd>
   </dl>
 
-  <h3>Made with</h3>
+  <h3>Third-party</h3>
   <ul class="plain">
-    <li>Departure Mono <small>the typeface on the panel - Helena Zhang, SIL Open Font License 1.1</small></li>
-    <li>Wasm3 <small>the interpreter applications run in - MIT</small></li>
-    <li>QR Code generator <small>Project Nayuki - MIT</small></li>
-    <li>ESP-IDF <small>Espressif Systems - Apache License 2.0</small></li>
+    <li>Departure Mono <small>SIL Open Font License 1.1</small></li>
+    <li>Wasm3 <small>MIT</small></li>
+    <li>QR Code generator (Project Nayuki) <small>MIT</small></li>
+    <li>ESP-IDF <small>Apache License 2.0</small></li>
     <li>Mbed TLS <small>Apache License 2.0</small></li>
-    <li>cJSON <small>Dave Gamble and contributors - MIT</small></li>
+    <li>cJSON <small>MIT</small></li>
     <li>LittleFS and esp_littlefs <small>BSD 3-Clause, MIT</small></li>
   </ul>
 
-  <h3>The MIT License</h3>
+  <h3>License</h3>
   <pre>Copyright (c) 2026 Max Grakov
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
@@ -261,15 +244,11 @@ DEALINGS IN THE SOFTWARE.</pre>
 
 <dialog id="sources-dialog">
   <form id="sources">
-    <h2>Catalogs</h2>
-    <p class="note">Where applications come from: the address of a catalog folder, one on a
-    line, four at most. A link to a repository on GitHub, GitLab or Codeberg is read as its
-    <code>catalog</code> folder.</p>
-    <label for="source-list">Addresses</label>
-    <textarea id="source-list" rows="4" spellcheck="false"></textarea>
+    <h2>Sources</h2>
+    <div class="rows" id="source-rows"></div>
     <div class="buttons">
       <button>Save</button>
-      <button type="button" class="quiet" id="refresh-catalogs">Read them again</button>
+      <button type="button" class="quiet" id="refresh-catalogs">Update</button>
       <button type="button" class="quiet" data-close>Close</button>
     </div>
     <p class="result" id="sources-result"></p>
@@ -289,7 +268,7 @@ DEALINGS IN THE SOFTWARE.</pre>
 </dialog>
 
 <script>
-const SLOTS = 5, ZONE_NOT_SET = "UTC0", FULL_REFRESH_NEVER = 255;
+const SLOTS = 5, SOURCES_MAX = 4, ZONE_NOT_SET = "UTC0";
 const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
 const byId = id => document.getElementById(id);
 const show = (id, text) => { byId(id).textContent = text; };
@@ -335,14 +314,13 @@ async function ask(url, options) {
 /* Sends the request and puts the device's answer, or what went wrong, where it is read. */
 async function send(resultId, url, options, button) {
   if (button) button.disabled = true;
-  show(resultId, "Sending...");
+  show(resultId, "");
   let done = true;
   try {
     const answer = await ask(url, options);
     show(resultId, answer.ok || "Done.");
   } catch (error) {
-    show(resultId, error.message === "Failed to fetch" ? "No answer from the device."
-                                                       : error.message);
+    show(resultId, error.message === "Failed to fetch" ? "Device unreachable." : error.message);
     done = false;
   }
   if (button) button.disabled = false;
@@ -421,7 +399,7 @@ function settingField(app, setting) {
     } else if (setting.type === "secret") {
       input.type = "password";
       /* The device does not give a secret back: an empty field keeps the one it has. */
-      input.placeholder = value ? "set - type to replace" : "not set";
+      input.placeholder = value ? "Unchanged" : "Not set";
     } else {
       input.inputMode = setting.type === "number" ? "decimal" : "text";
       input.value = value;
@@ -431,7 +409,7 @@ function settingField(app, setting) {
   input.dataset.key = setting.key;
   input.dataset.type = setting.type;
   const parts = setting.type === "toggle" ? [label] : [label, input];
-  if (setting.help) parts.push(make("p", { className: "note", textContent: setting.help }));
+  if (setting.help) input.title = setting.help;
   return parts;
 }
 
@@ -450,7 +428,7 @@ function tile(app, have, source) {
   const picture = make("div", { className: "picture" + (app.icon ? "" : " none") });
   if (app.icon) picture.append(pixels(app.icon, 5));
   box.append(picture, make("b", { textContent: app.title }),
-             make("small", { textContent: app.version || "no version" }),
+             make("small", { textContent: app.version }),
              make("div", { className: "spring" }));
   if (have && have.settings.length) {
     const gear = make("button", { className: "icon", title: "Settings" });
@@ -472,12 +450,11 @@ function tile(app, have, source) {
     action.textContent = "Remove";
     action.classList.add("quiet");
     action.addEventListener("click", () => {
-      if (confirm("Remove " + app.title + "? Its settings stay for when it comes back. "
-                  + "The device restarts."))
+      if (confirm("Remove " + app.title + "? Settings are kept."))
         run("/api/apps/remove?" + query, { method: "POST" });
     });
   } else {
-    action.textContent = installed.length >= SLOTS ? "No place" : "Install";
+    action.textContent = "Install";
     action.disabled = installed.length >= SLOTS;
     action.addEventListener("click", install);
   }
@@ -500,8 +477,8 @@ function drawTiles() {
     if (!installed.some(have => have.name === offer.app.name))
       tiles.push(tile(offer.app, null, offer.source));
   byId("tiles").replaceChildren(...tiles);
-  if (!tiles.length) byId("tiles").textContent = "Nothing is installed and no catalog answers.";
-  show("slots", installed.length + " of " + SLOTS + " places taken");
+  if (!tiles.length) byId("tiles").textContent = "No apps.";
+  show("slots", "(" + installed.length + " / " + SLOTS + ")");
 }
 
 async function loadApps() {
@@ -512,7 +489,7 @@ async function loadApps() {
 
 async function loadCatalogs() {
   sources = (await ask("/api/sources")).sources;
-  byId("source-list").value = sources.join("\n");
+  drawSources(sources);
   const found = [], silent = [];
   for (let source = 0; source < sources.length; source++) {
     try {
@@ -526,7 +503,7 @@ async function loadCatalogs() {
   }
   offered = found;
   drawTiles();
-  show("apps-result", silent.length ? "No catalog at " + silent.join(", ") : "");
+  show("apps-result", silent.length ? "Source unavailable: " + silent.join(", ") : "");
 }
 
 /* A link to a repository as people paste it, read as the catalog folder in it. */
@@ -547,18 +524,54 @@ byId("open-sources").addEventListener("click", () => {
   byId("sources-dialog").showModal();
 });
 
+/* The list of sources: a line each. The first is the official catalog and
+ * stays; the others can be removed, and a new one is added at the end. */
+function sourceRow(address, isOfficial) {
+  const row = make("div"), input = make("input", { value: address, spellcheck: false });
+  input.disabled = isOfficial;
+  input.placeholder = "https://";
+  row.append(input);
+  if (!isOfficial) {
+    const remove = make("button", { type: "button", className: "quiet", textContent: "\u2212",
+                                    title: "Remove" });
+    remove.addEventListener("click", () => { row.remove(); drawAddButton(); });
+    row.append(remove);
+  }
+  return row;
+}
+
+function drawAddButton() {
+  const rows = byId("source-rows");
+  for (const old of rows.querySelectorAll(".add")) old.remove();
+  if (rows.querySelectorAll("input").length >= SOURCES_MAX) return;
+  const add = make("button", { type: "button", className: "quiet add", textContent: "+",
+                               title: "Add" });
+  add.addEventListener("click", () => {
+    const row = sourceRow("", false);
+    add.before(row);
+    row.querySelector("input").focus();
+    drawAddButton();
+  });
+  rows.append(add);
+}
+
+function drawSources(list) {
+  byId("source-rows").replaceChildren(...list.map((address, index) => sourceRow(address, index === 0)));
+  drawAddButton();
+}
+
 byId("sources").addEventListener("submit", async event => {
   event.preventDefault();
-  const lines = byId("source-list").value.split("\n").map(catalogAddress).filter(line => line);
-  if (await send("sources-result", "/api/sources", post({ sources: lines }), event.submitter))
+  const added = [...byId("source-rows").querySelectorAll("input:not(:disabled)")]
+    .map(input => catalogAddress(input.value)).filter(address => address);
+  if (await send("sources-result", "/api/sources", post({ sources: added }), event.submitter))
     loadCatalogs();
 });
 
 byId("refresh-catalogs").addEventListener("click", async event => {
   event.target.disabled = true;
-  show("sources-result", "Reading...");
   await loadCatalogs();
-  show("sources-result", offered.length + " applications in the catalogs.");
+  show("sources-result", "Updated.");
   event.target.disabled = false;
 });
 
@@ -578,10 +591,10 @@ for (const close of document.querySelectorAll("[data-close]"))
 
 /* ---- device ---- */
 
-const LABELS = { name: "Name", hostname: "On the network", firmware: "Firmware", built: "Built",
-                 idf: "ESP-IDF", slot: "Slot", wifi: "Wi-Fi", ssid: "Network",
-                 address: "Address", time: "Time", uptime: "Running for",
-                 free_memory: "Free memory" };
+const LABELS = { name: "Name", hostname: "Hostname", firmware: "Firmware", built: "Built",
+                 idf: "ESP-IDF", slot: "Slot", wifi: "Wi-Fi", ssid: "SSID",
+                 address: "IP address", time: "Time", uptime: "Uptime",
+                 free_memory: "Free memory", language: "Language" };
 let status = {};
 
 function duration(seconds) {
@@ -596,7 +609,8 @@ async function loadStatus() {
   const shown = Object.assign({}, status, {
     free_memory: Math.round(status.free_memory / 1024) + " KB",
     uptime: duration(status.uptime_s),
-    firmware: status.firmware + (status.on_probation ? " (on probation)" : ""),
+    firmware: status.firmware + (status.on_probation ? " (verifying)" : ""),
+    language: "English",
   });
   const rows = [];
   for (const key in LABELS)
@@ -608,22 +622,14 @@ async function loadStatus() {
 
 byId("check-release").addEventListener("click", async event => {
   event.target.disabled = true;
-  show("release", "Asking GitHub...");
   try {
     const answer = await fetch(RELEASES);
-    if (answer.status === 404) {
-      show("release", "No release has been published yet: the firmware comes as an image "
-                      + "you build and install below.");
-    } else {
-      const release = await answer.json();
-      show("release", release.tag_name === status.firmware
-           ? "The device runs the latest release, " + release.tag_name + "."
-           : "The latest release is " + release.tag_name + "; the device runs " + status.firmware
-             + ". Download its perinkpheral.bin from " + release.html_url
-             + " and install it below.");
-    }
+    const release = answer.ok ? await answer.json() : null;
+    show("firmware-result", !release ? "No releases."
+         : release.tag_name === status.firmware ? "Up to date."
+         : "Update available: " + release.tag_name + ".");
   } catch (error) {
-    show("release", "GitHub did not answer.");
+    show("firmware-result", "GitHub unreachable.");
   }
   event.target.disabled = false;
 });
@@ -644,7 +650,7 @@ byId("restart").addEventListener("click", async event => {
 });
 
 byId("reset").addEventListener("click", event => {
-  if (confirm("Erase all settings and everything the applications stored, and restart?"))
+  if (confirm("Factory reset? All settings and app data will be erased."))
     send("device-result", "/api/reset", { method: "POST" }, event.target);
 });
 
@@ -706,11 +712,11 @@ async function loadSettings() {
   /* A value the list does not have - set some other way - gets a line of its own. */
   if (![...fullEvery.options].some(option => Number(option.value) === settings.refresh_full_every))
     fullEvery.append(make("option", { value: settings.refresh_full_every,
-                                      textContent: "After " + settings.refresh_full_every + " quick ones" }));
+                                      textContent: "Every " + settings.refresh_full_every + " updates" }));
   fullEvery.value = settings.refresh_full_every;
   byId("dither").checked = settings.dither;
   byId("ssid").value = settings.wifi_ssid;
-  show("hostname", settings.hostname);
+  byId("hostname").value = settings.hostname;
 }
 
 function saveSettings(formId, read) {
@@ -755,7 +761,7 @@ async function loadAll() {
 window.addEventListener("hashchange", showSection);
 showSection();
 showPane("general");
-loadAll().catch(() => { byId("tiles").textContent = "The device does not answer."; afterRestart(); });
+loadAll().catch(() => { byId("tiles").textContent = "Device unreachable."; afterRestart(); });
 </script>
 </body>
 </html>

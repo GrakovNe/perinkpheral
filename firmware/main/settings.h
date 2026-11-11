@@ -31,10 +31,11 @@ void settings_save_last_app(const char *name);
 refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c);
 
 /* Where applications are installed from: the addresses of the catalogs,
- * a line each (see catalog.h). The official one until the user says
- * otherwise. sources_size is at least CATALOG_SOURCES_TEXT_MAX. */
+ * a line each (see catalog.h). Loading gives the official one first and
+ * then the ones the user added; saving takes only the added ones.
+ * sources_size is at least CATALOG_SOURCES_TEXT_MAX. */
 void      settings_load_sources(char *sources, size_t sources_size);
-esp_err_t settings_save_sources(const char *sources);
+esp_err_t settings_save_sources(const char *added_sources);
 
 #ifdef __cplusplus
 }

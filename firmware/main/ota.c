@@ -101,16 +101,16 @@ static const char *upload_result(bool ok)
 const char *ota_upload_begin(size_t image_size)
 {
     if (s_upload.in_progress) {
-        return "another upload is in progress";
+        return "Update in progress.";
     }
     if (s_on_probation) {
         /* The spare slot holds the image to return to if this one fails:
          * writing over it now could leave no good image at all. */
-        return "the running firmware is still on probation, try again in a few minutes";
+        return "Previous update is being verified. Try again in a minute.";
     }
     s_upload.slot = esp_ota_get_next_update_partition(NULL);
     if (s_upload.slot == NULL) {
-        return "there is no spare firmware slot";
+        return "No update slot.";
     }
     s_upload.in_progress = true;
     ESP_LOGI(TAG, "upload of %u bytes into %s", (unsigned)image_size, s_upload.slot->label);

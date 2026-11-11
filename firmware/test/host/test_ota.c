@@ -111,7 +111,7 @@ static void test_foreign_images_never_reach_the_flash(void)
     CHECK(start(IMAGE_BYTES));
     CHECK(!feed_all(64));
     CHECK(flash.begun == 0 && flash.length == 0);
-    CHECK_STR(ota_stream_error(&stream), "not a firmware image of this device");
+    CHECK_STR(ota_stream_error(&stream), "Invalid image.");
 
     /* a longer name that only starts like ours */
     make_image("perinkpheral-fork");
@@ -138,9 +138,9 @@ static void test_sizes(void)
 {
     make_image("perinkpheral");
     CHECK(!start(OTA_HEAD_BYTES - 1));
-    CHECK_STR(ota_stream_error(&stream), "too small to be a firmware image");
+    CHECK_STR(ota_stream_error(&stream), "Invalid image.");
     CHECK(!start(SLOT_BYTES + 1));
-    CHECK_STR(ota_stream_error(&stream), "the image does not fit the firmware slot");
+    CHECK_STR(ota_stream_error(&stream), "Image too large.");
     CHECK(!ota_stream_feed(&stream, image, 10)); /* refused already: nothing is taken */
 
     /* more than was announced */
@@ -153,7 +153,7 @@ static void test_sizes(void)
     CHECK(ota_stream_feed(&stream, image, 600));
     CHECK(!ota_stream_end(&stream));
     CHECK(flash.aborted == 1 && flash.finished == 0);
-    CHECK_STR(ota_stream_error(&stream), "the image was cut short");
+    CHECK_STR(ota_stream_error(&stream), "Upload incomplete.");
 }
 
 static void test_edges(void)

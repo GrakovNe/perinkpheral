@@ -189,25 +189,25 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
 
     if (c->refresh_min_data_s < APPCONF_REFRESH_MIN_DATA_S_LEAST ||
         c->refresh_min_data_s > APPCONF_REFRESH_MIN_DATA_S_MOST) {
-        BAD("Seconds between refreshes must be %d-%d.", APPCONF_REFRESH_MIN_DATA_S_LEAST,
+        BAD("Update interval must be %d-%d s.", APPCONF_REFRESH_MIN_DATA_S_LEAST,
             APPCONF_REFRESH_MIN_DATA_S_MOST);
     }
     if (c->refresh_min_button_ms > APPCONF_REFRESH_MIN_BUTTON_MS_MOST) {
-        BAD("The pause before answering a press must be at most %d ms.",
+        BAD("Button delay must be at most %d ms.",
             APPCONF_REFRESH_MIN_BUTTON_MS_MOST);
     }
     if (c->refresh_full_every > APPCONF_REFRESH_FULL_EVERY_MOST &&
         c->refresh_full_every != APPCONF_REFRESH_FULL_NEVER) {
-        BAD("Partial refreshes before a full one must be %d-%d, or %d for never.",
+        BAD("Full refresh must be %d-%d, or %d for never.",
             APPCONF_REFRESH_FULL_EVERY_LEAST, APPCONF_REFRESH_FULL_EVERY_MOST,
             APPCONF_REFRESH_FULL_NEVER);
     }
     if (c->dither > 1) {
-        BAD("Dithering is on (1) or off (0).");
+        BAD("Dithering must be 0 or 1.");
     }
     if (c->refresh_keepalive_h < APPCONF_REFRESH_KEEPALIVE_H_LEAST ||
         c->refresh_keepalive_h > APPCONF_REFRESH_KEEPALIVE_H_MOST) {
-        BAD("Hours before a forced refresh must be %d-%d.", APPCONF_REFRESH_KEEPALIVE_H_LEAST,
+        BAD("Keep-alive must be %d-%d h.", APPCONF_REFRESH_KEEPALIVE_H_LEAST,
             APPCONF_REFRESH_KEEPALIVE_H_MOST);
     }
 

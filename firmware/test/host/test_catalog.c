@@ -13,8 +13,8 @@ static void test_sources(void)
     const char *two = "https://raw.example.com/me/apps/HEAD/catalog/\n\nhttp://192.168.1.5:8000\n";
     CHECK(catalog_sources_are_valid(two) && catalog_source_count(two) == 2);
     CHECK(catalog_sources_are_valid("") && catalog_source_count("") == 0);
-    CHECK(catalog_sources_are_valid(CATALOG_DEFAULT_SOURCES));
-    CHECK(catalog_source_count(CATALOG_DEFAULT_SOURCES) == 1);
+    CHECK(catalog_sources_are_valid(CATALOG_OFFICIAL_SOURCE));
+    CHECK(catalog_source_count(CATALOG_OFFICIAL_SOURCE) == 1);
 
     char source[CATALOG_SOURCE_URL_MAX + 1];
     CHECK(catalog_source_at(two, 0, source, sizeof source));

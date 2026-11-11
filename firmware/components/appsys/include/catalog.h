@@ -29,9 +29,11 @@ extern "C" {
  * its data files. */
 #define CATALOG_APP_FILES_MAX   8
 
-/* The official applications, set on a device that was never told otherwise. */
-#define CATALOG_DEFAULT_SOURCES \
+/* The official applications: always the first source, and not one the
+ * user can take away. What a device stores is the sources added to it. */
+#define CATALOG_OFFICIAL_SOURCE \
     "https://raw.githubusercontent.com/GrakovNe/perinkpheral-apps/HEAD/catalog"
+#define CATALOG_ADDED_SOURCES_MAX (CATALOG_SOURCES_MAX - 1)
 
 /* True for a few lines, each an http(s) address in printable ASCII of at
  * most CATALOG_SOURCE_URL_MAX; an empty text is "no sources". */

@@ -40,7 +40,7 @@ static bool load(app_scene_t *self)
     size_t module_size;
     self->module = app_store_read_module(self->store_root, self->manifest.name, &module_size);
     if (self->module == NULL) {
-        self->load_error = "Its file cannot be read.";
+        self->load_error = "File not found.";
         return false;
     }
     switch (app_load(self->manifest.name, self->module, module_size, self->services,
@@ -48,10 +48,10 @@ static bool load(app_scene_t *self)
     case APP_OK:
         return true;
     case APP_ERR_NO_MEMORY:
-        self->load_error = "Not enough memory.";
+        self->load_error = "Out of memory.";
         break;
     case APP_ERR_BAD_MODULE:
-        self->load_error = "Not a valid application.";
+        self->load_error = "Invalid app.";
         break;
     }
     free(self->module);
@@ -173,7 +173,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
     if (app_has_stopped(self->app)) {
         /* Over whatever it managed to draw before it stopped. */
         gfx_clear(surface, false);
-        draw_message(surface, self->manifest.title, "Stopped:", app_stop_reason(self->app));
+        draw_message(surface, self->manifest.title, "Crashed:", app_stop_reason(self->app));
     }
 }
 

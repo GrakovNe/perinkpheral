@@ -169,7 +169,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     }
     char app_name[APP_NAME_BUFFER];
     if (!asked_app(request, app_name)) {
-        return send_message(request, "404 Not Found", "error", "no such application");
+        return send_message(request, "404 Not Found", "error", "App not found.");
     }
     char  *body = read_body(request);
     cJSON *wanted = body != NULL ? cJSON_Parse(body) : NULL;
@@ -179,10 +179,10 @@ static esp_err_t handle_settings(httpd_req_t *request)
     esp_err_t   result;
     if (!cJSON_IsObject(wanted) || manifest == NULL) {
         result = send_message(request, "400 Bad Request", "error",
-                              "send the settings as {\"key\": \"value\"}");
+                              "Invalid request.");
     } else if (!are_acceptable(manifest, wanted, &problem)) {
         char message[64];
-        snprintf(message, sizeof message, "\"%s\" cannot be set to that", problem);
+        snprintf(message, sizeof message, "Invalid value: %s.", problem);
         result = send_message(request, "400 Bad Request", "error", message);
     } else {
         const cJSON *value;
@@ -199,10 +199,10 @@ static esp_err_t handle_settings(httpd_req_t *request)
             app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
             poller_hand_over(app_name, &changed);
             poller_hurry(app_name);
-            result = send_message(request, "200 OK", "ok", "saved");
+            result = send_message(request, "200 OK", "ok", "Saved.");
         } else {
             result = send_message(request, "500 Internal Server Error", "error",
-                                  "the settings could not be stored");
+                                  "Storage error.");
         }
     }
     cJSON_Delete(wanted);
@@ -247,21 +247,25 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
     {
         size_t length = cJSON_IsString(source) ? strlen(source->valuestring) : 0;
         fits = fits && length > 0 && used + length + 1 <= CATALOG_SOURCES_TEXT_MAX;
-        if (fits) {
+        /* The official source is there anyway: it is not stored with the rest. */
+        bool is_official = fits && strcmp(source->valuestring, CATALOG_OFFICIAL_SOURCE) == 0;
+        if (fits && !is_official) {
             memcpy(sources + used, source->valuestring, length);
             sources[used + length] = '\n';
             used += length + 1;
         }
     }
     esp_err_t result;
-    if (!fits || !catalog_sources_are_valid(sources)) {
+    if (fits && catalog_source_count(sources) > CATALOG_ADDED_SOURCES_MAX) {
+        result = send_message(request, "400 Bad Request", "error", "Too many sources.");
+    } else if (!fits || !catalog_sources_are_valid(sources)) {
         result = send_message(request, "400 Bad Request", "error",
-                              "send {\"sources\": [...]}: up to 4 http(s) addresses");
+                              "Invalid source URL.");
     } else if (settings_save_sources(sources) != ESP_OK) {
         result = send_message(request, "500 Internal Server Error", "error",
-                              "the sources could not be stored");
+                              "Storage error.");
     } else {
-        result = send_message(request, "200 OK", "ok", "saved");
+        result = send_message(request, "200 OK", "ok", "Saved.");
     }
     cJSON_Delete(json);
     free(sources);
@@ -308,7 +312,7 @@ static esp_err_t handle_catalog(httpd_req_t *request)
     char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
     if (!asked_source(request, source) ||
         !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
-        return send_message(request, "404 Not Found", "error", "no such source");
+        return send_message(request, "404 Not Found", "error", "Source not found.");
     }
     passing_t passing = { request, false };
     int       http_status;
@@ -316,7 +320,7 @@ static esp_err_t handle_catalog(httpd_req_t *request)
                                       &http_status);
     if (!passing.has_started) {
         char message[64];
-        snprintf(message, sizeof message, "the source did not give its index (HTTP %d)",
+        snprintf(message, sizeof message, "Source unavailable (HTTP %d).",
                  http_status);
         return send_message(request, "502 Bad Gateway", "error", message);
     }
@@ -371,14 +375,14 @@ static const char *install_file(const char *source, const char *app_name, const 
         !app_store_is_file_name(name->valuestring) || !read_hash(sha256->valuestring, wanted_hash) ||
         size->valuedouble < 1 || size->valuedouble > app_store_file_max_bytes(name->valuestring) ||
         !catalog_url(source, app_name, name->valuestring, url, sizeof url)) {
-        return "the index describes a file the device cannot take";
+        return "Invalid catalog entry.";
     }
     if (!app_store_begin_file(STORAGE_APPS_ROOT, app_name, name->valuestring, path)) {
-        return "the storage refused";
+        return "Storage error.";
     }
     download_t download = { .file = fopen(path, "wb") };
     if (download.file == NULL) {
-        return "the storage refused";
+        return "Storage error.";
     }
     mbedtls_sha256_init(&download.hash);
     mbedtls_sha256_starts(&download.hash, 0);
@@ -390,10 +394,10 @@ static const char *install_file(const char *source, const char *app_name, const 
     bool stored = fclose(download.file) == 0;
     const char *problem = NULL;
     if (!fetched || !stored) {
-        problem = "a file could not be downloaded";
+        problem = "Download failed.";
     } else if (download.received != (size_t)size->valuedouble ||
                memcmp(hash, wanted_hash, SHA256_BYTES) != 0) {
-        problem = "a file is not what the index says: the catalog is out of step";
+        problem = "Checksum mismatch.";
     } else if (strcmp(name->valuestring, APP_FILE_MANIFEST) == 0) {
         /* Still under its temporary name: read it there. */
         char          *text = malloc(download.received + 1);
@@ -410,15 +414,15 @@ static const char *install_file(const char *source, const char *app_name, const 
         app_manifest_result_t result = is_read ? app_manifest_parse(text, &manifest)
                                                : APP_MANIFEST_NOT_JSON;
         if (result == APP_MANIFEST_OTHER_ABI) {
-            problem = "the application is made for another version of the firmware";
+            problem = "Incompatible firmware version.";
         } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
-            problem = "its manifest is not one this device accepts";
+            problem = "Invalid manifest.";
         }
         free(text);
     }
     if (problem == NULL &&
         !app_store_commit_file(STORAGE_APPS_ROOT, app_name, name->valuestring)) {
-        problem = "the storage refused";
+        problem = "Storage error.";
     }
     if (problem != NULL) {
         remove(path);
@@ -456,14 +460,14 @@ static esp_err_t handle_install(httpd_req_t *request)
         httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
         httpd_query_key_value(query, "app", app_name, sizeof app_name) != ESP_OK ||
         !app_manifest_is_valid_name(app_name)) {
-        return send_message(request, "400 Bad Request", "error", "source=<number>&app=<name>");
+        return send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
     int count;
     launcher_installed(&count);
     bool was_installed = is_installed(app_name);
     if (!was_installed && count >= CATALOG_INSTALLED_MAX) {
         return send_message(request, "409 Conflict", "error",
-                            "the device holds 5 applications: remove one first");
+                            "No free slots.");
     }
     char  *body = read_body(request);
     cJSON *json = body != NULL ? cJSON_Parse(body) : NULL;
@@ -472,7 +476,7 @@ static esp_err_t handle_install(httpd_req_t *request)
     if (!is_sound_file_list(files)) {
         cJSON_Delete(json);
         return send_message(request, "400 Bad Request", "error",
-                            "send the application's \"files\" as the index lists them");
+                            "Invalid request.");
     }
     const char  *problem = NULL;
     const cJSON *entry;
@@ -495,7 +499,7 @@ static esp_err_t handle_install(httpd_req_t *request)
         return send_message(request, "502 Bad Gateway", "error", problem);
     }
     ESP_LOGW(TAG, "\"%s\" installed, restarting", app_name);
-    esp_err_t result = send_message(request, "200 OK", "ok", "installed, restarting");
+    esp_err_t result = send_message(request, "200 OK", "ok", "Installed. Restarting.");
     web_server_restart_soon();
     return result;
 }
@@ -512,20 +516,20 @@ static esp_err_t handle_remove(httpd_req_t *request)
     }
     char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[4] = "";
     if (!asked_app(request, app_name)) {
-        return send_message(request, "404 Not Found", "error", "no such application");
+        return send_message(request, "404 Not Found", "error", "App not found.");
     }
     if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
         httpd_query_key_value(query, "forget", forget, sizeof forget);
     }
     if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
         return send_message(request, "500 Internal Server Error", "error",
-                            "its files could not be removed");
+                            "Storage error.");
     }
     if (strcmp(forget, "1") == 0) {
         app_kv_erase(app_name);
     }
     ESP_LOGW(TAG, "\"%s\" removed, restarting", app_name);
-    esp_err_t result = send_message(request, "200 OK", "ok", "removed, restarting");
+    esp_err_t result = send_message(request, "200 OK", "ok", "Removed. Restarting.");
     web_server_restart_soon();
     return result;
 }

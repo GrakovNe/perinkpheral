@@ -166,25 +166,30 @@ void settings_save_last_app(const char *name)
 
 void settings_load_sources(char *sources, size_t sources_size)
 {
-    snprintf(sources, sources_size, "%s", CATALOG_DEFAULT_SOURCES);
+    /* The official source first, whatever is stored; then what was added. */
+    int used = snprintf(sources, sources_size, "%s\n", CATALOG_OFFICIAL_SOURCE);
     nvs_handle_t h;
-    if (nvs_open(CFG_NS, NVS_READONLY, &h) != ESP_OK) {
+    if (used < 0 || (size_t)used >= sources_size || nvs_open(CFG_NS, NVS_READONLY, &h) != ESP_OK) {
         return;
     }
-    /* Left at the default when nothing is stored or it does not fit. */
-    size_t length = sources_size;
-    char  *stored = malloc(sources_size);
-    if (stored != NULL && nvs_get_str(h, KEY_SOURCES, stored, &length) == ESP_OK &&
-        catalog_sources_are_valid(stored)) {
-        snprintf(sources, sources_size, "%s", stored);
+    size_t length = sources_size - (size_t)used;
+    /* An older firmware stored the official source with the rest. */
+    static const char STORED_OFFICIAL[] = CATALOG_OFFICIAL_SOURCE "\n";
+    char *added = sources + used;
+    if (nvs_get_str(h, KEY_SOURCES, added, &length) != ESP_OK ||
+        !catalog_sources_are_valid(sources)) {
+        added[0] = '\0';
+    } else if (strncmp(added, STORED_OFFICIAL, sizeof STORED_OFFICIAL - 1) == 0) {
+        memmove(added, added + sizeof STORED_OFFICIAL - 1,
+                strlen(added + sizeof STORED_OFFICIAL - 1) + 1);
     }
-    free(stored);
     nvs_close(h);
 }
 
 esp_err_t settings_save_sources(const char *sources)
 {
-    if (!catalog_sources_are_valid(sources)) {
+    if (!catalog_sources_are_valid(sources) ||
+        catalog_source_count(sources) > CATALOG_ADDED_SOURCES_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
     nvs_handle_t h;

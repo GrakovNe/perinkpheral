@@ -88,7 +88,7 @@ bool web_server_refuses_cross_site(httpd_req_t *request)
     }
     ESP_LOGW(TAG, "refused a request from another site");
     httpd_resp_set_status(request, "403 Forbidden");
-    httpd_resp_sendstr(request, "requests from other sites are not taken");
+    httpd_resp_sendstr(request, "Forbidden.");
     return true;
 }
 
@@ -242,7 +242,7 @@ static esp_err_t handle_wifi(httpd_req_t *request)
     }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
-        return send_error(request, "send {\"ssid\": \"...\", \"password\": \"...\"}");
+        return send_error(request, "Invalid request.");
     }
     cJSON *json = cJSON_Parse(body);
     /* Worked on in a copy: the live settings change only if all of it is good. */
@@ -250,7 +250,7 @@ static esp_err_t handle_wifi(httpd_req_t *request)
     if (json == NULL || wanted == NULL) {
         cJSON_Delete(json);
         free(wanted);
-        return send_error(request, "the request is not JSON");
+        return send_error(request, "Invalid request.");
     }
     *wanted = *s_config;
     char problem[VALIDATION_TEXT_MAX] = "";
@@ -262,16 +262,16 @@ static esp_err_t handle_wifi(httpd_req_t *request)
 
     esp_err_t result;
     if (!fields_fit) {
-        result = send_error(request, "the network name, the password or the time zone is too long");
+        result = send_error(request, "Value too long.");
     } else if (!appconf_validate(wanted, problem, sizeof problem)) {
         result = send_error(request, problem);
     } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "the settings could not be stored");
+        result = send_error(request, "Storage error.");
     } else {
         *s_config = *wanted;
         appconf_derive(s_config, s_device_id);
         ESP_LOGW(TAG, "Wi-Fi settings changed, restarting");
-        result = send_ok(request, "stored, restarting");
+        result = send_ok(request, "Saved. Restarting.");
         web_server_restart_soon();
     }
     free(wanted);
@@ -287,14 +287,14 @@ static esp_err_t handle_time(httpd_req_t *request)
     }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
-        return send_error(request, "send {\"tz\": \"...\"}");
+        return send_error(request, "Invalid request.");
     }
     cJSON *json = cJSON_Parse(body);
     appconf_t *wanted = malloc(sizeof *wanted);
     if (json == NULL || wanted == NULL) {
         cJSON_Delete(json);
         free(wanted);
-        return send_error(request, "the request is not JSON");
+        return send_error(request, "Invalid request.");
     }
     *wanted = *s_config;
     char problem[VALIDATION_TEXT_MAX] = "";
@@ -304,16 +304,16 @@ static esp_err_t handle_time(httpd_req_t *request)
 
     esp_err_t result;
     if (!has_zone || !zone_fits) {
-        result = send_error(request, "send a time zone that fits");
+        result = send_error(request, "Invalid time zone.");
     } else if (!appconf_validate(wanted, problem, sizeof problem)) {
         result = send_error(request, problem);
     } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "the settings could not be stored");
+        result = send_error(request, "Storage error.");
     } else {
         *s_config = *wanted;
         net_time_set_zone(s_config->tz);
         status_check(); /* the date in the header may have just changed */
-        result = send_ok(request, "stored");
+        result = send_ok(request, "Saved.");
     }
     free(wanted);
     return result;
@@ -362,14 +362,14 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
     }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
-        return send_error(request, "send the settings as JSON");
+        return send_error(request, "Invalid request.");
     }
     cJSON     *json = cJSON_Parse(body);
     appconf_t *wanted = malloc(sizeof *wanted);
     if (json == NULL || wanted == NULL) {
         cJSON_Delete(json);
         free(wanted);
-        return send_error(request, "the request is not JSON");
+        return send_error(request, "Invalid request.");
     }
     *wanted = *s_config;
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
@@ -394,11 +394,11 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
     char      problem[VALIDATION_TEXT_MAX] = "";
     esp_err_t result;
     if (!fields_fit) {
-        result = send_error(request, "a setting is of the wrong kind or does not fit");
+        result = send_error(request, "Invalid value.");
     } else if (!appconf_validate(wanted, problem, sizeof problem)) {
         result = send_error(request, problem);
     } else if (settings_save(wanted) != ESP_OK) {
-        result = send_error(request, "the settings could not be stored");
+        result = send_error(request, "Storage error.");
     } else {
         bool needs_restart = strcmp(wanted->device_name, s_config->device_name) != 0 ||
                              strcmp(wanted->ntp_server, s_config->ntp_server) != 0;
@@ -408,9 +408,7 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
         refresh_policy_cfg_t policy = settings_refresh_policy(s_config);
         display_set_policy(&policy);
         status_check();
-        result = send_ok(request, needs_restart ? "saved; the name and the time server take "
-                                                  "effect after a restart"
-                                                : "saved");
+        result = send_ok(request, needs_restart ? "Saved. Restart to apply." : "Saved.");
     }
     free(wanted);
     return result;
@@ -422,7 +420,7 @@ static esp_err_t handle_restart(httpd_req_t *request)
         return ESP_OK;
     }
     ESP_LOGW(TAG, "restart asked for");
-    esp_err_t result = send_ok(request, "restarting");
+    esp_err_t result = send_ok(request, "Restarting.");
     web_server_restart_soon();
     return result;
 }
@@ -437,7 +435,7 @@ static esp_err_t handle_reset(httpd_req_t *request)
     }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
     reset_mark_factory();
-    esp_err_t result = send_ok(request, "erased, restarting");
+    esp_err_t result = send_ok(request, "Reset. Restarting.");
     web_server_restart_soon();
     return result;
 }
@@ -450,7 +448,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
         return ESP_OK;
     }
     if (request->content_len == 0) {
-        return send_error(request, "send the firmware image as the request body");
+        return send_error(request, "No image.");
     }
     const char *error = ota_upload_begin(request->content_len);
     uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
@@ -478,7 +476,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
     if (error != NULL) {
         return send_error(request, error);
     }
-    esp_err_t result = send_ok(request, "installed, restarting");
+    esp_err_t result = send_ok(request, "Installed. Restarting.");
     web_server_restart_soon();
     return result;
 }

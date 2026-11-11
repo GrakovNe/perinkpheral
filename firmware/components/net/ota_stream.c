@@ -50,14 +50,14 @@ bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *wr
     stream->image_size = image_size;
     if (strlen(project_name) > OTA_PROJECT_NAME_MAX) {
         /* Cut short it would match images of another name. */
-        return fail(stream, "the project name is too long to check images against");
+        return fail(stream, "Internal error.");
     }
     strcpy(stream->project_name, project_name);
     if (image_size < OTA_HEAD_BYTES) {
-        return fail(stream, "too small to be a firmware image");
+        return fail(stream, "Invalid image.");
     }
     if (image_size > slot_size) {
-        return fail(stream, "the image does not fit the firmware slot");
+        return fail(stream, "Image too large.");
     }
     return true;
 }
@@ -65,7 +65,7 @@ bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *wr
 static bool pass_on(ota_stream_t *stream, const uint8_t *data, size_t length)
 {
     if (length > 0 && !stream->writer->write(stream->writer_context, data, length)) {
-        return fail(stream, "writing the image failed");
+        return fail(stream, "Write failed.");
     }
     return true;
 }
@@ -76,7 +76,7 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
         return false;
     }
     if (length > stream->image_size - stream->received) {
-        return fail(stream, "more data than the size announced");
+        return fail(stream, "Invalid upload.");
     }
     size_t already = stream->received;
     stream->received += length;
@@ -93,10 +93,10 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
             return true; /* still not enough to judge */
         }
         if (!head_is_ours(stream)) {
-            return fail(stream, "not a firmware image of this device");
+            return fail(stream, "Invalid image.");
         }
         if (!stream->writer->begin(stream->writer_context, stream->image_size)) {
-            return fail(stream, "cannot start writing the image");
+            return fail(stream, "Write failed.");
         }
         stream->writer_begun = true;
         if (!pass_on(stream, stream->head, OTA_HEAD_BYTES)) {
@@ -112,19 +112,19 @@ bool ota_stream_end(ota_stream_t *stream)
         return false;
     }
     if (stream->received != stream->image_size) {
-        return fail(stream, "the image was cut short");
+        return fail(stream, "Upload incomplete.");
     }
     if (!stream->writer->finish(stream->writer_context)) {
         /* A writer that failed to finish has already let go of the slot. */
         stream->writer_begun = false;
-        return fail(stream, "the image did not pass the check");
+        return fail(stream, "Image verification failed.");
     }
     return true;
 }
 
 void ota_stream_abort(ota_stream_t *stream)
 {
-    fail(stream, "the upload was interrupted");
+    fail(stream, "Upload interrupted.");
 }
 
 const char *ota_stream_error(const ota_stream_t *stream)
