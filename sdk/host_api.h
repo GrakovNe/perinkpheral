@@ -482,8 +482,9 @@ HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *
 HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 
 /* The installed applications by number, from 0: the title of one, or
- * HOST_ERR_NOT_FOUND past the last. Removing one takes its files, leaves
- * what it stored, and restarts the device. */
+ * HOST_ERR_NOT_FOUND past the last. Removing one takes its files and
+ * leaves what it stored; the numbers are other ones once the handler
+ * that removed it has returned. */
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(int32_t index, char *text, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(int32_t index));
 

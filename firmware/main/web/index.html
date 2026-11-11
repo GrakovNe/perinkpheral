@@ -652,7 +652,7 @@ async function install(button, offer) {
   if (offer.app.system &&
       !await confirmed(offer.app.title + " requests system access.", "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-  if (await send(button, url, post({ files: offer.app.files }))) afterRestart();
+  if (await send(button, url, post({ files: offer.app.files }))) await loadApps();
 }
 
 function picture(icon, cell) {
@@ -685,7 +685,7 @@ function tile(have, offer) {
     if (await confirmed("Remove " + have.title + "? Settings are kept.", "Remove") &&
         await send(remove, "/api/apps/remove?app=" + encodeURIComponent(have.name),
                    { method: "POST" }))
-      afterRestart();
+      await loadApps();
   });
   box.append(remove);
   return box;

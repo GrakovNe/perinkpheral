@@ -22,6 +22,7 @@ typedef enum {
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
     EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
     EVENT_APP_DELIVERY, /* an answer from the network for an application, see poller.h */
+    EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
 } event_kind_t;
 
 /* What a button did. A press arrives as it happens (down, up) and as
@@ -54,6 +55,9 @@ bool events_post(const event_t *event);
 void events_post_button(uint8_t index, event_press_t press);
 
 /* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
+/* An application was installed or removed. Safe from any task. */
+void events_post_apps_changed(void);
+
 bool events_wait(event_t *event, uint32_t timeout_ms);
 
 /* Whether anything is in the queue now. */

@@ -369,8 +369,31 @@ static void test_header_share(void)
     CHECK(left == 0 && right == 320);
 }
 
+static void test_drop(void)
+{
+    /* a scene that is going away: the home takes the screen from it, and
+     * BACK from the home does not lead to it */
+    start(&menu.scene);
+    wm_show(&wm, &app.scene);
+    wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(wm.current == &menu.scene && wm.before_home == &app.scene);
+    wm_drop(&wm, &app.scene);
+    CHECK(wm.current == &menu.scene && wm.before_home == NULL);
+
+    wm_show(&wm, &app.scene);
+    int left = app.left;
+    wm_drop(&wm, &app.scene);
+    CHECK(wm.current == &menu.scene && app.left == left + 1);
+
+    /* any other scene is nothing to it */
+    wm_show(&wm, &page.scene);
+    wm_drop(&wm, &app.scene);
+    CHECK(wm.current == &page.scene);
+}
+
 int main(void)
 {
+    test_drop();
     test_header_share();
     test_first_scene();
     test_buttons_reach_the_scene();

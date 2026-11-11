@@ -45,6 +45,7 @@ static poll_schedule_t       s_schedule;
 static const app_manifest_t *s_apps;
 static int                   s_app_count;
 static app_alarms_t          s_alarms;
+static uint32_t              s_generation; /* of the list of applications: goes up when it is read anew */
 /* The schedule and the alarms are changed from other tasks too: an
  * application asks for a poll, the web page saves settings. */
 static SemaphoreHandle_t     s_lock;
@@ -370,6 +371,7 @@ static bool run_pending_request(void)
 {
     static uint8_t body[HOST_HTTP_BODY_MAX]; /* only this task makes requests */
     int app = NO_APP, number = 0, method = 0, body_length = 0;
+    char app_name[APP_NAME_MAX + 1]; /* its own: the list may change while the request runs */
     lock();
     pending_t *oldest = NULL;
     for (int i = 0; i < PENDING_MAX; i++) {
@@ -381,6 +383,7 @@ static bool run_pending_request(void)
     request_t *request = oldest != NULL ? calloc(1, sizeof *request) : NULL;
     if (request != NULL) {
         app = oldest->app;
+        strcpy(app_name, s_apps[app].name);
         number = oldest->number;
         method = oldest->method;
         body_length = oldest->body_length;
@@ -392,7 +395,7 @@ static bool run_pending_request(void)
     }
     unlock();
     if (app != NO_APP) {
-        perform(request, s_apps[app].name, number, method, body, body_length);
+        perform(request, app_name, number, method, body, body_length);
     }
     free(request);
     return app != NO_APP;
@@ -520,14 +523,18 @@ bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *
 /* An alarm that has come is handed to its application like an answer. */
 static bool ring_due_alarm(void)
 {
+    char app_name[APP_NAME_MAX + 1];
     lock();
     int app = app_alarms_take_due(&s_alarms, now_ms());
+    if (app >= 0) {
+        strcpy(app_name, s_apps[app].name);
+    }
     unlock();
     if (app < 0) {
         return false;
     }
     app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM };
-    poller_hand_over(s_apps[app].name, &alarm);
+    poller_hand_over(app_name, &alarm);
     return true;
 }
 
@@ -552,6 +559,14 @@ static void poller_task(void *arg)
         /* The entry may be moved by another task once the lock is gone:
          * what is needed of it is taken now. */
         int due_app = due != NULL ? due->app : NO_APP, due_poll = due != NULL ? due->poll : 0;
+        /* And the list of applications may be read anew while the request
+         * runs: the name is kept, and the numbers are good only for the
+         * list they were taken from. */
+        char     due_name[APP_NAME_MAX + 1] = "";
+        uint32_t generation = s_generation;
+        if (due != NULL) {
+            strcpy(due_name, s_apps[due_app].name);
+        }
         unlock();
         if (due == NULL) {
             vTaskDelay(pdMS_TO_TICKS(wait_ms < IDLE_CHECK_MS ? wait_ms : IDLE_CHECK_MS));
@@ -563,18 +578,25 @@ static void poller_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(IDLE_CHECK_MS));
             continue;
         }
-        run_poll(s_apps[due_app].name, due_poll);
+        run_poll(due_name, due_poll);
         lock();
-        poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
+        if (generation == s_generation) {
+            poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
+        }
         unlock();
     }
 }
 
-void poller_start(void)
+/* Takes the installed applications as the launcher has them now and
+ * schedules their polls; what was scheduled, queued or set before is for
+ * applications that may be gone. Returns the polls scheduled. */
+static int schedule_installed(void)
 {
     s_apps = launcher_installed(&s_app_count);
+    s_generation++;
     poll_schedule_init(&s_schedule);
     app_alarms_init(&s_alarms);
+    memset(s_pending, 0, sizeof s_pending);
     int polls = 0;
     for (int app = 0; app < s_app_count; app++) {
         for (int poll = 0; poll < s_apps[app].poll_count; poll++) {
@@ -584,6 +606,24 @@ void poller_start(void)
             }
         }
     }
+    return polls;
+}
+
+void poller_hold(void)
+{
+    lock();
+}
+
+void poller_release_reloaded(void)
+{
+    int polls = schedule_installed();
+    unlock();
+    ESP_LOGI(TAG, "applications changed: %d polls of %d applications", polls, s_app_count);
+}
+
+void poller_start(void)
+{
+    int polls = schedule_installed();
     s_fetch_done = xSemaphoreCreateBinary();
     s_fetch_turn = xSemaphoreCreateMutex();
     s_lock = xSemaphoreCreateMutex();

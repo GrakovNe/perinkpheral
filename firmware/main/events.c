@@ -53,6 +53,12 @@ void events_post_button(uint8_t index, event_press_t press)
     events_post(&event);
 }
 
+void events_post_apps_changed(void)
+{
+    event_t event = { .kind = EVENT_APPS_CHANGED };
+    events_post(&event);
+}
+
 bool events_wait(event_t *event, uint32_t timeout_ms)
 {
     TickType_t ticks = timeout_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);

@@ -170,6 +170,16 @@ wm_change_t wm_pending_change(const wm_t *wm)
     return wm->change;
 }
 
+void wm_drop(wm_t *wm, const scene_t *scene)
+{
+    if (wm->before_home == scene) {
+        wm->before_home = NULL;
+    }
+    if (wm->current == scene) {
+        give_screen_to(wm, wm->home);
+    }
+}
+
 void wm_header_share(int left_width, int right_width, int available, int *left_max,
                      int *right_max)
 {

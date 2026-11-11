@@ -12,6 +12,7 @@
 
 #include "app_store.h"
 #include "display.h"
+#include "events.h"
 #include "host_api.h"
 #include "launcher.h"
 #include "net_time.h"
@@ -214,9 +215,8 @@ int32_t app_system_app_remove(int index)
     if (!app_store_remove(STORAGE_APPS_ROOT, installed[index].name)) {
         return HOST_ERR_FAILED;
     }
-    /* The list of applications is read once, at start. */
-    ESP_LOGW(TAG, "\"%s\" removed, restarting", installed[index].name);
-    web_server_restart_soon();
+    ESP_LOGI(TAG, "\"%s\" removed", installed[index].name);
+    events_post_apps_changed();
     return HOST_OK;
 }
 

@@ -92,6 +92,10 @@ void wm_shown(wm_t *wm);
 void wm_header_share(int left_width, int right_width, int available, int *left_max,
                      int *right_max);
 
+/* `scene` is about to be gone: if it has the screen the home takes it, and
+ * it is nowhere to go back to. */
+void wm_drop(wm_t *wm, const scene_t *scene);
+
 /* The two parts of a screen that has a header. */
 void wm_split(const gfx_t *screen, gfx_t *header, gfx_t *content);
 

@@ -36,6 +36,12 @@ typedef struct {
  * After launcher_start(). */
 void poller_start(void);
 
+/* The installed applications are about to change: nothing of the poller
+ * looks at them between these two. The second takes the new list and
+ * schedules its polls; requests and alarms of the old one are dropped. */
+void poller_hold(void);
+void poller_release_reloaded(void);
+
 /* The application's settings changed: fetch its polls again now, not
  * when their time comes. From any task. */
 void poller_hurry(const char *app_name);

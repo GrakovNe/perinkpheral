@@ -22,6 +22,10 @@ extern "C" {
 scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root,
                           const app_services_t *services);
 
+/* Unloads the application if it is loaded and frees the scene. Nobody may
+ * hold the pointer after this. */
+void app_scene_destroy(scene_t *scene);
+
 /* The same for an application that is part of the firmware: its module is
  * `wasm`, which stays where it is, and nothing is read from a store. */
 scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,

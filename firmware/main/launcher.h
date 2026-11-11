@@ -19,6 +19,13 @@ extern "C" {
 /* Reads the store and builds the scenes; once, at start. */
 void launcher_start(void);
 
+/* The store changed: the scenes of the installed applications are made
+ * anew. `drop` is called for every old one before it is freed, for whoever
+ * holds its pointer; the system applications stay as they are. Only in
+ * the host loop, with the poller held (poller_hold()). */
+typedef void (*launcher_drop_fn)(scene_t *scene, void *context);
+void launcher_reload(launcher_drop_fn drop, void *context);
+
 /* The About application, which is also what the splash shows; NULL when
  * the firmware was built without a sound one. */
 scene_t *launcher_about(void);

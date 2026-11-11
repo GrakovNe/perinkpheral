@@ -582,7 +582,11 @@ static void answer_question(page_t page)
     }
     switch (page) {
     case PAGE_REMOVE_APP:
-        tell_result(sys_app_remove(app_to_remove));
+        if (sys_app_remove(app_to_remove) == HOST_OK) {
+            go_back(); /* to the list, which the host reads anew */
+        } else {
+            tell("Storage error.", false);
+        }
         break;
     case PAGE_FORGET:
         tell_result(sys_do(SYS_DO_FORGET_NETWORK));
@@ -977,8 +981,14 @@ void app_on_draw(void)
     case PAGE_NOTICE:
         draw_text(MARGIN, LINE_HEIGHT, HOST_FONT_TEXT, notice);
         break;
-    default:
+    default: {
+        /* The list may have become shorter since the row was chosen. */
+        int32_t rows = row_count(page);
+        if (HERE.selected >= rows) {
+            HERE.selected = rows - 1;
+        }
         draw_list(page, HERE.selected);
         break;
+    }
     }
 }

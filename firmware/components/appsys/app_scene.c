@@ -282,6 +282,18 @@ scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root
     return &self->scene;
 }
 
+void app_scene_destroy(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    if (!is_app_scene(scene)) {
+        return;
+    }
+    if (self->module != NULL) {
+        unload(self);
+    }
+    free(self);
+}
+
 scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,
                                    size_t wasm_size, const app_services_t *services)
 {

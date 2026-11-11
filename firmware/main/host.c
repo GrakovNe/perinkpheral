@@ -157,6 +157,26 @@ static void remember_current_app(const wm_t *wm)
     }
 }
 
+/* An application's scene is about to be freed, the list of them being
+ * read anew: nobody may be left holding it. */
+typedef struct {
+    wm_t                 *wm;
+    app_delivery_state_t *delivery;
+} reload_context_t;
+
+static void drop_app_scene(scene_t *scene, void *context)
+{
+    reload_context_t *reload = context;
+    wm_drop(reload->wm, scene);
+    if (reload->delivery->in_background == scene) {
+        /* In the middle of an answer that now has nobody to go to; the scene
+         * that gave way to it comes back. */
+        app_delivery_init(reload->delivery);
+        app_scene_end_background(scene); /* unloaded first: one instance at a time */
+        wm_resume(reload->wm);
+    }
+}
+
 void host_run(void)
 {
     launcher_start();
@@ -225,6 +245,19 @@ void host_run(void)
                             esp_timer_get_time() / 1000);
             }
             xSemaphoreGive(handed->handed_over);
+            break;
+        }
+        case EVENT_APPS_CHANGED: {
+            reload_context_t context = { &wm, &delivery_state };
+            poller_hold();
+            launcher_reload(drop_app_scene, &context);
+            poller_release_reloaded();
+            menu_entries = launcher_entries(&menu_entry_count);
+            scene_menu(menu_entries, menu_entry_count);
+            /* Where the splash leads may have been one of them. */
+            scene_boot_splash(scene_after_boot(menu), timers_set, launcher_about(),
+                              about_is_shown);
+            wm_invalidate(&wm, WM_CHANGED_URGENTLY);
             break;
         }
         case EVENT_DEV_REQUEST:

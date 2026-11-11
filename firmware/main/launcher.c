@@ -66,21 +66,53 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
     return app_scene_create_built_in(manifest, wasm, wasm_size, app_host_services());
 }
 
-void launcher_start(void)
+/* Reads the store and makes a scene of every installed application. */
+static void read_installed(void)
 {
     s_installed_count = app_store_list(STORAGE_APPS_ROOT, s_installed, INSTALLED_APPS_MAX);
     ESP_LOGI(TAG, "%d applications installed", s_installed_count);
-
-    s_entry_count = 0;
     for (int i = 0; i < s_installed_count; i++) {
         s_app_scenes[i] =
             app_scene_create(&s_installed[i], STORAGE_APPS_ROOT, app_host_services());
+    }
+}
+
+/* What the menu lists: the installed applications, then the system ones. */
+static void list_entries(void)
+{
+    s_entry_count = 0;
+    for (int i = 0; i < s_installed_count; i++) {
         if (s_app_scenes[i] != NULL) {
             s_entries[s_entry_count++] =
                 (menu_entry_t){ s_installed[i].title, s_installed[i].has_icon ? s_installed[i].icon : NULL,
                                 s_app_scenes[i] };
         }
     }
+    for (int i = 0; i < SYSTEM_IN_MENU; i++) {
+        if (s_system_scenes[i] != NULL) {
+            s_entries[s_entry_count++] = (menu_entry_t){
+                s_system[i].title, s_system[i].has_icon ? s_system[i].icon : NULL,
+                s_system_scenes[i] };
+        }
+    }
+}
+
+void launcher_reload(launcher_drop_fn drop, void *context)
+{
+    for (int i = 0; i < s_installed_count; i++) {
+        if (s_app_scenes[i] != NULL) {
+            drop(s_app_scenes[i], context);
+            app_scene_destroy(s_app_scenes[i]);
+            s_app_scenes[i] = NULL;
+        }
+    }
+    read_installed();
+    list_entries();
+}
+
+void launcher_start(void)
+{
+    read_installed();
     s_system_scenes[SYSTEM_SETTINGS] =
         system_app_scene(&s_system[SYSTEM_SETTINGS], system_settings_manifest_start,
                          system_settings_wasm_start,
@@ -98,13 +130,7 @@ void launcher_start(void)
         system_app_scene(&s_system[SYSTEM_SETUP], system_setup_manifest_start,
                          system_setup_wasm_start,
                          (size_t)(system_setup_wasm_end - system_setup_wasm_start));
-    for (int i = 0; i < SYSTEM_IN_MENU; i++) {
-        if (s_system_scenes[i] != NULL) {
-            s_entries[s_entry_count++] = (menu_entry_t){
-                s_system[i].title, s_system[i].has_icon ? s_system[i].icon : NULL,
-                s_system_scenes[i] };
-        }
-    }
+    list_entries();
 }
 
 scene_t *launcher_setup(void)

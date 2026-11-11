@@ -18,6 +18,7 @@
 #include "app_store.h"
 #include "catalog.h"
 #include "host_api.h"
+#include "events.h"
 #include "launcher.h"
 #include "poller.h"
 #include "settings.h"
@@ -498,10 +499,9 @@ static esp_err_t handle_install(httpd_req_t *request)
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
         return send_message(request, "502 Bad Gateway", "error", problem);
     }
-    ESP_LOGW(TAG, "\"%s\" installed, restarting", app_name);
-    esp_err_t result = send_message(request, "200 OK", "ok", "Installed. Restarting.");
-    web_server_restart_soon();
-    return result;
+    ESP_LOGI(TAG, "\"%s\" installed", app_name);
+    events_post_apps_changed();
+    return send_message(request, "200 OK", "ok", "Installed.");
 }
 
 /* The list of applications is read once, at start, and a scene of the
@@ -528,10 +528,9 @@ static esp_err_t handle_remove(httpd_req_t *request)
     if (strcmp(forget, "1") == 0) {
         app_kv_erase(app_name);
     }
-    ESP_LOGW(TAG, "\"%s\" removed, restarting", app_name);
-    esp_err_t result = send_message(request, "200 OK", "ok", "Removed. Restarting.");
-    web_server_restart_soon();
-    return result;
+    ESP_LOGI(TAG, "\"%s\" removed", app_name);
+    events_post_apps_changed();
+    return send_message(request, "200 OK", "ok", "Removed.");
 }
 
 void web_apps_register(httpd_handle_t server)
