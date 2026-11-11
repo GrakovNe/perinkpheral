@@ -17,7 +17,10 @@ extern "C" {
  * between scenes, and how a frame is put together from the host's header
  * and the scene's own picture. Pure, host-tested. */
 
-#define WM_HEADER_HEIGHT 43
+#define WM_HEADER_HEIGHT 39
+/* The last row of the screen belongs to nobody and stays white: it makes
+ * the area under the header a round 400 x 260. */
+#define WM_BOTTOM_EDGE   1
 
 /* Why the frame has to be shown again; the display decides how. */
 typedef enum {

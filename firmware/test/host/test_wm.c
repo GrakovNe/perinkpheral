@@ -296,10 +296,11 @@ static void test_frame_with_header(void)
     wm_draw(&wm, &screen);
     CHECK(header_draws == 1 && header_surface_h == WM_HEADER_HEIGHT);
     /* the scene gets the area under the header and cannot leave it */
-    CHECK(menu.surface_w == SCREEN_W && menu.surface_h == SCREEN_H - WM_HEADER_HEIGHT);
+    CHECK(menu.surface_w == SCREEN_W && menu.surface_h == SCREEN_H - WM_HEADER_HEIGHT - WM_BOTTOM_EDGE);
     CHECK(black_pixels(0, 0, SCREEN_W, WM_HEADER_HEIGHT) == 0);
-    CHECK(black_pixels(0, WM_HEADER_HEIGHT, SCREEN_W, SCREEN_H) ==
-          SCREEN_W * (SCREEN_H - WM_HEADER_HEIGHT));
+    CHECK(black_pixels(0, WM_HEADER_HEIGHT, SCREEN_W, SCREEN_H - WM_BOTTOM_EDGE) ==
+          SCREEN_W * (SCREEN_H - WM_HEADER_HEIGHT - WM_BOTTOM_EDGE));
+    CHECK(black_pixels(0, SCREEN_H - WM_BOTTOM_EDGE, SCREEN_W, SCREEN_H) == 0);
     /* drawing alone does not mean the panel got it */
     CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_SWITCH);
 }

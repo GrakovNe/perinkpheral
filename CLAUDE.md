@@ -167,13 +167,13 @@ The host draws a header above its own screens and above every application that d
 - On the left the Wi-Fi icon in one of two states - connected, or not connected (the same icon struck through). It shows the outcome of the last connection attempt, which is what matters in the profiles where Wi-Fi is off between polls.
 - On the right the date (`Wed 11 Nov`), blank while the time is unknown.
 - Nothing else: no application title, no network name, no clock - the date changes once a day, so the header never asks for a refresh of its own. There is no footer.
-- An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×257 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.
+- An application chooses in its manifest: `"fullscreen": false` (the default) leaves it 400×260 under the header, with its coordinates starting there, and it cannot draw over the header; `"fullscreen": true` gives it the whole 400×300. A long press on button 4 opens the menu in either mode.
 - The network name and the address are on the device page of the menu, not in the header.
 
 ### Host API (wasm imports, a stable ABI after the first third-party application)
 The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and `tools/mkapp` refuses a module that imports anything else. It freezes as ABI 1 at the end of milestone 2. What exists today:
 ```
-gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x257 under the header
+gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x260 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
                                        // fonts: 0 text 22 px, 1 large 44 px, 2 digits 66 px (digits and : + - . , % /)
 gfx_text_width(font_id, str_ptr, len) -> px

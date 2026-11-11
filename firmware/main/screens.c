@@ -41,56 +41,60 @@ static void right_aligned(gfx_t *g, int baseline, const gfx_font_t *font, const 
     gfx_text_font(g, g->w - MARGIN - gfx_text_font_width(font, text), baseline, font, text, true);
 }
 
-/* Wi-Fi, drawn on the font's own 2 px grid: 22 x 16. */
-#define WIFI_CELL  2
-#define WIFI_COLS  11
-#define WIFI_ROWS  8
-/* The stroke through it runs from above its top right corner to below
- * its bottom left one, a cell further out at both ends. */
-#define STRIKE_CELLS     11
-#define STRIKE_FIRST_COL 10
-#define STRIKE_FIRST_ROW (-1)
-static const char *const WIFI[WIFI_ROWS] = {
-    "..#######..",
-    ".#.......#.",
-    "#..#####..#",
-    "..#.....#..",
-    "....###....",
-    "...#...#...",
-    ".....#.....",
-    ".....#.....",
+/* The connection icon on the icon canvas: 11 x 11 cells of the font's own
+ * 2 px. Three bars that grow to the right, nothing but right angles. */
+#define ICON_CELL          2
+#define ICON_COLS          11
+#define ICON_ROWS          11
+#define ICON_BASELINE_ROWS 9 /* rows that stand on the text baseline */
+static const char *const SIGNAL[ICON_ROWS] = {
+    ".......##..",
+    ".......##..",
+    ".......##..",
+    "....##.##..",
+    "....##.##..",
+    "....##.##..",
+    ".##.##.##..",
+    ".##.##.##..",
+    ".##.##.##..",
+    "...........",
+    "...........",
 };
 
-static void fill_cell(gfx_t *g, int x, int y, int col, int row)
+static void fill_cells(gfx_t *g, int x, int y, int col, int row, int count, bool black)
 {
-    gfx_fill(g, x + col * WIFI_CELL, y + row * WIFI_CELL, WIFI_CELL, WIFI_CELL, true);
+    gfx_fill(g, x + col * ICON_CELL, y + row * ICON_CELL, count * ICON_CELL, ICON_CELL, black);
 }
 
-static void icon_wifi(gfx_t *g, int x, int y, bool connected)
+static void icon_signal(gfx_t *g, int x, int y, bool connected)
 {
-    for (int row = 0; row < WIFI_ROWS; row++) {
-        for (int col = 0; col < WIFI_COLS; col++) {
-            if (WIFI[row][col] == '#') {
-                fill_cell(g, x, y, col, row);
+    for (int row = 0; row < ICON_ROWS; row++) {
+        for (int col = 0; col < ICON_COLS; col++) {
+            if (SIGNAL[row][col] == '#') {
+                fill_cells(g, x, y, col, row, 1, true);
             }
         }
     }
     if (!connected) {
-        for (int step = 0; step < STRIKE_CELLS; step++) {
-            int col = STRIKE_FIRST_COL - step, row = STRIKE_FIRST_ROW + step;
-            /* White on both sides keeps the stroke apart from the arcs. */
-            gfx_fill(g, x + (col - 1) * WIFI_CELL, y + row * WIFI_CELL, 3 * WIFI_CELL, WIFI_CELL,
-                     false);
-            fill_cell(g, x, y, col, row);
+        /* Struck through from the bottom left corner of the canvas to the
+         * top right: a staircase two cells wide, with a cell of white on
+         * both sides to keep it apart from the bars. */
+        for (int row = 0; row < ICON_ROWS; row++) {
+            int right = ICON_COLS - 1 - row, left = right > 0 ? right - 1 : right;
+            int width = right - left + 1;
+            fill_cells(g, x, y, left - 1, row, width + 2, false);
+            fill_cells(g, x, y, left, row, width, true);
         }
     }
 }
 
+#define HEADER_BASELINE 30
+
 void screens_header(gfx_t *g, const screens_header_t *header)
 {
-    icon_wifi(g, MARGIN, TEXT_BASELINE - WIFI_ROWS * WIFI_CELL, header->wifi);
+    icon_signal(g, MARGIN, HEADER_BASELINE - ICON_BASELINE_ROWS * ICON_CELL, header->wifi);
     if (header->date != NULL) {
-        right_aligned(g, TEXT_BASELINE, gfx_font_system(), header->date);
+        right_aligned(g, HEADER_BASELINE, gfx_font_system(), header->date);
     }
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }

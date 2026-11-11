@@ -154,7 +154,8 @@ wm_change_t wm_pending_change(const wm_t *wm)
 void wm_split(const gfx_t *screen, gfx_t *header, gfx_t *content)
 {
     gfx_viewport(screen, header, 0, 0, screen->w, WM_HEADER_HEIGHT);
-    gfx_viewport(screen, content, 0, WM_HEADER_HEIGHT, screen->w, screen->h - WM_HEADER_HEIGHT);
+    gfx_viewport(screen, content, 0, WM_HEADER_HEIGHT, screen->w,
+                 screen->h - WM_HEADER_HEIGHT - WM_BOTTOM_EDGE);
 }
 
 void wm_draw(wm_t *wm, gfx_t *screen)

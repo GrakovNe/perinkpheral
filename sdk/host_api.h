@@ -98,7 +98,7 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 
 /* ---- Drawing, inside app_on_draw() only ---- */
 
-/* The surface is 400 x 300 for a full-screen application and 400 x 257
+/* The surface is 400 x 300 for a full-screen application and 400 x 260
  * under the host's header otherwise; 0,0 is its top left corner. Ink is
  * black. Anything drawn outside the surface is cut off. */
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
