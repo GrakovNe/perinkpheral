@@ -1,4 +1,4 @@
-set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c"
+set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
          "scene_menu.c" "scene_splash.c" "launcher.c" "poller.c" "power.c")
 if(CONFIG_APP_DEV_CONSOLE)
@@ -10,7 +10,7 @@ idf_component_register(SRCS ${srcs}
                        PRIV_INCLUDE_DIRS "../../sdk"
                        EMBED_TXTFILES "web/index.html"
                        REQUIRES appconf appsys board epd gfx input net qr ui wasm3
-                              nvs_flash esp_hw_support esp_system esp_timer esp_pm
+                              nvs_flash esp_partition esp_hw_support esp_system esp_timer esp_pm
                               app_update esp_app_format esp_driver_usb_serial_jtag
                               esp_http_server esp_http_client mbedtls json)
 

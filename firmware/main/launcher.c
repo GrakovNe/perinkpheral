@@ -8,6 +8,7 @@
 
 #include "esp_log.h"
 
+#include "app_code.h"
 #include "app_host.h"
 #include "app_scene.h"
 #include "app_store.h"
@@ -72,11 +73,20 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
 /* Reads the store and makes a scene of every installed application. */
 static void read_installed(void)
 {
+    /* A module that came as a file goes into its slot first. */
+    app_code_adopt(STORAGE_APPS_ROOT);
     s_installed_count = app_store_list(STORAGE_APPS_ROOT, s_installed, INSTALLED_APPS_MAX);
     ESP_LOGI(TAG, "%d applications installed", s_installed_count);
     for (int i = 0; i < s_installed_count; i++) {
-        s_app_scenes[i] =
-            app_scene_create(&s_installed[i], STORAGE_APPS_ROOT, app_host_services());
+        /* Run from its slot, in place; one that has none is read from its
+         * file into memory, as all of them used to be. */
+        size_t         size;
+        const uint8_t *code = app_code_find(s_installed[i].name, &size);
+        s_app_scenes[i] = code != NULL
+                              ? app_scene_create_built_in(&s_installed[i], code, size,
+                                                          app_host_services())
+                              : app_scene_create(&s_installed[i], STORAGE_APPS_ROOT,
+                                                 app_host_services());
     }
 }
 

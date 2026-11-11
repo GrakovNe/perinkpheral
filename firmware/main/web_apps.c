@@ -19,6 +19,7 @@
 #include "catalog.h"
 #include "host_api.h"
 #include "events.h"
+#include "app_code.h"
 #include "host.h"
 #include "launcher.h"
 #include "poller.h"
@@ -502,6 +503,7 @@ static void take_away(void *argument)
 {
     remove_command_t *command = argument;
     command->is_done = app_store_remove(STORAGE_APPS_ROOT, command->app_name);
+    app_code_forget(command->app_name);
     if (command->is_done && command->forgets) {
         app_kv_erase(command->app_name);
     }

@@ -10,6 +10,7 @@
 
 #include "esp_log.h"
 
+#include "app_code.h"
 #include "app_store.h"
 #include "display.h"
 #include "host.h"
@@ -216,6 +217,7 @@ int32_t app_system_app_remove(int index)
     if (!app_store_remove(STORAGE_APPS_ROOT, installed[index].name)) {
         return HOST_ERR_FAILED;
     }
+    app_code_forget(installed[index].name);
     ESP_LOGI(TAG, "\"%s\" removed", installed[index].name);
     /* Not from inside the handler that asked: the list is read anew once
      * the application that asked has returned. */
