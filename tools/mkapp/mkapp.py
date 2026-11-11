@@ -36,6 +36,8 @@ POLL_EVERY_MIN_S = 10
 POLL_EVERY_MAX_S = 24 * 60 * 60
 URL_MAX = 255
 HEADERS_MAX = 4
+PICK_PATHS_MAX = 16
+PICK_PATH_MAX = 63
 HEADER_NAME_MAX = 31
 HEADER_VALUE_MAX = 127
 
@@ -190,6 +192,15 @@ def check_poll(path, number, poll):
                 or len(value.encode()) > HEADER_VALUE_MAX):
             sys.exit("%s: header \"%s\" has a name over %d bytes or a value that is not a "
                      "string of at most %d" % (where, name, HEADER_NAME_MAX, HEADER_VALUE_MAX))
+
+
+    pick = poll.get("pick", [])
+    if not isinstance(pick, list) or len(pick) > PICK_PATHS_MAX:
+        sys.exit("%s: \"pick\" must be a list of at most %d paths" % (where, PICK_PATHS_MAX))
+    for picked in pick:
+        if not isinstance(picked, str) or not 0 < len(picked.encode()) <= PICK_PATH_MAX:
+            sys.exit("%s: a path in \"pick\" must be a string of 1 to %d bytes: %r"
+                     % (where, PICK_PATH_MAX, picked))
 
 
 def check_manifest(app_dir):

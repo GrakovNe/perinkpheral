@@ -31,6 +31,7 @@
 #define ROW_TEXT          20
 #define ROW_COLOR         60
 #define ROW_LOCAL_TIME    62
+#define ROW_VALUES        63
 
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
 static gfx_t surface;
@@ -425,6 +426,22 @@ static void test_bad_modules(void)
     app_unload(NULL); /* allowed */
 }
 
+static void test_values(void)
+{
+    app_t *app = load_probe();
+    static const char *const PICKED[] = { "-3.46", "Rain", NULL };
+    app_values(app, 3, 200, PICKED, 3);
+    CHECK(app_take_redraw_request(app));
+    app_values(app, 5, 0, NULL, 0); /* the request could not be made */
+    draw(app);
+    /* read right, the failure told apart, nothing to read outside the handler,
+     * and the SDK's numbers */
+    CHECK(gfx_get(&surface, 0, ROW_VALUES) && gfx_get(&surface, 2, ROW_VALUES));
+    CHECK(gfx_get(&surface, 4, ROW_VALUES) && gfx_get(&surface, 6, ROW_VALUES));
+    CHECK(!app_has_stopped(app));
+    app_unload(app);
+}
+
 static void test_redraw_flags(void)
 {
     app_t *app = load_probe();
@@ -476,6 +493,7 @@ int main(void)
     test_more_refusals();
     test_store();
     test_data();
+    test_values();
     test_trap_stops_the_application();
     test_runaway_handlers_are_stopped();
     test_bad_modules();

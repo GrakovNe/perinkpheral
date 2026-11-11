@@ -4,6 +4,7 @@
  */
 #include "app_manifest.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -76,6 +77,27 @@ static bool read_headers(const cJSON *headers, app_poll_t *poll)
     return true;
 }
 
+static bool read_pick(const cJSON *pick, app_poll_t *poll)
+{
+    poll->pick_count = 0;
+    if (pick == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(pick) || cJSON_GetArraySize(pick) > JSON_PICK_PATHS_MAX) {
+        return false;
+    }
+    const cJSON *path;
+    cJSON_ArrayForEach(path, pick)
+    {
+        if (!cJSON_IsString(path) || path->valuestring[0] == '\0' ||
+            strlen(path->valuestring) > JSON_PICK_PATH_MAX) {
+            return false;
+        }
+        strcpy(poll->pick[poll->pick_count++], path->valuestring);
+    }
+    return true;
+}
+
 static bool read_poll(const cJSON *poll, app_poll_t *parsed)
 {
     if (!cJSON_IsObject(poll)) {
@@ -91,7 +113,8 @@ static bool read_poll(const cJSON *poll, app_poll_t *parsed)
         return false;
     }
     parsed->every_s = (uint32_t)every->valuedouble;
-    return read_headers(cJSON_GetObjectItemCaseSensitive(poll, "headers"), parsed);
+    return read_headers(cJSON_GetObjectItemCaseSensitive(poll, "headers"), parsed) &&
+           read_pick(cJSON_GetObjectItemCaseSensitive(poll, "pick"), parsed);
 }
 
 static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *manifest)
@@ -131,15 +154,23 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_BAD_POLL;
     }
     const cJSON *poll;
+    /* A poll in full is a few kilobytes: not for the stack of whoever reads
+     * a manifest. */
+    app_poll_t *parsed = malloc(sizeof *parsed);
+    if (parsed == NULL) {
+        return APP_MANIFEST_BAD_POLL;
+    }
+    app_manifest_result_t result = APP_MANIFEST_OK;
     cJSON_ArrayForEach(poll, polls)
     {
-        app_poll_t parsed;
-        if (!read_poll(poll, &parsed)) {
-            return APP_MANIFEST_BAD_POLL;
+        if (!read_poll(poll, parsed)) {
+            result = APP_MANIFEST_BAD_POLL;
+            break;
         }
-        manifest->poll_every_s[manifest->poll_count++] = parsed.every_s;
+        manifest->poll_every_s[manifest->poll_count++] = parsed->every_s;
     }
-    return APP_MANIFEST_OK;
+    free(parsed);
+    return result;
 }
 
 /* A zero written as an escape ends a C string in the middle, and the

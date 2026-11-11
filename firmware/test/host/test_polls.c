@@ -184,6 +184,34 @@ static void test_schedule_is_bounded(void)
     CHECK(!poll_schedule_add(&schedule, 99, 0, 60, 0));
 }
 
+static void test_pick(void)
+{
+    static app_poll_t poll;
+    const char *with_pick =
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"https://a.example/x\","
+        "\"every\":600,\"pick\":[\"current.temperature_2m\",\"daily.weather_code[0]\"]},"
+        "{\"url\":\"http://b.example/y\",\"every\":60}]}";
+    app_manifest_t manifest;
+    CHECK(app_manifest_parse(with_pick, &manifest) == APP_MANIFEST_OK);
+    CHECK(app_manifest_parse_poll(with_pick, 0, &poll) == APP_MANIFEST_OK);
+    CHECK(poll.pick_count == 2);
+    CHECK_STR(poll.pick[0], "current.temperature_2m");
+    CHECK_STR(poll.pick[1], "daily.weather_code[0]");
+    /* no "pick": the answer goes to the application as it comes */
+    CHECK(app_manifest_parse_poll(with_pick, 1, &poll) == APP_MANIFEST_OK && poll.pick_count == 0);
+
+    const char *bad[] = {
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":\"a.b\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[1]}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[\"\"]}]}",
+        ("{\"name\":\"w\",\"title\":\"W\",\"abi\":1,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":["
+         "\"0123456789012345678901234567890123456789012345678901234567890123\"]}]}"),
+    };
+    for (int i = 0; i < 4; i++) {
+        CHECK(app_manifest_parse(bad[i], &manifest) == APP_MANIFEST_BAD_POLL);
+    }
+}
+
 int main(void)
 {
     test_polls_in_the_manifest();
@@ -191,5 +219,6 @@ int main(void)
     test_template();
     test_schedule();
     test_schedule_is_bounded();
+    test_pick();
     REPORT();
 }

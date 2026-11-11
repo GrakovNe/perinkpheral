@@ -67,6 +67,12 @@ void app_draw(app_t *app, gfx_t *surface);
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
               int http_status);
 
+/* The values the host picked out of a JSON answer, as app_on_values() of
+ * host_api.h takes them: `values[i]` is the text of path number i of the
+ * poll, NULL when the answer had none. http_status 0: the request failed.
+ * The values are read by the application only while the call runs. */
+void app_values(app_t *app, int request, int http_status, const char *const *values, int count);
+
 /* True once after the application called request_focus(). */
 bool app_take_focus_request(app_t *app);
 

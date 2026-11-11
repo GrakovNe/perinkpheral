@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "json_pick.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -60,6 +62,10 @@ typedef struct {
     app_header_t headers[APP_HEADERS_MAX];
     int          header_count;
     uint32_t     every_s;
+    /* The paths to pick out of a JSON answer (see json_pick.h). None: the
+     * application takes the answer as it comes, in pieces. */
+    char         pick[JSON_PICK_PATHS_MAX][JSON_PICK_PATH_MAX + 1];
+    int          pick_count;
 } app_poll_t;
 
 typedef enum {

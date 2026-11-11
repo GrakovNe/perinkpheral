@@ -40,6 +40,10 @@ struct app {
     IM3Function on_timer;
     IM3Function on_draw;
     IM3Function on_data;
+    IM3Function on_values;
+    /* Set only while app_on_values() runs: what data_value() reads. */
+    const char *const *values;
+    int                value_count;
     uint32_t    data_buffer_offset; /* where in its memory the application takes data */
     bool        has_data_buffer;
 
@@ -318,6 +322,30 @@ HOST_FUNCTION(host_gfx_color)
     m3ApiReturn(HOST_OK);
 }
 
+HOST_FUNCTION(host_data_value)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    app_t *app = APP_OF(runtime);
+    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    if (text == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    bool has_value = index >= 0 && index < app->value_count && app->values[index] != NULL;
+    if (!has_value) {
+        m3ApiReturn(HOST_ERR_NOT_FOUND);
+    }
+    size_t length = strlen(app->values[index]);
+    if (length > (size_t)capacity) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    memcpy(text, app->values[index], length);
+    m3ApiReturn((int32_t)length);
+}
+
 HOST_FUNCTION(host_request_redraw)
 {
     m3ApiGetArg(int32_t, flags);
@@ -486,6 +514,7 @@ static const struct {
     { "gfx_line", "i(iiii)", host_gfx_line },
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
     { "gfx_color", "i(i)", host_gfx_color },
+    { "data_value", "i(iii)", host_data_value },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },
@@ -721,6 +750,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_timer = find_export(app, "app_on_timer");
     app->on_draw = find_export(app, "app_on_draw");
     app->on_data = find_export(app, "app_on_data");
+    app->on_values = find_export(app, "app_on_values");
     find_data_buffer(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
     app->exit_requested = false;
@@ -787,6 +817,15 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
     memcpy(memory + app->data_buffer_offset, data, length);
     CALL_HANDLER(app, app->on_data, (int32_t)request, (int32_t)app->data_buffer_offset,
                  (int32_t)length, (int32_t)flags, (int32_t)http_status);
+}
+
+void app_values(app_t *app, int request, int http_status, const char *const *values, int count)
+{
+    app->values = values;
+    app->value_count = count;
+    CALL_HANDLER(app, app->on_values, (int32_t)request, (int32_t)http_status);
+    app->values = NULL;
+    app->value_count = 0;
 }
 
 bool app_take_focus_request(app_t *app)

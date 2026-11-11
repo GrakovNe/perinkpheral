@@ -84,6 +84,21 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 
+/* The answer to a poll that names what it wants. A poll with "pick" in
+ * the manifest - a list of paths into a JSON answer, such as
+ * "current.temperature_2m" or "daily.weather_code[0]" - is read by the
+ * host, and the application gets this one call instead of the pieces:
+ * `request` is the poll's number, `http_status` is 0 when the request
+ * could not be made. Inside the handler data_value() gives the value of
+ * path number `index`, as text and not terminated: a number, true, false
+ * and null as they were written, a string without its quotes. It answers
+ * HOST_ERR_NOT_FOUND for a path the answer did not have and
+ * HOST_ERR_NO_SPACE for a buffer that is too small; a value is at most
+ * HOST_VALUE_MAX bytes. sdk/lib reads values as numbers and as text. */
+#define HOST_VALUE_MAX 63
+APP_EXPORT(app_on_values, void app_on_values(int32_t request, int32_t http_status));
+HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t capacity));
+
 /* Where the host may put a piece of data: HOST_DATA_CHUNK_MAX bytes of the
  * application's memory. sdk/lib has one ready; an application does not
  * write this itself. */

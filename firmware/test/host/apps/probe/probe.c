@@ -6,6 +6,7 @@
  * interpreter and reads what it did off the pixels. Every row it paints
  * answers one question about the host API.
  */
+#include "app_values.h"
 #include "host_api.h"
 
 #define ROW_PRESSES        0  /* as many pixels as the buttons pressed add up to */
@@ -20,6 +21,7 @@
 #define ROW_DATA           18 /* pixel 0: a response arrived whole and in order; pixel 2: a failed one was told apart */
 #define ROW_TEXT           20
 #define ROW_COLOR          60 /* pixels 0 1 4..7: a bar with a hole of paper; pixel 10: a wrong colour refused */
+#define ROW_VALUES         63 /* pixel 0: picked values read right; 2: a failed request told apart; 4: no values outside the handler; 6: numbers parse */
 #define ROW_LOCAL_TIME     62 /* pixel 0: no time yet; pixel 2: the time taken apart; pixel 4: a wild pointer refused */
 
 #define BUTTON_DRAW_OUTSIDE 3
@@ -169,6 +171,51 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     }
 }
 
+static int32_t values_read_right, values_failed;
+
+static bool same_text(const char *left, const char *right)
+{
+    while (*left != '\0' && *left == *right) {
+        left++;
+        right++;
+    }
+    return *left == *right;
+}
+
+void app_on_values(int32_t request, int32_t http_status)
+{
+    if (http_status == 0) {
+        values_failed = request;
+        return;
+    }
+    int32_t tenths = 0, missing = 0;
+    char text[8], too_small[2];
+    values_read_right = request == 3 && http_status == 200 &&
+                        app_value_number(0, 1, &tenths) && tenths == -35 &&
+                        app_value_text(1, text, sizeof text) && same_text(text, "Rain") &&
+                        !app_value_number(2, 0, &missing) &&
+                        data_value(2, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        data_value(1, too_small, sizeof too_small) == HOST_ERR_NO_SPACE &&
+                        data_value(1, (char *)0xFFFFFF00u, 4) == HOST_ERR_ARGUMENT &&
+                        data_value(99, text, sizeof text) == HOST_ERR_NOT_FOUND;
+    request_redraw(HOST_REDRAW_NORMAL);
+}
+
+static bool numbers_parse(void)
+{
+    int32_t number = 0;
+    return app_parse_number("12", 0, &number) && number == 12 &&
+           app_parse_number("-3.46", 1, &number) && number == -35 &&
+           app_parse_number("-3.44", 1, &number) && number == -34 &&
+           app_parse_number("0.05", 1, &number) && number == 1 &&
+           app_parse_number("7", 2, &number) && number == 700 &&
+           app_parse_number("7.5", 0, &number) && number == 8 &&
+           app_parse_number("2.999", 2, &number) && number == 300 &&
+           !app_parse_number("", 0, &number) && !app_parse_number("-", 0, &number) &&
+           !app_parse_number("true", 0, &number) && !app_parse_number("1e5", 0, &number) &&
+           !app_parse_number("12345678901", 0, &number) && !app_parse_number("1.2x", 1, &number);
+}
+
 void app_on_timer(int32_t id)
 {
     fired_timer = id;
@@ -267,6 +314,20 @@ void app_on_draw(void)
     }
     if (gfx_color(2) == HOST_ERR_ARGUMENT && gfx_color(HOST_INK) == HOST_OK) {
         mark(10, ROW_COLOR);
+    }
+
+    if (values_read_right) {
+        mark(0, ROW_VALUES);
+    }
+    if (values_failed == 5) {
+        mark(2, ROW_VALUES);
+    }
+    char no_value[4];
+    if (data_value(0, no_value, sizeof no_value) == HOST_ERR_NOT_FOUND) {
+        mark(4, ROW_VALUES);
+    }
+    if (numbers_parse()) {
+        mark(6, ROW_VALUES);
     }
 
     host_local_time_t now;
