@@ -320,20 +320,22 @@ hardware/              everything about the physical device
 5. **Web UI and catalog.** Install from `catalog.json`, application and host settings (including the e-paper policy), the log, firmware updates pulled from releases (`esp_https_ota`).
 
 ## State
-Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page and the splash - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` shows the time, the day of the week and the date and redraws once a minute, host tests of the pure modules.
+Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, partial 0.41 s), buttons with short and long presses, the refresh policy, drawing and fonts, the host kernel (display service with two frames, window manager, scenes, one event queue) with built-in scenes - the menu, a device page, the splash and the setup screen - and wasm applications installed on LittleFS: the menu lists what is there, `hello` counts presses and `clock` shows the time, the day of the week and the date and redraws once a minute, host tests of the pure modules.
+
+Verified on the owner's network: joining it, SNTP and the date in the header, local time by the stored time zone, the web page, a firmware upload with its probation (both slots, several times), returning to the last application after a restart, the factory reset and the setup that follows it - the QR code, the captive portal and storing the network from a phone - and the development tools over the network.
 
 Open:
-- Returning to the last application after a restart has not been seen on the device: it needs a stored network, and without one the device goes to the setup screen, which was seen.
-- **Nothing that needs a network path to the device has been run**: joining a real network, SNTP and the date in the header, the web page, storing Wi-Fi settings through it, a firmware upload and its probation. All of it was written in an unattended session without Wi-Fi credentials; the rules are host-tested, the device-side glue is not. On the device only this was seen: the setup access point and the web server come up.
-- Anyone on the network can upload firmware: `POST /api/ota` asks for nothing. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device.
-Open:
+- **Milestone 1 has one item left, and it needs hands: a run from the battery without USB.**
+- Anyone on the network can change the device: the API asks for nothing - a firmware upload, a factory reset, the development tools. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device. Requests made by pages of other sites through a browser are refused already (`Origin`).
+- With Wi-Fi connected and an application on the screen the free heap is about 130 KB, and it has been as low as 107 KB. Polling will add TLS (~45 KB) on top; the radio's buffers have not been tuned.
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
 - The down and up events of real buttons have not been seen on the device.
 - An application uploaded with the development tools is started by restarting the device: the list of applications is read once, at start. Installing from the catalog will need the launcher to reload it.
+- The time zone the page works out from a browser is a rule of fixed dates; a zone that changes its clocks otherwise (Morocco) comes out approximate.
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-Milestone 1 is done on USB power; what is left of it needs hands: a check on battery without USB. Next - milestone 2, starting with Wi-Fi and OTA.
+Next - what is left of milestone 2: the poller (the device half of data for applications), `http_request`, the first application with data, and the ABI freeze.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.
