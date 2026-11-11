@@ -189,6 +189,30 @@ static void test_install_files(void)
 
     CHECK(app_store_file_max_bytes(APP_FILE_MODULE) == APP_MODULE_MAX_BYTES);
 
+    /* the application writes a file of its own: piece by piece, over a piece, no holes */
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 0, "abcd", 4) == APP_WRITE_OK);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 4, "efgh", 4) == APP_WRITE_OK);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 2, "XY", 2) == APP_WRITE_OK);
+    CHECK(app_store_read_file(root, "fresh", "cache.bin", 0, piece, 8) == 8 &&
+          memcmp(piece, "abXYefgh", 8) == 0);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 9, "z", 1) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 1, "", 0) == APP_WRITE_REFUSED);
+    /* not its module, not its manifest, not somebody else's path */
+    CHECK(app_store_write_file(root, "fresh", APP_FILE_MODULE, 0, "x", 1) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "fresh", APP_FILE_MANIFEST, 0, "x", 1) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "fresh", "../x", 0, "x", 1) == APP_WRITE_REFUSED);
+    /* all its data files together have a share: 10 + 8 bytes are taken */
+    static char big[APP_FILES_MAX_BYTES];
+    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big, APP_FILES_MAX_BYTES - 18) ==
+          APP_WRITE_OK);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 8, "i", 1) == APP_WRITE_NO_SPACE);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 0, "A", 1) == APP_WRITE_OK);
+    /* length 0 at the start removes the file, and one that is not there is gone already */
+    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, "", 0) == APP_WRITE_OK);
+    CHECK(app_store_file_size(root, "fresh", "big.bin") < 0);
+    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, "", 0) == APP_WRITE_OK);
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 8, "i", 1) == APP_WRITE_OK);
+
     /* and off the device again: every file, the unfinished upload, the folder */
     CHECK(!app_store_remove(root, "../fresh") && !app_store_remove(root, "absent"));
     CHECK(app_store_remove(root, "fresh"));

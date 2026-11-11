@@ -287,13 +287,34 @@ HOST_IMPORT(net_is_online, int32_t net_is_online(void));
  * asking again before the answer changes nothing. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
+/* Another pace for poll number `poll` than the manifest says - the
+ * server told when to come again. From 10 seconds to a day, counted from
+ * now, until the device restarts. */
+HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
+
+/* ---- The alarm ---- */
+
+/* Call app_on_alarm() once, `seconds` from now, whether the application
+ * is on the screen then or not; off the screen it is loaded for the call
+ * and may ask for the screen with request_focus(). One alarm for an
+ * application: setting it again moves it, 0 takes it back. timer_set()
+ * is for the application on the screen; this is for a countdown that
+ * must end wherever the user has gone. A restart of the device forgets
+ * it: what must survive that is a time in the store, set again in
+ * app_init(). */
+HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t seconds));
+APP_EXPORT(app_on_alarm, void app_on_alarm(void));
+
 /* ---- Files ---- */
 
 /* What does not fit a kv value: a picture, a table, a video. An
  * application reads the files that came in its package - everything in
- * its `files` folder when it was built. The name is 1-23 of a-z, 0-9,
+ * its `files` folder when it was built - and the ones it wrote itself:
+ * a picture that arrived in pieces, a cache. All of them together may
+ * take HOST_FILES_MAX bytes. Writing wears the flash like kv_set() does. The name is 1-23 of a-z, 0-9,
  * '.', '-' and '_', not starting with a dot. */
 #define HOST_FILE_NAME_MAX 23
+#define HOST_FILES_MAX     (100 * 1024)
 
 /* The length of the file, or HOST_ERR_NOT_FOUND. */
 HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length));
@@ -302,6 +323,13 @@ HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length))
  * fewer at the end of the file and 0 past it. */
 HOST_IMPORT(file_read, int32_t file_read(const char *name, int32_t name_length, int32_t offset,
                                          void *bytes, int32_t capacity));
+
+/* Writes `length` bytes at `offset`, which is inside the file or right at
+ * its end: a file grows piece by piece, and a piece may be written over.
+ * A length of 0 at offset 0 removes the file. HOST_ERR_NO_SPACE when the
+ * application's files would take more than HOST_FILES_MAX. */
+HOST_IMPORT(file_write, int32_t file_write(const char *name, int32_t name_length, int32_t offset,
+                                           const void *bytes, int32_t length));
 
 /* ---- Time ---- */
 

@@ -199,8 +199,11 @@ kv_get(key, key_len, buf, cap) -> len  // the application's own store
 kv_set(key, key_len, buf, len)         // len 0 removes the key
 net_is_online() -> 0 | 1
 poll_now(n)                            // fetch poll n of the manifest now, not when it is due
+poll_set_interval(n, seconds)          // another pace for it, until the device restarts
+alarm_set(seconds)                     // app_on_alarm() once, on the screen or off it; 0 takes it back
 file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
 file_read(name, name_len, offset, buf, cap) -> bytes read
+file_write(name, name_len, offset, buf, len)  // inside the file or at its end; len 0 at 0 removes it
 time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
 time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
@@ -209,9 +212,10 @@ log(level, str, len)
 ```
 **What the contract still needs** - agreed, not written yet; in the order it will be built:
 - **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
-- **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_set_interval(n, seconds)` for the polls of the manifest. (`poll_now` and `net_is_online` are done.)
-- **Writing files**: reading the files an application came with is done (`file_size`, `file_read`); what is left is `file_write`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
-- **An alarm off the screen**: `alarm_set(seconds)`, then `app_on_alarm()` on an application that is loaded for it and may ask for the screen. `timer_set` lives only while the application is on the screen; in deep sleep the alarm is the only way an application wakes by itself.
+- **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer.
+- **A picture straight from a file**: `gfx_bitmap` reading a file - a picture is 15 KB and does not fit an application's hands at once.
+
+Done since and seen on the device: files (`file_read`, `file_write`, 100 KB an application), the alarm (`sdk/apps/timer`: a countdown that takes the screen back from another application when it ends), `poll_now`. The alarm is kept in memory: a restart forgets it, and deep sleep will need it in RTC memory.
 
 **Few applications, large ones**, the way Pebble did it: at most **5** installed, each with a module of up to 48 KB, 100 KB of files and 4 KB of `kv_*`. The partition is 1 MB; five such applications are about 780 KB of it. Whoever wants more rotates them - one day from a companion application on a phone.
 
@@ -314,6 +318,7 @@ sdk/
   lib/                 what applications link instead of a C library
   apps/
     hello/             sample: text + reaction to a button
+    timer/             a countdown that ends wherever the user has gone: the alarm, request_focus
     weather/           the first application with data: now and three days, from Open-Meteo
     clock/             the time, the day of the week and the date
     badapple/          a test of the panel and the interpreter: a 1-bit video from a file

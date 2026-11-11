@@ -58,6 +58,23 @@ static int32_t file_read(const char *app_name, const char *file, int32_t offset,
     return count >= 0 ? (int32_t)count : HOST_ERR_NOT_FOUND;
 }
 
+static int32_t file_write(const char *app_name, const char *file, int32_t offset,
+                          const void *bytes, int32_t length)
+{
+    switch (app_store_write_file(STORAGE_APPS_ROOT, app_name, file, offset, bytes,
+                                 (size_t)length)) {
+    case APP_WRITE_OK:
+        return HOST_OK;
+    case APP_WRITE_REFUSED:
+        return HOST_ERR_ARGUMENT;
+    case APP_WRITE_NO_SPACE:
+        return HOST_ERR_NO_SPACE;
+    case APP_WRITE_FAILED:
+        break;
+    }
+    return HOST_ERR_FAILED;
+}
+
 const app_services_t *app_host_services(void)
 {
     static const app_services_t SERVICES = {
@@ -70,8 +87,11 @@ const app_services_t *app_host_services(void)
         .kv_set = app_kv_set,
         .is_online = wifi_is_online,
         .poll_now = poller_poll_now,
+        .poll_set_interval = poller_set_interval,
+        .alarm_set = poller_alarm_set,
         .file_size = file_size,
         .file_read = file_read,
+        .file_write = file_write,
     };
     return &SERVICES;
 }

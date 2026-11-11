@@ -78,3 +78,62 @@ bool poll_schedule_hurry_one(poll_schedule_t *schedule, int app, int poll, int64
     }
     return false;
 }
+
+bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
+                                int64_t now_ms)
+{
+    if (every_s < APP_POLL_EVERY_MIN_S) {
+        every_s = APP_POLL_EVERY_MIN_S;
+    } else if (every_s > APP_POLL_EVERY_MAX_S) {
+        every_s = APP_POLL_EVERY_MAX_S;
+    }
+    for (int i = 0; i < schedule->count; i++) {
+        poll_entry_t *entry = &schedule->entries[i];
+        if (entry->app == app && entry->poll == poll) {
+            entry->every_ms = every_s * MS_PER_SECOND;
+            entry->due_ms = now_ms + entry->every_ms;
+            return true;
+        }
+    }
+    return false;
+}
+
+void app_alarms_init(app_alarms_t *alarms)
+{
+    for (int app = 0; app < APP_ALARMS_MAX; app++) {
+        alarms->due_ms[app] = 0;
+    }
+}
+
+bool app_alarms_set(app_alarms_t *alarms, int app, uint32_t seconds, int64_t now_ms)
+{
+    if (app < 0 || app >= APP_ALARMS_MAX) {
+        return false;
+    }
+    /* 0 means "not set", so an alarm never falls on the very first millisecond. */
+    int64_t due_ms = now_ms + (int64_t)seconds * MS_PER_SECOND;
+    alarms->due_ms[app] = seconds == 0 ? 0 : due_ms > 0 ? due_ms : 1;
+    return true;
+}
+
+int app_alarms_take_due(app_alarms_t *alarms, int64_t now_ms)
+{
+    for (int app = 0; app < APP_ALARMS_MAX; app++) {
+        if (alarms->due_ms[app] != 0 && alarms->due_ms[app] <= now_ms) {
+            alarms->due_ms[app] = 0;
+            return app;
+        }
+    }
+    return -1;
+}
+
+void poll_schedule_finished(poll_schedule_t *schedule, int app, int poll, int64_t now_ms)
+{
+    for (int i = 0; i < schedule->count; i++) {
+        poll_entry_t *entry = &schedule->entries[i];
+        if (entry->app == app && entry->poll == poll) {
+            entry->due_ms = now_ms + entry->every_ms;
+            return;
+        }
+    }
+}

@@ -5,6 +5,7 @@
 #include "app.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "host_api.h"
@@ -179,6 +180,34 @@ static bool fake_poll_now(const char *app_name, int poll)
     return true;
 }
 
+static uint32_t paced_seconds, alarm_seconds = 99;
+static bool fake_poll_set_interval(const char *app_name, int poll, uint32_t every_s)
+{
+    (void)app_name;
+    if (poll != 0) {
+        return false;
+    }
+    paced_seconds = every_s;
+    return true;
+}
+
+static bool fake_alarm_set(const char *app_name, uint32_t seconds)
+{
+    (void)app_name;
+    alarm_seconds = seconds;
+    return true;
+}
+
+static char written_file[32];
+static int32_t fake_file_write(const char *app_name, const char *file, int32_t offset,
+                               const void *bytes, int32_t length)
+{
+    (void)app_name;
+    snprintf(written_file, sizeof written_file, "%s@%d:%.*s", file, (int)offset, (int)length,
+             (const char *)bytes);
+    return HOST_OK;
+}
+
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
@@ -189,8 +218,11 @@ static const app_services_t SERVICES = {
     .kv_set = fake_kv_set,
     .is_online = fake_is_online,
     .poll_now = fake_poll_now,
+    .poll_set_interval = fake_poll_set_interval,
+    .alarm_set = fake_alarm_set,
     .file_size = fake_file_size,
     .file_read = fake_file_read,
+    .file_write = fake_file_write,
 };
 
 static app_t *load_probe_as(const char *name)
@@ -487,6 +519,14 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 8, ROW_VALUES));
     /* the network: online, a poll asked for by its number, a wrong number refused */
     CHECK(gfx_get(&surface, 12, ROW_VALUES) && polled_now == 1);
+    /* a poll at another pace, an alarm, a file written, and the wrong ones refused */
+    CHECK(gfx_get(&surface, 14, ROW_VALUES));
+    CHECK(paced_seconds == 3600 && alarm_seconds == 0);
+    CHECK_STR(written_file, "cache.bin@4:abc");
+    /* the alarm comes back as a call */
+    app_alarm(app);
+    draw(app);
+    CHECK(gfx_get(&surface, 16, ROW_VALUES));
     /* its file: the length, a piece from the middle, the end, the names it may not use */
     CHECK(gfx_get(&surface, 10, ROW_VALUES));
     CHECK(!app_has_stopped(app));

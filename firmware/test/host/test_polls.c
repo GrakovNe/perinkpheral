@@ -226,6 +226,43 @@ static void test_schedule_hurry(void)
     CHECK(wait_ms == 599500); /* application 0 kept its time */
 }
 
+static void test_pace_and_alarms(void)
+{
+    poll_schedule_t schedule;
+    poll_schedule_init(&schedule);
+    CHECK(poll_schedule_add(&schedule, 0, 0, 600, 0));
+    uint32_t wait_ms;
+    const poll_entry_t *due;
+    while ((due = poll_schedule_due(&schedule, 50000, &wait_ms)) != NULL) {
+        poll_schedule_finished(&schedule, due->app, due->poll, 50000);
+    }
+    CHECK(wait_ms == 600000);
+    /* the server said: come again in an hour */
+    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 3600, 60000));
+    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 3600000);
+    /* the limits of a manifest hold */
+    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 1, 60000));
+    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 10000);
+    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 999999999, 60000));
+    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 86400000);
+    CHECK(!poll_schedule_set_interval(&schedule, 0, 1, 60, 60000));
+    CHECK(!poll_schedule_set_interval(&schedule, 5, 0, 60, 60000));
+
+    app_alarms_t alarms;
+    app_alarms_init(&alarms);
+    CHECK(app_alarms_take_due(&alarms, 1000) == -1);
+    CHECK(app_alarms_set(&alarms, 2, 30, 1000) && app_alarms_set(&alarms, 0, 10, 1000));
+    CHECK(app_alarms_take_due(&alarms, 10999) == -1);
+    CHECK(app_alarms_take_due(&alarms, 11000) == 0);
+    CHECK(app_alarms_take_due(&alarms, 11000) == -1); /* once */
+    /* set again: moved, not added; 0 takes it back */
+    CHECK(app_alarms_set(&alarms, 2, 100, 20000));
+    CHECK(app_alarms_take_due(&alarms, 31000) == -1);
+    CHECK(app_alarms_set(&alarms, 2, 0, 20000));
+    CHECK(app_alarms_take_due(&alarms, 999999) == -1);
+    CHECK(!app_alarms_set(&alarms, APP_ALARMS_MAX, 1, 0) && !app_alarms_set(&alarms, -1, 1, 0));
+}
+
 static void test_schedule_is_bounded(void)
 {
     poll_schedule_t schedule;
@@ -274,5 +311,6 @@ int main(void)
     test_pick();
     test_schedule_hurry();
     test_template_for_a_url();
+    test_pace_and_alarms();
     REPORT();
 }

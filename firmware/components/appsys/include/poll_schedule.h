@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app_manifest.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,6 +48,35 @@ const poll_entry_t *poll_schedule_due(const poll_schedule_t *schedule, int64_t n
  * now, not from when it should have run - a device that slept through
  * several periods does not catch up with a burst. */
 void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, int64_t now_ms);
+
+/* The application wants its poll at another pace than its manifest says
+ * - the server told it when to come again. Counted from now; the limits
+ * of a manifest hold (APP_POLL_EVERY_MIN_S, APP_POLL_EVERY_MAX_S). False
+ * when there is no such poll. */
+bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
+                                int64_t now_ms);
+
+/* An application's alarm: it asked to be called once, some time from now,
+ * whether it is on the screen then or not. One for each application. */
+#define APP_ALARMS_MAX 8
+
+typedef struct {
+    int64_t due_ms[APP_ALARMS_MAX]; /* 0: not set */
+} app_alarms_t;
+
+void app_alarms_init(app_alarms_t *alarms);
+
+/* seconds 0 takes the alarm back. False for an application the table has
+ * no place for. */
+bool app_alarms_set(app_alarms_t *alarms, int app, uint32_t seconds, int64_t now_ms);
+
+/* The application whose alarm has come, the alarm cleared; -1 when none
+ * has. */
+int app_alarms_take_due(app_alarms_t *alarms, int64_t now_ms);
+
+/* The same as poll_schedule_done(), for a caller that kept the numbers
+ * and not the entry. */
+void poll_schedule_finished(poll_schedule_t *schedule, int app, int poll, int64_t now_ms);
 
 /* One poll is due now: the application asked for it. False when there is
  * no such poll. */

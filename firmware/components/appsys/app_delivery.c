@@ -16,7 +16,9 @@ void app_delivery_init(app_delivery_state_t *state)
 
 static void call(app_t *app, const app_delivery_t *delivery)
 {
-    if (delivery->kind == APP_DELIVERY_SETTINGS) {
+    if (delivery->kind == APP_DELIVERY_ALARM) {
+        app_alarm(app);
+    } else if (delivery->kind == APP_DELIVERY_SETTINGS) {
         app_settings_changed(app);
     } else if (delivery->kind == APP_DELIVERY_VALUES) {
         app_values(app, delivery->request, delivery->http_status, delivery->values,

@@ -36,6 +36,14 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
 }
 static bool offline(void) { return false; }
 static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
+static bool no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return false; }
+static bool no_alarm(const char *app, uint32_t s) { (void)app; (void)s; return false; }
+static int32_t no_file_write(const char *app, const char *file, int32_t offset, const void *bytes,
+                             int32_t length)
+{
+    (void)app; (void)file; (void)offset; (void)bytes; (void)length;
+    return HOST_ERR_FAILED;
+}
 static int32_t no_file_size(const char *app, const char *file)
 {
     (void)app; (void)file;
@@ -50,7 +58,8 @@ static int32_t no_file_read(const char *app, const char *file, int32_t offset, v
 static const app_services_t SERVICES = {
     .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
-    .is_online = offline, .poll_now = no_poll_now,
+    .is_online = offline, .poll_now = no_poll_now, .poll_set_interval = no_interval,
+    .alarm_set = no_alarm, .file_write = no_file_write,
     .file_size = no_file_size, .file_read = no_file_read,
 };
 

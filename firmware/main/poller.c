@@ -4,7 +4,6 @@
  */
 #include "poller.h"
 
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,12 +44,10 @@ static const char *TAG = "poller";
 static poll_schedule_t       s_schedule;
 static const app_manifest_t *s_apps;
 static int                   s_app_count;
-/* The application whose polls are to be fetched at once, or NO_APP. */
-static atomic_int            s_hurried_app = NO_APP;
-/* One poll asked for by its application: the application's number and the
- * poll's packed into one word, or NO_APP. */
-static atomic_int            s_hurried_poll = NO_APP;
-#define PACKED_POLL(app, poll) ((app) * APP_POLLS_MAX + (poll))
+static app_alarms_t          s_alarms;
+/* The schedule and the alarms are changed from other tasks too: an
+ * application asks for a poll, the web page saves settings. */
+static SemaphoreHandle_t     s_lock;
 
 static int64_t now_ms(void)
 {
@@ -294,21 +291,58 @@ static void run_poll(const char *app_name, int poll_number)
     free(request);
 }
 
+static void lock(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+}
+
+static void unlock(void)
+{
+    xSemaphoreGive(s_lock);
+}
+
+/* The application's number as the schedule counts them, or NO_APP. */
+static int app_number(const char *app_name)
+{
+    if (s_lock == NULL) {
+        return NO_APP; /* asked before the poller started: nothing is scheduled yet */
+    }
+    for (int app = 0; app < s_app_count; app++) {
+        if (strcmp(s_apps[app].name, app_name) == 0) {
+            return app;
+        }
+    }
+    return NO_APP;
+}
+
+/* An alarm that has come is handed to its application like an answer. */
+static bool ring_due_alarm(void)
+{
+    lock();
+    int app = app_alarms_take_due(&s_alarms, now_ms());
+    unlock();
+    if (app < 0) {
+        return false;
+    }
+    app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM };
+    poller_hand_over(s_apps[app].name, &alarm);
+    return true;
+}
+
 static void poller_task(void *arg)
 {
     (void)arg;
     for (;;) {
-        int hurried_app = atomic_exchange(&s_hurried_app, NO_APP);
-        if (hurried_app != NO_APP) {
-            poll_schedule_hurry(&s_schedule, hurried_app, now_ms());
+        if (ring_due_alarm()) {
+            continue;
         }
-        int hurried_poll = atomic_exchange(&s_hurried_poll, NO_APP);
-        if (hurried_poll != NO_APP) {
-            poll_schedule_hurry_one(&s_schedule, hurried_poll / APP_POLLS_MAX,
-                                    hurried_poll % APP_POLLS_MAX, now_ms());
-        }
+        lock();
         uint32_t            wait_ms;
         const poll_entry_t *due = poll_schedule_due(&s_schedule, now_ms(), &wait_ms);
+        /* The entry may be moved by another task once the lock is gone:
+         * what is needed of it is taken now. */
+        int due_app = due != NULL ? due->app : NO_APP, due_poll = due != NULL ? due->poll : 0;
+        unlock();
         if (due == NULL) {
             vTaskDelay(pdMS_TO_TICKS(wait_ms < IDLE_CHECK_MS ? wait_ms : IDLE_CHECK_MS));
             continue;
@@ -319,19 +353,20 @@ static void poller_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(IDLE_CHECK_MS));
             continue;
         }
-        run_poll(s_apps[due->app].name, due->poll);
-        poll_schedule_done(&s_schedule, due, now_ms());
+        run_poll(s_apps[due_app].name, due_poll);
+        lock();
+        poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
+        unlock();
     }
 }
 
 void poller_start(void)
 {
-    int app_count;
-    s_apps = launcher_installed(&app_count);
-    s_app_count = app_count;
+    s_apps = launcher_installed(&s_app_count);
     poll_schedule_init(&s_schedule);
+    app_alarms_init(&s_alarms);
     int polls = 0;
-    for (int app = 0; app < app_count; app++) {
+    for (int app = 0; app < s_app_count; app++) {
         for (int poll = 0; poll < s_apps[app].poll_count; poll++) {
             if (poll_schedule_add(&s_schedule, app, poll, s_apps[app].poll_every_s[poll],
                                   now_ms())) {
@@ -339,10 +374,9 @@ void poller_start(void)
             }
         }
     }
-    if (polls == 0) {
-        ESP_LOGI(TAG, "no application has anything to fetch");
-        return;
-    }
+    s_lock = xSemaphoreCreateMutex();
+    configASSERT(s_lock != NULL);
+    /* Started even with nothing to fetch: alarms are rung from here too. */
     BaseType_t ok = xTaskCreate(poller_task, "poller", TASK_STACK_BYTES, NULL, TASK_PRIORITY,
                                 NULL);
     configASSERT(ok == pdPASS);
@@ -351,25 +385,46 @@ void poller_start(void)
 
 void poller_hurry(const char *app_name)
 {
-    for (int app = 0; app < s_app_count; app++) {
-        if (strcmp(s_apps[app].name, app_name) == 0) {
-            /* One at a time is enough: nobody changes the settings of two
-             * applications within a second. */
-            atomic_store(&s_hurried_app, app);
-        }
+    int app = app_number(app_name);
+    if (app != NO_APP) {
+        lock();
+        poll_schedule_hurry(&s_schedule, app, now_ms());
+        unlock();
     }
 }
 
 bool poller_poll_now(const char *app_name, int poll)
 {
-    for (int app = 0; app < s_app_count; app++) {
-        if (strcmp(s_apps[app].name, app_name) == 0) {
-            if (poll < 0 || poll >= s_apps[app].poll_count) {
-                return false;
-            }
-            atomic_store(&s_hurried_poll, PACKED_POLL(app, poll));
-            return true;
-        }
+    int app = app_number(app_name);
+    if (app == NO_APP) {
+        return false;
     }
-    return false;
+    lock();
+    bool found = poll_schedule_hurry_one(&s_schedule, app, poll, now_ms());
+    unlock();
+    return found;
+}
+
+bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
+{
+    int app = app_number(app_name);
+    if (app == NO_APP) {
+        return false;
+    }
+    lock();
+    bool found = poll_schedule_set_interval(&s_schedule, app, poll, every_s, now_ms());
+    unlock();
+    return found;
+}
+
+bool poller_alarm_set(const char *app_name, uint32_t seconds)
+{
+    int app = app_number(app_name);
+    if (app == NO_APP) {
+        return false;
+    }
+    lock();
+    bool set = app_alarms_set(&s_alarms, app, seconds, now_ms());
+    unlock();
+    return set;
 }

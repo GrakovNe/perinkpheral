@@ -42,6 +42,7 @@ struct app {
     IM3Function on_data;
     IM3Function on_values;
     IM3Function on_settings;
+    IM3Function on_alarm;
     /* Set only while app_on_values() runs: what data_value() reads. */
     const char *const *values;
     int                value_count;
@@ -504,6 +505,44 @@ HOST_FUNCTION(host_poll_now)
     m3ApiReturn(app->services->poll_now(app->name, poll) ? HOST_OK : HOST_ERR_ARGUMENT);
 }
 
+HOST_FUNCTION(host_poll_set_interval)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, poll);
+    m3ApiGetArg(int32_t, seconds);
+    app_t *app = APP_OF(runtime);
+    bool changed = seconds > 0 && app->services->poll_set_interval(app->name, poll,
+                                                                  (uint32_t)seconds);
+    m3ApiReturn(changed ? HOST_OK : HOST_ERR_ARGUMENT);
+}
+
+HOST_FUNCTION(host_alarm_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, seconds);
+    app_t *app = APP_OF(runtime);
+    bool set = seconds >= 0 && app->services->alarm_set(app->name, (uint32_t)seconds);
+    m3ApiReturn(set ? HOST_OK : HOST_ERR_ARGUMENT);
+}
+
+HOST_FUNCTION(host_file_write)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    m3ApiGetArg(int32_t, offset);
+    m3ApiGetArg(uint32_t, bytes_offset);
+    m3ApiGetArg(int32_t, length);
+    app_t *app = APP_OF(runtime);
+    char name[HOST_FILE_NAME_MAX + 1];
+    const uint8_t *bytes = in_app_memory(runtime, _mem, bytes_offset, length);
+    if (bytes == NULL || offset < 0 ||
+        !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->file_write(app->name, name, offset, bytes, length));
+}
+
 HOST_FUNCTION(host_time_now)
 {
     m3ApiReturnType(int64_t);
@@ -595,6 +634,9 @@ static const struct {
     { "file_read", "i(iiiii)", host_file_read },
     { "net_is_online", "i()", host_net_is_online },
     { "poll_now", "i(i)", host_poll_now },
+    { "poll_set_interval", "i(ii)", host_poll_set_interval },
+    { "alarm_set", "i(i)", host_alarm_set },
+    { "file_write", "i(iiiii)", host_file_write },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
     { "time_local", "i(i)", host_time_local },
@@ -826,6 +868,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_data = find_export(app, "app_on_data");
     app->on_values = find_export(app, "app_on_values");
     app->on_settings = find_export(app, "app_on_settings");
+    app->on_alarm = find_export(app, "app_on_alarm");
     find_data_buffer(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
     app->exit_requested = false;
@@ -902,6 +945,11 @@ void app_values(app_t *app, int request, int http_status, const char *const *val
     CALL_HANDLER(app, app->on_values, (int32_t)request, (int32_t)http_status);
     app->values = NULL;
     app->value_count = 0;
+}
+
+void app_alarm(app_t *app)
+{
+    CALL_HANDLER(app, app->on_alarm);
 }
 
 void app_settings_changed(app_t *app)

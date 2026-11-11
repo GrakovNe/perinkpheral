@@ -38,11 +38,19 @@ typedef struct {
     /* Fetch the application's poll number `poll` now instead of when it is
      * due; false when it has no such poll. */
     bool (*poll_now)(const char *app_name, int poll);
+    /* Another pace for a poll; false when there is no such poll. */
+    bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
+    /* Call the application once, `seconds` from now, wherever it is then;
+     * 0 takes the alarm back. */
+    bool (*alarm_set)(const char *app_name, uint32_t seconds);
     /* The application's own files, as file_size and file_read of
      * host_api.h answer; the name is checked and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);
     int32_t (*file_read)(const char *app_name, const char *file, int32_t offset, void *bytes,
                          int32_t capacity);
+    /* HOST_OK or a HOST_ERR_*; length 0 at offset 0 removes the file. */
+    int32_t (*file_write)(const char *app_name, const char *file, int32_t offset,
+                          const void *bytes, int32_t length);
 } app_services_t;
 
 typedef struct app app_t;
@@ -82,6 +90,9 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
  * poll, NULL when the answer had none. http_status 0: the request failed.
  * The values are read by the application only while the call runs. */
 void app_values(app_t *app, int request, int http_status, const char *const *values, int count);
+
+/* The alarm the application set has come: app_on_alarm(). */
+void app_alarm(app_t *app);
 
 /* The user changed the application's settings: app_on_settings(). */
 void app_settings_changed(app_t *app);

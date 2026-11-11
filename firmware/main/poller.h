@@ -43,6 +43,14 @@ void poller_hurry(const char *app_name);
  * any task. */
 bool poller_poll_now(const char *app_name, int poll);
 
+/* Another pace for a poll than its manifest says, until the device
+ * restarts. False when there is no such poll. */
+bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
+
+/* Calls the application once, `seconds` from now, on the screen or off it;
+ * 0 takes the alarm back. Kept in memory: a restart forgets it. */
+bool poller_alarm_set(const char *app_name, uint32_t seconds);
+
 /* Gives something to the host loop for an application and waits until
  * the application has had it. From any task but the host's own. */
 void poller_hand_over(const char *app_name, const app_delivery_t *delivery);

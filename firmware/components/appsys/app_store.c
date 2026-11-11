@@ -192,6 +192,70 @@ long app_store_read_file(const char *root, const char *name, const char *file, l
     return count;
 }
 
+static bool is_data_file(const char *file)
+{
+    size_t length = strlen(file);
+    bool is_incoming = length >= sizeof INCOMING_SUFFIX &&
+                       strcmp(file + length - (sizeof INCOMING_SUFFIX - 1), INCOMING_SUFFIX) == 0;
+    return strcmp(file, APP_FILE_MANIFEST) != 0 && strcmp(file, APP_FILE_MODULE) != 0 &&
+           !is_incoming;
+}
+
+/* How much the application's data files take, the one named `except` not counted. */
+static long data_bytes(const char *root, const char *name, const char *except)
+{
+    char folder[PATH_MAX_BYTES];
+    snprintf(folder, sizeof folder, "%s/%s", root, name);
+    DIR *directory = opendir(folder);
+    if (directory == NULL) {
+        return 0;
+    }
+    long total = 0;
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        if (entry->d_name[0] == '.' || !is_data_file(entry->d_name) ||
+            strcmp(entry->d_name, except) == 0) {
+            continue;
+        }
+        long size = app_store_file_size(root, name, entry->d_name);
+        total += size > 0 ? size : 0;
+    }
+    closedir(directory);
+    return total;
+}
+
+app_write_result_t app_store_write_file(const char *root, const char *name, const char *file,
+                                        long offset, const void *bytes, size_t length)
+{
+    char path[PATH_MAX_BYTES];
+    if (offset < 0 || !is_data_file(file) || !file_path_of(path, root, name, file, "")) {
+        return APP_WRITE_REFUSED;
+    }
+    long size = app_store_file_size(root, name, file);
+    if (length == 0) {
+        if (offset != 0) {
+            return APP_WRITE_REFUSED;
+        }
+        return size < 0 || remove(path) == 0 ? APP_WRITE_OK : APP_WRITE_FAILED;
+    }
+    long size_before = size > 0 ? size : 0;
+    if (offset > size_before) {
+        return APP_WRITE_REFUSED; /* a file has no holes */
+    }
+    long end = offset + (long)length;
+    long size_after = end > size_before ? end : size_before;
+    if (data_bytes(root, name, file) + size_after > APP_FILES_MAX_BYTES) {
+        return APP_WRITE_NO_SPACE;
+    }
+    FILE *opened = fopen(path, size < 0 ? "wb" : "r+b");
+    if (opened == NULL) {
+        return APP_WRITE_FAILED;
+    }
+    bool written = fseek(opened, offset, SEEK_SET) == 0 &&
+                   fwrite(bytes, 1, length, opened) == length;
+    return fclose(opened) == 0 && written ? APP_WRITE_OK : APP_WRITE_FAILED;
+}
+
 bool app_store_remove(const char *root, const char *name)
 {
     char folder[PATH_MAX_BYTES];

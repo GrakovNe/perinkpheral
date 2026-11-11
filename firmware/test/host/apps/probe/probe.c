@@ -220,6 +220,13 @@ static bool calls_through_pointers(void)
     return number == 3;
 }
 
+static int32_t alarms_rung;
+
+void app_on_alarm(void)
+{
+    alarms_rung++;
+}
+
 static bool numbers_parse(void)
 {
     int32_t number = 0;
@@ -359,6 +366,18 @@ void app_on_draw(void)
     if (net_is_online() == 1 && poll_now(1) == HOST_OK && poll_now(2) == HOST_ERR_ARGUMENT &&
         poll_now(-1) == HOST_ERR_ARGUMENT) {
         mark(12, ROW_VALUES);
+    }
+    if (poll_set_interval(0, 3600) == HOST_OK && poll_set_interval(1, 60) == HOST_ERR_ARGUMENT &&
+        poll_set_interval(0, 0) == HOST_ERR_ARGUMENT && alarm_set(120) == HOST_OK &&
+        alarm_set(-1) == HOST_ERR_ARGUMENT && alarm_set(0) == HOST_OK &&
+        file_write("cache.bin", 9, 4, "abc", 3) == HOST_OK &&
+        file_write("../x", 4, 0, "abc", 3) == HOST_ERR_ARGUMENT &&
+        file_write("cache.bin", 9, -1, "abc", 3) == HOST_ERR_ARGUMENT &&
+        file_write("cache.bin", 9, 0, (const void *)0xFFFFFF00u, 3) == HOST_ERR_ARGUMENT) {
+        mark(14, ROW_VALUES);
+    }
+    if (alarms_rung == 1) {
+        mark(16, ROW_VALUES);
     }
     char piece[4] = { 0 };
     if (file_size("data.bin", 8) == 10 && file_read("data.bin", 8, 4, piece, 3) == 3 &&
