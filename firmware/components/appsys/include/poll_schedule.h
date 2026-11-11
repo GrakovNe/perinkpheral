@@ -59,6 +59,10 @@ bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, ui
 
 /* An application's alarm: it asked to be called once, some time from now,
  * whether it is on the screen then or not. One for each application. */
+/* Every poll is due now: the network is back, and what was not asked while
+ * it was away is asked at once. */
+void poll_schedule_hurry_all(poll_schedule_t *schedule, int64_t now_ms);
+
 /* The least any poll may be from its last, whatever it asks for - the
  * device is saving power; 0 takes the floor away. The polls keep the pace
  * they asked for and get it back with the floor gone. */

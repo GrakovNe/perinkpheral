@@ -41,6 +41,9 @@ typedef struct {
     app_delivery_kind_t kind;
     int                 request;     /* the poll's number in the manifest; the alarm's, for an alarm */
     int                 http_status; /* VALUES: 0 when the request failed */
+    /* Not worth loading an application for: it is given only to one that
+     * is on the screen. News that there is nothing new. */
+    bool only_on_screen;
     /* PIECE */
     const uint8_t *data;
     size_t         length;

@@ -100,6 +100,15 @@ void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, in
     done->due_ms = now_ms + pace_ms(schedule, done);
 }
 
+void poll_schedule_hurry_all(poll_schedule_t *schedule, int64_t now_ms)
+{
+    for (int i = 0; i < schedule->count; i++) {
+        if (schedule->entries[i].due_ms > now_ms) {
+            schedule->entries[i].due_ms = now_ms;
+        }
+    }
+}
+
 void poll_schedule_hurry(poll_schedule_t *schedule, int app, int64_t now_ms)
 {
     for (int i = 0; i < schedule->count; i++) {

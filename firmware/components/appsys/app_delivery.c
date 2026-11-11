@@ -95,6 +95,9 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
         return;
     }
 
+    if (delivery->only_on_screen) {
+        return;
+    }
     app_t *app;
     if (state->in_background == owner) {
         app = app_scene_app(owner);

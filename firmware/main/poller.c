@@ -56,10 +56,14 @@ static poll_schedule_t       s_schedule;
  * application is its id everywhere below. */
 static app_manifest_t        s_known[LAUNCHER_INSTALLED_MAX];
 static int                   s_known_count;
+static bool s_is_holding_radio; /* the poller's task alone: it asked for the radio and has it */
 static app_alarms_t          s_alarms;
 /* The schedule and the alarms are changed from other tasks too: an
  * application asks for a poll, the web page saves settings. */
 static SemaphoreHandle_t     s_lock;
+
+static void lock(void);
+static void unlock(void);
 
 static int64_t now_ms(void)
 {
@@ -269,14 +273,25 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
     hand_over_piece(app_name, poll_number, HOST_FAILED_NO_ANSWER, NULL, 0, HOST_DATA_FAILED);
 }
 
-/* `why` is a HOST_FAILED_*, where the HTTP status would have been. */
+/* `why` is a HOST_FAILED_*, where the HTTP status would have been.
+ * `only_on_screen`: not something to load a sleeping application for. */
+static void tell_failure_to(const char *app_name, int poll_number, bool wants_values, int why,
+                            bool only_on_screen)
+{
+    app_delivery_t delivery = { .request = poll_number, .http_status = why,
+                                .only_on_screen = only_on_screen };
+    if (wants_values) {
+        delivery.kind = APP_DELIVERY_VALUES;
+    } else {
+        delivery.kind = APP_DELIVERY_PIECE;
+        delivery.flags = HOST_DATA_FAILED;
+    }
+    hand_over(app_name, &delivery);
+}
+
 static void tell_failure(const char *app_name, int poll_number, bool wants_values, int why)
 {
-    if (wants_values) {
-        hand_over_values(app_name, poll_number, why, NULL, 0);
-    } else {
-        hand_over_piece(app_name, poll_number, why, NULL, 0, HOST_DATA_FAILED);
-    }
+    tell_failure_to(app_name, poll_number, wants_values, why, false);
 }
 
 /* Whether the last time the network was needed it was there: what the
@@ -299,6 +314,13 @@ bool poller_last_use_failed(void)
 void poller_network_is_back(void)
 {
     note_network_use(true);
+    /* What could not be asked while it was away is asked now, not when
+     * each poll's turn comes round again. */
+    if (s_lock != NULL) {
+        lock();
+        poll_schedule_hurry_all(&s_schedule, now_ms());
+        unlock();
+    }
 }
 
 /* Makes the request that request->poll describes and hands the answer
@@ -344,6 +366,24 @@ static void perform(request_t *request, const char *app_name, int number, int me
                       app_name, number, http_status, (int)(now_ms() - started_ms));
     }
     esp_http_client_cleanup(client);
+}
+
+/* The poll's time has come and there is no network. The application is
+ * told if it is on the screen - it has something to show for it - and a
+ * sleeping one is left asleep; the poll waits for its next turn, or for
+ * the network. */
+static void skip_poll_without_network(const char *app_name, int poll_number)
+{
+    request_t *request = calloc(1, sizeof *request);
+    if (request == NULL) {
+        return;
+    }
+    if (load_poll(request, app_name, poll_number)) {
+        note_network_use(false);
+        tell_failure_to(app_name, poll_number, request->poll.pick_count > 0,
+                        HOST_FAILED_NO_NETWORK, true);
+    }
+    free(request);
 }
 
 static void run_poll(const char *app_name, int poll_number)
@@ -667,20 +707,19 @@ static bool wants_network(void)
  * least distance away. */
 static void keep_radio_for_work(void)
 {
-    static bool    is_holding;
     static int64_t held_since_ms, try_again_at_ms;
     bool wanted = power_is_saving() && wants_network();
-    if (wanted && !is_holding && now_ms() >= try_again_at_ms) {
+    if (wanted && !s_is_holding_radio && now_ms() >= try_again_at_ms) {
         power_hold_radio();
-        is_holding = true;
+        s_is_holding_radio = true;
         held_since_ms = now_ms();
-    } else if (is_holding && !wanted) {
+    } else if (s_is_holding_radio && !wanted) {
         power_release_radio();
-        is_holding = false;
-    } else if (is_holding && !wifi_is_online() && now_ms() - held_since_ms > RADIO_WAIT_MS) {
+        s_is_holding_radio = false;
+    } else if (s_is_holding_radio && !wifi_is_online() && now_ms() - held_since_ms > RADIO_WAIT_MS) {
         ESP_LOGW(TAG, "no network in %d s: the radio is given back", RADIO_WAIT_MS / 1000);
         power_release_radio();
-        is_holding = false;
+        s_is_holding_radio = false;
         try_again_at_ms = now_ms() + (int64_t)POWER_SAVING_POLL_MIN_S * 1000;
     }
 }
@@ -722,13 +761,19 @@ static void poller_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(wait_ms < idle_ms ? wait_ms : idle_ms));
             continue;
         }
-        /* Without a network, or without the memory for a session, the
-         * poll stays due and is looked at again in a moment. */
-        if (!wifi_is_online() || !has_memory_for_a_session()) {
+        /* The radio is being brought up for this, or there is no memory for
+         * a session just now: the poll stays due and is looked at again in
+         * a moment. */
+        bool has_network = wifi_is_online();
+        if (has_network ? !has_memory_for_a_session() : s_is_holding_radio) {
             vTaskDelay(pdMS_TO_TICKS(IDLE_CHECK_MS));
             continue;
         }
-        run_poll(due_name, due_poll);
+        if (has_network) {
+            run_poll(due_name, due_poll);
+        } else {
+            skip_poll_without_network(due_name, due_poll);
+        }
         lock();
         /* By id: if the application is gone meanwhile, so is its poll. */
         poll_schedule_finished(&s_schedule, due_app, due_poll, now_ms());
