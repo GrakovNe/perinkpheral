@@ -194,7 +194,18 @@ time_zone_offset() -> seconds          // add to time_now() for the user's local
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
-Still to come with milestone 2: `http_request`.
+**What ABI 1 still needs** - agreed, not written yet; in the order it will be built:
+- **Colour**: ink or paper in `gfx_text`, `gfx_rect`, `gfx_line`, `gfx_bitmap`, so that an application can invert a row the way the menu does.
+- **Local time taken apart**: year, month, day, day of the week, hour, minute - no application should carry its own calendar.
+- **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
+- **How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Two flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything - and `HOST_REDRAW_CLEAN` - a full refresh, for a new picture. Neither has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
+- **The network on request**: `http_request(method, url, headers, body)` gives a request number and the answer comes through `app_on_data`. One request at a time for the whole device, at most two waiting per application, only the manifest's `hosts`, a timeout and a limit on the size of an answer. `poll_now(n)` and `poll_set_interval(n, seconds)` for the polls of the manifest; `net_is_online()`.
+- **Files**: `blob_write(name, offset, ptr, len)`, `blob_read`, `blob_size`, and `gfx_bitmap` straight from a file - a picture is 15 KB, arrives in 1 KB pieces and the application may be unloaded between them, so `kv_*` cannot hold it.
+- **An alarm off the screen**: `alarm_set(seconds)`, then `app_on_alarm()` on an application that is loaded for it and may ask for the screen. `timer_set` lives only while the application is on the screen; in deep sleep the alarm is the only way an application wakes by itself.
+
+**Few applications, large ones**, the way Pebble did it: at most **5** installed, each with a module of up to 48 KB, 100 KB of files and 4 KB of `kv_*`. The partition is 1 MB; five such applications are about 780 KB of it. Whoever wants more rotates them - one day from a companion application on a phone.
+
+What a handler may count on: one handler runs at a time and has 3 seconds; it returns nothing and leaves requests (`request_redraw`, `request_exit`, `request_focus`) that take effect when it returns; presses are not lost, timers of one id collapse into one, and the pieces of one answer arrive in order with nothing between them.
 
 There are no pointer callbacks. An application exports functions with fixed names (the host skips the missing ones):
 ```
@@ -325,7 +336,6 @@ Done and verified on hardware: the display driver (full refresh 2.19 s of BUSY, 
 Verified on the owner's network: joining it, SNTP and the date in the header, local time by the stored time zone, the web page, a firmware upload with its probation (both slots, several times), returning to the last application after a restart, the factory reset and setting the device up again after it (the owner did it with the QR code and reported it working; which phones open the page by themselves was not written down), and the development tools over the network.
 
 Open:
-- **Milestone 1 has one item left, and it needs hands: a run from the battery without USB.**
 - Anyone on the network can change the device: the API asks for nothing - a firmware upload, a factory reset, the development tools. Right for development, wrong for a release. One way: a maintenance window opened by a button on the device. Requests made by pages of other sites through a browser are refused already (`Origin`).
 - With Wi-Fi connected and an application on the screen the free heap is about 130 KB, and it has been as low as 107 KB. Polling will add TLS (~45 KB) on top; the radio's buffers have not been tuned.
 - The host task has 12 KB of stack and applications run on it; the interpreter may take 6 KB (`d_m3MaxNativeStack`). Watch the headroom (`m` in the development console) as the host grows.
@@ -335,7 +345,7 @@ Open:
 - The version on the splash is hard-coded as `ver 1.234.5` - a prototype string, not the build's version.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-Next - what is left of milestone 2: the poller (the device half of data for applications), `http_request`, the first application with data, and the ABI freeze.
+Milestone 1 is done, the run from the battery included (seen by the owner). Next - what is left of milestone 2: the rest of ABI 1 as listed under Host API, the poller (the device half of data for applications), `http_request`, the first application with data, and the ABI freeze.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.
