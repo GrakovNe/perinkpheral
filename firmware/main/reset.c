@@ -9,6 +9,8 @@
 #include "esp_system.h"
 #include "nvs_flash.h"
 
+#include "app_kv.h"
+
 static const char *TAG = "reset";
 
 #define FR_MAGIC 0xA5C3F00Du
@@ -27,6 +29,7 @@ void reset_early_init(void)
     s_fr_check = 0;
     ESP_LOGW(TAG, "factory reset: erasing NVS before anything opens it");
     ESP_ERROR_CHECK(nvs_flash_erase());
+    app_kv_erase_all();
 }
 
 void reset_mark_factory(void)

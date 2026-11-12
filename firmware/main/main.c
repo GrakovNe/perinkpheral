@@ -17,6 +17,7 @@
 #include "poller.h"
 #include "deep_sleep.h"
 #include "power.h"
+#include "app_kv.h"
 #include "appconf.h"
 #include "board.h"
 #include "buttons.h"
@@ -116,6 +117,7 @@ void app_main(void)
     m3_area_start();
 
     settings_nvs_init();
+    app_kv_start();
     board_init();
 
     uint8_t mac[6];
