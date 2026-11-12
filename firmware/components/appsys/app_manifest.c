@@ -567,6 +567,7 @@ static const struct {
 } INTENTS[] = {
     { "time_changed", HOST_INTENT_TIME_CHANGED },
     { "network_up", HOST_INTENT_NETWORK_UP },
+    { "started", HOST_INTENT_STARTED },
 };
 
 /* A kind the host does not know is a mistake, not something to pass over:
@@ -758,7 +759,7 @@ const char *app_manifest_result_text(app_manifest_result_t result)
                "(text, secret, number, choice, toggle, place) and a title; a place names two "
                "number settings as its \"latitude\" and \"longitude\"";
     case APP_MANIFEST_BAD_INTENT:
-        return "\"intents\" must be a list of time_changed, network_up";
+        return "\"intents\" must be a list of time_changed, network_up, started";
     case APP_MANIFEST_OTHER_ABI:
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:

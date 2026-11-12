@@ -627,7 +627,7 @@ HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t s
  * News of the device an application may want although it is not on the
  * screen. It names the kinds in its manifest -
  *
- *     "intents": ["time_changed", "network_up"]
+ *     "intents": ["time_changed", "network_up", "started"]
  *
  * - and gets each through app_on_intent(), loaded for the call if it is
  * not loaded, like an answer from the network. An application that named
@@ -635,6 +635,11 @@ HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t s
 #define HOST_INTENT_TIME_CHANGED 1 /* the clock or the time zone was set to another: what
                                       was worked out from the time is to be worked out again */
 #define HOST_INTENT_NETWORK_UP   2 /* the device is on its network again */
+#define HOST_INTENT_STARTED      3 /* the device was powered up or restarted: what a restart
+                                      forgets - alarms, a poll's own pace, requests under way -
+                                      is set up again from the store. Nobody has to open the
+                                      application for it. Not sent when the device only wakes
+                                      from its sleep: alarms and polls outlive that */
 APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 
 /* ---- Alarms ---- */

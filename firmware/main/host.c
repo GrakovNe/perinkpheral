@@ -15,6 +15,7 @@
 #include "devconsole.h"
 #include "app_delivery.h"
 #include "deadlines.h"
+#include "app_host.h"
 #include "deep_sleep.h"
 #include "devtools.h"
 #include "display.h"
@@ -688,6 +689,12 @@ void host_run(void)
                                                        about_is_shown)
                                   : after_boot;
     wm_init(&wm, menu, first, draw_header, NULL);
+    /* A restart forgot what the applications had set going; those that
+     * asked are told, and set it going again. Waking from sleep is not a
+     * restart: the alarms and the polls were kept. */
+    if (deep_sleep_woke_by() == WOKE_NOT_FROM_SLEEP) {
+        app_host_tell_started();
+    }
 
     app_delivery_init(&delivery_state);
     events_this_is_the_host_loop();

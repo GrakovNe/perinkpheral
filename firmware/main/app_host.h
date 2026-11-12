@@ -20,6 +20,8 @@ const app_services_t *app_host_services(void);
  * and said so in the log. */
 void app_host_tell_time_changed(void);
 void app_host_tell_network_is_up(void);
+/* The device was powered up or restarted - not woken from its sleep. */
+void app_host_tell_started(void);
 
 /* Whether applications' greys are dithered: a setting, told here when it
  * changes. */

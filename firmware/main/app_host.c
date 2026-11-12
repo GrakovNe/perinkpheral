@@ -96,6 +96,11 @@ void app_host_tell_network_is_up(void)
     tell(HOST_INTENT_NETWORK_UP);
 }
 
+void app_host_tell_started(void)
+{
+    tell(HOST_INTENT_STARTED);
+}
+
 #define MS_PER_SECOND 1000
 
 /* The application's alarm: a deadline like any other, under the
