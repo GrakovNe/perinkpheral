@@ -102,6 +102,16 @@ void app_code_forget(const char *app_name)
     }
 }
 
+void app_code_forget_all(void)
+{
+    for (int slot = 0; slot < s_slot_count; slot++) {
+        if (is_taken(slot)) {
+            esp_partition_erase_range(s_partition, (size_t)slot * APP_CODE_SLOT_BYTES,
+                                      s_partition->erase_size);
+        }
+    }
+}
+
 /* Copies the file into the application's slot, or into a free one. */
 static bool store(const char *app_name, const char *path)
 {

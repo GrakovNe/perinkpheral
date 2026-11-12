@@ -205,6 +205,15 @@ static void test_hosts(void)
     CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com.evil.net/a"));
     CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com@evil.net/a"));
     CHECK(!app_manifest_is_same_host("http://example.com/a", "ftp://example.com/a"));
+    /* a port that is the scheme's own is no other host, written or not */
+    CHECK(app_manifest_is_same_host("https://example.com/a", "https://example.com:443/b"));
+    CHECK(app_manifest_is_same_host("http://example.com/a", "http://example.com:80/b"));
+    CHECK(app_manifest_is_same_host("http://example.com/a", "https://example.com:443/a"));
+    CHECK(app_manifest_is_same_host("http://example.com:8080/a", "http://example.com:8080/b"));
+    CHECK(app_manifest_allows_url(manifest, "https://api.example.com:443/v1"));
+    CHECK(app_manifest_allows_url(manifest, "http://api.example.com:80/v1"));
+    CHECK(!app_manifest_allows_url(manifest, "http://api.example.com:8080/v1"));
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10:80/status"));
     CHECK(!app_manifest_allows_url(manifest, "https://example.com/"));
     CHECK(!app_manifest_allows_url(manifest, "https://evil.net/api.example.com"));
     /* what is before an @ is not the host */

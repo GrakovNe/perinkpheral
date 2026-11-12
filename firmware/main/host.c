@@ -24,6 +24,7 @@
 #include "scenes.h"
 #include "screens.h"
 #include "settings.h"
+#include "app_code.h"
 #include "storage.h"
 #include "status.h"
 #include "timers.h"
@@ -113,6 +114,12 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
         return NOTHING_TO_SHOW;
     }
     refresh_reason_t reason = refresh_reason(change);
+    /* Too soon for the panel: nothing is drawn for it to turn down, an
+     * application's picture least of all. */
+    uint32_t too_soon_ms = display_wait_ms(reason);
+    if (too_soon_ms > 0) {
+        return too_soon_ms;
+    }
     wm_draw(wm, screen);
     switch (display_show(s_frame, reason)) {
     case DISPLAY_DEFERRED:
@@ -134,6 +141,7 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
 static void format_storage(void)
 {
     storage_format();
+    app_code_forget_all(); /* the code of applications that are no more */
     host_stop_soon(HOST_STOP_RESTART);
 }
 
@@ -335,7 +343,7 @@ void host_run(void)
 
     int events_since_shown = 0;
     for (;;) {
-        /* A refresh takes a second and the queue does not wait for it: with
+        /* A refresh takes half a second and the queue does not wait for it: with
          * events in it they are answered first and the panel shows where
          * they led, not every step. Not for ever, though - a queue that
          * never empties must not keep the picture back. */

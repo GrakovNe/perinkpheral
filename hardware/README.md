@@ -4,13 +4,13 @@ Everything learned about the panel and the board on the bench: the working drive
 
 ## What has been verified
 - Full refresh: the image settles in a single pass, BUSY releases after 2190 ms.
-- Partial refresh of the whole frame (Waveshare Display_Partial): BUSY 410 ms consistently, old digits are erased cleanly. The full "press -> new image" cycle is about 1 s (reset 200 ms + transfer of 15000 bytes at 2 MHz with CS per byte + 410 ms).
+- Partial refresh of the whole frame (Waveshare Display_Partial): BUSY 410 ms consistently, old digits are erased cleanly. The full "press -> new image" cycle was about 1 s with the SPI driver at 2 MHz (reset 200 ms + 15000 bytes + 410 ms); see the measurements of 2026-11-12 below for what it is now.
 - Buttons: all four, idle level 1, debounce 20 ms (4 polls of 5 ms each) - no false or double triggers, including during fast bursts.
 
 ## Display driver (SSD1683, working sequence)
 This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2_V2.c`, ported to ESP-IDF. The reference is `firmware/components/epd/epd.c`.
 
-- SPI mode 0, 2 MHz (the datasheet allows up to 20 MHz for writes). CS goes low and high on EVERY byte, as in Waveshare's `EpdIf::SpiTransfer`. We toggle CS manually via GPIO (`spics_io_num = -1`). See the pitfalls below - this is a mandatory condition.
+- SPI mode 0, the bytes clocked out by hand over GPIO: at most about 6 MHz, 75 ns and more to each half of the clock (the datasheet allows 20 MHz and asks for 25 ns; CS setup and hold 60 ns, CS high 100 ns). CS goes low and high on EVERY byte, as in Waveshare's `EpdIf::SpiTransfer`. See the pitfalls below - this is a mandatory condition.
 - HW reset: RST 1 (100 ms) -> 0 (2 ms) -> 1 (100 ms), wait for BUSY low.
 - Init: `0x12` (SW reset, wait for BUSY ~10 ms) -> `0x21 0x40 0x00` -> `0x3C 0x05` -> window `0x11 0x03`, `0x44 0x00 0x31`, `0x45 0x00 0x00 0x2B 0x01`, `0x4E 0x00`, `0x4F 0x00 0x00`.
 - Full (Display_Base): the frame into `0x24` and the same frame into `0x26`, then `0x22 0xF7`, `0x20`, wait for BUSY.

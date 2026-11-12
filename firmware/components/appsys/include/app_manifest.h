@@ -170,8 +170,9 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
 #define APP_HOST_MAX  63
 bool app_manifest_allows_url(const char *json, const char *url);
 
-/* Whether two http or https URLs name the same host and port, as written:
- * what a redirect is measured against. */
+/* Whether two http or https URLs name the same host and port - a port
+ * that is not written being the scheme's own, and http and https of one
+ * name being one host: what a redirect is measured against. */
 bool app_manifest_is_same_host(const char *url, const char *other_url);
 
 /* 1-13 of a-z, 0-9, - and _: what an application may be called. */

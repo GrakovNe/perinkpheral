@@ -354,59 +354,90 @@ static char lower(char character)
     return character >= 'A' && character <= 'Z' ? (char)(character + ('a' - 'A')) : character;
 }
 
-/* Host names are the same in any case. */
-static bool is_same_host(const char *host, const char *other, size_t other_length)
-{
-    if (strlen(host) != other_length) {
-        return false;
-    }
-    for (size_t i = 0; i < other_length; i++) {
-        if (lower(host[i]) != lower(other[i])) {
-            return false;
-        }
-    }
-    return true;
-}
+/* A host as a URL or a manifest names it: the name, and the port when one
+ * is written. */
+typedef struct {
+    const char *name;
+    size_t      name_length;
+    int         port; /* NO_PORT: none written */
+} host_t;
 
-/* The host of an http or https URL, with its port if it names one, as it
- * stands there; NULL when the URL has none to be sure of. */
-static const char *host_in_url(const char *url, size_t *host_length)
+#define NO_PORT    0
+#define HTTP_PORT  80
+#define HTTPS_PORT 443
+
+/* "name" or "name:port", `length` characters of it. */
+static host_t host_of(const char *text, size_t length)
 {
-    const char *host = starts_with(url, "http://")    ? url + sizeof "http://" - 1
-                       : starts_with(url, "https://") ? url + sizeof "https://" - 1
-                                                      : NULL;
-    if (host == NULL) {
-        return NULL;
-    }
-    /* "user@host" would make the part before the @ look like the host. */
-    *host_length = strcspn(host, "/?#");
-    if (*host_length == 0 || memchr(host, '@', *host_length) != NULL) {
-        return NULL;
+    host_t      host = { text, length, NO_PORT };
+    const char *colon = memchr(text, ':', length);
+    if (colon != NULL) {
+        host.name_length = (size_t)(colon - text);
+        for (const char *digit = colon + 1; digit < text + length; digit++) {
+            host.port = host.port * 10 + (*digit - '0');
+        }
     }
     return host;
 }
 
-bool app_manifest_is_same_host(const char *url, const char *other_url)
+/* The host of an http or https URL, its port the scheme's own when the
+ * URL names none; false when the URL has no host to be sure of. */
+static bool host_in_url(const char *url, host_t *host)
 {
-    size_t      host_length, other_length;
-    const char *host = host_in_url(url, &host_length);
-    const char *other = host_in_url(other_url, &other_length);
-    if (host == NULL || other == NULL || host_length != other_length) {
+    bool        is_https = starts_with(url, "https://");
+    const char *text = is_https                      ? url + sizeof "https://" - 1
+                       : starts_with(url, "http://") ? url + sizeof "http://" - 1
+                                                     : NULL;
+    if (text == NULL) {
         return false;
     }
-    for (size_t i = 0; i < host_length; i++) {
-        if (lower(host[i]) != lower(other[i])) {
+    /* "user@host" would make the part before the @ look like the host. */
+    size_t length = strcspn(text, "/?#");
+    if (length == 0 || memchr(text, '@', length) != NULL) {
+        return false;
+    }
+    *host = host_of(text, length);
+    if (host->port == NO_PORT) {
+        host->port = is_https ? HTTPS_PORT : HTTP_PORT;
+    }
+    return host->name_length > 0;
+}
+
+/* Host names are the same in any case. */
+static bool is_same_name(const host_t *host, const host_t *other)
+{
+    if (host->name_length != other->name_length) {
+        return false;
+    }
+    for (size_t i = 0; i < host->name_length; i++) {
+        if (lower(host->name[i]) != lower(other->name[i])) {
             return false;
         }
     }
     return true;
 }
 
+static bool is_scheme_port(int port)
+{
+    return port == HTTP_PORT || port == HTTPS_PORT;
+}
+
+bool app_manifest_is_same_host(const char *url, const char *other_url)
+{
+    host_t host, other;
+    if (!host_in_url(url, &host) || !host_in_url(other_url, &other)) {
+        return false;
+    }
+    /* http://name and https://name are one host: a server that sends its
+     * visitors to the safe door is not sending them elsewhere. */
+    return is_same_name(&host, &other) &&
+           (host.port == other.port || (is_scheme_port(host.port) && is_scheme_port(other.port)));
+}
+
 bool app_manifest_allows_url(const char *json, const char *url)
 {
-    size_t      host_length;
-    const char *host = host_in_url(url, &host_length);
-    if (host == NULL) {
+    host_t host;
+    if (!host_in_url(url, &host)) {
         return false;
     }
     cJSON *root = cJSON_Parse(json);
@@ -414,7 +445,14 @@ bool app_manifest_allows_url(const char *json, const char *url)
     const cJSON *listed;
     cJSON_ArrayForEach(listed, cJSON_GetObjectItemCaseSensitive(root, "hosts"))
     {
-        if (cJSON_IsString(listed) && is_same_host(listed->valuestring, host, host_length)) {
+        if (!cJSON_IsString(listed)) {
+            continue;
+        }
+        /* A name listed without a port is the name at its scheme's own. */
+        host_t named = host_of(listed->valuestring, strlen(listed->valuestring));
+        bool   is_same_port = named.port == NO_PORT ? is_scheme_port(host.port)
+                                                    : named.port == host.port;
+        if (is_same_name(&named, &host) && is_same_port) {
             allowed = true;
             break;
         }

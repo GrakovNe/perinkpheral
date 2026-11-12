@@ -332,6 +332,15 @@ static bool is_redirect(int http_status)
            http_status == 307 || http_status == 308;
 }
 
+/* Closes the connection on an answer nobody wants: what the client read
+ * of its body along with the headers would otherwise come out in front of
+ * the next answer. */
+static void forget_answer(esp_http_client_handle_t client)
+{
+    esp_http_client_clear_response_buffer(client);
+    esp_http_client_close(client);
+}
+
 typedef enum {
     REDIRECT_NONE,     /* the answer in hand is the answer */
     REDIRECT_FOLLOWED, /* the client is set to the new address, and closed */
@@ -365,7 +374,7 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
             esp_http_client_delete_header(client, request->poll.headers[i].name);
         }
     }
-    esp_http_client_close(client);
+    forget_answer(client);
     return REDIRECT_FOLLOWED;
 }
 
@@ -418,7 +427,7 @@ static void perform(request_t *request, const char *app_name, int number, int me
     if (is_refused) {
         ESP_LOGW(TAG, "%s/%d: redirected to a host its manifest does not list", app_name, number);
         tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_ALLOWED);
-    } else if (err != ESP_OK || http_status == 0) {
+    } else if (err != ESP_OK || http_status <= 0) {
         ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, number, esp_err_to_name(err));
         bool has_network = wifi_is_online();
         note_network_use(false);
@@ -656,7 +665,7 @@ static void do_fetch(fetch_job_t *job)
         if (!is_redirect(job->http_status) || esp_http_client_set_redirection(client) != ESP_OK) {
             break;
         }
-        esp_http_client_close(client);
+        forget_answer(client);
     }
     bool   is_ok = job->http_status >= HTTP_OK_FIRST && job->http_status <= HTTP_OK_LAST;
     size_t total = 0;

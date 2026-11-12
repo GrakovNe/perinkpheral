@@ -133,7 +133,7 @@ They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (
 - **Scene** - one application, it owns the screen and the buttons.
 - **Polling** - the host itself fetches every `polls` entry of every installed application at its `every`. This is the background mechanism ("pushes").
 - **Raw requests** - an application may itself call `http_request` (method, URL, headers, body) - for OAuth, calendars, actions on a button. Requests go into the host's queue, one at a time; only hosts from the manifest's `hosts` are allowed. The response arrives through the same `app_on_data`.
-- **Redirects** - a `GET` that is answered with one is asked again where it says, up to three times. A request of the application's own stays inside its `hosts`: sent elsewhere, it fails with `HOST_FAILED_NOT_ALLOWED`. The headers an application gave do not travel to another host. A request with a body is not sent twice: its redirect is the answer.
+- **Redirects** - a `GET` that is answered with one is asked again where it says, up to three times. A request of the application's own stays inside its `hosts`: sent elsewhere, it fails with `HOST_FAILED_NOT_ALLOWED`. The headers an application gave do not travel to another host; `http` and `https` of one name are one host, and so is a port written out when it is the scheme's own. A request with a body is not sent twice: its redirect is the answer.
 - **Delivery** - the host calls `app_on_data(req_id, ptr, len, flags)` in chunks (flags: FIRST, LAST, ERROR; the HTTP status is in the first chunk) on the owning application, **whether it is on the scene or not**:
   - on the scene - the call is made right away;
   - not on the scene - unload the scene (`app_on_blur`) → load the owner → deliver → if it called `request_focus()` it stays as the scene, otherwise unload it and bring the previous scene back (`app_on_focus`).
@@ -263,13 +263,13 @@ app_data_buffer() -> ptr            // where the host puts that piece: 1 KB, sdk
 ### E-paper policy
 Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The policy's numbers are user settings**: fields of the host's settings with a range each, stored in NVS and handed to the display service at start. The form for them in the web UI is still to come. The defaults start from Waveshare's recommendations for the 4.2" V2:
 - data-driven updates (`app_on_data`, a timer, the clock) - no more often than once per **60 s**, counted from the start of a refresh, so that a clock can show minutes. Waveshare's own advice is 180 s and the panel is rated for a million refreshes; a user who wants the panel to last longer raises the number;
-- reaction to a button - the user is looking at the device - **at once**, no pause by default; the panel's own partial refresh (about a second) is the only limit;
+- reaction to a button - the user is looking at the device - **at once**, no pause by default; the panel's own partial refresh (about half a second) is the only limit;
 - full refresh - after **5** partial ones;
 - at least one update per **24 hours** (the host's keep-alive task).
 
 Not configurable:
 - Full refresh when the application on the scene changes; the first update after start is always full.
-- The panel goes to deep sleep (mode 1, RAM is kept) after every full refresh and 1.5 s after the last partial one, otherwise it degrades irreversibly. Its voltages are off after every refresh either way: the controller does that itself.
+- The panel goes to deep sleep (mode 1, RAM is kept) after every full refresh and 1.5 s after the last partial one, otherwise it degrades irreversibly. Its voltages are off after every refresh either way: the controller does that itself. The chip does not go into light sleep while the panel is awake, and the panel's lines keep their levels when it does (`gpio_sleep_sel_dis`).
 - **Fast refresh** is a setting (`refresh_fast`, off by default, on the page): Waveshare's `Init_Fast`, its 1.5 s waveform. A full refresh is 2.2 s with it and 2.7 s without, were 3.1 s. Not for the cold.
 - No animations and no real-time progress bars in the host's own screens. An application that wants a row of pictures has `HOST_REDRAW_NO_BLINK`; the panel itself takes half a second for a partial refresh of the whole frame (0.41 s of it BUSY), and the application its time to draw, so that is three pictures in two seconds at best. `sdk/apps/badapple` is the test: 200x150 unpacked and drawn in about 0.1 s a frame by the interpreter.
 - 1 bit per pixel. Fonts are bitmap, pre-converted (`tools/fontgen`), ASCII; the readable minimum is ~10 px.

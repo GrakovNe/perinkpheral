@@ -6,6 +6,7 @@
 
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/gpio_ll.h"
@@ -92,7 +93,9 @@ static void data(uint8_t v)
 static bool wait_busy(const char *what, int timeout_ms)
 {
     int ms = 0;
-    vTaskDelay(pdMS_TO_TICKS(1));
+    /* Two ticks are a millisecond at least; one may be no time at all,
+     * and BUSY read before it rose looks like a refresh that is done. */
+    vTaskDelay(2);
     while (gpio_get_level(s_cfg.busy_gpio) == 1) {
         vTaskDelay(pdMS_TO_TICKS(10));
         ms += 10;
@@ -149,11 +152,30 @@ static bool is_inside_frame(const frame_box_t *window)
            window->column + window->columns <= EPD_COLUMNS && window->row + window->rows <= EPD_H;
 }
 
+/* The chip does not sleep while the controller is out of its own sleep:
+ * from the first byte of a show until the controller was sent to sleep.
+ * The waits in between are long enough for the chip to doze off in, and
+ * nothing should move on the panel's lines then. */
+static esp_pm_lock_handle_t s_stay_up;
+static bool                 s_stays_up;
+
+static void stay_up(void)
+{
+    if (!s_stays_up && s_stay_up != NULL) {
+        esp_pm_lock_acquire(s_stay_up);
+        s_stays_up = true;
+    }
+}
+
 static void deep_sleep(void)
 {
     cmd(0x10); data(0x01); /* deep sleep mode 1, RAM kept */
     vTaskDelay(pdMS_TO_TICKS(100));
     s_is_awake = false;
+    if (s_stays_up) {
+        esp_pm_lock_release(s_stay_up);
+        s_stays_up = false;
+    }
 }
 
 static esp_err_t finish(const char *what, int timeout_ms, bool stays_awake)
@@ -183,19 +205,29 @@ esp_err_t epd_init(const epd_config_t *cfg)
 {
     s_cfg = *cfg;
 
-    gpio_config_t out = {
-        .pin_bit_mask = (1ULL << cfg->dc_gpio) | (1ULL << cfg->rst_gpio) |
-                        (1ULL << cfg->cs_gpio) | (1ULL << cfg->sclk_gpio) |
-                        (1ULL << cfg->mosi_gpio),
-        .mode = GPIO_MODE_OUTPUT,
-    };
+    /* The levels first: a line that becomes an output shows what is in
+     * its register at once, and RST low for a moment would wake a panel
+     * that sleeps. */
+    gpio_set_level(cfg->cs_gpio, 1);
+    gpio_set_level(cfg->rst_gpio, 1);
+    gpio_set_level(cfg->sclk_gpio, 0);
+    const int outputs[] = { cfg->dc_gpio, cfg->rst_gpio, cfg->cs_gpio, cfg->sclk_gpio,
+                            cfg->mosi_gpio };
+    gpio_config_t out = { .mode = GPIO_MODE_OUTPUT };
+    for (size_t i = 0; i < sizeof outputs / sizeof outputs[0]; i++) {
+        out.pin_bit_mask |= 1ULL << outputs[i];
+    }
     esp_err_t err = gpio_config(&out);
     if (err != ESP_OK) {
         return err;
     }
-    gpio_set_level(cfg->cs_gpio, 1);
-    gpio_set_level(cfg->rst_gpio, 1);
-    gpio_set_level(cfg->sclk_gpio, 0);
+    /* In light sleep the chip lets go of every line that is not told
+     * otherwise: these keep their levels, RST above all. */
+    for (size_t i = 0; i < sizeof outputs / sizeof outputs[0]; i++) {
+        gpio_sleep_sel_dis(outputs[i]);
+    }
+    gpio_sleep_sel_dis(cfg->busy_gpio);
+    esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "panel", &s_stay_up);
 
     gpio_config_t in = {
         .pin_bit_mask = 1ULL << cfg->busy_gpio,
@@ -215,6 +247,7 @@ esp_err_t epd_show_full(const uint8_t *fb, bool is_fast)
     if (!s_ready) {
         return ESP_ERR_INVALID_STATE;
     }
+    stay_up();
     hw_reset();
     cmd(0x12);
     wait_busy("sw reset", BUSY_INIT_MS);
@@ -246,6 +279,7 @@ esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window, bool st
     if (!is_inside_frame(window)) {
         return ESP_ERR_INVALID_ARG;
     }
+    stay_up();
     if (!s_is_awake) {
         hw_reset();
     }

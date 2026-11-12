@@ -134,9 +134,9 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 #define HOST_DATA_CHUNK_MAX 1024
 /* Why there is no answer, where the HTTP status would be - in
  * app_on_data() with HOST_DATA_FAILED, and in app_on_values(). */
-#define HOST_FAILED_NO_NETWORK (-1) /* the device is not on a network */
-#define HOST_FAILED_NO_ANSWER  (-2) /* it is, and the server did not answer, or not to the end */
-#define HOST_FAILED_NOT_READY  (-3) /* a {{setting}} the request needs is not set */
+#define HOST_FAILED_NO_NETWORK  (-1) /* the device is not on a network */
+#define HOST_FAILED_NO_ANSWER   (-2) /* it is, and the server did not answer, or not to the end */
+#define HOST_FAILED_NOT_READY   (-3) /* a {{setting}} the request needs is not set */
 #define HOST_FAILED_NOT_ALLOWED (-4) /* redirected to a host the manifest's "hosts" does not list */
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
@@ -241,17 +241,24 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
  *
  * HOST_REDRAW_SOON: show it now although nobody pressed anything - a
  * countdown that ran out. HOST_REDRAW_CLEAN: a full refresh, which blinks
- * and leaves no trace of the old picture - for a new image.
- * HOST_REDRAW_NO_BLINK: show it now and do not turn it into the full
- * refresh the host makes after every few partial ones - for pictures that
- * follow one another, where a three-second blink would spoil the row.
- * The traces of the earlier pictures then pile up for as long as the
- * application keeps asking; the panel is cleaned by the first refresh
- * that does not ask, and when the application leaves the screen.
+ * for two or three seconds and leaves no trace of the old picture - for a
+ * new image. The host keeps these two a second apart.
+ *
+ * HOST_REDRAW_NO_BLINK: one picture of a row - show it as soon as the
+ * panel can, and never as the full refresh the host makes after every few
+ * partial ones. The panel takes about half a second a picture and
+ * app_on_draw() its own time on top: three pictures in two seconds at
+ * best. Nothing queues up: a timer that runs out while the panel is busy
+ * fires once, when it is free, so a timer shorter than the panel runs at
+ * the panel's pace. A row that keeps time picks its picture by
+ * time_uptime_ms() in app_on_draw() and skips what it missed. The traces
+ * of the earlier pictures pile up for as long as the application keeps
+ * asking: end the row with HOST_REDRAW_CLEAN, or they stay until the
+ * user's own setting calls for a full refresh or the application leaves
+ * the screen.
  *
  * None of this is rationed: every refresh costs the battery and wears
- * the panel, and how much of both to spend is the application's call. The
- * host only keeps such refreshes a second apart. */
+ * the panel, and how much of both to spend is the application's call. */
 #define HOST_REDRAW_NORMAL   0
 #define HOST_REDRAW_SOON     1
 #define HOST_REDRAW_CLEAN    2
@@ -344,7 +351,16 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *
  * `headers` is lines of "Name: value" separated by '\n', at most four.
  * {{key}} in the URL and in a header value is replaced by the setting of
- * that name, as in a poll. Returns HOST_OK, HOST_ERR_ARGUMENT for a URL
+ * that name, as in a poll.
+ *
+ * A GET that is answered with a redirect is asked again where it points,
+ * up to three times, and the application sees only the last answer. A
+ * redirect out of the manifest's "hosts" fails with
+ * HOST_FAILED_NOT_ALLOWED, and the headers given here do not travel to
+ * another host. A request with any other method is not sent twice: its
+ * 3xx status is the answer. Polls are followed the same way, to any host.
+ *
+ * Returns HOST_OK, HOST_ERR_ARGUMENT for a URL
  * outside the manifest's hosts or anything malformed, HOST_ERR_NO_SPACE
  * when too many are waiting already. */
 #define HOST_HTTP_GET    0

@@ -44,6 +44,9 @@ void app_code_adopt(const char *apps_root);
 /* The application is gone: its slot is free. */
 void app_code_forget(const char *app_name);
 
+/* Every slot: the applications' partition was formatted. */
+void app_code_forget_all(void);
+
 #ifdef __cplusplus
 }
 #endif

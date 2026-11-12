@@ -33,8 +33,8 @@ esp_err_t epd_init(const epd_config_t *cfg);
 
 /* Frame: row-major, MSB is the left pixel, 1 = white. A full show ends
  * with the panel in deep sleep; the next show wakes it with a hardware
- * reset. `is_fast`: Waveshare's fast full refresh, 1.5 s of it instead of
- * 3; not for the cold.
+ * reset. `is_fast`: Waveshare's fast full refresh, half a second shorter;
+ * not for the cold.
  * ESP_ERR_TIMEOUT: BUSY did not release in time, the refresh was cut
  * with a reset and the image is whatever the panel got to. */
 esp_err_t epd_show_full(const uint8_t *fb, bool is_fast);

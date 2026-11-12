@@ -149,9 +149,11 @@ static void test_a_row_of_pictures(void)
     for (int i = 1; i <= 20; i++) {
         CHECK(go(&p, REFRESH_FOR_ROW, i * 1000) == REFRESH_PARTIAL);
     }
-    CHECK(go(&p, REFRESH_FOR_ROW, 20001) == REFRESH_PARTIAL); /* as soon as the panel can */
-    p.partials--;
     CHECK(p.partials == 20);
+    /* the next of the row as soon as the panel can take it */
+    CHECK(refresh_policy_wait_ms(&p, &CFG, REFRESH_FOR_ROW, 20001) == 0);
+    CHECK(go(&p, REFRESH_FOR_ROW, 20001) == REFRESH_PARTIAL);
+    CHECK(p.partials == 21);
     /* the row is over: whatever comes next cleans up after it */
     CHECK(go(&p, REFRESH_FOR_BUTTON, 30000) == REFRESH_FULL);
     CHECK(p.partials == 0);

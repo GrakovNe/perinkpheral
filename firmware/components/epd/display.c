@@ -60,7 +60,6 @@ static frame_box_t window_for(const uint8_t *frame)
     }
     frame_box_t changed = frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT);
     frame_box_t window = frame_box_join(&changed, &s_changed_last_time);
-    /* The same frame again - the keep-alive - still has to refresh. */
     return frame_box_is_empty(&window) ? WHOLE_FRAME : window;
 }
 
@@ -92,7 +91,8 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
             s_sleep_due_ms = now_ms() + PANEL_AWAKE_MS;
             xTaskNotifyGive(s_panel_task);
         } else {
-            s_sleep_due_ms = PANEL_IS_ASLEEP; /* the driver saw to it */
+            epd_sleep(); /* whatever went wrong, not left awake */
+            s_sleep_due_ms = PANEL_IS_ASLEEP;
         }
     }
     /* A full refresh leaves the controller's two frames the same. */
@@ -113,6 +113,9 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
                  took_ms);
     } else {
         ESP_LOGW(TAG, "%s refresh: %s after %lld ms", kind_name, esp_err_to_name(*err), took_ms);
+        /* What the panel holds is half a picture: the next refresh is a
+         * full one, as the first after power-up is. */
+        refresh_policy_init(&s_policy);
     }
     return kind;
 }
@@ -158,7 +161,9 @@ void display_rest(void)
 
 void display_set_policy(const refresh_policy_cfg_t *policy)
 {
+    xSemaphoreTake(s_lock, portMAX_DELAY);
     s_cfg = *policy;
+    xSemaphoreGive(s_lock);
 }
 
 void display_start(const refresh_policy_cfg_t *policy)

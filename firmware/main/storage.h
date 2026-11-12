@@ -20,8 +20,8 @@ bool storage_start(void);
 
 bool storage_is_mounted(void);
 
-/* Erases the partition and leaves an empty file system in it, to be
- * mounted at the next start. Takes seconds. */
+/* Leaves an empty file system in the partition, to be mounted at the
+ * next start. */
 bool storage_format(void);
 
 #ifdef __cplusplus
