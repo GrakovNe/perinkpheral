@@ -12,6 +12,7 @@
 #include "esp_heap_caps.h"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
+#include "driver/usb_serial_jtag.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
@@ -237,6 +238,7 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "storage_ok", storage_is_mounted());
     cJSON_AddNumberToObject(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+    cJSON_AddBoolToObject(json, "usb_host", usb_serial_jtag_is_connected());
     memory_counts_t memory;
     memory_read(&memory);
     cJSON_AddNumberToObject(json, "memory_refusals", memory.refusals);
