@@ -22,6 +22,7 @@
 #include "app_code.h"
 #include "host.h"
 #include "launcher.h"
+#include "power.h"
 #include "poller.h"
 #include "settings.h"
 #include "storage.h"
@@ -406,7 +407,8 @@ static bool read_hash(const char *hex, uint8_t hash[SHA256_BYTES])
 /* One file of the application from the source to its place on the
  * device, taken only if it is what the index said it would be. The
  * manifest is also read: the device installs nothing it would not list. */
-static const char *install_file(const char *source, const char *app_name, const cJSON *entry)
+static const char *install_file(const char *source, const char *app_name, const cJSON *entry,
+                                bool *asks_for_system)
 {
     const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
     const cJSON *size = cJSON_GetObjectItemCaseSensitive(entry, "size");
@@ -459,6 +461,8 @@ static const char *install_file(const char *source, const char *app_name, const 
             problem = "Incompatible firmware version.";
         } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
             problem = "Invalid manifest.";
+        } else {
+            *asks_for_system = manifest.system;
         }
         free(text);
     }
@@ -551,12 +555,25 @@ static esp_err_t handle_install(httpd_req_t *request)
     }
     const char  *problem = NULL;
     const cJSON *entry;
+    bool         asks_for_system = false;
+    /* The device stays on the network until the last file is here. */
+    power_hold_radio();
     cJSON_ArrayForEach(entry, files)
     {
-        problem = install_file(source, app_name, entry);
+        problem = install_file(source, app_name, entry, &asks_for_system);
         if (problem != NULL) {
             break;
         }
+    }
+    power_release_radio();
+    /* An application with the system API can do what the network may not
+     * do unasked - reset the device, forget its network: installing one is
+     * asked about like those. */
+    if (problem == NULL && asks_for_system) {
+        host_answer_t answer = host_ask_at_the_device("Install system app?", "Install");
+        problem = answer == HOST_ANSWER_CONFIRMED ? NULL
+                  : answer == HOST_ANSWER_BUSY    ? "Device busy."
+                                                  : "Not confirmed.";
     }
     if (problem == NULL) {
         install_command_t command = { .app_name = app_name, .files = files };
@@ -579,6 +596,7 @@ static esp_err_t handle_install(httpd_req_t *request)
          * source's, which sent something else than its index promised. */
         const char *status = strcmp(problem, "Device busy.") == 0     ? "503 Service Unavailable"
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
+                             : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden"
                                                                       : "502 Bad Gateway";
         return send_message(request, status, "error", problem);
     }

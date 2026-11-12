@@ -166,7 +166,7 @@ static void test_confirm(void)
     /* Cancel is where the selection starts: OK at once is "no" */
     scene_t *confirm = scene_confirm("Update firmware?", "Update", record_answer);
     answers = confirmations = 0;
-    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_BACK);
+    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_IGNORED);
     CHECK(answers == 1 && confirmations == 0);
 
     /* down to the action, then OK */
@@ -174,14 +174,14 @@ static void test_confirm(void)
     answers = confirmations = 0;
     CHECK(press(confirm, SCENE_BUTTON_DOWN).kind == SCENE_REDRAW_NO_BLINK);
     CHECK(answers == 0);
-    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_BACK);
+    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_IGNORED);
     CHECK(answers == 1 && confirmations == 1);
 
     /* BACK is "no" wherever the selection is, and so is losing the screen */
     confirm = scene_confirm("Factory reset?", "Reset", record_answer);
     answers = confirmations = 0;
     press(confirm, SCENE_BUTTON_DOWN);
-    CHECK(press(confirm, SCENE_BUTTON_BACK).kind == SCENE_BACK);
+    CHECK(press(confirm, SCENE_BUTTON_BACK).kind == SCENE_IGNORED);
     confirm->ops->leave(confirm);
     CHECK(answers == 2 && confirmations == 0);
 

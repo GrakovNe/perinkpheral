@@ -37,8 +37,9 @@ typedef enum {
 /* `some_are_due` is called from the timer's task whenever a deadline has
  * come and nobody was told yet; it says whether the news was taken - if
  * not, it is told again in a moment. Whoever is told calls
- * deadlines_take_due() until there is none. */
-void deadlines_start(bool (*some_are_due)(void));
+ * deadlines_take_due() until there is none. `woke_from_deep_sleep`: the
+ * deadlines that outlive it are still here, and kept. */
+void deadlines_start(bool (*some_are_due)(void), bool woke_from_deep_sleep);
 
 /* The deadlines that outlive the chip's deep sleep, a bit for each kind:
  * what an application or the panel is owed whatever happens in between.

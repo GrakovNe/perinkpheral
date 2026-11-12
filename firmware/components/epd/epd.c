@@ -194,6 +194,15 @@ static esp_err_t finish(const char *what, int timeout_ms, bool stays_awake)
     return ESP_OK;
 }
 
+void epd_keep_lines_through_deep_sleep(void)
+{
+    if (s_ready) {
+        /* RST low would wake the panel for the whole of the chip's sleep. */
+        gpio_hold_en(s_cfg.rst_gpio);
+        gpio_hold_en(s_cfg.cs_gpio);
+    }
+}
+
 void epd_sleep(void)
 {
     if (s_ready && s_is_awake) {
@@ -227,6 +236,9 @@ esp_err_t epd_init(const epd_config_t *cfg)
         gpio_sleep_sel_dis(outputs[i]);
     }
     gpio_sleep_sel_dis(cfg->busy_gpio);
+    /* Held through the chip's deep sleep, if it comes from one. */
+    gpio_hold_dis(cfg->rst_gpio);
+    gpio_hold_dis(cfg->cs_gpio);
     esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "panel", &s_stay_up);
 
     gpio_config_t in = {

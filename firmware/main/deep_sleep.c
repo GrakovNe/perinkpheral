@@ -20,16 +20,27 @@ static const char *TAG = "sleep";
 #define WAKING_BUTTONS                                                                  \
     (1ULL << CONFIG_APP_BTN1_GPIO | 1ULL << CONFIG_APP_BTN2_GPIO | 1ULL << CONFIG_APP_BTN3_GPIO)
 
-wake_reason_t deep_sleep_woke_by(void)
+static wake_reason_t s_woke_by;
+
+void deep_sleep_note_wake(void)
 {
     switch (esp_sleep_get_wakeup_cause()) {
     case ESP_SLEEP_WAKEUP_TIMER:
-        return WOKE_BY_CLOCK;
+        s_woke_by = WOKE_BY_CLOCK;
+        break;
     case ESP_SLEEP_WAKEUP_EXT1:
-        return WOKE_BY_BUTTON;
+    case ESP_SLEEP_WAKEUP_GPIO: /* the same press, told another way */
+        s_woke_by = WOKE_BY_BUTTON;
+        break;
     default:
-        return WOKE_NOT_FROM_SLEEP;
+        s_woke_by = WOKE_NOT_FROM_SLEEP;
+        break;
     }
+}
+
+wake_reason_t deep_sleep_woke_by(void)
+{
+    return s_woke_by;
 }
 
 void deep_sleep_until(int64_t wake_at_ms)
@@ -44,6 +55,9 @@ void deep_sleep_until(int64_t wake_at_ms)
     } else {
         ESP_LOGW(TAG, "asleep until a button");
     }
+    /* The buttons wake the chip from its light sleep too, by another way
+     * that would keep more of it powered through this one. */
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
     /* A pressed button pulls its line low; the module has the pull-ups. */
     esp_sleep_enable_ext1_wakeup_io(WAKING_BUTTONS, ESP_EXT1_WAKEUP_ANY_LOW);
     esp_deep_sleep_start();

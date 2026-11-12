@@ -41,6 +41,10 @@ display_result_t display_show(const uint8_t *frame, refresh_reason_t why);
  * sleeps itself. */
 void display_rest(void);
 
+/* The chip is about to sleep deeply: after display_rest(), the panel's
+ * lines keep their levels through it. */
+void display_keep_lines_through_sleep(void);
+
 /* DEADLINE_PANEL_KEEPALIVE has come: the refresh the panel is owed when
  * nothing else refreshed it for the hours of the policy. */
 void display_keepalive(void);

@@ -24,6 +24,10 @@ void ota_start(bool network_stored);
 /* True while this image is still on probation. */
 bool ota_is_on_probation(void);
 
+/* True from the first byte of an upload until it is given up - or, when
+ * the image is in place, until the restart into it. */
+bool ota_is_uploading(void);
+
 /* An upload, one at a time. Each returns NULL or what went wrong; after
  * an error the upload is over. */
 const char *ota_upload_begin(size_t image_size);

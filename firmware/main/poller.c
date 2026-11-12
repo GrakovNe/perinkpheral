@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -112,7 +113,8 @@ static void hand_over(const char *app_name, const app_delivery_t *delivery)
 
 /* Whether the last time the network was needed it was there: what the
  * header's icon says. Unknown until something was asked. */
-static volatile bool s_last_use_failed;
+static RTC_DATA_ATTR volatile bool s_last_use_failed; /* kept through deep sleep: the
+                                                         header's icon is on the panel */
 
 static void note_network_use(bool worked)
 {

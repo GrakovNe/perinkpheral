@@ -19,6 +19,7 @@
 #include "ota_health.h"
 #include "image_layout.h"
 #include "ota_stream.h"
+#include "power.h"
 #include "web_server.h"
 #include "wifi.h"
 
@@ -44,7 +45,7 @@ static volatile bool s_on_probation;
 
 static struct {
     ota_stream_t           stream;
-    bool                   in_progress;
+    bool                   in_progress; /* from its first byte to the restart into it */
     const esp_partition_t *slot;
     esp_ota_handle_t       handle;
 } s_upload;
@@ -89,12 +90,26 @@ static const ota_writer_t SLOT_WRITER = { slot_begin, slot_write, slot_finish, s
 
 /* NULL when the stream is content, its error otherwise - and then the
  * upload is over. */
+/* The upload is over without an image: the device is free to sleep again. */
+static void give_up_upload(void)
+{
+    if (s_upload.in_progress) {
+        s_upload.in_progress = false;
+        power_release_radio();
+    }
+}
+
+bool ota_is_uploading(void)
+{
+    return s_upload.in_progress;
+}
+
 static const char *upload_result(bool ok)
 {
     if (ok) {
         return NULL;
     }
-    s_upload.in_progress = false;
+    give_up_upload();
     ESP_LOGW(TAG, "upload: %s", ota_stream_error(&s_upload.stream));
     return ota_stream_error(&s_upload.stream);
 }
@@ -114,6 +129,9 @@ const char *ota_upload_begin(size_t image_size)
         return "No update slot.";
     }
     s_upload.in_progress = true;
+    /* The device stays up and on the network until the image is whole, or
+     * given up. */
+    power_hold_radio();
     ESP_LOGI(TAG, "upload of %u bytes into %s", (unsigned)image_size, s_upload.slot->label);
     return upload_result(ota_stream_start(&s_upload.stream, &SLOT_WRITER, NULL,
                                           esp_app_get_description()->project_name,
@@ -129,8 +147,10 @@ const char *ota_upload_data(const uint8_t *data, size_t length)
 const char *ota_upload_end(void)
 {
     const char *error = upload_result(ota_stream_end(&s_upload.stream));
-    s_upload.in_progress = false;
     if (error == NULL) {
+        /* Still in progress, and the radio still held: the next thing is
+         * the restart into the image, and a deep sleep before it would wake
+         * as that image with this one's memory. */
         ESP_LOGW(TAG, "the uploaded image is in place");
     }
     return error;
@@ -140,7 +160,7 @@ void ota_upload_abort(void)
 {
     if (s_upload.in_progress) {
         ota_stream_abort(&s_upload.stream);
-        s_upload.in_progress = false;
+        give_up_upload();
     }
 }
 

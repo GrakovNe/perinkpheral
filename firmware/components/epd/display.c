@@ -100,6 +100,9 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     if (kind == REFRESH_NONE) {
         return kind;
     }
+    /* Whatever comes of this, the number from before the sleep is not what
+     * the panel shows any more. */
+    s_panel_shows = 0;
     frame_box_t changed = s_shown_is_on_panel
                               ? frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT)
                               : WHOLE_FRAME;
@@ -152,14 +155,25 @@ void display_keepalive(void)
          * sleep, ahead of the first frame: there is no picture here to
          * refresh the panel with yet. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, KEEPALIVE_WITHOUT_A_FRAME_MS);
+        /* And the first frame is not taken for the one on the panel: it is
+         * the refresh that is owed. */
+        s_panel_shows = 0;
     } else if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
         s_shown_is_on_panel = err == ESP_OK;
+        s_panel_shows = err == ESP_OK ? number_of(s_shown) : 0;
     } else {
         /* Came early - the setting was changed since: at its time, then. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0,
                          refresh_policy_wait_ms(&s_policy, &s_cfg, REFRESH_FOR_KEEPALIVE,
                                                 now_ms()));
     }
+    xSemaphoreGive(s_lock);
+}
+
+void display_keep_lines_through_sleep(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    epd_keep_lines_through_deep_sleep();
     xSemaphoreGive(s_lock);
 }
 

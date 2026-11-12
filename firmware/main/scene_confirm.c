@@ -38,13 +38,12 @@ static scene_reaction_t confirm_button(scene_t *scene, scene_button_t button, sc
         confirm->action_is_selected = !confirm->action_is_selected;
         reaction.kind = SCENE_REDRAW_NO_BLINK;
         break;
+    /* Answered: whoever asked gives the screen back to what had it. */
     case SCENE_BUTTON_OK:
         give_answer(confirm, confirm->action_is_selected);
-        reaction.kind = SCENE_BACK;
         break;
     case SCENE_BUTTON_BACK:
         give_answer(confirm, false);
-        reaction.kind = SCENE_BACK;
         break;
     }
     return reaction;

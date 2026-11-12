@@ -19,6 +19,10 @@ typedef enum {
     WOKE_BY_BUTTON,      /* somebody pressed one of the three that can wake it */
 } wake_reason_t;
 
+/* First of all at start: why the chip woke is read once, before anything
+ * lets it doze - a light sleep would be the last cause after that. */
+void deep_sleep_note_wake(void);
+
 wake_reason_t deep_sleep_woke_by(void);
 
 /* Sleeps until `wake_at_ms` of the clock (milliseconds since 1970;

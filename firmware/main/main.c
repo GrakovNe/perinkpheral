@@ -105,6 +105,7 @@ static void on_button_event(uint8_t index, btn_event_t event)
 
 void app_main(void)
 {
+    deep_sleep_note_wake();
     log_capture_start();
     ESP_LOGI(TAG, "perINKpheral firmware %s (idf %s, built %s %s)",
              esp_app_get_description()->version, esp_get_idf_version(),

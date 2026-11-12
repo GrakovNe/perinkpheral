@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -46,6 +47,11 @@ static struct {
     bool              is_radio_off;
     bool              was_reached;
 } s_wifi;
+
+/* Whether the network was reached last time, through the chip's deep
+ * sleep: the icon that says so stays on the panel through it, and a start
+ * that forgot would redraw the panel for nothing. */
+static RTC_DATA_ATTR bool s_was_reached_before_sleep;
 
 /* Asked of the Wi-Fi task through its queue, beside the plan's events. */
 #define RADIO_OFF_ASKED ((wifi_plan_event_t)100)
@@ -190,6 +196,7 @@ static void publish_phase(bool failed_last)
                    s_wifi.is_radio_off != s_wifi.radio_off;
     s_wifi.phase = phase;
     s_wifi.was_reached = was_reached;
+    s_was_reached_before_sleep = was_reached;
     s_wifi.is_radio_off = s_wifi.radio_off;
     if (s_wifi.phase != WIFI_PHASE_ONLINE) {
         s_wifi.address[0] = '\0';
@@ -249,6 +256,7 @@ void wifi_start(const wifi_config_in_t *config)
     s_wifi.phase = s_wifi.plan.phase;
 
     s_wifi.lock = xSemaphoreCreateMutex();
+    s_wifi.was_reached = s_was_reached_before_sleep;
     s_wifi.events = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(wifi_plan_event_t));
     configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL);
 

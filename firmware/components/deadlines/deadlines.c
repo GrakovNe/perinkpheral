@@ -5,7 +5,6 @@
 #include "deadlines.h"
 
 #include "esp_attr.h"
-#include "esp_sleep.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -55,11 +54,10 @@ static void on_timer(void *arg)
     }
 }
 
-void deadlines_start(bool (*some_are_due)(void))
+void deadlines_start(bool (*some_are_due)(void), bool woke_from_deep_sleep)
 {
     s_some_are_due = some_are_due;
-    bool woke_from_sleep = esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED;
-    if (woke_from_sleep && s_table_mark == TABLE_IS_KEPT) {
+    if (woke_from_deep_sleep && s_table_mark == TABLE_IS_KEPT) {
         deadline_table_keep_kinds(&s_table, DEADLINES_THAT_OUTLIVE_SLEEP);
     } else {
         deadline_table_init(&s_table);

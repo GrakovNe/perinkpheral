@@ -85,6 +85,8 @@ static refresh_reason_t refresh_reason(wm_change_t change)
 
 static app_delivery_state_t delivery_state;
 
+static bool is_question_unseen(void);
+
 /* The buttons in the order they sit on the device. */
 static const scene_button_t BUTTON_ROLE[] = {
     SCENE_BUTTON_UP, SCENE_BUTTON_OK, SCENE_BUTTON_DOWN, SCENE_BUTTON_BACK,
@@ -105,6 +107,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
+    if (is_question_unseen()) {
+        return;
+    }
     app_delivery_give_way(&delivery_state, wm, esp_timer_get_time() / 1000);
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
@@ -112,6 +117,8 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
 /* How many times the panel was refreshed since start: lets a tool tell a
  * new picture from the one it has already seen. */
 static uint32_t s_frames_shown;
+
+static void note_question_is_seen(void);
 
 /* Puts the frame together and offers it to the display if anything
  * changed. Returns how long to wait before offering again, or
@@ -145,6 +152,7 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     case DISPLAY_UNCHANGED:
         break;
     }
+    note_question_is_seen();
     wm_shown(wm);
     return NOTHING_TO_SHOW;
 }
@@ -252,6 +260,7 @@ static void stop(host_stop_t why)
     poller_hold(); /* and never let go: nothing more is asked */
     display_rest();
     if (why == HOST_STOP_DEEP_SLEEP) {
+        display_keep_lines_through_sleep();
         deep_sleep_until(deadlines_next_worth_waking_for());
     }
     if (why == HOST_STOP_FACTORY_RESET) {
@@ -270,7 +279,8 @@ static bool is_question_open(void);
  * for on the off chance. */
 static bool may_sleep_deeply(void)
 {
-    if (!power_may_sleep_deeply() || !poller_is_idle() || ota_is_on_probation()) {
+    if (!power_may_sleep_deeply() || !poller_is_idle() || ota_is_on_probation() ||
+        ota_is_uploading()) {
         return false;
     }
     if (is_question_open() || delivery_state.in_background != NULL || wm.suspended ||
@@ -306,7 +316,10 @@ static struct {
     SemaphoreHandle_t answered;
     bool              is_open;  /* the host loop's */
     bool              is_confirmed;
+    bool              is_seen;  /* its frame is on the panel: only then is a press an answer */
+    bool              is_to_put_away; /* answered: the screen goes back once the handler returned */
     scene_t          *scene;
+    scene_t          *came_from; /* what had the screen, to give it back; NULL: the menu */
     char              question[CONFIRM_TEXT_MAX + 1];
     char              action[CONFIRM_TEXT_MAX + 1];
 } s_confirm;
@@ -320,6 +333,21 @@ static bool is_question_open(void)
     return s_confirm.is_open;
 }
 
+/* The frame on the panel is the question's. */
+static void note_question_is_seen(void)
+{
+    if (s_confirm.is_open && wm.current == s_confirm.scene) {
+        s_confirm.is_seen = true;
+    }
+}
+
+/* Asked and not on the panel yet: a press now was meant for the picture
+ * that is still there, and must not answer a question nobody has read. */
+static bool is_question_unseen(void)
+{
+    return s_confirm.is_open && !s_confirm.is_seen;
+}
+
 /* In the host loop: from the scene. The first call is the answer. */
 static void on_confirm_answer(bool is_confirmed)
 {
@@ -330,9 +358,25 @@ static void on_confirm_answer(bool is_confirmed)
     }
     s_confirm.is_open = false;
     s_confirm.is_confirmed = is_confirmed;
+    s_confirm.is_to_put_away = true;
     deadlines_cancel(DEADLINE_CONFIRM, 0, 0);
     ESP_LOGW(TAG, "\"%s\" %s", s_confirm.question, is_confirmed ? "confirmed" : "not confirmed");
     xSemaphoreGive(s_confirm.answered);
+}
+
+/* The question is answered and its scene is still about: on the screen,
+ * set aside for an answer in pieces, or under the menu that was opened
+ * over it. What had the screen before gets it back, and the question is
+ * not something to return to. Not from inside a scene's own handler. */
+static void put_question_away(void)
+{
+    s_confirm.is_to_put_away = false;
+    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    if (wm.current == s_confirm.scene) {
+        wm_show(&wm, s_confirm.came_from != NULL ? s_confirm.came_from : s_menu);
+    } else {
+        wm_drop(&wm, s_confirm.scene);
+    }
 }
 
 static void open_confirm(void *argument)
@@ -340,19 +384,26 @@ static void open_confirm(void *argument)
     (void)argument;
     /* An application taking an answer off the screen gives way, as to a press. */
     app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    if (wm.current != s_confirm.scene) {
+        s_confirm.came_from = wm.current;
+    }
     s_confirm.is_open = true;
+    s_confirm.is_seen = false;
+    s_confirm.is_to_put_away = false;
     s_confirm.scene = scene_confirm(s_confirm.question, s_confirm.action, on_confirm_answer);
     wm_show(&wm, s_confirm.scene);
-    deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS);
+    /* The same scene with another question is another picture. */
+    wm_invalidate(&wm, WM_CHANGED_BY_SWITCH);
+    if (!deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS)) {
+        on_confirm_answer(false); /* nothing would end the wait: not asked at all */
+    }
 }
 
-/* Nobody came: the question leaves the screen, which answers it. */
+/* Nobody came. */
 static void close_unanswered_confirm(void)
 {
     if (s_confirm.is_open) {
-        scene_reaction_t back = { SCENE_BACK, NULL };
-        wm_scene_reacted(&wm, s_confirm.scene, back, WM_CHANGED_BY_SWITCH);
-        on_confirm_answer(false); /* if the scene was not on the screen to be told */
+        on_confirm_answer(false);
     }
 }
 
@@ -399,7 +450,7 @@ void host_deadlines_start(void)
     s_confirm.turn = xSemaphoreCreateMutex();
     s_confirm.answered = xSemaphoreCreateBinary();
     configASSERT(s_confirm.turn != NULL && s_confirm.answered != NULL);
-    deadlines_start(tell_of_deadlines);
+    deadlines_start(tell_of_deadlines, deep_sleep_woke_by() != WOKE_NOT_FROM_SLEEP);
 }
 
 /* An alarm that has come is handed to its application like an answer. */
@@ -487,6 +538,7 @@ void host_reload_apps(void)
      * leave the screen here run their last handlers, and those may ask the
      * poller for something. */
     launcher_reload(drop_app_scene, &context);
+    s_confirm.came_from = NULL; /* the scenes were made anew */
     poller_reload();
     forget_alarms_of_the_removed();
     int count;
@@ -613,6 +665,9 @@ void host_run(void)
                            wm_pending_change(&wm) != WM_CLEAN);
 #endif
             break;
+        }
+        if (s_confirm.is_to_put_away) {
+            put_question_away();
         }
         if (s_reload_is_due) {
             /* Asked for from inside a handler, which has returned by now. */
