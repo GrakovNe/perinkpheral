@@ -112,6 +112,13 @@ void app_main(void)
              esp_app_get_description()->version, esp_get_idf_version(),
              __DATE__, __TIME__);
 
+    static const char *const WOKE_BY[] = {
+        [WOKE_NOT_FROM_SLEEP] = "a start",
+        [WOKE_BY_CLOCK] = "woken by the clock",
+        [WOKE_BY_BUTTON] = "woken by a button",
+    };
+    ESP_LOGI(TAG, "%s", WOKE_BY[deep_sleep_woke_by()]);
+
     reset_early_init();
     /* First of all: the heap will not be this whole again. */
     m3_area_start();
