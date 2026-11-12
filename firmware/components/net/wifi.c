@@ -70,6 +70,34 @@ static void post(wifi_plan_event_t event)
     }
 }
 
+/* Where the network was found last: the access point and its channel.
+ * With it the next connection looks in one place instead of scanning
+ * every channel - a second or two less of each time the radio comes up
+ * for a poll, which on a battery is most of what a poll costs. Kept
+ * through the chip's deep sleep. */
+static RTC_DATA_ATTR struct {
+    bool    is_known;
+    uint8_t access_point[6];
+    uint8_t channel;
+    char    ssid[WIFI_SSID_MAX + 1];
+} s_found_at;
+
+/* The attempt under way looks only where the network was last: if it
+ * fails, that place is forgotten and the next one looks everywhere. */
+static bool s_is_looking_in_one_place;
+
+static void remember_where_found(void)
+{
+    wifi_ap_record_t found;
+    if (esp_wifi_sta_get_ap_info(&found) != ESP_OK) {
+        return;
+    }
+    memcpy(s_found_at.access_point, found.bssid, sizeof s_found_at.access_point);
+    s_found_at.channel = found.primary;
+    strlcpy(s_found_at.ssid, s_wifi.ssid, sizeof s_found_at.ssid);
+    s_found_at.is_known = true;
+}
+
 static void on_got_address(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
@@ -79,6 +107,8 @@ static void on_got_address(void *arg, esp_event_base_t base, int32_t id, void *d
     xSemaphoreTake(s_wifi.lock, portMAX_DELAY);
     esp_ip4addr_ntoa(&got->ip_info.ip, s_wifi.address, sizeof s_wifi.address);
     xSemaphoreGive(s_wifi.lock);
+    s_is_looking_in_one_place = false;
+    remember_where_found();
     post(WIFI_EVENT_CONNECTED);
 }
 
@@ -89,6 +119,11 @@ static void on_station_disconnected(void *arg, esp_event_base_t base, int32_t id
     (void)id;
     const wifi_event_sta_disconnected_t *lost = data;
     ESP_LOGW(TAG, "not connected to \"%s\", reason %d", s_wifi.ssid, lost->reason);
+    if (s_is_looking_in_one_place) {
+        /* Not there any more - another channel, another access point. */
+        s_is_looking_in_one_place = false;
+        s_found_at.is_known = false;
+    }
     post(WIFI_EVENT_DISCONNECTED);
 }
 
@@ -149,6 +184,14 @@ static void connect(void)
     strlcpy((char *)config.sta.password, s_wifi.password, sizeof config.sta.password);
     config.sta.threshold.authmode =
         s_wifi.password[0] != '\0' ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    s_is_looking_in_one_place =
+        s_found_at.is_known && strcmp(s_found_at.ssid, s_wifi.ssid) == 0;
+    if (s_is_looking_in_one_place) {
+        config.sta.bssid_set = true;
+        memcpy(config.sta.bssid, s_found_at.access_point, sizeof config.sta.bssid);
+        config.sta.channel = s_found_at.channel;
+        config.sta.scan_method = WIFI_FAST_SCAN;
+    }
     esp_err_t err = esp_wifi_set_mode(s_wifi.access_point_up ? WIFI_MODE_APSTA : WIFI_MODE_STA);
     if (err == ESP_OK) {
         err = esp_wifi_set_config(WIFI_IF_STA, &config);
