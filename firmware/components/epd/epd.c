@@ -5,10 +5,11 @@
 #include "epd.h"
 
 #include "driver/gpio.h"
-#include "driver/spi_master.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hal/gpio_ll.h"
+#include "soc/gpio_struct.h"
 
 /* The sequences are those of waveshareteam/e-Paper, epd4in2_V2
  * (Init, Init_Fast, Display_Base, Display_Fast, Display_Partial,
@@ -21,35 +22,56 @@ static const char *TAG = "epd";
 #define BUSY_FULL_MS    4000
 #define BUSY_PARTIAL_MS 3000
 
-static epd_config_t        s_cfg;
-#define BUS_HOLD_FROM_BYTES 64
-
-static spi_device_handle_t s_spi;
-static bool                s_ready;
+static epd_config_t s_cfg;
+static bool         s_ready;
 /* Out of deep sleep and set up for partial refreshes: the next one needs
  * no reset. The controller turns the panel's voltages off by itself at
  * the end of every refresh, awake or not. */
-static bool                s_is_awake;
+static bool         s_is_awake;
+
+/* The bytes are clocked out by hand. What the panel sees is what a SPI
+ * master in mode 0 would send it - the data bit set while the clock is
+ * low and taken on its rise, CS low for one byte and high after it - at
+ * some 3 MHz of the 20 the controller allows. The SPI driver sent the
+ * same at 2 MHz and spent four times the byte itself on getting ready for
+ * it: 0.3 s of every frame.
+ *
+ * A wait is twelve empty instructions, written out so that it is twelve
+ * and not a loop around them: 75 ns at the chip's 160 MHz, longer when it
+ * runs slower. The controller asks for 25 ns of each half of the clock. */
+#define EMPTY_INSTRUCTION() __asm__ __volatile__("nop")
+
+static inline __attribute__((always_inline)) void wait_a_moment(void)
+{
+    EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION();
+    EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION();
+    EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION();
+}
+
+static inline __attribute__((always_inline)) void set_pin(int gpio, int level)
+{
+    gpio_ll_set_level(&GPIO, (uint32_t)gpio, (uint32_t)level);
+}
 
 /* CS low, one byte, CS high: holding CS over a block of data makes the
  * refresh on this module never finish. */
 static void tx(const uint8_t *d, size_t n)
 {
-    /* A frame is fifteen thousand one-byte transactions: with the bus held
-     * for all of them the driver skips its own preparation on each. What
-     * goes over the wire is the same, CS and all. */
-    bool holds_bus = n >= BUS_HOLD_FROM_BYTES &&
-                     spi_device_acquire_bus(s_spi, portMAX_DELAY) == ESP_OK;
+    const int cs = s_cfg.cs_gpio, clock = s_cfg.sclk_gpio, mosi = s_cfg.mosi_gpio;
     for (size_t i = 0; i < n; i++) {
-        spi_transaction_t t = {
-            .flags = SPI_TRANS_USE_TXDATA, .length = 8, .tx_data = { d[i] },
-        };
-        gpio_set_level(s_cfg.cs_gpio, 0);
-        ESP_ERROR_CHECK(spi_device_polling_transmit(s_spi, &t));
-        gpio_set_level(s_cfg.cs_gpio, 1);
-    }
-    if (holds_bus) {
-        spi_device_release_bus(s_spi);
+        uint8_t byte = d[i];
+        set_pin(cs, 0);
+        for (int bit = 7; bit >= 0; bit--) {
+            set_pin(mosi, byte >> bit & 1);
+            wait_a_moment();
+            set_pin(clock, 1);
+            wait_a_moment();
+            set_pin(clock, 0);
+        }
+        wait_a_moment();
+        set_pin(cs, 1);
+        /* CS stays high for four of them between two bytes. */
+        wait_a_moment(); wait_a_moment(); wait_a_moment(); wait_a_moment();
     }
 }
 
@@ -163,7 +185,8 @@ esp_err_t epd_init(const epd_config_t *cfg)
 
     gpio_config_t out = {
         .pin_bit_mask = (1ULL << cfg->dc_gpio) | (1ULL << cfg->rst_gpio) |
-                        (1ULL << cfg->cs_gpio),
+                        (1ULL << cfg->cs_gpio) | (1ULL << cfg->sclk_gpio) |
+                        (1ULL << cfg->mosi_gpio),
         .mode = GPIO_MODE_OUTPUT,
     };
     esp_err_t err = gpio_config(&out);
@@ -172,6 +195,7 @@ esp_err_t epd_init(const epd_config_t *cfg)
     }
     gpio_set_level(cfg->cs_gpio, 1);
     gpio_set_level(cfg->rst_gpio, 1);
+    gpio_set_level(cfg->sclk_gpio, 0);
 
     gpio_config_t in = {
         .pin_bit_mask = 1ULL << cfg->busy_gpio,
@@ -181,33 +205,8 @@ esp_err_t epd_init(const epd_config_t *cfg)
     if (err != ESP_OK) {
         return err;
     }
-
-    spi_bus_config_t bus = {
-        .mosi_io_num = cfg->mosi_gpio,
-        .miso_io_num = -1,
-        .sclk_io_num = cfg->sclk_gpio,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 64,
-    };
-    err = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_DISABLED);
-    if (err != ESP_OK) {
-        return err;
-    }
-    /* The one device on the bus; CS is a plain GPIO (see tx()). */
-    spi_device_interface_config_t dev = {
-        .clock_speed_hz = (int)cfg->spi_hz,
-        .mode = 0,
-        .spics_io_num = -1,
-        .queue_size = 1,
-    };
-    err = spi_bus_add_device(SPI2_HOST, &dev, &s_spi);
-    if (err != ESP_OK) {
-        return err;
-    }
     s_ready = true;
-    ESP_LOGI(TAG, "SSD1683 %dx%d on SPI2 at %lu Hz", EPD_W, EPD_H,
-             (unsigned long)cfg->spi_hz);
+    ESP_LOGI(TAG, "SSD1683 %dx%d", EPD_W, EPD_H);
     return ESP_OK;
 }
 

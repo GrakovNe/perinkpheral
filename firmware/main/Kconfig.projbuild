@@ -58,14 +58,6 @@ menu "perINKpheral"
                 boot log into this line at every reset. The console must
                 stay on USB-JTAG.
 
-        config APP_EPD_SPI_HZ
-            int "SPI clock, Hz"
-            range 100000 20000000
-            default 2000000
-            help
-                2 MHz is what the bench was verified at. Faster has not
-                been tried with the per-byte CS the panel needs.
-
     endmenu
 
     menu "Buttons"

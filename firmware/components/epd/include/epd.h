@@ -26,7 +26,6 @@ typedef struct {
     int      dc_gpio;
     int      rst_gpio;
     int      busy_gpio;
-    uint32_t spi_hz;
 } epd_config_t;
 
 /* Bus and pins only; the panel is not touched until the first show. */

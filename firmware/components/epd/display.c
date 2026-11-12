@@ -178,7 +178,6 @@ void display_start(const refresh_policy_cfg_t *policy)
         .dc_gpio = CONFIG_APP_EPD_DC_GPIO,
         .rst_gpio = CONFIG_APP_EPD_RST_GPIO,
         .busy_gpio = CONFIG_APP_EPD_BUSY_GPIO,
-        .spi_hz = CONFIG_APP_EPD_SPI_HZ,
     };
     ESP_ERROR_CHECK(epd_init(&cfg));
 

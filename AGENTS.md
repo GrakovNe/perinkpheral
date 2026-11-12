@@ -154,14 +154,15 @@ Display:
   - CS is toggled per byte by GPIO (`spics_io_num = -1`). CS held low
     over a block of data starts a refresh that never ends: BUSY stays
     high for 30 s and more and the image fades to grey.
-  - One SPI device on the bus. A second `spi_bus_add_device` on the
-    same CS GPIO takes the GPIO matrix and the first device's CS stops
-    moving; the panel then ignores everything.
+  - The bytes are clocked out by hand (`tx()` in `epd.c`), not by the
+    SPI driver: mode 0, at least 75 ns to each half of the clock, CS
+    high between bytes. Do not shorten the waits: the controller asks
+    for 25 ns and nobody here has an oscilloscope.
   - Every BUSY wait is bounded (init 1 s, full 4 s, partial 3 s). On a
     timeout the controller is cut with a hardware reset. After deep
     sleep (`0x10`) BUSY stays high for good; the next show always
     starts with a hardware reset, which is also how the panel wakes.
-- SPI is 2 MHz; nothing faster has been tried with the per-byte CS.
+- A byte takes about 8 microseconds, a frame 0.12 s.
 - Only `display.c` touches the panel. Whoever draws owns a buffer of its
   own and hands the whole frame to `display_show(frame, reason)`; the
   service keeps a copy of what the panel shows, leaves the panel alone
@@ -169,8 +170,9 @@ Display:
   the frame again later.
 - The first image after boot is full: it fills the RAM 0x26 that
   partial updates compare against. `epd.c` sleeps the panel at the end
-  of every show, mode 1 so that RAM is kept. The 24 h keep-alive is the
-  `epd-keepalive` task.
+  of a full show, mode 1 so that RAM is kept; after a partial one the
+  `panel` task of `display.c` does it 1.5 s later, and that task also
+  makes the 24 h keep-alive refresh.
 
 Board and system:
 

@@ -81,7 +81,7 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
 - Fonts: the square one (code, `font_square.c`) for the logo; Departure Mono, a monospaced pixel font, for everything else: one bitmap of it at its own 11 px from `tools/fontgen`, drawn at whole multiples - 22 px for the host, and 11, 22, 33, 44, 66 and 110 px for applications. ASCII only in version 1.
 - FS: LittleFS (partition `apps`, 1 MB). NVS for the applications' `kv_*` and the host settings.
 - Network: `esp_http_client` (TLS through mbedTLS), `esp_http_server` for the web UI.
-- The display driver is our own, on top of `spi_master`: init, full refresh, partial refresh, panel deep sleep after every update. **SPI 2 MHz**, mode 0, CS toggled per byte - otherwise the refresh never finishes (see `AGENTS.md`).
+- The display driver is our own: init, full refresh (and Waveshare's fast one), partial refresh of a window, panel deep sleep. The bytes are clocked out by hand over GPIO, as a SPI master in mode 0 would, with **CS toggled per byte** - otherwise the refresh never finishes (see `AGENTS.md`). The SPI driver of ESP-IDF sent the same and spent 17 of every 21 microseconds getting ready for a byte; by hand a byte is 8.
 - Buttons: `gpio_config` input without the internal pull-up (the pull-up is on the module), active LOW, debounce 20 ms. A press is reported as it happens (down, up) and as what it meant (short, or long at ≥600 ms).
 
 ## Memory budget (the hard limit of the C6)
@@ -155,7 +155,7 @@ The host is layers, and each knows only the ones under it:
 | Views | `main/screens.c` | a struct in, pixels out; no hardware, rendered by `tools/preview` |
 | Services | `main/sysinfo.c`, `main/status.c`, settings, `components/net` (Wi-Fi, the clock); later polling | the data, with no idea that a screen exists |
 
-- **A partial refresh sends only what changed.** The display service finds the box outside which the new frame is the frame on the panel (`frame_box.c`, pure) and the driver sends that window - Waveshare's own `PartialDisplay`, the same commands and waveform. The window is taken together with the one of the refresh before, so that the result does not depend on what the controller does with its two frames afterwards. A step in the menu is 0.8 s instead of 1.0 s; 0.71 s of a refresh is the panel's own (reset 0.2 s, BUSY 0.41 s, sleep 0.1 s) and no window shortens it. Seen in the log only: the picture on the panel itself has to be looked at by a person.
+- **A partial refresh sends only what changed.** The display service finds the box outside which the new frame is the frame on the panel (`frame_box.c`, pure) and the driver sends that window - Waveshare's own `PartialDisplay`, the same commands and waveform. The window is taken together with the one of the refresh before, so that the result does not depend on what the controller does with its two frames afterwards. After a partial refresh the panel is left out of deep sleep for 1.5 s (the `panel` task puts it there), and one that comes in that time needs no reset. A step in the menu is 0.46 s, was 1.0 s; the whole frame 0.53 s: 0.41 s of BUSY and the bytes. Seen in the log only: the picture on the panel itself has to be looked at by a person.
 - **Two frames.** The back buffer (`host.c`) is where frames are put together; the display service holds the front copy of what the panel shows. Drawing never touches the panel, an unchanged frame costs no refresh, and a scene cannot spoil the screen halfway.
 - **Layers are areas of one frame**, not buffers of their own: the header and the content do not overlap. A scene that is not full-screen gets a viewport under the header and cannot draw outside it.
 - **A scene never refreshes anything.** It reports that its picture changed and draws when asked; the window manager passes on why the frame changed (a switch, a press, data), and the display service decides what the panel does.
@@ -236,7 +236,7 @@ Done since and seen on the device: requests of an application's own (`http_reque
 
 **Put off: BLE.** The chip has BLE 5 and no classic Bluetooth. As a host service it could be media keys - the device pairs as a keyboard and an application sends play, pause, next, volume to whatever it is paired with, with no API of the player. What plays now can be read that way only from an iPhone (Apple Media Service); Android and computers give it over classic Bluetooth, which is not here. It is not in the plan of milestone 2: the stack is estimated, not measured, at 200-300 KB of flash and 60-90 KB of memory, next to a firmware slot with about 300 KB left and a heap that TLS still has to fit into. Measure before deciding.
 
-**How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything; `HOST_REDRAW_CLEAN` - a full refresh, for a new picture; `HOST_REDRAW_NO_BLINK` - now, and not as the full refresh the host makes after every few partial ones: for pictures in a row. The traces then pile up until the first refresh that does not ask for this, or until the application leaves. None has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. The only floor is one refresh a second.
+**How soon a redraw is shown** follows from where it was asked: from `app_on_button` at once, from `app_on_timer` and `app_on_data` by the e-paper policy. Flags on `request_redraw`: `HOST_REDRAW_SOON` - show it now although nobody pressed anything; `HOST_REDRAW_CLEAN` - a full refresh, for a new picture; `HOST_REDRAW_NO_BLINK` - now, and not as the full refresh the host makes after every few partial ones: for pictures in a row. The traces then pile up until the first refresh that does not ask for this, or until the application leaves. None has a budget: the device is made by developers for developers, and one who wants to spend the battery and the panel may. A row of pictures is shown as fast as the panel takes them; any other request has a floor of one refresh a second.
 
 What a handler may count on: one handler runs at a time and has 3 seconds; it returns nothing and leaves requests (`request_redraw`, `request_exit`, `request_focus`) that take effect when it returns; presses are not lost, timers of one id collapse into one, and the pieces of one answer arrive in order with nothing between them.
 
@@ -269,8 +269,9 @@ Implemented in `components/epd/refresh_policy.c` (pure, host-tested). **The poli
 
 Not configurable:
 - Full refresh when the application on the scene changes; the first update after start is always full.
-- After every update the panel goes to deep sleep (mode 1, RAM is kept), otherwise it degrades irreversibly.
-- No animations and no real-time progress bars in the host's own screens. An application that wants a row of pictures has `HOST_REDRAW_NO_BLINK`; the panel itself takes a second for a partial refresh (0.4 s of it the panel, the rest sending two frames at 2 MHz), so that is one picture a second at best. `sdk/apps/badapple` is the test: 200x150 unpacked and drawn in about 0.1 s a frame by the interpreter.
+- The panel goes to deep sleep (mode 1, RAM is kept) after every full refresh and 1.5 s after the last partial one, otherwise it degrades irreversibly. Its voltages are off after every refresh either way: the controller does that itself.
+- **Fast refresh** is a setting (`refresh_fast`, off by default, on the page): Waveshare's `Init_Fast`, its 1.5 s waveform. A full refresh is 2.2 s with it and 2.7 s without, were 3.1 s. Not for the cold.
+- No animations and no real-time progress bars in the host's own screens. An application that wants a row of pictures has `HOST_REDRAW_NO_BLINK`; the panel itself takes half a second for a partial refresh of the whole frame (0.41 s of it BUSY), and the application its time to draw, so that is three pictures in two seconds at best. `sdk/apps/badapple` is the test: 200x150 unpacked and drawn in about 0.1 s a frame by the interpreter.
 - 1 bit per pixel. Fonts are bitmap, pre-converted (`tools/fontgen`), ASCII; the readable minimum is ~10 px.
 
 ### Web UI (on the device, `esp_http_server`)
@@ -460,4 +461,4 @@ Milestone 1 is done, the run from the battery included (seen by the owner). Next
 - Do not version the host API before the first release: change `host_api.h` freely and rebuild the applications. After a release a changed signature will mean a new `abi`.
 - Do not design for PSRAM: there is none.
 - Do not measure the battery voltage and do not detect USB - decided.
-- Do not "optimize" the panel driver: CS per byte, one SPI device, bounded BUSY waits.
+- Do not "optimize" the panel driver past Waveshare's own: its commands, its waveforms and its waits as they are, CS per byte, bounded BUSY waits. No waveforms of our own (`0x32`).
