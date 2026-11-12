@@ -104,7 +104,7 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     /* Counted from the start: something that redraws on the minute would
      * otherwise come a refresh too early every time and slip later and
      * later. */
-    refresh_policy_note(&s_policy, kind, started_ms);
+    refresh_policy_note(&s_policy, kind, why, started_ms);
 
     const char *kind_name = kind == REFRESH_FULL ? "full" : "partial";
     long long took_ms = (long long)(finished_ms - started_ms);

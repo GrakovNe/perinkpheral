@@ -76,6 +76,7 @@ typedef struct {
 static const int32_t FULL_EVERY_CHOICES[] = { 0, 1, 2, 3, 5, 10, 20, 50, SYS_REFRESH_FULL_NEVER };
 static const int32_t MIN_SECONDS_CHOICES[] = { 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800, 3600 };
 static const int32_t FORCE_HOURS_CHOICES[] = { 1, 2, 3, 6, 12, 24, 48, 72, 168 };
+static const int32_t OFF_ON_CHOICES[] = { 0, 1 };
 #define COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof(array)[0]))
 
 static const display_setting_t DISPLAY_SETTINGS[] = {
@@ -85,6 +86,7 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
       COUNT_OF(MIN_SECONDS_CHOICES) },
     { "Forced refresh", SYS_NUMBER_REFRESH_FORCE_HOURS, FORCE_HOURS_CHOICES,
       COUNT_OF(FORCE_HOURS_CHOICES) },
+    { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
@@ -286,6 +288,9 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
             app_text_add(&out, "Every ");
             app_text_add_number(&out, value);
         }
+        break;
+    case SYS_NUMBER_REFRESH_FAST:
+        app_text_add(&out, value != 0 ? "On" : "Off");
         break;
     case SYS_NUMBER_REFRESH_MIN_SECONDS:
         if (value >= SECONDS_PER_MINUTE && value % SECONDS_PER_MINUTE == 0) {

@@ -30,6 +30,8 @@ typedef enum {
 /* What an application may ask for is not rationed, but the panel is not
  * refreshed on request more often than this. */
 #define REFRESH_ON_REQUEST_MIN_MS 1000
+/* A refresh nobody asked for may come this much before its time. */
+#define REFRESH_DATA_EARLY_MS     1000
 /* One of a row of pictures is shown as soon as the panel can. */
 #define REFRESH_OF_ROW_MIN_MS     0
 
@@ -50,6 +52,8 @@ typedef struct {
 typedef struct {
     bool    shown;   /* anything on the panel since boot */
     int64_t last_ms; /* of the last refresh of any kind */
+    bool    data_shown;   /* any refresh nobody asked for since boot */
+    int64_t last_data_ms; /* of the last such */
     int     partials;
 } refresh_policy_t;
 
@@ -65,7 +69,8 @@ uint32_t refresh_policy_wait_ms(const refresh_policy_t *p, const refresh_policy_
                                 refresh_reason_t why, int64_t now_ms);
 
 /* Call with what was actually done. */
-void refresh_policy_note(refresh_policy_t *p, refresh_kind_t kind, int64_t now_ms);
+void refresh_policy_note(refresh_policy_t *p, refresh_kind_t kind, refresh_reason_t why,
+                         int64_t now_ms);
 
 #ifdef __cplusplus
 }
