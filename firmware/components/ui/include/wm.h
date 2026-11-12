@@ -22,13 +22,13 @@ extern "C" {
  * top and has the screen; the one under it leaves and waits, and enters
  * again when what covered it is gone. BACK is one step down. That is all
  * there is to moving about: a question the host asks over an application,
- * an application that took the screen for its alarm, the menu opened over
- * either - each comes off the top and what was under it is there again.
+ * an application that took the screen for its alarm - each comes off the
+ * top and what was under it is there again.
  *
  *   - Opening from the home starts anew: what was under the menu is
  *     forgotten, the stack is the scene opened.
- *   - The menu opened over a scene (a long press on BACK) is an entry like
- *     any other: BACK in it returns to the scene.
+ *   - A long press on BACK is the beginning again: the stack is emptied
+ *     and the menu shows. BACK in the menu does nothing.
  *   - A scene is in the stack once: opened again, it moves to the top from
  *     where it waited, and BACK returns to what the user was looking at.
  *   - Only the scene on top is entered - there is room for one

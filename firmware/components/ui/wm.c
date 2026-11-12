@@ -91,7 +91,13 @@ static void open_over_current(wm_t *wm, scene_t *scene)
     if (scene == NULL) {
         return;
     }
-    push(wm, scene);
+    if (scene == wm->home) {
+        /* The menu is the beginning: whoever goes there is done with
+         * everything that was open, and BACK there leads nowhere. */
+        wm->depth = 0;
+    } else {
+        push(wm, scene);
+    }
     show_top(wm);
 }
 

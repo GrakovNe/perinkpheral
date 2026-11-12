@@ -191,12 +191,12 @@ static void test_long_back_is_always_the_menu(void)
 
 static void test_back_from_the_menu(void)
 {
-    /* opened over an application: back returns to it */
+    /* the long press is the beginning again: back in the menu leads nowhere */
     start(&app.scene);
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
     menu.next_reaction.kind = SCENE_BACK;
     press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
-    CHECK(wm.current == &app.scene && app.entered == 2);
+    CHECK(wm.current == &menu.scene && app.entered == 1 && wm.depth == 0);
 
     /* the menu was the first thing on the screen: there is nowhere to go */
     start(&menu.scene);
@@ -376,7 +376,7 @@ static void test_drop(void)
     start(&menu.scene);
     wm_open(&wm, &app.scene);
     wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-    CHECK(wm.current == &menu.scene && wm_has(&wm, &app.scene));
+    CHECK(wm.current == &menu.scene && !wm_has(&wm, &app.scene));
     wm_close(&wm, &app.scene);
     CHECK(wm.current == &menu.scene && !wm_has(&wm, &app.scene));
 
@@ -419,16 +419,18 @@ static void test_stack(void)
     press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
     CHECK(wm.current == &app.scene && wm.depth == 1);
 
-    /* the menu over the application, a question over the menu: closed, it
-     * leaves the menu, and BACK in the menu still leads to the application */
+    /* the long press empties the stack; a question over the menu, closed,
+     * leaves the menu, and BACK in the menu leads nowhere */
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(wm.current == &menu.scene && wm.depth == 0);
     wm_open(&wm, &question.scene);
-    CHECK(wm.current == &question.scene && wm.depth == 3);
+    CHECK(wm.current == &question.scene && wm.depth == 1);
     wm_close(&wm, &question.scene);
     CHECK(wm.current == &menu.scene);
     menu.next_reaction.kind = SCENE_BACK;
     press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
-    CHECK(wm.current == &app.scene && wm.depth == 1);
+    CHECK(wm.current == &menu.scene && wm.depth == 0);
+    wm_open(&wm, &app.scene);
 
     /* a scene closed while it waits under another is simply not returned to */
     wm_open(&wm, &alarm.scene);
@@ -455,12 +457,10 @@ static void test_stack(void)
     wm_close(&wm, &page.scene);
     CHECK(wm.current == &app.scene && wm.depth == 1);
 
-    /* the long press over the menu's own overlay does not pile menus up */
-    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    /* the long press over a question takes that away too */
     wm_open(&wm, &question.scene);
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-    wm_close(&wm, &question.scene); /* as the host does with a question the menu covered */
-    CHECK(wm.current == &menu.scene && wm.depth == 2 && wm_has(&wm, &app.scene));
+    CHECK(wm.current == &menu.scene && wm.depth == 0 && !wm_has(&wm, &question.scene));
 
     /* opening from the menu starts anew, whatever the menu was over */
     menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &page.scene };
