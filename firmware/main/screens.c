@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "gfx_icons.h"
+#include "scrollbar.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
@@ -94,14 +95,19 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
     int first = screens_menu_first_row(count, selected, visible_rows);
     /* One column for the titles whether a row has an icon or not. */
     int title_left = MARGIN + SCREENS_ICON_CELLS * ICON_CELL + MENU_ICON_GAP;
+    /* A list longer than the surface gives its right edge to the bar. */
+    int bar_right_inset = MENU_BAR_INSET + (count > visible_rows ? SCROLLBAR_ROOM : 0);
+    scrollbar_draw(g, MENU_TOP_GAP + TEXT_BASELINE - MENU_BAR_RISE,
+                   (visible_rows - 1) * MENU_ROW_HEIGHT + MENU_BAR_HEIGHT, count, visible_rows,
+                   first);
     for (int row = 0; row < visible_rows && first + row < count; row++) {
         screens_menu_row_t item;
         row_at(context, first + row, &item);
         int  baseline = MENU_TOP_GAP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
         bool is_selected = first + row == selected;
         if (is_selected) {
-            gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE, g->w - 2 * MENU_BAR_INSET,
-                     MENU_BAR_HEIGHT, true);
+            gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE,
+                     g->w - MENU_BAR_INSET - bar_right_inset, MENU_BAR_HEIGHT, true);
         }
         if (item.icon != NULL) {
             /* Standing on the baseline like a letter, two cells below its feet. */

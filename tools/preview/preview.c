@@ -98,6 +98,19 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* A list longer than the screen: at its start, in the middle, at its end. */
+    const char *many[] = { "Weather", "Clock", "Timer", "Hello", "Bad Apple",
+                           "Settings", "Device", "About", "Calendar", "Plex" };
+    const int selections[] = { 0, 5, 9 };
+    const char *const names[] = { "menu-scroll-start", "menu-scroll-middle", "menu-scroll-end" };
+    for (int shot = 0; shot < 3; shot++) {
+        start_screen(&online, &content);
+        screens_menu(&content, row_from_array, many, 10, selections[shot]);
+        if (save(dir, names[shot])) {
+            return 1;
+        }
+    }
+
     /* The host's notices take the whole screen. */
     gfx_init(&g, fb, W, H);
     const notice_t asking = { .first = "Update", .second = "firmware?", .icon = GFX_ICON_UPDATE,
