@@ -28,6 +28,7 @@
 static const char *TAG = "poller";
 
 #define REQUEST_TIMEOUT_MS  15000
+#define REQUEST_WITH_REDIRECTS_MS (2 * REQUEST_TIMEOUT_MS) /* the request and all it is sent on to */
 #define ANSWER_MAX_BYTES    (256 * 1024)
 #define USER_AGENT          "perinkpheral"
 #define HTTP_OK_FIRST       200
@@ -347,6 +348,16 @@ static void perform(request_t *request, const char *app_name, int number, int me
         if (redirect == REDIRECT_REFUSED) {
             is_refused = true;
             break;
+        }
+        /* The hops share the time one request has: a chain of slow servers
+         * is not waited for four times over, with the radio held. */
+        int64_t left_ms = REQUEST_WITH_REDIRECTS_MS - (now_ms() - started_ms);
+        if (left_ms <= 0) {
+            err = ESP_ERR_TIMEOUT;
+            break;
+        }
+        if (left_ms < REQUEST_TIMEOUT_MS) {
+            esp_http_client_set_timeout_ms(client, (int)left_ms);
         }
         err = esp_http_client_open(client, 0);
         http_status = 0;

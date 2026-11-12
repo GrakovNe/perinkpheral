@@ -31,6 +31,7 @@
 #include "power.h"
 #include "reset.h"
 #include "settings.h"
+#include "storage.h"
 #include "web_apps.h"
 #include "status.h"
 #include "wifi.h"
@@ -229,6 +230,7 @@ static esp_err_t handle_status(httpd_req_t *request)
     /* Of the application area, the most the application loaded now has had. */
     cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
     cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);
+    cJSON_AddBoolToObject(json, "storage_ok", storage_is_mounted());
     cJSON_AddNumberToObject(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
     return send_json(request, "200 OK", json);

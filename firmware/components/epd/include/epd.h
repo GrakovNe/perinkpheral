@@ -18,6 +18,10 @@ extern "C" {
 #define EPD_W       400
 #define EPD_H       300
 #define EPD_FB_SIZE (EPD_W / 8 * EPD_H)
+#define EPD_COLUMNS (EPD_W / 8) /* bytes in a row of the frame */
+
+/* The whole frame as a window: for a `frame_box_t`. */
+#define EPD_WHOLE_FRAME { 0, 0, EPD_COLUMNS, EPD_H }
 
 typedef struct {
     int      mosi_gpio;

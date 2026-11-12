@@ -119,9 +119,7 @@ static void hw_reset(void)
     wait_busy("hw reset", BUSY_INIT_MS);
 }
 
-#define EPD_COLUMNS (EPD_W / 8)
-
-static const frame_box_t WHOLE_FRAME = { 0, 0, EPD_COLUMNS, EPD_H };
+static const frame_box_t WHOLE_FRAME = EPD_WHOLE_FRAME;
 
 /* Where the bytes that follow go: the controller counts X in bytes. */
 static void set_window(const frame_box_t *window)

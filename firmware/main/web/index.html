@@ -844,7 +844,7 @@ for (const close of document.querySelectorAll("[data-close]"))
 const LABELS = { name: "Name", hostname: "Hostname", firmware: "Firmware", built: "Built",
                  idf: "ESP-IDF", slot: "Slot", wifi: "Wi-Fi", ssid: "SSID",
                  address: "IP address", time: "Time", uptime: "Uptime",
-                 free_memory: "Free memory", language: "Language" };
+                 free_memory: "Free memory", storage: "Storage", language: "Language" };
 let status = {};
 
 function duration(seconds) {
@@ -860,6 +860,7 @@ async function loadStatus() {
     free_memory: Math.round(status.free_memory / 1024) + " KB",
     uptime: duration(status.uptime_s),
     firmware: status.firmware + (status.on_probation ? " (verifying)" : ""),
+    storage: status.storage_ok ? "OK" : "Error",
     language: "English",
   });
   const rows = [];

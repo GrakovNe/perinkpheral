@@ -57,9 +57,7 @@ static SemaphoreHandle_t s_lock;
 
 static refresh_policy_cfg_t s_cfg;
 
-#define FRAME_COLUMNS (DISPLAY_WIDTH / 8)
-
-static const frame_box_t WHOLE_FRAME = { 0, 0, FRAME_COLUMNS, DISPLAY_HEIGHT };
+static const frame_box_t WHOLE_FRAME = EPD_WHOLE_FRAME;
 
 /* Where the refresh before this one changed the picture. A partial
  * refresh sends only the part of the frame that changed, and that part
@@ -74,7 +72,7 @@ static frame_box_t window_for(const uint8_t *frame)
     if (!s_shown_is_on_panel) {
         return WHOLE_FRAME;
     }
-    frame_box_t changed = frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT);
+    frame_box_t changed = frame_box_of_change(s_shown, frame, EPD_COLUMNS, DISPLAY_HEIGHT);
     frame_box_t window = frame_box_join(&changed, &s_changed_last_time);
     return frame_box_is_empty(&window) ? WHOLE_FRAME : window;
 }
@@ -104,7 +102,7 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
      * the panel shows any more. */
     s_panel_shows = 0;
     frame_box_t changed = s_shown_is_on_panel
-                              ? frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT)
+                              ? frame_box_of_change(s_shown, frame, EPD_COLUMNS, DISPLAY_HEIGHT)
                               : WHOLE_FRAME;
     frame_box_t window = WHOLE_FRAME;
     if (kind == REFRESH_FULL) {
