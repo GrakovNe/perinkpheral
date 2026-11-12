@@ -131,11 +131,11 @@ void kit_actions(gfx_t *g, const char *ok, const char *back)
     gfx_fill(g, 0, g->h - KIT_ACTIONS_HEIGHT, g->w, 1, true);
     int baseline = g->h - KIT_ACTIONS_HEIGHT / 2 + gfx_font_cap_height(kit_font(KIT_TEXT)) / 2;
     if (ok != NULL) {
-        kit_button(g, ACTIONS_MARGIN, baseline, "OK", ok, false);
+        kit_button(g, ACTIONS_MARGIN, baseline, "OK", ok, true);
     }
     if (back != NULL) {
         kit_button(g, g->w - ACTIONS_MARGIN - kit_button_width("BACK", back), baseline, "BACK",
-                   back, true);
+                   back, false);
     }
 }
 

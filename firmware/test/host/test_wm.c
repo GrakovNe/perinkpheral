@@ -440,18 +440,27 @@ static void test_stack(void)
     wm_back(&wm);
     CHECK(wm.current == &menu.scene);
 
-    /* opened again, a scene is the top: what was over it is gone */
+    /* opened again - its alarm came - a scene moves to the top, and BACK
+     * returns to what the user was looking at */
     wm_open(&wm, &app.scene);
     wm_open(&wm, &page.scene);
     wm_open(&wm, &alarm.scene);
     wm_open(&wm, &app.scene);
-    CHECK(wm.current == &app.scene && wm.depth == 1 && !wm_has(&wm, &page.scene));
+    CHECK(wm.current == &app.scene && wm.depth == 3);
+    wm_back(&wm);
+    CHECK(wm.current == &alarm.scene && wm.depth == 2);
+    wm_back(&wm);
+    CHECK(wm.current == &page.scene && wm.depth == 1);
+    wm_open(&wm, &app.scene);
+    wm_close(&wm, &page.scene);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
 
     /* the long press over the menu's own overlay does not pile menus up */
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
     wm_open(&wm, &question.scene);
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-    CHECK(wm.current == &menu.scene && wm.depth == 2 && !wm_has(&wm, &question.scene));
+    wm_close(&wm, &question.scene); /* as the host does with a question the menu covered */
+    CHECK(wm.current == &menu.scene && wm.depth == 2 && wm_has(&wm, &app.scene));
 
     /* opening from the menu starts anew, whatever the menu was over */
     menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &page.scene };

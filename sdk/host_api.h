@@ -380,7 +380,9 @@ HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32
  *
  * `value` stands at the right edge, cut to what the label leaves; a length
  * of 0 is none. `icon` is a HOST_ICON_* at the right edge, or
- * HOST_ICON_NONE. A row out of sight draws nothing. */
+ * HOST_ICON_NONE: HOST_ICON_CHECK marks the one of several that is set.
+ * `selected` -1 is a list nobody chooses from - facts, a row a line. A
+ * row out of sight draws nothing. */
 #define HOST_ICON_NONE (-1)
 HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(void));
 HOST_IMPORT(ui_list_first, int32_t ui_list_first(int32_t count, int32_t selected));
@@ -391,8 +393,8 @@ HOST_IMPORT(ui_list_row,
 
 /* A notice on the whole surface, the way the host asks and tells: two
  * lines of large text on the left, a large icon on the right, and along
- * the bottom what the buttons do - "OK <ok>" from the left edge,
- * "<back> BACK" from the right - or, for `is_working`, three strokes that
+ * the bottom what the buttons do - "<ok> OK" from the left edge,
+ * "BACK <back>" from the right - or, for `is_working`, three strokes that
  * stand for work going on. Every text is terminated; an empty one is not
  * drawn. A question that cannot be taken back should not take a press
  * made before it was on the screen: the host's own wait until it is. */
@@ -406,6 +408,88 @@ typedef struct host_notice {
     int32_t is_working;
 } host_notice_t;
 HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
+
+/* The parts the host's screens are put together from, for an application
+ * to put its own together the same way. Nobody has to: gfx_* draws
+ * anything. sdk/lib/app_ui.h adds what the buttons do to the screens that
+ * set a value, so that an application writes neither.
+ *
+ * Text in one of the host's styles, `y` the top of the line, cut with
+ * "..." at `max_width` pixels (0: not cut). Returns the width drawn. */
+#define HOST_UI_TEXT    0 /* what is read */
+#define HOST_UI_TITLE   1 /* what a page is about */
+#define HOST_UI_CAPTION 2 /* what stands beside something larger */
+#define HOST_UI_VALUE   3 /* the one number the screen is for */
+HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const char *text,
+                                     int32_t length, int32_t max_width));
+
+/* The title of a page at its usual place, a line under it. Returns the y
+ * where the page's own content begins. */
+HOST_IMPORT(ui_title, int32_t ui_title(const char *text, int32_t length));
+
+/* One of the host's icons in one of its sizes. */
+#define HOST_UI_ICON_SMALL  0 /* 22 px: beside text */
+#define HOST_UI_ICON_MEDIUM 1 /* 44 px */
+#define HOST_UI_ICON_LARGE  2 /* 99 px: what a notice is about */
+HOST_IMPORT(ui_icon, int32_t ui_icon(int32_t x, int32_t y, int32_t icon, int32_t size));
+
+/* A button of the device and what it does: its name ("UP") white on
+ * black and the action beside it - after the name, or, `mirrored`, before
+ * it. `y` is the top of the text's line. Returns the width. */
+HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
+                                         int32_t name_length, const char *action,
+                                         int32_t action_length, int32_t mirrored));
+
+/* The row along the bottom, HOST_UI_ACTIONS_HEIGHT pixels of the surface:
+ * what OK does from the left edge, what BACK does from the right. A
+ * length of 0: that button does nothing here. */
+#define HOST_UI_ACTIONS_HEIGHT 44
+HOST_IMPORT(ui_actions, int32_t ui_actions(const char *ok, int32_t ok_length, const char *back,
+                                           int32_t back_length));
+
+/* How much of how much: a frame, filled from the left. It changes when
+ * the data does; it is not a thing that moves. */
+HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t value,
+                                   int32_t maximum));
+
+/* The frame around what UP and DOWN change, with an arrow over it and
+ * under it for each way there is to go. */
+#define HOST_UI_ARROW_UP   1
+#define HOST_UI_ARROW_DOWN 2
+HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int32_t height,
+                                       int32_t arrows));
+
+/* One of a row of values, on the whole surface: the chosen one framed in
+ * the middle, what UP leads to over it and what DOWN leads to under it.
+ * An empty text: the row ends there. The row of buttons is drawn too. */
+typedef struct host_picker {
+    char above[32];
+    char chosen[32];
+    char below[32];
+    char ok[16];
+    char back[16];
+} host_picker_t;
+HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
+
+/* A time, a date or both, on the whole surface, the part being set in a
+ * frame. */
+#define HOST_DATE_HAS_TIME 1
+#define HOST_DATE_HAS_DATE 2
+#define HOST_DATE_HOUR     0
+#define HOST_DATE_MINUTE   1
+#define HOST_DATE_DAY      2
+#define HOST_DATE_MONTH    3
+#define HOST_DATE_YEAR     4
+#define HOST_DATE_NONE     5 /* nothing is being set: only shown */
+typedef struct host_date {
+    int32_t year, month, day; /* month 1..12 */
+    int32_t hour, minute;
+    int32_t has;              /* HOST_DATE_HAS_* */
+    int32_t selected;         /* HOST_DATE_HOUR .. HOST_DATE_NONE */
+    char    ok[16];
+    char    back[16];
+} host_date_t;
+HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
 
 /* ---- Moving about ----
  *

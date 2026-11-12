@@ -67,19 +67,17 @@ static void settle(wm_t *wm)
     }
 }
 
-/* Onto the top. A scene that is in the stack already becomes the top by
- * losing what was over it. */
+/* Onto the top. A scene that is in the stack already is moved there from
+ * where it waited: what was over it stays, and is what BACK returns to. */
 static void push(wm_t *wm, scene_t *scene)
 {
     int place = place_of(wm, scene);
     if (place >= 0) {
-        wm->depth = place + 1;
-    } else {
-        if (wm->depth == WM_STACK_DEPTH) {
-            remove_at(wm, 0); /* the oldest is the one to forget */
-        }
-        wm->stack[wm->depth++] = scene;
+        remove_at(wm, place);
+    } else if (wm->depth == WM_STACK_DEPTH) {
+        remove_at(wm, 0); /* the oldest is the one to forget */
     }
+    wm->stack[wm->depth++] = scene;
     settle(wm);
 }
 

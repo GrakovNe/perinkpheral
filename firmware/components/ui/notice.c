@@ -14,6 +14,7 @@
  * three strokes that stand for work going on. */
 #define NOTICE_MARGIN          24
 #define NOTICE_ICON_CELL       9  /* the icon is 99 pixels square */
+#define NOTICE_ICON_FROM_EDGE   36 /* further in than the text is: it stands free */
 #define NOTICE_FOOTER_HEIGHT   44
 #define NOTICE_LINE_STEP       44 /* from one line's baseline to the next */
 #define NOTICE_TEXT_ICON_GAP   16
@@ -32,7 +33,7 @@ void notice_draw(gfx_t *g, const notice_t *notice)
     int text_right = g->w - NOTICE_MARGIN;
     if (notice->icon != NOTICE_NO_ICON) {
         int icon_size = GFX_ICON_CELLS * NOTICE_ICON_CELL;
-        int icon_left = g->w - NOTICE_MARGIN - icon_size;
+        int icon_left = g->w - NOTICE_ICON_FROM_EDGE - icon_size;
         gfx_icon(g, (gfx_icon_id_t)notice->icon, icon_left, (body_height - icon_size) / 2,
                  NOTICE_ICON_CELL, true);
         text_right = icon_left - NOTICE_TEXT_ICON_GAP;
@@ -75,7 +76,7 @@ void notice_draw(gfx_t *g, const notice_t *notice)
                      NOTICE_STROKE_HEIGHT, true);
         }
     } else {
-        /* OK from the left edge, BACK from the right: the row every screen has. */
+        /* The row every screen has: OK at the left edge, BACK at the right. */
         kit_actions(g, notice->ok, notice->back);
     }
 }

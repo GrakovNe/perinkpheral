@@ -55,14 +55,15 @@ int  kit_icon_side(kit_icon_size_t size);
 void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size);
 
 /* A button of the device and what it does: its name white on black, the
- * action beside it - after the name, or before it for a button that
- * stands at a right edge. `baseline` is the text's. Returns the width. */
+ * action beside it - after the name, or, mirrored, before it. `baseline`
+ * is the text's. Returns the width. */
 int kit_button_width(const char *name, const char *action);
 int kit_button(gfx_t *g, int left, int baseline, const char *name, const char *action,
                bool is_mirrored);
 
-/* The row along the bottom of the surface: OK from the left edge, BACK
- * from the right. NULL: that button does nothing here. */
+/* The row along the bottom of the surface: what OK does and its name from
+ * the left edge, BACK's name and what it does from the right -
+ * "Save OK        BACK Cancel". NULL: that button does nothing here. */
 void kit_actions(gfx_t *g, const char *ok, const char *back);
 
 /* ---- elements ---- */

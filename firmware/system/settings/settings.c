@@ -15,6 +15,7 @@
 #include <stdbool.h>
 
 #include "app_text.h"
+#include "app_ui.h"
 #include "cities.h"
 #include "host_api.h"
 
@@ -57,10 +58,7 @@ static char    app_to_remove_title[TEXT_MAX + 1];
 static const char *notice;
 static bool        notice_is_final; /* the device is restarting: nowhere to go back to */
 
-static struct {
-    int32_t hour, minute, day, month, year;
-} clock;
-enum { CLOCK_HOUR, CLOCK_MINUTE, CLOCK_DAY, CLOCK_MONTH, CLOCK_YEAR, CLOCK_PARTS };
+static app_date_t clock; /* on PAGE_CLOCK */
 #define YEAR_FIRST 2026
 #define YEAR_LAST  2099
 
@@ -102,7 +100,7 @@ static const display_setting_t FONT_SETTING = { "Font", SYS_NUMBER_FONT, FONT_CH
                                                 COUNT_OF(FONT_CHOICES) };
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
-static int32_t                  edited_choice;
+static app_picker_t             edited_choice; /* which of its choices is in the frame */
 
 /* A page of settings is redrawn at every press, and a full refresh in the
  * middle of stepping through a list is a second of a black screen: none
@@ -178,79 +176,10 @@ static int32_t current_city(void)
 /* ---- the clock ---- */
 
 #define SECONDS_PER_MINUTE 60
-#define SECONDS_PER_HOUR   3600
-#define SECONDS_PER_DAY    86400
-
-static const char *const MONTHS[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-
-static int32_t days_in_month(int32_t month, int32_t year)
-{
-    static const int32_t DAYS[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-    bool is_leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-    return month == 2 && is_leap ? 29 : DAYS[month - 1];
-}
-
-/* Days from 1970-01-01 to the date, by the civil calendar. */
-static int64_t days_since_epoch(int32_t year, int32_t month, int32_t day)
-{
-    /* The year is counted from March, so that the leap day is its last. */
-    int32_t march_year = month <= 2 ? year - 1 : year;
-    int32_t era = march_year / 400;
-    int32_t year_of_era = march_year - era * 400;
-    int32_t day_of_year = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + day - 1;
-    int32_t day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    return (int64_t)era * 146097 + day_of_era - 719468;
-}
-
-static void clock_from_now(void)
-{
-    host_local_time_t now;
-    if (time_local(&now) == HOST_OK && now.year >= YEAR_FIRST && now.year <= YEAR_LAST) {
-        clock.hour = now.hour;
-        clock.minute = now.minute;
-        clock.day = now.day;
-        clock.month = now.month;
-        clock.year = now.year;
-    } else {
-        clock.hour = 12;
-        clock.minute = 0;
-        clock.day = 1;
-        clock.month = 1;
-        clock.year = YEAR_FIRST;
-    }
-}
-
-static void clock_step(int32_t part, int32_t by)
-{
-    switch (part) {
-    case CLOCK_HOUR:
-        clock.hour = wrapped(clock.hour + by, 0, 23);
-        break;
-    case CLOCK_MINUTE:
-        clock.minute = wrapped(clock.minute + by, 0, 59);
-        break;
-    case CLOCK_DAY:
-        clock.day = wrapped(clock.day + by, 1, days_in_month(clock.month, clock.year));
-        break;
-    case CLOCK_MONTH:
-        clock.month = wrapped(clock.month + by, 1, 12);
-        break;
-    case CLOCK_YEAR:
-        clock.year = wrapped(clock.year + by, YEAR_FIRST, YEAR_LAST);
-        break;
-    }
-    /* 31 March, and the month goes to April. */
-    int32_t last_day = days_in_month(clock.month, clock.year);
-    if (clock.day > last_day) {
-        clock.day = last_day;
-    }
-}
 
 static bool clock_save(void)
 {
-    int64_t local_seconds = days_since_epoch(clock.year, clock.month, clock.day) * SECONDS_PER_DAY +
-                            clock.hour * SECONDS_PER_HOUR + clock.minute * SECONDS_PER_MINUTE;
+    int64_t local_seconds = app_date_seconds(&clock);
     /* The host keeps UTC, and says how far the zone is from it only for a
      * time it knows: set once to find that out, and once more to be right. */
     if (sys_time_set(local_seconds) != HOST_OK) {
@@ -528,10 +457,11 @@ static void edit_value(const display_setting_t *setting)
     /* The value may be one the web page set: start from the nearest choice
      * that is not below it. */
     int32_t value = read_number(edited->what);
-    edited_choice = edited->choice_count - 1;
+    edited_choice = (app_picker_t){ .count = edited->choice_count,
+                                    .chosen = edited->choice_count - 1 };
     for (int32_t choice = 0; choice < edited->choice_count; choice++) {
         if (edited->choices[choice] >= value) {
-            edited_choice = choice;
+            edited_choice.chosen = choice;
             break;
         }
     }
@@ -574,8 +504,9 @@ static void activate(page_t page, int32_t row)
             HERE.selected = 0;
             show();
         } else {
-            clock_from_now();
-            open(PAGE_CLOCK, CLOCK_HOUR);
+            app_date_start(&clock, HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE, YEAR_FIRST,
+                           YEAR_LAST);
+            open(PAGE_CLOCK, 0);
         }
         break;
     case PAGE_ZONE:
@@ -643,15 +574,12 @@ static void answer_question(page_t page)
 static void press_up_or_down(int32_t by)
 {
     page_t page = HERE.page;
-    if (page == PAGE_CLOCK) {
-        /* UP is later, as on any clock that is set with two buttons. */
-        clock_step(HERE.selected, -by);
-    } else if (page == PAGE_VALUE) {
-        int32_t choice = edited_choice + by;
-        if (choice < 0 || choice >= edited->choice_count) {
-            return; /* the ends are ends: no wrapping from "Never" to "Always" */
+    if (page == PAGE_VALUE) {
+        /* The ends are ends: no wrapping from "Never" to "Always". */
+        if (app_picker_button(&edited_choice, by < 0 ? BTN_UP_PRESSED : BTN_DOWN_PRESSED) !=
+            APP_UI_CHANGED) {
+            return;
         }
-        edited_choice = choice;
     } else if (page == PAGE_ZONE) {
         HERE.selected = wrapped(HERE.selected + by, 0, CITY_COUNT - 1);
     } else if (is_list(page)) {
@@ -668,17 +596,8 @@ static void press_ok(void)
     if (is_question(page) && time_uptime_ms() - opened_ms < QUESTION_READING_MS) {
         return;
     }
-    if (page == PAGE_CLOCK) {
-        if (HERE.selected + 1 < CLOCK_PARTS) {
-            HERE.selected++;
-            request_redraw(REDRAW);
-        } else if (clock_save()) {
-            go_back();
-        } else {
-            tell("Failed.", false);
-        }
-    } else if (page == PAGE_VALUE) {
-        if (sys_number_set(edited->what, edited->choices[edited_choice]) == HOST_OK) {
+    if (page == PAGE_VALUE) {
+        if (sys_number_set(edited->what, edited->choices[edited_choice.chosen]) == HOST_OK) {
             go_back();
         } else {
             tell("Failed.", false);
@@ -696,10 +615,7 @@ static void press_ok(void)
 
 static void press_back(void)
 {
-    if (HERE.page == PAGE_CLOCK && HERE.selected > 0) {
-        HERE.selected--;
-        request_redraw(REDRAW);
-    } else if (HERE.page == PAGE_NOTICE && notice_is_final) {
+    if (HERE.page == PAGE_NOTICE && notice_is_final) {
         return;
     } else {
         go_back();
@@ -714,8 +630,34 @@ void app_init(void)
     show();
 }
 
+/* The date and the time: the library knows what the buttons do there. */
+static void press_on_clock(int32_t event)
+{
+    switch (app_date_button(&clock, event)) {
+    case APP_UI_CHANGED:
+        request_redraw(REDRAW);
+        break;
+    case APP_UI_DONE:
+        if (clock_save()) {
+            go_back();
+        } else {
+            tell("Failed.", false);
+        }
+        break;
+    case APP_UI_CANCELLED:
+        go_back();
+        break;
+    case APP_UI_IGNORED:
+        break;
+    }
+}
+
 void app_on_button(int32_t event)
 {
+    if (HERE.page == PAGE_CLOCK) {
+        press_on_clock(event);
+        return;
+    }
     switch (event) {
     case BTN_UP_PRESSED:
         press_up_or_down(-1);
@@ -737,38 +679,9 @@ void app_on_button(int32_t event)
 #define MARGIN       16
 #define LINE_HEIGHT  30
 
-static int32_t text_width(int32_t font, const char *text)
-{
-    return gfx_text_width(font, text, app_text_length(text));
-}
-
 static void draw_text(int32_t left, int32_t baseline, int32_t font, const char *text)
 {
     gfx_text(left, baseline - gfx_font_ascent(font), font, text, app_text_length(text));
-}
-
-static void draw_centered(int32_t baseline, int32_t font, const char *text)
-{
-    draw_text((gfx_width() - text_width(font, text)) / 2, baseline, font, text);
-}
-
-/* ---- small pictures: the host's icons, a cell two pixels like its own ---- */
-
-#define CELL 2
-
-/* The arrows of the host's set sit in the middle of their canvas: nine
- * cells from the second, five rows from the fourth. `left` and `top` are
- * where the arrow itself begins. */
-#define CHEVRON_COLUMNS   9
-#define CHEVRON_ROWS      5
-#define CHEVRON_WIDTH     (CHEVRON_COLUMNS * CELL)
-#define CHEVRON_HEIGHT    (CHEVRON_ROWS * CELL)
-#define CHEVRON_FIRST_COLUMN 1
-#define CHEVRON_FIRST_ROW    3
-
-static void draw_chevron(int32_t arrow, int32_t left, int32_t top)
-{
-    gfx_icon(arrow, left - CHEVRON_FIRST_COLUMN * CELL, top - CHEVRON_FIRST_ROW * CELL, CELL);
 }
 
 /* A list, drawn by the host as it draws its own. */
@@ -804,124 +717,27 @@ static void draw_question(const char *first, const char *second, int32_t icon, c
 
 /* ---- setting a value: what UP and DOWN lead to is on the screen ---- */
 
-#define BOX_STROKE 2
-
-/* A frame two pixels thick. */
-static void draw_box(int32_t left, int32_t top, int32_t width, int32_t height)
-{
-    for (int32_t inset = 0; inset < BOX_STROKE; inset++) {
-        gfx_rect(left + inset, top + inset, width - 2 * inset, height - 2 * inset,
-                 HOST_RECT_OUTLINE);
-    }
-}
-
-#define PART_PAD       6 /* from the text of a part to its frame */
-#define PART_ARROW_GAP 6 /* from the frame to the arrows over and under it */
-
-/* A part of the date or the time. The one being set is in a frame, with
- * an arrow over it and one under it: UP and DOWN change this one. */
-static int32_t draw_part(int32_t left, int32_t baseline, int32_t font, const char *text,
-                         bool is_selected)
-{
-    int32_t width = text_width(font, text);
-    draw_text(left, baseline, font, text);
-    if (is_selected) {
-        int32_t top = baseline - gfx_font_cap_height(font) - PART_PAD;
-        int32_t height = gfx_font_cap_height(font) + 2 * PART_PAD;
-        draw_box(left - PART_PAD, top, width + 2 * PART_PAD, height);
-        int32_t arrow_left = left + (width - CHEVRON_WIDTH) / 2;
-        draw_chevron(HOST_ICON_UP, arrow_left, top - PART_ARROW_GAP - CHEVRON_HEIGHT);
-        draw_chevron(HOST_ICON_DOWN, arrow_left, top + height + PART_ARROW_GAP);
-    }
-    return width;
-}
-
-#define CLOCK_TIME_BASELINE 92
-#define CLOCK_DATE_BASELINE 186
-#define CLOCK_HINT_BASELINE 250
-#define CLOCK_PART_GAP      10 /* between the parts of a line, for their frames */
-
-static void draw_clock(int32_t part)
-{
-    char hour[4], minute[4], day[4], year[8];
-    app_text_t text;
-    app_text_start(&text, hour, sizeof hour);
-    app_text_add_padded(&text, clock.hour, 2);
-    app_text_start(&text, minute, sizeof minute);
-    app_text_add_padded(&text, clock.minute, 2);
-    app_text_start(&text, day, sizeof day);
-    app_text_add_padded(&text, clock.day, 2);
-    app_text_start(&text, year, sizeof year);
-    app_text_add_number(&text, clock.year);
-    const char *month = MONTHS[clock.month - 1];
-
-    int32_t font = HOST_FONT_LARGE;
-    int32_t left = (gfx_width() - text_width(font, hour) - text_width(font, ":") -
-                    text_width(font, minute) - 2 * CLOCK_PART_GAP) / 2;
-    left += draw_part(left, CLOCK_TIME_BASELINE, font, hour, part == CLOCK_HOUR) + CLOCK_PART_GAP;
-    left += draw_part(left, CLOCK_TIME_BASELINE, font, ":", false) + CLOCK_PART_GAP;
-    draw_part(left, CLOCK_TIME_BASELINE, font, minute, part == CLOCK_MINUTE);
-
-    font = HOST_FONT_MEDIUM;
-    int32_t gap = text_width(font, " ");
-    left = (gfx_width() - text_width(font, day) - text_width(font, month) -
-            text_width(font, year) - 2 * gap) / 2;
-    left += draw_part(left, CLOCK_DATE_BASELINE, font, day, part == CLOCK_DAY) + gap;
-    left += draw_part(left, CLOCK_DATE_BASELINE, font, month, part == CLOCK_MONTH) + gap;
-    draw_part(left, CLOCK_DATE_BASELINE, font, year, part == CLOCK_YEAR);
-
-    draw_centered(CLOCK_HINT_BASELINE, HOST_FONT_SMALL,
-                  part + 1 < CLOCK_PARTS ? "OK: next   BACK: previous" : "OK: save   BACK: previous");
-}
-
-/* One of a row of values: the chosen one in a frame in the middle, the one
- * UP leads to over it and the one DOWN leads to under it. Empty text is
- * the end of the row: no arrow that way. */
-#define WHEEL_BOX_LEFT       40
-#define WHEEL_BOX_TOP        96
-#define WHEEL_BOX_HEIGHT     56
-#define WHEEL_BASELINE       136
-#define WHEEL_ABOVE_BASELINE 76
-#define WHEEL_BELOW_BASELINE 196
-#define WHEEL_UP_TOP         26
-#define WHEEL_DOWN_TOP       212
-#define WHEEL_HINT_BASELINE  250
-
-static void draw_wheel(const char *above, const char *chosen, const char *below)
-{
-    int32_t arrow_left = (gfx_width() - CHEVRON_WIDTH) / 2;
-    if (above[0] != '\0') {
-        draw_chevron(HOST_ICON_UP, arrow_left, WHEEL_UP_TOP);
-        draw_centered(WHEEL_ABOVE_BASELINE, HOST_FONT_TEXT, above);
-    }
-    draw_box(WHEEL_BOX_LEFT, WHEEL_BOX_TOP, gfx_width() - 2 * WHEEL_BOX_LEFT, WHEEL_BOX_HEIGHT);
-    draw_centered(WHEEL_BASELINE, HOST_FONT_MEDIUM, chosen);
-    if (below[0] != '\0') {
-        draw_centered(WHEEL_BELOW_BASELINE, HOST_FONT_TEXT, below);
-        draw_chevron(HOST_ICON_DOWN, arrow_left, WHEEL_DOWN_TOP);
-    }
-    draw_centered(WHEEL_HINT_BASELINE, HOST_FONT_SMALL, "OK: save   BACK: cancel");
-}
-
 static void draw_value(void)
 {
     char above[TEXT_MAX + 1] = "";
     char chosen[TEXT_MAX + 1];
     char below[TEXT_MAX + 1] = "";
-    if (edited_choice > 0) {
-        format_choice(edited, edited->choices[edited_choice - 1], above);
+    if (app_picker_above(&edited_choice) >= 0) {
+        format_choice(edited, edited->choices[app_picker_above(&edited_choice)], above);
     }
-    format_choice(edited, edited->choices[edited_choice], chosen);
-    if (edited_choice + 1 < edited->choice_count) {
-        format_choice(edited, edited->choices[edited_choice + 1], below);
+    format_choice(edited, edited->choices[edited_choice.chosen], chosen);
+    if (app_picker_below(&edited_choice) >= 0) {
+        format_choice(edited, edited->choices[app_picker_below(&edited_choice)], below);
     }
-    draw_wheel(above, chosen, below);
+    app_picker_draw_texts(&edited_choice, above, chosen, below);
 }
 
+/* The cities go round: after the last comes the first. */
 static void draw_zone(int32_t city)
 {
-    draw_wheel(CITIES[wrapped(city - 1, 0, CITY_COUNT - 1)].name, CITIES[city].name,
-               CITIES[wrapped(city + 1, 0, CITY_COUNT - 1)].name);
+    app_picker_t zone = { .count = CITY_COUNT, .chosen = city, .wraps = true };
+    app_picker_draw_texts(&zone, CITIES[app_picker_above(&zone)].name, CITIES[city].name,
+                          CITIES[app_picker_below(&zone)].name);
 }
 
 void app_on_draw(void)
@@ -932,7 +748,7 @@ void app_on_draw(void)
     app_text_start(&text, line, sizeof line);
     switch (page) {
     case PAGE_CLOCK:
-        draw_clock(HERE.selected);
+        app_date_draw(&clock);
         break;
     case PAGE_VALUE:
         draw_value();

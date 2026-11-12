@@ -12,6 +12,7 @@
 #include "m3_area.h"
 #endif
 #include "gfx_icons.h"
+#include "kit.h"
 #include "list.h"
 #include "notice.h"
 #include "host_api.h"
@@ -369,6 +370,11 @@ HOST_FUNCTION(host_gfx_icon)
     m3ApiReturn(HOST_OK);
 }
 
+static bool is_an_icon(int32_t icon)
+{
+    return icon >= 0 && icon < GFX_ICON_COUNT;
+}
+
 HOST_FUNCTION(host_ui_list_visible)
 {
     m3ApiReturnType(int32_t);
@@ -384,7 +390,7 @@ HOST_FUNCTION(host_ui_list_visible)
 
 static bool is_a_list(int32_t count, int32_t selected)
 {
-    return count >= 0 && count <= LIST_ROWS_MAX && selected >= 0 && selected <= LIST_ROWS_MAX;
+    return count >= 0 && count <= LIST_ROWS_MAX && selected >= -1 && selected <= LIST_ROWS_MAX;
 }
 
 HOST_FUNCTION(host_ui_list_first)
@@ -420,8 +426,7 @@ HOST_FUNCTION(host_ui_list_row)
     }
     char label[HOST_TEXT_MAX + 1];
     char value[HOST_TEXT_MAX + 1];
-    bool is_an_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
-    if (!is_a_list(count, selected) || !is_an_icon ||
+    if (!is_a_list(count, selected) || (icon != HOST_ICON_NONE && !is_an_icon(icon)) ||
         !copy_text(runtime, _mem, label_offset, label_length, label) ||
         !copy_text(runtime, _mem, value_offset, value_length, value)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -456,9 +461,7 @@ HOST_FUNCTION(host_ui_notice)
     }
     host_notice_t asked;
     memcpy(&asked, given, sizeof asked);
-    bool is_an_icon = asked.icon == HOST_ICON_NONE ||
-                      (asked.icon >= 0 && asked.icon < GFX_ICON_COUNT);
-    if (!is_an_icon || asked.first[0] == '\0') {
+    if ((asked.icon != HOST_ICON_NONE && !is_an_icon(asked.icon)) || asked.first[0] == '\0') {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     notice_t notice = {
@@ -471,6 +474,226 @@ HOST_FUNCTION(host_ui_notice)
         .is_working = asked.is_working != 0,
     };
     notice_draw(app->surface, &notice);
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_ui_text)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, style);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    m3ApiGetArg(int32_t, max_width);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char text[HOST_TEXT_MAX + 1];
+    if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
+        max_width < 0 || !is_drawable(max_width) ||
+        !copy_text(runtime, _mem, text_offset, length, text)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(kit_text(app->surface, x, y, (kit_style_t)style, text, max_width));
+}
+
+HOST_FUNCTION(host_ui_title)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char text[HOST_TEXT_MAX + 1];
+    if (!copy_text(runtime, _mem, text_offset, length, text)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(kit_title(app->surface, text));
+}
+
+HOST_FUNCTION(host_ui_icon)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, icon);
+    m3ApiGetArg(int32_t, size);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (!is_drawable(x) || !is_drawable(y) || !is_an_icon(icon) || size < HOST_UI_ICON_SMALL ||
+        size > HOST_UI_ICON_LARGE) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_icon(app->surface, x, y, icon, (kit_icon_size_t)size);
+    m3ApiReturn(HOST_OK);
+}
+
+/* The name of a button is a word: "BACK" is the longest there is. */
+#define BUTTON_NAME_MAX 8
+
+HOST_FUNCTION(host_ui_button)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    m3ApiGetArg(uint32_t, action_offset);
+    m3ApiGetArg(int32_t, action_length);
+    m3ApiGetArg(int32_t, mirrored);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char name[HOST_TEXT_MAX + 1];
+    char action[HOST_TEXT_MAX + 1];
+    if (!is_drawable(x) || !is_drawable(y) || name_length < 1 || name_length > BUTTON_NAME_MAX ||
+        !copy_text(runtime, _mem, name_offset, name_length, name) ||
+        !copy_text(runtime, _mem, action_offset, action_length, action)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int baseline = y + gfx_font_ascent(kit_font(KIT_TEXT));
+    m3ApiReturn(kit_button(app->surface, x, baseline, name, action, mirrored != 0));
+}
+
+HOST_FUNCTION(host_ui_actions)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, ok_offset);
+    m3ApiGetArg(int32_t, ok_length);
+    m3ApiGetArg(uint32_t, back_offset);
+    m3ApiGetArg(int32_t, back_length);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char ok[HOST_TEXT_MAX + 1];
+    char back[HOST_TEXT_MAX + 1];
+    if (!copy_text(runtime, _mem, ok_offset, ok_length, ok) ||
+        !copy_text(runtime, _mem, back_offset, back_length, back)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_actions(app->surface, ok[0] != '\0' ? ok : NULL, back[0] != '\0' ? back : NULL);
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_ui_bar)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, width);
+    m3ApiGetArg(int32_t, value);
+    m3ApiGetArg(int32_t, maximum);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_bar(app->surface, x, y, width, value, maximum);
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_ui_frame)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, width);
+    m3ApiGetArg(int32_t, height);
+    m3ApiGetArg(int32_t, arrows);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width) || height < 1 ||
+        !is_drawable(height)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_frame(app->surface, x, y, width, height, (arrows & HOST_UI_ARROW_UP) != 0,
+              (arrows & HOST_UI_ARROW_DOWN) != 0);
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_ui_picker)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, picker_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    const uint8_t *given = in_app_memory(runtime, _mem, picker_offset, sizeof(host_picker_t));
+    if (given == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    host_picker_t asked;
+    memcpy(&asked, given, sizeof asked);
+    kit_picker_t picker = {
+        .above = notice_text(asked.above, sizeof asked.above),
+        .chosen = notice_text(asked.chosen, sizeof asked.chosen),
+        .below = notice_text(asked.below, sizeof asked.below),
+        .ok = notice_text(asked.ok, sizeof asked.ok),
+        .back = notice_text(asked.back, sizeof asked.back),
+    };
+    if (picker.chosen == NULL) {
+        picker.chosen = "";
+    }
+    kit_picker(app->surface, &picker);
+    m3ApiReturn(HOST_OK);
+}
+
+#define DATE_YEAR_MAX 9999
+
+HOST_FUNCTION(host_ui_date)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, date_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    const uint8_t *given = in_app_memory(runtime, _mem, date_offset, sizeof(host_date_t));
+    if (given == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    host_date_t asked;
+    memcpy(&asked, given, sizeof asked);
+    bool is_a_date = asked.year >= 0 && asked.year <= DATE_YEAR_MAX && asked.month >= 1 &&
+                     asked.month <= 12 && asked.day >= 1 && asked.day <= 31 && asked.hour >= 0 &&
+                     asked.hour <= 23 && asked.minute >= 0 && asked.minute <= 59;
+    bool has_any = (asked.has & (HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE)) != 0;
+    if (!is_a_date || !has_any || asked.selected < HOST_DATE_HOUR ||
+        asked.selected > HOST_DATE_NONE) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_date_t date = {
+        .year = asked.year, .month = asked.month, .day = asked.day,
+        .hour = asked.hour, .minute = asked.minute,
+        .has_time = (asked.has & HOST_DATE_HAS_TIME) != 0,
+        .has_date = (asked.has & HOST_DATE_HAS_DATE) != 0,
+        .selected = (kit_date_part_t)asked.selected,
+        .ok = notice_text(asked.ok, sizeof asked.ok),
+        .back = notice_text(asked.back, sizeof asked.back),
+    };
+    kit_date(app->surface, &date);
     m3ApiReturn(HOST_OK);
 }
 
@@ -1280,6 +1503,15 @@ static const struct {
     { "ui_list_first", "i(ii)", host_ui_list_first },
     { "ui_list_row", "i(iii*i*ii)", host_ui_list_row },
     { "ui_notice", "i(*)", host_ui_notice },
+    { "ui_text", "i(iii*ii)", host_ui_text },
+    { "ui_title", "i(*i)", host_ui_title },
+    { "ui_icon", "i(iiii)", host_ui_icon },
+    { "ui_button", "i(ii*i*ii)", host_ui_button },
+    { "ui_actions", "i(*i*i)", host_ui_actions },
+    { "ui_bar", "i(iiiii)", host_ui_bar },
+    { "ui_frame", "i(iiiii)", host_ui_frame },
+    { "ui_picker", "i(*)", host_ui_picker },
+    { "ui_date", "i(*)", host_ui_date },
     { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },
     { "request_redraw", "v(i)", host_request_redraw },

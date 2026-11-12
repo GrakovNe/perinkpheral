@@ -29,8 +29,8 @@ extern "C" {
  *     forgotten, the stack is the scene opened.
  *   - The menu opened over a scene (a long press on BACK) is an entry like
  *     any other: BACK in it returns to the scene.
- *   - A scene is in the stack once: opened again, it is the top, and what
- *     was over it is gone.
+ *   - A scene is in the stack once: opened again, it moves to the top from
+ *     where it waited, and BACK returns to what the user was looking at.
  *   - Only the scene on top is entered - there is room for one
  *     application in memory - so a scene that waits must be able to enter
  *     again from what it stored. */
