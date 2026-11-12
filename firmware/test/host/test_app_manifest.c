@@ -242,6 +242,21 @@ static void test_a_server_of_the_users_own(void)
                 "\"polls\":[{\"url\":\"{{nobody}}/x\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 }
 
+static void test_companion(void)
+{
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+                "\"companion\":\"https://example.org/a/setup.html\"}") == APP_MANIFEST_OK);
+    /* a browser is to take a secret from it: https, and an address, not a script */
+    static const char *const BAD[] = { "\"http://example.org/a\"", "\"https://\"",
+                                       "\"javascript:alert(1)\"", "\"https://a b\"", "1" };
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        char manifest[160];
+        snprintf(manifest, sizeof manifest,
+                 "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"companion\":%s}", BAD[i]);
+        CHECK(parse(manifest) == APP_MANIFEST_BAD_FIELD);
+    }
+}
+
 static void test_hosts(void)
 {
     const char *manifest = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[\"api.example.com\",\"192.168.1.10:32400\"]}";
@@ -297,6 +312,7 @@ int main(void)
     test_abi();
     test_settings();
     test_hosts();
+    test_companion();
     test_a_server_of_the_users_own();
     REPORT();
 }

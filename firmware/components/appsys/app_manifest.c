@@ -100,6 +100,27 @@ static bool read_pick(const cJSON *pick, app_poll_t *poll)
 
 static bool is_url_setting(const cJSON *settings, const char *key, size_t key_length);
 
+/* The page that sets the application up from a browser: somewhere a
+ * browser will take a secret from, so https and nothing else. */
+static bool is_a_companion(const cJSON *companion)
+{
+    static const char SCHEME[] = "https://";
+    if (!cJSON_IsString(companion)) {
+        return false;
+    }
+    const char *url = companion->valuestring;
+    size_t      length = strlen(url);
+    if (length <= sizeof SCHEME - 1 || length > APP_URL_MAX || !starts_with(url, SCHEME)) {
+        return false;
+    }
+    for (const char *at = url; *at != '\0'; at++) {
+        if (*at <= ' ' || *at > '~' || *at == '"' || *at == '<' || *at == '>') {
+            return false;
+        }
+    }
+    return true;
+}
+
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting
  * of the "url" type - the server the user named. */
 static bool begins_with_a_server(const cJSON *settings, const char *text, const char **rest)
@@ -620,6 +641,11 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_BAD_TITLE;
     }
     if (!read_string(root, "version", manifest->version, sizeof manifest->version)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
+
+    const cJSON *companion = cJSON_GetObjectItemCaseSensitive(root, "companion");
+    if (companion != NULL && !is_a_companion(companion)) {
         return APP_MANIFEST_BAD_FIELD;
     }
 

@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2026 GrakovNe
+
+  A companion page: what an application's manifest names as "companion".
+  The device's own page opens it in a window when the user presses
+  "Set up" in the application's settings. It does what a form with four
+  fields cannot - signs the user in, lets them choose a calendar - and
+  hands the result back as settings. It is a static page on any https
+  hosting; nothing of it runs on the device, and nothing passes through
+  a server of the project's.
+
+  The conversation, in messages between the two windows:
+    this page says   { perinkpheral: "ready" }
+    the device says  { perinkpheral: "app", name, title, settings, values }
+                     the manifest's settings and what is set, secrets left out
+    this page says   { perinkpheral: "settings", values: { key: "value" } }
+                     keys the manifest declares, values as text, 255 bytes at most
+  The values go into the form on the device's page; the user saves them.
+-->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Companion</title>
+<h1 id="title">Companion</h1>
+<form id="form">
+  <label>Token <input id="token" autocomplete="off"></label>
+  <button>Done</button>
+</form>
+<script>
+/* The device's page is whoever opened this window; its address is not
+ * known before it speaks, so the first message goes to anyone and
+ * carries nothing. */
+let device = null;
+
+window.addEventListener("message", event => {
+  if (event.source !== window.opener || !event.data || event.data.perinkpheral !== "app") return;
+  device = event.origin;
+  document.getElementById("title").textContent = event.data.title;
+});
+
+document.getElementById("form").addEventListener("submit", event => {
+  event.preventDefault();
+  if (!device) return;
+  window.opener.postMessage({ perinkpheral: "settings",
+                              values: { token: document.getElementById("token").value } }, device);
+});
+
+if (window.opener) window.opener.postMessage({ perinkpheral: "ready" }, "*");
+</script>
+</html>

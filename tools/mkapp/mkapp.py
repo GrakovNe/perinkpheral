@@ -323,6 +323,12 @@ def check_manifest(app_dir):
     version = manifest.get("version", "")
     if not isinstance(version, str) or len(version.encode()) > VERSION_MAX:
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))
+    companion = manifest.get("companion")
+    if companion is not None and not (
+            isinstance(companion, str) and len(companion) <= URL_MAX and
+            re.fullmatch(r"https://[!#-;=?-~]+", companion)):
+        sys.exit("%s: \"companion\" must be an https address of at most %d bytes"
+                 % (path, URL_MAX))
     if not isinstance(manifest.get("fullscreen", False), bool):
         sys.exit("%s: \"fullscreen\" must be true or false" % path)
     if not isinstance(manifest.get("system", False), bool):

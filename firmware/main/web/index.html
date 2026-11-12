@@ -325,6 +325,7 @@ DEALINGS IN THE SOFTWARE.</pre>
     <div id="app-fields"></div>
     <div class="buttons">
       <button>Save</button>
+      <button type="button" class="quiet" id="app-companion" hidden>Set up</button>
       <button type="button" class="quiet" data-close>Close</button>
     </div>
   </form>
@@ -660,8 +661,56 @@ function openAppSettings(app) {
   appInDialog = app;
   show("app-dialog-title", app.title);
   byId("app-fields").replaceChildren(...settingFields(app));
+  byId("app-companion").hidden = !app.companion;
   byId("app-dialog").showModal();
 }
+
+/* ---- the companion ----
+ * A page of the application's author that does what a form cannot: signs
+ * the user in somewhere, lets them choose from what is there. It is opened
+ * in a window of its own and talks to this page in messages:
+ *   it says   { perinkpheral: "ready" }
+ *   we answer { perinkpheral: "app", name, title, settings, values }  (no secrets)
+ *   it says   { perinkpheral: "settings", values: { key: "value" } }
+ * and the values go into the form, for the user to save. Only the window
+ * this page opened is listened to, and only from the companion's address. */
+let companion = null;
+
+byId("app-companion").addEventListener("click", () => {
+  companion = { app: appInDialog, origin: new URL(appInDialog.companion).origin,
+                page: window.open(appInDialog.companion, "perinkpheral-companion",
+                                  "popup,width=520,height=720") };
+  if (!companion.page) toast("Allow pop-ups for this page.", "error");
+});
+
+function fillFromCompanion(values) {
+  let filled = 0;
+  for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
+    const value = values[input.dataset.key];
+    if (typeof value !== "string" || value.length > 255) continue;
+    if (input.dataset.type === "toggle") input.checked = value === "1";
+    else input.value = value;
+    if (input.dataset.type === "place") input.dataset.chosen = value;
+    filled++;
+  }
+  toast(filled ? "Filled in. Save to apply." : "Nothing to fill in.", filled ? "" : "error");
+}
+
+window.addEventListener("message", event => {
+  const said = event.data;
+  if (!companion || event.source !== companion.page || event.origin !== companion.origin ||
+      !said || companion.app !== appInDialog || !byId("app-dialog").open) return;
+  if (said.perinkpheral === "ready") {
+    const app = companion.app, values = {};
+    for (const setting of app.settings)
+      if (setting.type !== "secret") values[setting.key] = app.values[setting.key];
+    companion.page.postMessage({ perinkpheral: "app", name: app.name, title: app.title,
+                                 settings: app.settings, values }, companion.origin);
+  } else if (said.perinkpheral === "settings" && said.values && typeof said.values === "object") {
+    fillFromCompanion(said.values);
+    companion.page.close();
+  }
+});
 
 /* Installs the application from its source, or installs it over itself: an update. */
 async function install(button, offer) {

@@ -105,7 +105,11 @@ static void add_settings(cJSON *app, const char *app_name)
     free(manifest_text);
     cJSON *settings = cJSON_DetachItemFromObjectCaseSensitive(manifest, "settings");
     cJSON *icon = cJSON_DetachItemFromObjectCaseSensitive(manifest, "icon");
+    cJSON *companion = cJSON_DetachItemFromObjectCaseSensitive(manifest, "companion");
     cJSON_Delete(manifest);
+    if (companion != NULL) {
+        cJSON_AddItemToObject(app, "companion", companion);
+    }
     if (icon != NULL) {
         cJSON_AddItemToObject(app, "icon", icon);
     }
