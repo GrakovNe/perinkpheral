@@ -268,6 +268,26 @@ static const char *const ICONS[GFX_ICON_COUNT][GFX_ICON_CELLS] = {
     },
 };
 
+bool gfx_icon_ink(gfx_icon_id_t id, gfx_icon_ink_t *ink)
+{
+    if ((int)id < 0 || id >= GFX_ICON_COUNT) {
+        return false;
+    }
+    *ink = (gfx_icon_ink_t){ GFX_ICON_CELLS, -1, GFX_ICON_CELLS, -1 };
+    for (int row = 0; row < GFX_ICON_CELLS; row++) {
+        for (int column = 0; column < GFX_ICON_CELLS; column++) {
+            if (ICONS[id][row][column] != '#') {
+                continue;
+            }
+            ink->first_row = row < ink->first_row ? row : ink->first_row;
+            ink->last_row = row > ink->last_row ? row : ink->last_row;
+            ink->first_column = column < ink->first_column ? column : ink->first_column;
+            ink->last_column = column > ink->last_column ? column : ink->last_column;
+        }
+    }
+    return ink->last_row >= 0;
+}
+
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)
 {
     if ((int)id < 0 || id >= GFX_ICON_COUNT) {

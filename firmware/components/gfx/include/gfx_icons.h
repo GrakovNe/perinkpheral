@@ -46,6 +46,15 @@ typedef enum {
  * False for an id that is not one of the above. */
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black);
 
+/* The cells of an icon that have ink in them: an icon does not fill its
+ * eleven by eleven, and what stands beside text is placed by what is seen. */
+typedef struct {
+    int first_row, last_row;
+    int first_column, last_column;
+} gfx_icon_ink_t;
+
+bool gfx_icon_ink(gfx_icon_id_t id, gfx_icon_ink_t *ink);
+
 
 #ifdef __cplusplus
 }
