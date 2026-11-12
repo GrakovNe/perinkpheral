@@ -158,11 +158,26 @@ bool app_store_begin_file(const char *root, const char *name, const char *file,
     return stat(folder, &found) == 0 || mkdir(folder, FOLDER_MODE) == 0;
 }
 
+#define COMMIT_ATTEMPTS 10
+#define COMMIT_RETRY_US 20000
+
 bool app_store_commit_file(const char *root, const char *name, const char *file)
 {
     char incoming[PATH_MAX_BYTES], installed[PATH_MAX_BYTES];
-    return file_path_of(incoming, root, name, file, INCOMING_SUFFIX) &&
-           file_path_of(installed, root, name, file, "") && rename(incoming, installed) == 0;
+    if (!file_path_of(incoming, root, name, file, INCOMING_SUFFIX) ||
+        !file_path_of(installed, root, name, file, "")) {
+        return false;
+    }
+    /* The file it replaces may be open this very moment - the poller reads
+     * a manifest for every request it makes - and a file that is open is
+     * not replaced. It is read in a moment: tried again a few times. */
+    for (int attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
+        if (rename(incoming, installed) == 0) {
+            return true;
+        }
+        usleep(COMMIT_RETRY_US);
+    }
+    return false;
 }
 
 long app_store_file_size(const char *root, const char *name, const char *file)
