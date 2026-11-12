@@ -256,6 +256,13 @@ void host_reload_apps(void)
     wm_invalidate(&wm, WM_CHANGED_URGENTLY);
 }
 
+static bool s_reload_is_due;
+
+void host_reload_apps_later(void)
+{
+    s_reload_is_due = true;
+}
+
 void host_deliver(const char *app_name, const app_delivery_t *delivery)
 {
     scene_t *owner = launcher_app_scene(app_name);
@@ -363,6 +370,11 @@ void host_run(void)
                            wm_pending_change(&wm) != WM_CLEAN);
 #endif
             break;
+        }
+        if (s_reload_is_due) {
+            /* Asked for from inside a handler, which has returned by now. */
+            s_reload_is_due = false;
+            host_reload_apps();
         }
         if (wm.current != scene_before) {
             remember_current_app(&wm);

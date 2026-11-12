@@ -32,6 +32,11 @@ void host_stop_soon(host_stop_t why);
  * installed or removed. */
 void host_reload_apps(void);
 
+/* The same from inside an application's handler, where the list cannot be
+ * read anew at once - the application is one of its scenes: done when the
+ * handler has returned. Never lost. */
+void host_reload_apps_later(void);
+
 /* Gives the application what is for it, on the screen or off it. */
 void host_deliver(const char *app_name, const app_delivery_t *delivery);
 

@@ -244,9 +244,7 @@ int32_t app_system_app_remove(uint32_t id)
     ESP_LOGI(TAG, "\"%s\" removed", app->name);
     /* Not from inside the handler that asked: the list is read anew once
      * the application that asked has returned. */
-    if (!events_post_apps_changed()) {
-        ESP_LOGW(TAG, "the queue is full: the list is read anew at the next change");
-    }
+    host_reload_apps_later();
     return HOST_OK;
 }
 

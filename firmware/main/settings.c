@@ -13,6 +13,8 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "events.h"
 #include "app_host.h"
@@ -257,10 +259,20 @@ void settings_start(const char device_id[5])
 void settings_read(appconf_t *copy)
 {
     uint32_t version;
-    do {
+    for (;;) {
         version = s_version;
+        if ((version & 1) != 0) {
+            /* Caught the owner in the middle of a change. It is the host
+             * loop, which every reader outranks: spinning here would keep
+             * it from ever finishing. */
+            vTaskDelay(1);
+            continue;
+        }
         *copy = s_live;
-    } while ((version & 1) != 0 || version != s_version);
+        if (version == s_version) {
+            return;
+        }
+    }
 }
 
 settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_t problem_size,

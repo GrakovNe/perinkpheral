@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "cJSON.h"
 #include "esp_heap_caps.h"
@@ -57,18 +58,42 @@ static bool       s_is_up;
  * make that browser post to the device. The browser then says where the
  * request comes from; one that does not come from the device's own page
  * is refused. Tools that are not browsers send no Origin and pass. */
+/* Whether the name the request was sent to is one of the device's own: its
+ * address on the network or on its access point, or its host name. A page
+ * of another site can make its own name resolve to the device's address
+ * (DNS rebinding), and then its Origin and its Host agree with each other -
+ * but not with any of these. */
+static bool is_sent_to_the_device(const char *host)
+{
+    size_t name_length = strcspn(host, ":"); /* without the port */
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    appconf_t settings;
+    settings_read(&settings);
+    char local_name[sizeof settings.hostname + sizeof ".local"];
+    snprintf(local_name, sizeof local_name, "%s.local", settings.hostname);
+    const char *const own[] = { wifi.address, WIFI_SETUP_ADDRESS, settings.hostname, local_name };
+    for (size_t i = 0; i < sizeof own / sizeof own[0]; i++) {
+        if (own[i][0] != '\0' && strlen(own[i]) == name_length &&
+            strncasecmp(own[i], host, name_length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool web_server_refuses_cross_site(httpd_req_t *request)
 {
     char origin[ORIGIN_HEADER_MAX], host[HOST_HEADER_MAX];
-    if (httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof origin) ==
-        ESP_ERR_NOT_FOUND) {
-        return false;
-    }
-    /* An Origin too long to read is not ours either. */
     bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
-    const char *scheme_end = strstr(origin, "://");
-    bool is_own_page = has_host && scheme_end != NULL && strcmp(scheme_end + 3, host) == 0;
-    if (is_own_page) {
+    bool has_origin = httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof origin) !=
+                      ESP_ERR_NOT_FOUND;
+    /* A request with no Origin is not a browser's cross-site one - a command
+     * line, the device's own tools. An Origin too long to read is not ours. */
+    const char *scheme_end = has_origin ? strstr(origin, "://") : NULL;
+    bool is_own_page = !has_origin ||
+                       (has_host && scheme_end != NULL && strcmp(scheme_end + 3, host) == 0);
+    if (is_own_page && has_host && is_sent_to_the_device(host)) {
         return false;
     }
     ESP_LOGW(TAG, "refused a request from another site");

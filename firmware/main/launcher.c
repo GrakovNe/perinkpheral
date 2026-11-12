@@ -11,6 +11,8 @@
 #include "mbedtls/sha256.h"
 
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "app_code.h"
 #include "app_host.h"
@@ -170,14 +172,21 @@ bool launcher_remove(const char *app_name, bool forgets)
 
 int launcher_read_installed(app_manifest_t *copy, int capacity)
 {
-    uint32_t version;
-    int      count;
-    do {
-        version = s_installed_version;
-        count = s_installed_count < capacity ? s_installed_count : capacity;
+    for (;;) {
+        uint32_t version = s_installed_version;
+        if ((version & 1) != 0) {
+            /* The host loop is reading the list anew - it reads flash, for
+             * milliseconds - and every reader outranks it: to spin here
+             * would keep it from ever finishing. */
+            vTaskDelay(1);
+            continue;
+        }
+        int count = s_installed_count < capacity ? s_installed_count : capacity;
         memcpy(copy, s_installed, (size_t)count * sizeof *copy);
-    } while ((version & 1) != 0 || version != s_installed_version);
-    return count;
+        if (version == s_installed_version) {
+            return count;
+        }
+    }
 }
 
 void launcher_reload(launcher_drop_fn drop, void *context)
