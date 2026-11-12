@@ -271,6 +271,29 @@ static void test_something_else_in_the_middle_of_an_answer(void)
     CHECK(wm.current == probe && state.in_background == NULL && !state.is_mid_answer);
 }
 
+static void test_a_press_in_the_middle_of_an_answer(void)
+{
+    start_on(&menu.scene);
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
+    CHECK(wm.suspended && state.in_background == probe);
+    /* the user presses something: the scene is back to take it */
+    app_delivery_give_way(&state, &wm, 0);
+    CHECK(!wm.suspended && state.in_background == NULL && !state.is_mid_answer);
+    CHECK(wm.current == &menu.scene && app_scene_app(probe) == NULL);
+    /* the rest of that answer is nobody's: no new instance is loaded for it */
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
+    CHECK(!wm.suspended && app_scene_app(probe) == NULL);
+    deliver_piece(2500 - 2048, HOST_DATA_LAST, 0);
+    CHECK(wm.current == &menu.scene && state.in_background == NULL);
+    /* and the next answer is taken from its start as ever */
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
+    CHECK(wm.suspended && state.in_background == probe);
+    /* with no answer being taken a press gives way to nothing */
+    start_on(&menu.scene);
+    app_delivery_give_way(&state, &wm, 0);
+    CHECK(!wm.suspended && wm.current == &menu.scene);
+}
+
 static void test_opened_while_taking_an_answer(void)
 {
     start_on(&menu.scene);
@@ -302,6 +325,7 @@ int main(void)
     test_not_twice_in_a_row();
     test_a_request_that_broke_off();
     test_something_else_in_the_middle_of_an_answer();
+    test_a_press_in_the_middle_of_an_answer();
     test_opened_while_taking_an_answer();
     test_a_scene_that_is_not_an_application();
     REPORT();

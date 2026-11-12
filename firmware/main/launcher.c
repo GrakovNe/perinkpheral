@@ -163,7 +163,8 @@ bool launcher_remove(const char *app_name, bool forgets)
     if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
         return false;
     }
-    app_code_forget(app_name);
+    /* Its code stays in its slot until the list is read anew: an instance
+     * may still be running from it, with its last handlers to come. */
     if (forgets) {
         app_kv_erase(app_name);
     }

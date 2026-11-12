@@ -401,12 +401,17 @@ void poller_network_is_back(void)
     note_network_use(true);
     /* What could not be asked while it was away is asked now, not when
      * each poll's turn comes round again. */
-    if (s_lock != NULL) {
+    if (s_lock == NULL) {
+        return;
+    }
+    /* Not when the radio is only on for a poll: the one it was raised for
+     * is wanted already, and the others keep the pace they asked for. */
+    if (!power_is_saving()) {
         lock();
         poll_schedule_want_all(&s_schedule);
         unlock();
-        wake();
     }
+    wake();
 }
 
 static bool has_memory_for_a_session(void)
@@ -481,7 +486,10 @@ static bool run_wanted_poll(void)
         return false;
     }
     if (!has_network && s_is_holding_radio) {
-        return false; /* the radio is being brought up for this: woken when it is */
+        /* The radio is being brought up for this: woken when it is, and
+         * looked at again if it never is. */
+        look_again_in(RADIO_WAIT_MS);
+        return false;
     }
     if (is_installed) {
         if (has_network) {
@@ -532,8 +540,8 @@ static void poller_task(void *arg)
 /* Takes the installed applications as the launcher has them now. What
  * was scheduled, queued or set for an application that is still there
  * stays as it is; what was for one that is gone goes; the polls of a new
- * one are scheduled. Returns the polls there are. With the lock held, in
- * the host loop or before the poller's task. */
+ * one are scheduled. Returns the polls there are. In the host loop, with
+ * the lock held or before the poller's task. */
 static int schedule_installed(void)
 {
     int count;
@@ -588,8 +596,9 @@ void poller_hold(void)
     lock();
 }
 
-void poller_release_reloaded(void)
+void poller_reload(void)
 {
+    lock();
     int polls = schedule_installed();
     unlock();
     ESP_LOGI(TAG, "applications changed: %d polls of %d applications", polls, s_known_count);

@@ -41,10 +41,10 @@ const uint8_t *app_code_find(const char *app_name, size_t *size);
  * Only in the host loop: it erases and writes flash. */
 void app_code_adopt(const char *apps_root);
 
-/* The application is gone: its slot is free. */
-void app_code_forget(const char *app_name);
-
-/* Every slot: the applications' partition was formatted. */
+/* A slot is erased when its application has no folder any more, the next
+ * time app_code_adopt() runs - not while an instance may still be running
+ * from it. This erases every slot: the applications' partition was
+ * formatted. */
 void app_code_forget_all(void);
 
 #ifdef __cplusplus

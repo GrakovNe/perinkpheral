@@ -199,8 +199,10 @@ static void draw_message(gfx_t *surface, const char *title, const char *first, c
     const gfx_font_t *font = gfx_font_system();
     const char *lines[] = { title, first, second };
     for (int line = 0; line < 3; line++) {
-        gfx_text_font(surface, MESSAGE_MARGIN, (line + 1) * MESSAGE_LINE_HEIGHT, font, lines[line],
-                      true);
+        if (lines[line] != NULL) {
+            gfx_text_font(surface, MESSAGE_MARGIN, (line + 1) * MESSAGE_LINE_HEIGHT, font,
+                          lines[line], true);
+        }
     }
 }
 
@@ -268,7 +270,9 @@ void app_scene_end_background(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (is_app_scene(scene) && self->module != NULL) {
-        /* It never had the screen: no blur, and no timers of its own to cancel. */
+        /* It never had the screen: no blur. A timer it set would fire into
+         * whatever scene has the screen, which never set it. */
+        cancel_timers(self->services);
         unload(self);
     }
 }

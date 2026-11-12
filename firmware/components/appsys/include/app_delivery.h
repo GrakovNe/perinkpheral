@@ -69,6 +69,12 @@ typedef struct {
 
 void app_delivery_init(app_delivery_state_t *state);
 
+/* The user pressed something while an application takes an answer off
+ * the screen, piece by piece: it is unloaded and the scene comes back to
+ * take the press. What is left of the answer is dropped. Nothing when no
+ * answer is being taken. */
+void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms);
+
 /* `owner` is the scene of the application the answer is for. */
 void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
                  const app_delivery_t *delivery, int64_t now_ms);

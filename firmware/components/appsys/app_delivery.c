@@ -62,6 +62,13 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     }
 }
 
+void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms)
+{
+    if (state->in_background != NULL) {
+        end_background(state, wm, NULL, now_ms);
+    }
+}
+
 void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
                  const app_delivery_t *delivery, int64_t now_ms)
 {
@@ -96,6 +103,14 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     }
 
     if (delivery->only_on_screen) {
+        return;
+    }
+    /* A piece that is not the first, for an application that is not taking
+     * the answer: the instance that took the start gave way to a press, or
+     * was replaced. The rest of that answer is nobody's. */
+    bool is_a_start = delivery->kind != APP_DELIVERY_PIECE ||
+                      (delivery->flags & (HOST_DATA_FIRST | HOST_DATA_FAILED)) != 0;
+    if (!is_a_start && state->in_background != owner) {
         return;
     }
     app_t *app;

@@ -40,13 +40,14 @@ void poller_look(void);
 bool poller_last_use_failed(void);
 void poller_network_is_back(void);
 
-/* The installed applications are about to change: nothing of the poller
- * looks at them between these two. The second takes the new list:
- * what was scheduled, asked or set for an application that is still
- * installed stays, what was for one that is gone goes, and the polls of a
- * new one are scheduled. */
+/* The installed applications changed: the poller takes the new list. What
+ * was scheduled, asked or set for an application that is still installed
+ * stays, what was for one that is gone goes, and the polls of a new one
+ * are scheduled. In the host loop. */
+void poller_reload(void);
+
+/* The device is stopping: nothing more is asked of the network, ever. */
 void poller_hold(void);
-void poller_release_reloaded(void);
 
 /* The power profile changed: the least distance between polls is another.
  * Nothing else of the schedule is touched. */

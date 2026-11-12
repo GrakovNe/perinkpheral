@@ -81,6 +81,8 @@ static refresh_reason_t refresh_reason(wm_change_t change)
     }
 }
 
+static app_delivery_state_t delivery_state;
+
 /* The buttons in the order they sit on the device. */
 static const scene_button_t BUTTON_ROLE[] = {
     SCENE_BUTTON_UP, SCENE_BUTTON_OK, SCENE_BUTTON_DOWN, SCENE_BUTTON_BACK,
@@ -98,6 +100,10 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
         ESP_LOGI(TAG, "button %d %s", index + 1, press == EVENT_PRESS_LONG ? "long" : "short");
     }
     power_note_press(); /* the user is here: the device stays reachable for a while */
+    /* A press is for what is on the screen, and that is not loaded while
+     * another application takes an answer piece by piece: the answer gives
+     * way, the press is not lost. */
+    app_delivery_give_way(&delivery_state, wm, esp_timer_get_time() / 1000);
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
 
@@ -111,7 +117,10 @@ static uint32_t s_frames_shown;
 static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
 {
     wm_change_t change = wm_pending_change(wm);
-    if (change == WM_CLEAN) {
+    /* While an application takes an answer off the screen the one on it is
+     * not loaded and has nothing to draw: its picture stays, and what
+     * changed is shown when it is back. */
+    if (change == WM_CLEAN || wm->suspended) {
         return NOTHING_TO_SHOW;
     }
     refresh_reason_t reason = refresh_reason(change);
@@ -191,7 +200,6 @@ static void remember_current_app(const wm_t *wm)
 /* The host loop's own, and nobody else's: what is on the screen and whose
  * answer is being taken. Other tasks reach them through events_call(). */
 static wm_t                 wm;
-static app_delivery_state_t delivery_state;
 static scene_t             *s_menu;
 
 /* An application's scene is about to be freed, the list of them being
@@ -263,8 +271,12 @@ static bool tell_of_deadlines(void)
     if (s_deadlines_are_told) {
         return true;
     }
+    /* Said before it is posted: the host loop may answer at once. */
+    s_deadlines_are_told = true;
     event_t event = { .kind = EVENT_DEADLINES };
-    s_deadlines_are_told = events_post(&event);
+    if (!events_post(&event)) {
+        s_deadlines_are_told = false;
+    }
     return s_deadlines_are_told;
 }
 
@@ -351,9 +363,11 @@ static void forget_alarms_of_the_removed(void)
 void host_reload_apps(void)
 {
     reload_context_t context = { &wm, &delivery_state };
-    poller_hold();
+    /* Nothing of the poller's is held meanwhile: the applications that
+     * leave the screen here run their last handlers, and those may ask the
+     * poller for something. */
     launcher_reload(drop_app_scene, &context);
-    poller_release_reloaded();
+    poller_reload();
     forget_alarms_of_the_removed();
     int count;
     const menu_entry_t *entries = launcher_entries(&count);

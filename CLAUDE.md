@@ -324,7 +324,7 @@ TRMNL is a thin client: once per `refresh_rate` the device does `GET /api/displa
 
 An architecture review on 2026-11-12 found the structure behind most of the open items; these are the owner's decisions on it. Until a line here is built the code is as the sections above describe it, and where the two disagree this section is where the code is going.
 
-**Who may change what.** *(Built, but for the poller, which still looks at the launcher's own list while it is held.)*
+**Who may change what.** *(Built. The poller keeps its own copy of the list of applications and takes a new one, in the host loop, after the list was read anew; nothing of it is held while applications run their last handlers.)*
 - The host loop owns the host's state: the settings, the list of installed applications, the scenes. Every other task - the web server, the poller, Wi-Fi - reads a **published snapshot** and changes nothing.
 - A snapshot carries a version: a reader notes it, copies, and copies again if it changed meanwhile. No lock on reading, anywhere; a reader may see what was true a moment ago.
 - A change is a **command through the event queue**: the handler posts it and waits for the host loop's answer, as the development tools do. A page waits up to the length of a refresh; that is fine.

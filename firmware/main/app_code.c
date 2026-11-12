@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "esp_log.h"
 #include "esp_partition.h"
@@ -92,16 +93,6 @@ const uint8_t *app_code_find(const char *app_name, size_t *size)
     return (const uint8_t *)header_of(slot) + sizeof(slot_header_t);
 }
 
-void app_code_forget(const char *app_name)
-{
-    int slot = slot_of(app_name);
-    if (slot >= 0) {
-        /* The first sector has the header: without it the slot is nobody's. */
-        esp_partition_erase_range(s_partition, (size_t)slot * APP_CODE_SLOT_BYTES,
-                                  s_partition->erase_size);
-    }
-}
-
 void app_code_forget_all(void)
 {
     for (int slot = 0; slot < s_slot_count; slot++) {
@@ -147,11 +138,29 @@ static bool store(const char *app_name, const char *path)
     return is_stored;
 }
 
+/* A slot whose application has no folder any more is nobody's. */
+static void forget_the_removed(const char *apps_root)
+{
+    for (int slot = 0; slot < s_slot_count; slot++) {
+        char        path[APP_STORE_PATH_MAX];
+        struct stat folder;
+        if (!is_taken(slot) ||
+            snprintf(path, sizeof path, "%s/%s", apps_root, header_of(slot)->name) >=
+                (int)sizeof path ||
+            stat(path, &folder) == 0) {
+            continue;
+        }
+        esp_partition_erase_range(s_partition, (size_t)slot * APP_CODE_SLOT_BYTES,
+                                  s_partition->erase_size);
+    }
+}
+
 void app_code_adopt(const char *apps_root)
 {
     if (s_partition == NULL) {
         return;
     }
+    forget_the_removed(apps_root);
     DIR *directory = opendir(apps_root);
     if (directory == NULL) {
         return;
