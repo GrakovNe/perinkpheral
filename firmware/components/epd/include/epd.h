@@ -8,6 +8,8 @@
 
 #include "esp_err.h"
 
+#include "frame_box.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,9 +38,12 @@ esp_err_t epd_init(const epd_config_t *cfg);
  * with a reset and the image is whatever the panel got to. */
 esp_err_t epd_show_full(const uint8_t *fb);
 
-/* Whole-frame partial refresh, no flash. Needs a full show before it
- * and one every few updates to clear ghosting. */
-esp_err_t epd_show_partial(const uint8_t *fb);
+/* Partial refresh, no flash: the part of the frame inside `window` is
+ * sent and the panel is refreshed as it always is - Waveshare's
+ * PartialDisplay. The window is in bytes across and rows down and has to
+ * lie inside the frame. Needs a full show before it and one every few
+ * updates to clear ghosting. */
+esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window);
 
 #ifdef __cplusplus
 }

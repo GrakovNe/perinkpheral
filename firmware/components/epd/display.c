@@ -14,6 +14,7 @@
 #include "sdkconfig.h"
 
 #include "epd.h"
+#include "frame_box.h"
 
 _Static_assert(DISPLAY_WIDTH == EPD_W && DISPLAY_HEIGHT == EPD_H,
                "the display service is sized for this panel");
@@ -33,6 +34,29 @@ static SemaphoreHandle_t s_lock;
 
 static refresh_policy_cfg_t s_cfg;
 
+#define FRAME_COLUMNS (DISPLAY_WIDTH / 8)
+
+static const frame_box_t WHOLE_FRAME = { 0, 0, FRAME_COLUMNS, DISPLAY_HEIGHT };
+
+/* Where the refresh before this one changed the picture. A partial
+ * refresh sends only the part of the frame that changed, and that part
+ * is taken together with this one: whether the controller, when it is
+ * done, copies the frame it was sent over the one it compares with or
+ * swaps the two, the two it holds are then the same everywhere else. */
+static frame_box_t s_changed_last_time;
+
+/* What a partial refresh has to send for the panel to show `frame`. */
+static frame_box_t window_for(const uint8_t *frame)
+{
+    if (!s_shown_is_on_panel) {
+        return WHOLE_FRAME;
+    }
+    frame_box_t changed = frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT);
+    frame_box_t window = frame_box_join(&changed, &s_changed_last_time);
+    /* The same frame again - the keep-alive - still has to refresh. */
+    return frame_box_is_empty(&window) ? WHOLE_FRAME : window;
+}
+
 static int64_t now_ms(void)
 {
     return esp_timer_get_time() / 1000;
@@ -47,7 +71,21 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     if (kind == REFRESH_NONE) {
         return kind;
     }
-    *err = kind == REFRESH_FULL ? epd_show_full(frame) : epd_show_partial(frame);
+    frame_box_t changed = s_shown_is_on_panel
+                              ? frame_box_of_change(s_shown, frame, FRAME_COLUMNS, DISPLAY_HEIGHT)
+                              : WHOLE_FRAME;
+    frame_box_t window = WHOLE_FRAME;
+    if (kind == REFRESH_FULL) {
+        *err = epd_show_full(frame);
+    } else {
+        window = window_for(frame);
+        *err = epd_show_partial(frame, &window);
+    }
+    /* A full refresh leaves the controller's two frames the same. */
+    s_changed_last_time = kind == REFRESH_FULL ? (frame_box_t){ 0, 0, 0, 0 } : changed;
+    if (*err != ESP_OK) {
+        s_changed_last_time = WHOLE_FRAME;
+    }
     int64_t finished_ms = now_ms();
     /* Counted from the start: something that redraws on the minute would
      * otherwise come a refresh too early every time and slip later and
@@ -57,7 +95,8 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     const char *kind_name = kind == REFRESH_FULL ? "full" : "partial";
     long long took_ms = (long long)(finished_ms - started_ms);
     if (*err == ESP_OK) {
-        ESP_LOGI(TAG, "%s refresh, %lld ms", kind_name, took_ms);
+        ESP_LOGI(TAG, "%s refresh, %d bytes, %lld ms", kind_name, window.columns * window.rows,
+                 took_ms);
     } else {
         ESP_LOGW(TAG, "%s refresh: %s after %lld ms", kind_name, esp_err_to_name(*err), took_ms);
     }
@@ -88,6 +127,7 @@ void display_start(const refresh_policy_cfg_t *policy)
     s_cfg = *policy;
     memset(s_shown, WHITE_BYTE, sizeof s_shown);
     s_shown_is_on_panel = false;
+    s_changed_last_time = WHOLE_FRAME;
     refresh_policy_init(&s_policy);
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);

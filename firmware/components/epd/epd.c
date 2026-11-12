@@ -11,7 +11,7 @@
 #include "freertos/task.h"
 
 /* The sequences are those of waveshareteam/e-Paper, epd4in2_V2
- * (Init, Display_Base, Display_Partial), byte for byte. See
+ * (Init, Display_Base, Display_Partial, PartialDisplay), byte for byte. See
  * hardware/README.md for what happens when they are "improved". */
 
 static const char *TAG = "epd";
@@ -89,21 +89,37 @@ static void hw_reset(void)
     wait_busy("hw reset", BUSY_INIT_MS);
 }
 
-static void set_window(void)
+#define EPD_COLUMNS (EPD_W / 8)
+
+static const frame_box_t WHOLE_FRAME = { 0, 0, EPD_COLUMNS, EPD_H };
+
+/* Where the bytes that follow go: the controller counts X in bytes. */
+static void set_window(const frame_box_t *window)
 {
-    cmd(0x11); data(0x03);                                /* X+, Y+ */
-    cmd(0x44); data(0x00); data((EPD_W - 1) >> 3);        /* X: 0..49 */
-    cmd(0x45); data(0x00); data(0x00);                    /* Y: 0..299 */
-    data((EPD_H - 1) & 0xFF); data((EPD_H - 1) >> 8);
-    cmd(0x4E); data(0x00);
-    cmd(0x4F); data(0x00); data(0x00);
+    int last_column = window->column + window->columns - 1;
+    int last_row = window->row + window->rows - 1;
+    cmd(0x11); data(0x03); /* X+, Y+ */
+    cmd(0x44); data(window->column); data(last_column);
+    cmd(0x45); data(window->row & 0xFF); data(window->row >> 8);
+    data(last_row & 0xFF); data(last_row >> 8);
+    cmd(0x4E); data(window->column);
+    cmd(0x4F); data(window->row & 0xFF); data(window->row >> 8);
 }
 
-static void write_ram(uint8_t reg, const uint8_t *fb)
+/* The rows of the window, each from its first byte to its last. */
+static void write_ram(uint8_t reg, const uint8_t *fb, const frame_box_t *window)
 {
     cmd(reg);
     gpio_set_level(s_cfg.dc_gpio, 1);
-    tx(fb, EPD_FB_SIZE);
+    for (int row = window->row; row < window->row + window->rows; row++) {
+        tx(fb + row * EPD_COLUMNS + window->column, (size_t)window->columns);
+    }
+}
+
+static bool is_inside_frame(const frame_box_t *window)
+{
+    return window->column >= 0 && window->row >= 0 && window->columns > 0 && window->rows > 0 &&
+           window->column + window->columns <= EPD_COLUMNS && window->row + window->rows <= EPD_H;
 }
 
 static esp_err_t finish(const char *what, int timeout_ms)
@@ -181,28 +197,31 @@ esp_err_t epd_show_full(const uint8_t *fb)
     wait_busy("sw reset", BUSY_INIT_MS);
     cmd(0x21); data(0x40); data(0x00); /* display update control */
     cmd(0x3C); data(0x05);             /* border waveform */
-    set_window();
+    set_window(&WHOLE_FRAME);
     wait_busy("init", BUSY_INIT_MS);
 
-    write_ram(0x24, fb);
-    write_ram(0x26, fb);
+    write_ram(0x24, fb, &WHOLE_FRAME);
+    write_ram(0x26, fb, &WHOLE_FRAME);
     cmd(0x22); data(0xF7);
     cmd(0x20);
     return finish("full refresh", BUSY_FULL_MS);
 }
 
-esp_err_t epd_show_partial(const uint8_t *fb)
+esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window)
 {
     if (!s_ready) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (!is_inside_frame(window)) {
+        return ESP_ERR_INVALID_ARG;
     }
     hw_reset();
     cmd(0x3C); data(0x80);
     cmd(0x21); data(0x00); data(0x00);
     cmd(0x3C); data(0x80);
-    set_window();
+    set_window(window);
 
-    write_ram(0x24, fb);
+    write_ram(0x24, fb, window);
     cmd(0x22); data(0xFF);
     cmd(0x20);
     return finish("partial refresh", BUSY_PARTIAL_MS);

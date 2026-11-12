@@ -19,7 +19,7 @@ GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
+TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -56,6 +56,9 @@ test_gfx: test_gfx.c tinytest.h $(GFX_DEPS)
 
 test_btn_core: test_btn_core.c tinytest.h $(INPUT)/btn_core.c $(INPUT)/include/btn_core.h
 	$(CC) $(CFLAGS) -I$(INPUT)/include -o $@ test_btn_core.c $(INPUT)/btn_core.c
+
+test_frame_box: test_frame_box.c tinytest.h $(EPD)/frame_box.c $(EPD)/include/frame_box.h
+	$(CC) $(CFLAGS) -I$(EPD)/include -o $@ test_frame_box.c $(EPD)/frame_box.c
 
 test_refresh_policy: test_refresh_policy.c tinytest.h $(EPD)/refresh_policy.c $(EPD)/include/refresh_policy.h
 	$(CC) $(CFLAGS) -I$(EPD)/include -o $@ test_refresh_policy.c $(EPD)/refresh_policy.c

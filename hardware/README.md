@@ -15,6 +15,7 @@ This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNan
 - Init: `0x12` (SW reset, wait for BUSY ~10 ms) -> `0x21 0x40 0x00` -> `0x3C 0x05` -> window `0x11 0x03`, `0x44 0x00 0x31`, `0x45 0x00 0x00 0x2B 0x01`, `0x4E 0x00`, `0x4F 0x00 0x00`.
 - Full (Display_Base): the frame into `0x24` and the same frame into `0x26`, then `0x22 0xF7`, `0x20`, wait for BUSY.
 - Partial (Display_Partial): HW reset -> `0x3C 0x80` -> `0x21 0x00 0x00` -> `0x3C 0x80` -> window -> the frame into `0x24` only -> `0x22 0xFF`, `0x20`, wait for BUSY. One full refresh is mandatory before the first partial (it puts the "old" frame into 0x26). After N partials - a full one (Waveshare: "several times", in the FAQ - a clear after 5 rounds; the firmware has 5).
+- Partial in a window (PartialDisplay): the same as Display_Partial, with `0x44`/`0x45` set to the window (X in bytes) and `0x4E`/`0x4F` to its corner, and only the window's bytes into `0x24`. Measured: 3744 bytes 0.80 s, 5760 bytes 0.84 s, 11088 bytes 0.95 s, the whole frame (15000) 1.00 s - about 19 ms per kilobyte over a fixed 0.71 s.
 - Sleep: `0x10 0x01` (deep sleep mode 1, RAM is retained - needed for partial). Mode 2 (`0x03`) does not retain RAM.
 - Frame format: 400x300 -> 50x300 = 15000 bytes, most significant bit on the left, 1 = white, 0 = black.
 - BUSY: HIGH = busy. After `0x10` (deep sleep) BUSY stays HIGH forever - it must not be waited on, the only way out of sleep is HW reset. After sleep, image data is ignored until re-initialization.
