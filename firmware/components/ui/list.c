@@ -20,16 +20,27 @@
 #define VALUE_GAP    14 /* the least between a label and its value */
 #define VALUE_MAX    63
 
-int list_visible_rows(const gfx_t *g)
+static int height_of(const gfx_t *g, const list_t *list)
 {
-    return (g->h - TOP_GAP) / ROW_HEIGHT;
+    int room = g->h - list->top;
+    return list->height > 0 && list->height < room ? list->height : room;
 }
 
-int list_first_row(int count, int selected, int visible_rows)
+int list_visible_rows(const gfx_t *g, const list_t *list)
 {
-    int first = selected - visible_rows / 2;
-    if (first > count - visible_rows) {
-        first = count - visible_rows;
+    int rows = (height_of(g, list) - TOP_GAP) / ROW_HEIGHT;
+    return rows > 0 ? rows : 0;
+}
+
+int list_first_row(const gfx_t *g, const list_t *list)
+{
+    int visible = list_visible_rows(g, list);
+    int last_first = list->count > visible ? list->count - visible : 0;
+    /* Chosen: in the middle while there is more both ways. Not chosen:
+     * where the user scrolled to. */
+    int first = list->selected >= 0 ? list->selected - visible / 2 : list->first;
+    if (first > last_first) {
+        first = last_first;
     }
     return first > 0 ? first : 0;
 }
@@ -45,26 +56,30 @@ static void draw_picture(gfx_t *g, int x, int y, const uint16_t *rows, bool blac
     }
 }
 
-void list_draw_scrollbar(gfx_t *g, int count, int selected)
+void list_draw_scrollbar(gfx_t *g, const list_t *list)
 {
-    int visible = list_visible_rows(g);
-    scrollbar_draw(g, TOP_GAP + ROW_BASELINE - BAR_RISE, (visible - 1) * ROW_HEIGHT + BAR_HEIGHT,
-                   count, visible, list_first_row(count, selected, visible));
+    int visible = list_visible_rows(g, list);
+    if (visible == 0) {
+        return;
+    }
+    scrollbar_draw(g, list->top + TOP_GAP + ROW_BASELINE - BAR_RISE,
+                   (visible - 1) * ROW_HEIGHT + BAR_HEIGHT, list->count, visible,
+                   list_first_row(g, list));
 }
 
-void list_draw_row(gfx_t *g, int count, int selected, int index, const list_row_t *row,
+void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *row,
                    bool has_pictures)
 {
-    int visible = list_visible_rows(g);
-    int slot = index - list_first_row(count, selected, visible);
-    if (index < 0 || index >= count || slot < 0 || slot >= visible) {
+    int visible = list_visible_rows(g, list);
+    int slot = index - list_first_row(g, list);
+    if (index < 0 || index >= list->count || slot < 0 || slot >= visible) {
         return;
     }
     const gfx_font_t *font = gfx_font_system();
-    int  baseline = TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
-    /* A list longer than the surface gives its right edge to the bar. */
-    int  right = g->w - (count > visible ? SCROLLBAR_ROOM : 0);
-    bool is_selected = index == selected;
+    int  baseline = list->top + TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
+    /* A list longer than its room gives its right edge to the bar. */
+    int  right = g->w - (list->count > visible ? SCROLLBAR_ROOM : 0);
+    bool is_selected = index == list->selected;
     if (is_selected) {
         gfx_fill(g, BAR_INSET, baseline - BAR_RISE, right - 2 * BAR_INSET, BAR_HEIGHT, true);
     }

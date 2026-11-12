@@ -71,21 +71,16 @@ void screens_header(gfx_t *g, const screens_header_t *header)
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }
 
-int screens_menu_first_row(int count, int selected, int visible_rows)
-{
-    return list_first_row(count, selected, visible_rows);
-}
-
 void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected)
 {
-    int visible_rows = list_visible_rows(g);
-    int first = list_first_row(count, selected, visible_rows);
-    list_draw_scrollbar(g, count, selected);
-    for (int index = first; index < first + visible_rows && index < count; index++) {
+    const list_t list = { .count = count, .selected = selected };
+    int first = list_first_row(g, &list);
+    list_draw_scrollbar(g, &list);
+    for (int index = first; index < first + list_visible_rows(g, &list) && index < count; index++) {
         screens_menu_row_t item;
         row_at(context, index, &item);
         /* One column for the titles whether a row has an icon or not. */
         list_row_t row = { .label = item.title, .icon = LIST_NO_ICON, .picture = item.icon };
-        list_draw_row(g, count, selected, index, &row, true);
+        list_draw_row(g, &list, index, &row, true);
     }
 }

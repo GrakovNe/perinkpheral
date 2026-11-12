@@ -23,20 +23,39 @@ app_ui_result_t app_list_button(app_list_t *list, int32_t event)
 {
     switch (event) {
     case BTN_UP_PRESSED:
-    case BTN_DOWN_PRESSED:
+    case BTN_DOWN_PRESSED: {
+        int32_t by = event == BTN_UP_PRESSED ? -1 : 1;
+        if (list->selected < 0) {
+            /* Nothing chosen: the list itself moves, as far as it goes -
+             * the far end is settled when it is drawn. */
+            if (list->first + by < 0 || list->first + by >= list->count) {
+                return APP_UI_IGNORED;
+            }
+            list->first += by;
+            return APP_UI_CHANGED;
+        }
         if (list->count < 2) {
             return APP_UI_IGNORED;
         }
-        list->selected =
-            wrapped(list->selected + (event == BTN_UP_PRESSED ? -1 : 1), 0, list->count - 1);
+        list->selected = wrapped(list->selected + by, 0, list->count - 1);
         return APP_UI_CHANGED;
+    }
     case BTN_OK_PRESSED:
-        return list->count > 0 ? APP_UI_DONE : APP_UI_IGNORED;
+        return list->selected >= 0 && list->count > 0 ? APP_UI_DONE : APP_UI_IGNORED;
     case BTN_BACK_PRESSED:
         return APP_UI_CANCELLED;
     default:
         return APP_UI_IGNORED;
     }
+}
+
+int32_t app_list_first(app_list_t *list)
+{
+    int32_t first = ui_list_first(list);
+    if (list->selected < 0 && first >= 0) {
+        list->first = first;
+    }
+    return first;
 }
 
 /* ---- one of a row of values ---- */

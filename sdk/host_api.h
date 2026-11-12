@@ -304,7 +304,17 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
  * the screen.
  *
  * None of this is rationed: every refresh costs the battery and wears
- * the panel, and how much of both to spend is the application's call. */
+ * the panel, and how much of both to spend is the application's call.
+ *
+ * Which to ask for: HOST_REDRAW_NORMAL for anything a press led to and
+ * for data that can wait its turn; HOST_REDRAW_NO_BLINK while the user
+ * steps through something - a list, a value - and for a number that
+ * turns every second; HOST_REDRAW_SOON for data worth showing now;
+ * HOST_REDRAW_CLEAN for a picture that must have no trace of the last.
+ *
+ * From app_on_alarm(), app_on_intent() and app_on_settings() a redraw is
+ * shown as one from app_on_data() is; from app_on_back(), as one from
+ * app_on_button(). */
 #define HOST_REDRAW_NORMAL   0
 #define HOST_REDRAW_SOON     1
 #define HOST_REDRAW_CLEAN    2
@@ -331,7 +341,9 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
  * stands in place of the date with the icon after it. They are there above
  * every screen that has a header, whoever is on it. A side is the
  * application's that set it last. A length of 0 with HOST_ICON_NONE gives
- * the side back; so does removing the application, and a restart. It may
+ * the side back - only one's own: when another application has taken it
+ * since, nothing changes. Removing the application gives it back too, and
+ * so does a restart. Changing it shows on the panel as data does. It may
  * be set from any handler, on the screen or off it. */
 #define HOST_STATUS_TEXT_MAX 15
 HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, const char *text,
@@ -394,24 +406,41 @@ HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32
 /* A list the user moves through with UP and DOWN: a row a line of text,
  * the chosen one white on a black bar, a scroll bar when there are more
  * rows than fit, the chosen row kept in the middle. The application keeps
- * `count` and `selected` and calls ui_list_row() for the rows in sight:
+ * the list - how many rows, which is chosen, where it stands - and calls
+ * ui_list_row() for the rows in sight:
  *
- *     int32_t first = ui_list_first(count, selected);
- *     for (int32_t i = first; i < first + ui_list_visible() && i < count; i++) {
- *         ui_list_row(count, selected, i, label, label_length, value, value_length,
- *                     HOST_ICON_NONE);
+ *     static host_list_t list = { .count = 12 };
+ *
+ *     int32_t first = ui_list_first(&list);
+ *     for (int32_t i = first; i < first + ui_list_visible(&list) && i < list.count; i++) {
+ *         ui_list_row(&list, i, label, label_length, value, value_length, HOST_ICON_NONE);
  *     }
  *
- * `value` stands at the right edge, cut to what the label leaves; a length
- * of 0 is none. `icon` is a HOST_ICON_* at the right edge, or
- * HOST_ICON_NONE: HOST_ICON_CHECK marks the one of several that is set.
- * `selected` -1 is a list nobody chooses from - facts, a row a line. A
- * row out of sight draws nothing. */
+ * A list has the whole width of the surface and, of its height, what is
+ * from `top` for `height` pixels (0: down to the bottom): a ui_title()
+ * may stand over it - its return value is the list's `top` - and a
+ * ui_actions() row under it, HOST_UI_ACTIONS_HEIGHT less of the height.
+ *
+ * `selected` -1 is a list nobody chooses from - facts, a row a line: UP
+ * and DOWN then move the list itself, and `first` is the row at its top.
+ * sdk/lib/app_ui.h has what the buttons do for both kinds.
+ *
+ * In a row, `value` stands at the right edge, cut to what the label
+ * leaves; a length of 0 is none. `icon` is a HOST_ICON_* at the right
+ * edge, or HOST_ICON_NONE: HOST_ICON_CHECK marks the one of several that
+ * is set. A row out of sight draws nothing. */
 #define HOST_ICON_NONE (-1)
-HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(void));
-HOST_IMPORT(ui_list_first, int32_t ui_list_first(int32_t count, int32_t selected));
+typedef struct host_list {
+    int32_t count;
+    int32_t selected; /* or -1 */
+    int32_t top;
+    int32_t height;   /* 0: to the bottom of the surface */
+    int32_t first;    /* with nothing selected: the row scrolled to the top */
+} host_list_t;
+HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(const host_list_t *list));
+HOST_IMPORT(ui_list_first, int32_t ui_list_first(const host_list_t *list));
 HOST_IMPORT(ui_list_row,
-            int32_t ui_list_row(int32_t count, int32_t selected, int32_t index, const char *label,
+            int32_t ui_list_row(const host_list_t *list, int32_t index, const char *label,
                                 int32_t label_length, const char *value, int32_t value_length,
                                 int32_t icon));
 
@@ -420,7 +449,8 @@ HOST_IMPORT(ui_list_row,
  * the bottom what the buttons do - "<ok> OK" from the left edge,
  * "BACK <back>" from the right - or, for `is_working`, three strokes that
  * stand for work going on. Every text is terminated; an empty one is not
- * drawn. A question that cannot be taken back should not take a press
+ * drawn. It is drawn over the surface as it is - which arrives white -
+ * and with nothing along the bottom it has the whole height. A question that cannot be taken back should not take a press
  * made before it was on the screen: the host's own wait until it is. */
 typedef struct host_notice {
     char    first[32];
@@ -472,7 +502,9 @@ HOST_IMPORT(ui_icon, int32_t ui_icon(int32_t x, int32_t y, int32_t icon, int32_t
 
 /* A button of the device and what it does: its name ("UP") white on
  * black and the action beside it - after the name, or, `mirrored`, before
- * it. `y` is the top of the text's line. Returns the width. */
+ * it. `x` is the left edge of the whole either way, `y` the top of the
+ * text's line. Returns the width; it cannot be asked for without drawing,
+ * so what stands against a right edge is the row of ui_actions(). */
 HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
                                          int32_t name_length, const char *action,
                                          int32_t action_length, int32_t mirrored));
@@ -659,7 +691,17 @@ HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t s
  *
  * - and gets each through app_on_intent(), loaded for the call if it is
  * not loaded, like an answer from the network. An application that named
- * none is never woken for one. */
+ * none is never woken for one.
+ *
+ * What a handler may count on. app_init() has run before it, as before
+ * any handler. The instance is the one on the screen when the application
+ * is there, and one loaded for this call and unloaded after it otherwise.
+ * HOST_INTENT_STARTED comes once the device is up and has shown its first
+ * screen: an application the device reopened after the restart may have
+ * been drawn before it, so what app_init() works out must make sense
+ * without it. HOST_INTENT_TIME_CHANGED comes too when the device learns
+ * the time for the first time, and inside the handler time_now() is the
+ * new time already; corrections of a few seconds are not told. */
 #define HOST_INTENT_TIME_CHANGED 1 /* the clock or the time zone was set to another: what
                                       was worked out from the time is to be worked out again */
 #define HOST_INTENT_NETWORK_UP   2 /* the device is on its network again */
@@ -679,8 +721,8 @@ APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
  * happen wherever the user has gone.
  *
  * There are two ways to say when. alarm_set() is "in so many seconds" - a
- * countdown - and does not care what the clock is set to; 0 takes the
- * alarm back. alarm_set_at() is "at this moment" - a time of day, in unix
+ * countdown, a second at the least - and does not care what the clock is
+ * set to; 0 takes the alarm back. alarm_set_at() is "at this moment" - a time of day, in unix
  * seconds as time_now() counts them - and follows the clock when it is
  * set to another time. Both return HOST_OK, HOST_ERR_ARGUMENT for a number
  * or a time there cannot be, HOST_ERR_NO_SPACE when the device has no room

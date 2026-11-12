@@ -303,10 +303,16 @@ void app_on_draw(void)
 
     /* the host's own look: the list keeps the chosen row in sight, and
      * what is not a list or not the application's to give is refused */
-    int32_t visible = ui_list_visible();
-    if (visible > 0 && ui_list_first(100, 0) == 0 && ui_list_first(100, 99) == 100 - visible &&
-        ui_list_row(-1, 0, 0, "a", 1, "", 0, HOST_ICON_NONE) == HOST_ERR_ARGUMENT &&
-        ui_list_row(3, 0, 0, "a", 1, "", 0, 999) == HOST_ERR_ARGUMENT &&
+    static const host_list_t at_its_start = { .count = 100, .selected = 0 };
+    static const host_list_t at_its_end = { .count = 100, .selected = 99 };
+    static const host_list_t not_a_list = { .count = -1 };
+    static const host_list_t three = { .count = 3 };
+    int32_t visible = ui_list_visible(&at_its_start);
+    if (visible > 0 && ui_list_first(&at_its_start) == 0 &&
+        ui_list_first(&at_its_end) == 100 - visible &&
+        ui_list_row(&not_a_list, 0, "a", 1, "", 0, HOST_ICON_NONE) == HOST_ERR_ARGUMENT &&
+        ui_list_row(&three, 0, "a", 1, "", 0, 999) == HOST_ERR_ARGUMENT &&
+        ui_list_visible((const host_list_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT &&
         ui_notice((const host_notice_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT) {
         mark(0, ROW_UI);
     }

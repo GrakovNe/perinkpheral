@@ -112,6 +112,20 @@ The wiring is fixed and done - do not change it. Battery voltage and USB presenc
   "settings": [
     { "key": "token", "type": "secret", "title": "Plex token" }
   ],
+  "intents": ["started"],
+  "icon": [
+    "...........",
+    ".#########.",
+    ".#.......#.",
+    ".#..#....#.",
+    ".#..###..#.",
+    ".#..####.#.",
+    ".#..###..#.",
+    ".#..#....#.",
+    ".#.......#.",
+    ".#########.",
+    "..........."
+  ],
   "abi": 2
 }
 ```
@@ -226,8 +240,8 @@ gfx_bitmap_file(x, y, w, h, name, name_len, offset)  // the same picture read by
 gfx_icon(icon, x, y, cell)             // one of the host's icons, 11 cells square, a cell so many pixels; in the current colour
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
-ui_list_visible() / ui_list_first(count, selected)   // the host's list: rows in sight, the first of them
-ui_list_row(count, selected, index, label, value, icon)  // one row of it, with the scroll bar
+ui_list_visible(list_ptr) / ui_list_first(list_ptr)  // the host's list - count, selected, top, height, first: rows in sight, the first of them
+ui_list_row(list_ptr, index, label, value, icon)     // one row of it, with the scroll bar; a title may stand over a list and buttons under it
 ui_notice(struct_ptr)                  // the host's notice on the whole surface: two lines, an icon, what OK and BACK do
 ui_text(x, y, style, str, len, max_width) / ui_title(str, len)   // text in the host's styles; the title of a page
 ui_text_width(style, str, len) / ui_text_height(style)           // to centre and to stack; HOST_UI_MARGIN is the host's 16 px

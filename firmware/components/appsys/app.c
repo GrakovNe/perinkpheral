@@ -376,44 +376,62 @@ static bool is_an_icon(int32_t icon)
     return icon >= 0 && icon < GFX_ICON_COUNT;
 }
 
+/* A list of more rows than this is somebody's mistake, not a list. */
+#define LIST_ROWS_MAX 10000
+
+/* The list as the application describes it, checked: false when it is not
+ * the application's to give, or not a list. */
+static bool read_list(IM3Runtime runtime, void *memory, uint32_t offset, list_t *list)
+{
+    const uint8_t *given = in_app_memory(runtime, memory, offset, sizeof(host_list_t));
+    if (given == NULL) {
+        return false;
+    }
+    host_list_t asked;
+    memcpy(&asked, given, sizeof asked);
+    bool is_a_list = asked.count >= 0 && asked.count <= LIST_ROWS_MAX && asked.selected >= -1 &&
+                     asked.selected <= LIST_ROWS_MAX && asked.first >= -LIST_ROWS_MAX &&
+                     asked.first <= LIST_ROWS_MAX && is_drawable(asked.top) && asked.top >= 0 &&
+                     is_drawable(asked.height) && asked.height >= 0;
+    *list = (list_t){ .count = asked.count, .selected = asked.selected, .top = asked.top,
+                      .height = asked.height, .first = asked.first };
+    return is_a_list;
+}
+
 HOST_FUNCTION(host_ui_list_visible)
 {
     m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
-    m3ApiReturn(list_visible_rows(app->surface));
-}
-
-/* A list of more rows than this is somebody's mistake, not a list. */
-#define LIST_ROWS_MAX 10000
-
-static bool is_a_list(int32_t count, int32_t selected)
-{
-    return count >= 0 && count <= LIST_ROWS_MAX && selected >= -1 && selected <= LIST_ROWS_MAX;
+    list_t list;
+    if (!read_list(runtime, _mem, list_offset, &list)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(list_visible_rows(app->surface, &list));
 }
 
 HOST_FUNCTION(host_ui_list_first)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, count);
-    m3ApiGetArg(int32_t, selected);
+    m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
-    if (!is_a_list(count, selected)) {
+    list_t list;
+    if (!read_list(runtime, _mem, list_offset, &list)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(list_first_row(count, selected, list_visible_rows(app->surface)));
+    m3ApiReturn(list_first_row(app->surface, &list));
 }
 
 HOST_FUNCTION(host_ui_list_row)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, count);
-    m3ApiGetArg(int32_t, selected);
+    m3ApiGetArg(uint32_t, list_offset);
     m3ApiGetArg(int32_t, index);
     m3ApiGetArg(uint32_t, label_offset);
     m3ApiGetArg(int32_t, label_length);
@@ -425,17 +443,19 @@ HOST_FUNCTION(host_ui_list_row)
     if (app->surface == NULL) {
         m3ApiReturn(HOST_ERR_NOT_DRAWING);
     }
+    list_t list;
     char label[HOST_TEXT_MAX + 1];
     char value[HOST_TEXT_MAX + 1];
-    if (!is_a_list(count, selected) || (icon != HOST_ICON_NONE && !is_an_icon(icon)) ||
+    if (!read_list(runtime, _mem, list_offset, &list) ||
+        (icon != HOST_ICON_NONE && !is_an_icon(icon)) ||
         !copy_text(runtime, _mem, label_offset, label_length, label) ||
         !copy_text(runtime, _mem, value_offset, value_length, value)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     list_row_t row = { .label = label, .value = value,
                        .icon = icon == HOST_ICON_NONE ? LIST_NO_ICON : icon };
-    list_draw_row(app->surface, count, selected, index, &row, false);
-    list_draw_scrollbar(app->surface, count, selected);
+    list_draw_row(app->surface, &list, index, &row, false);
+    list_draw_scrollbar(app->surface, &list);
     m3ApiReturn(HOST_OK);
 }
 
@@ -1566,9 +1586,9 @@ static const struct {
     { "data_response", "i(i)", host_data_response },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
-    { "ui_list_visible", "i()", host_ui_list_visible },
-    { "ui_list_first", "i(ii)", host_ui_list_first },
-    { "ui_list_row", "i(iii*i*ii)", host_ui_list_row },
+    { "ui_list_visible", "i(*)", host_ui_list_visible },
+    { "ui_list_first", "i(*)", host_ui_list_first },
+    { "ui_list_row", "i(*i*i*ii)", host_ui_list_row },
     { "ui_notice", "i(*)", host_ui_notice },
     { "ui_text", "i(iii*ii)", host_ui_text },
     { "ui_text_width", "i(i*i)", host_ui_text_width },

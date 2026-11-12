@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "list.h"
 #include "screens.h"
 #include "tinytest.h"
 
@@ -67,24 +68,67 @@ static void test_empty_menu(void)
     CHECK(press(menu, SCENE_BUTTON_BACK).kind == SCENE_BACK);
 }
 
+/* A surface on which a list has room for five rows. */
+#define FIVE_ROWS_HEIGHT 220
+
+static int first_row(int count, int selected)
+{
+    static uint8_t bits[400 / 8 * FIVE_ROWS_HEIGHT];
+    gfx_t g;
+    gfx_init(&g, bits, 400, FIVE_ROWS_HEIGHT);
+    const list_t list = { .count = count, .selected = selected };
+    return list_first_row(&g, &list);
+}
+
 static void test_menu_window(void)
 {
-    const int visible = 5;
     /* everything fits: the window never moves */
-    CHECK(screens_menu_first_row(3, 0, visible) == 0);
-    CHECK(screens_menu_first_row(3, 2, visible) == 0);
-    CHECK(screens_menu_first_row(5, 4, visible) == 0);
+    CHECK(first_row(3, 0) == 0);
+    CHECK(first_row(3, 2) == 0);
+    CHECK(first_row(5, 4) == 0);
 
     /* longer than the surface: the selection stays in the middle... */
-    CHECK(screens_menu_first_row(20, 0, visible) == 0);
-    CHECK(screens_menu_first_row(20, 2, visible) == 0);
-    CHECK(screens_menu_first_row(20, 3, visible) == 1);
-    CHECK(screens_menu_first_row(20, 10, visible) == 8);
+    CHECK(first_row(20, 0) == 0);
+    CHECK(first_row(20, 2) == 0);
+    CHECK(first_row(20, 3) == 1);
+    CHECK(first_row(20, 10) == 8);
     /* ...until the last rows, where the window stops at the end */
-    CHECK(screens_menu_first_row(20, 17, visible) == 15);
-    CHECK(screens_menu_first_row(20, 19, visible) == 15);
+    CHECK(first_row(20, 17) == 15);
+    CHECK(first_row(20, 19) == 15);
 
-    CHECK(screens_menu_first_row(0, 0, visible) == 0);
+    CHECK(first_row(0, 0) == 0);
+
+    /* a list that has only a part of the surface: under a title, over a
+     * row of buttons */
+    static uint8_t bits[400 / 8 * 260];
+    gfx_t g;
+    gfx_init(&g, bits, 400, 260);
+    list_t part = { .count = 20, .selected = 19, .top = 60, .height = 150 };
+    CHECK(list_visible_rows(&g, &part) == 3);
+    CHECK(list_first_row(&g, &part) == 17);
+    part.height = 0; /* down to the bottom */
+    CHECK(list_visible_rows(&g, &part) == 4);
+    /* its rows are drawn inside it and nowhere else */
+    const list_row_t row = { .label = "Row", .icon = LIST_NO_ICON };
+    gfx_clear(&g, false);
+    part.selected = 0;
+    list_draw_row(&g, &part, 0, &row, false);
+    bool ink_above = false;
+    for (int y = 0; y < part.top && !ink_above; y++) {
+        for (int x = 0; x < 400 && !ink_above; x++) {
+            ink_above = gfx_get(&g, x, y);
+        }
+    }
+    CHECK(!ink_above && gfx_get(&g, 20, part.top + 20));
+
+    /* facts nobody chooses from: the list is where the user scrolled it,
+     * and no further than its end */
+    list_t facts = { .count = 10, .selected = LIST_NONE_SELECTED, .first = 3 };
+    CHECK(list_first_row(&g, &facts) == 3);
+    facts.first = 99;
+    CHECK(list_first_row(&g, &facts) == 10 - list_visible_rows(&g, &facts));
+    facts.first = -5;
+    CHECK(list_first_row(&g, &facts) == 0);
 }
 
 /* What the splash shows: a scene that counts what is done to it. */

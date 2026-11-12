@@ -685,8 +685,9 @@ static void draw_text(int32_t left, int32_t baseline, int32_t font, const char *
 static void draw_list(page_t page, int32_t selected)
 {
     int32_t rows = row_count(page);
-    int32_t first = ui_list_first(rows, selected);
-    int32_t visible = ui_list_visible();
+    const host_list_t list = { .count = rows, .selected = selected };
+    int32_t first = ui_list_first(&list);
+    int32_t visible = ui_list_visible(&list);
     for (int32_t row = first; row < first + visible && row < rows; row++) {
         char label[TEXT_MAX + 1];
         char value[TEXT_MAX + 1];
@@ -696,7 +697,7 @@ static void draw_list(page_t page, int32_t selected)
         if (is_an_app) {
             value[0] = '\0';
         }
-        ui_list_row(rows, selected, row, label, app_text_length(label), value,
+        ui_list_row(&list, row, label, app_text_length(label), value,
                     app_text_length(value), is_an_app ? HOST_ICON_TRASH : HOST_ICON_NONE);
     }
 }

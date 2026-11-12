@@ -50,9 +50,6 @@ typedef void (*screens_menu_row_fn)(void *context, int index, screens_menu_row_t
  * is white on a black bar. It scrolls when it is longer than the surface. */
 void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected);
 
-/* The index of the top row shown: the window keeps the selection in the
- * middle and stops at both ends of the list. */
-int screens_menu_first_row(int count, int selected, int visible_rows);
 
 #ifdef __cplusplus
 }

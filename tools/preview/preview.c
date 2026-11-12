@@ -227,12 +227,14 @@ int main(int argc, char **argv)
     /* The list in its three uses: rows with values, one of several chosen,
      * and facts nobody chooses from. */
     {
+        const list_t three = { .count = 3, .selected = 1 };
+        const list_t four_facts = { .count = 4, .selected = LIST_NONE_SELECTED };
         const char *const labels[] = { "Date and time", "Time zone", "Power saving" };
         const char *const values[] = { "Automatic", "Saint Petersburg", "Off" };
         start_screen(&online, &content);
         for (int i = 0; i < 3; i++) {
             list_row_t row = { labels[i], values[i], LIST_NO_ICON, NULL };
-            list_draw_row(&content, 3, 1, i, &row, false);
+            list_draw_row(&content, &three, i, &row, false);
         }
         if (save(dir, "kit-list")) {
             return 1;
@@ -241,7 +243,7 @@ int main(int argc, char **argv)
         start_screen(&online, &content);
         for (int i = 0; i < 3; i++) {
             list_row_t row = { options[i], NULL, i == 0 ? GFX_ICON_CHECK : LIST_NO_ICON, NULL };
-            list_draw_row(&content, 3, 1, i, &row, false);
+            list_draw_row(&content, &three, i, &row, false);
         }
         if (save(dir, "kit-options")) {
             return 1;
@@ -251,7 +253,7 @@ int main(int argc, char **argv)
         start_screen(&online, &content);
         for (int i = 0; i < 4; i++) {
             list_row_t row = { facts[i], told[i], LIST_NO_ICON, NULL };
-            list_draw_row(&content, 4, -1, i, &row, false);
+            list_draw_row(&content, &four_facts, i, &row, false);
         }
         if (save(dir, "kit-details")) {
             return 1;

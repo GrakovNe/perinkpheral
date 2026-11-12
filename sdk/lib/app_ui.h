@@ -31,6 +31,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "host_api.h"
+
 typedef enum {
     APP_UI_IGNORED,   /* the press was not for this screen */
     APP_UI_CHANGED,   /* the picture is another: ask for a redraw */
@@ -40,14 +42,20 @@ typedef enum {
 
 /* ---- a list ---- */
 
-typedef struct {
-    int32_t count;
-    int32_t selected;
-} app_list_t;
+/* The list is the host's own description of it (host_list_t): how many
+ * rows, which is chosen, where it stands on the surface. */
+typedef host_list_t app_list_t;
 
-/* UP and DOWN move, around the ends; OK is APP_UI_DONE with `selected`
- * the row, BACK is APP_UI_CANCELLED. */
+/* With a row chosen, UP and DOWN move the choice, around the ends; OK is
+ * APP_UI_DONE with `selected` the row. With none (`selected` -1: facts)
+ * they move the list a row at a time and OK is nothing. BACK is
+ * APP_UI_CANCELLED either way. */
 app_ui_result_t app_list_button(app_list_t *list, int32_t event);
+
+/* In app_on_draw(), before the rows: the first row in sight. For a list
+ * with nothing chosen it also brings `first` back inside the list, so
+ * that a press past the end is not there to be undone. */
+int32_t app_list_first(app_list_t *list);
 
 /* ---- one of a row of values ---- */
 
