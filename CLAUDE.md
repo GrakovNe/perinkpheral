@@ -205,6 +205,7 @@ gfx_rect(x, y, w, h, fill)
 gfx_line(x0, y0, x1, y1)
 gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear one leaves what is there
 gfx_qr(x, y, cell, str_ptr, len)       // a QR code of the text, up to 57 modules a side; returns the modules, cell 0 only measures
+gfx_icon(icon, x, y, cell)             // one of the host's icons, 11 cells square, a cell so many pixels; in the current colour
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
 request_exit()                         // done: give the screen back, as BACK does in the host's pages
@@ -227,8 +228,9 @@ time_local(struct_ptr)                 // the local time taken apart: year, mont
 time_uptime_ms() -> ms since start
 log(level, str, len)
 ```
+**The host's icons** (`components/gfx/gfx_icons.c`, `HOST_ICON_*`): signal and no signal, the four arrows, check, cross, plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause - nineteen, each drawn as text in the source on eleven cells square, in the manner of the font. The header, the host's questions and Settings draw theirs from the same set. `tools/preview` renders the sheet.
+
 **What the contract still needs** - agreed, not written yet; in the order it will be built:
-- **System icons**: `gfx_icon(id, x, y, scale)` from the host's set, drawn by the rules of the header's icon.
 - **A picture straight from a file**: `gfx_bitmap` reading a file - a picture is 15 KB and does not fit an application's hands at once.
 
 Done since and seen on the device: requests of an application's own (`http_request`: one at a time for the whole device, two waiting per application, only to the manifest's `hosts`, the answer in pieces through `app_on_data` under a number of 16 or more), files (`file_read`, `file_write`, 120 KB an application), the alarm (`sdk/apps/timer`: a countdown that takes the screen back from another application when it ends), `poll_now`. The alarm is kept in memory: a restart forgets it, and deep sleep will need it in RTC memory.

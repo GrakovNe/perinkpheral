@@ -14,7 +14,7 @@ MKAPP   := ../../../tools/mkapp/mkapp.py
 MAIN    := ../../main
 
 # Whatever draws is rebuilt when the drawing code changes.
-GFX_SRCS := $(GFX)/gfx.c $(GFX)/font_square.c
+GFX_SRCS := $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
@@ -52,7 +52,7 @@ test_appconf: test_appconf.c tinytest.h $(APPCONF)/appconf.c $(APPCONF)/include/
 	$(CC) $(CFLAGS) -I$(APPCONF)/include -o $@ test_appconf.c $(APPCONF)/appconf.c
 
 test_gfx: test_gfx.c tinytest.h $(GFX_DEPS)
-	$(CC) $(CFLAGS) -I$(GFX)/include -I$(GFX)/fonts -o $@ test_gfx.c $(GFX)/gfx.c $(GFX)/font_square.c
+	$(CC) $(CFLAGS) -I$(GFX)/include -I$(GFX)/fonts -o $@ test_gfx.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c
 
 test_btn_core: test_btn_core.c tinytest.h $(INPUT)/btn_core.c $(INPUT)/include/btn_core.h
 	$(CC) $(CFLAGS) -I$(INPUT)/include -o $@ test_btn_core.c $(INPUT)/btn_core.c
@@ -68,11 +68,11 @@ test_refresh_policy: test_refresh_policy.c tinytest.h $(EPD)/refresh_policy.c $(
 	$(CC) $(CFLAGS) -I$(EPD)/include -o $@ test_refresh_policy.c $(EPD)/refresh_policy.c
 
 test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/include/wm.h $(UI)/include/scene.h $(GFX_DEPS)
-	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_wm.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c
+	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_wm.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c
 
 test_scenes: test_scenes.c tinytest.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
 	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
-		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c $(QR_SRCS)
+		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR_SRCS)
 
 # The interpreter is upstream code: built once, without our warnings, and
 # limited to one page of memory exactly as on the device.
@@ -94,9 +94,9 @@ build/probe_wasm.h: build/probe/app.wasm
 	(echo "static const unsigned char probe_wasm[] = {"; xxd -i < $<; \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
-test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(WASM3_OBJS)
+test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) \
-		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(GFX)/gfx.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
+		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
@@ -135,7 +135,7 @@ test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $
 test_delivery: test_delivery.c tinytest.h build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(WASM3_OBJS) $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
-		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(GFX)/gfx.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
+		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
 
 test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -o $@ test_app_store.c \

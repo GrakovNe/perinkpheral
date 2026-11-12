@@ -11,6 +11,7 @@
 #ifdef d_m3ApplicationArea
 #include "m3_area.h"
 #endif
+#include "gfx_icons.h"
 #include "host_api.h"
 #include "qrcodegen.h"
 #include "wasm3.h"
@@ -312,6 +313,25 @@ HOST_FUNCTION(host_gfx_bitmap)
                 gfx_pixel(app->surface, x + column, y + row, true);
             }
         }
+    }
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_gfx_icon)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, icon);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, cell);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (!is_drawable(x) || !is_drawable(y) || cell < 1 || cell > HOST_ICON_CELL_MAX ||
+        !gfx_icon(app->surface, (gfx_icon_id_t)icon, x, y, cell, true)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(HOST_OK);
 }
@@ -979,6 +999,7 @@ static const struct {
     { "gfx_color", "i(i)", host_gfx_color },
     { "data_value", "i(iii)", host_data_value },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
+    { "gfx_icon", "i(iiii)", host_gfx_icon },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },

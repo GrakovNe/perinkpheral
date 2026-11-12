@@ -734,45 +734,24 @@ static void draw_centered(int32_t baseline, int32_t font, const char *text)
     draw_text((gfx_width() - text_width(font, text)) / 2, baseline, font, text);
 }
 
-/* ---- small pictures, in cells of two pixels like the host's icons ---- */
+/* ---- small pictures: the host's icons, a cell two pixels like its own ---- */
 
 #define CELL 2
 
-static void draw_cells(const char *const *rows, int32_t rows_count, int32_t left, int32_t top)
+/* The arrows of the host's set sit in the middle of their canvas: nine
+ * cells from the second, five rows from the fourth. `left` and `top` are
+ * where the arrow itself begins. */
+#define CHEVRON_COLUMNS   9
+#define CHEVRON_ROWS      5
+#define CHEVRON_WIDTH     (CHEVRON_COLUMNS * CELL)
+#define CHEVRON_HEIGHT    (CHEVRON_ROWS * CELL)
+#define CHEVRON_FIRST_COLUMN 1
+#define CHEVRON_FIRST_ROW    3
+
+static void draw_chevron(int32_t arrow, int32_t left, int32_t top)
 {
-    for (int32_t row = 0; row < rows_count; row++) {
-        /* A run of ink in a row is one rectangle. */
-        for (int32_t column = 0; rows[row][column] != '\0';) {
-            if (rows[row][column] != '#') {
-                column++;
-                continue;
-            }
-            int32_t run_start = column;
-            while (rows[row][column] == '#') {
-                column++;
-            }
-            gfx_rect(left + run_start * CELL, top + row * CELL, (column - run_start) * CELL, CELL,
-                     HOST_RECT_FILLED);
-        }
-    }
+    gfx_icon(arrow, left - CHEVRON_FIRST_COLUMN * CELL, top - CHEVRON_FIRST_ROW * CELL, CELL);
 }
-
-#define CHEVRON_COLUMNS 9
-#define CHEVRON_ROWS    5
-#define CHEVRON_WIDTH   (CHEVRON_COLUMNS * CELL)
-#define CHEVRON_HEIGHT  (CHEVRON_ROWS * CELL)
-static const char *const CHEVRON_UP[CHEVRON_ROWS] = {
-    "....#....", "...###...", "..##.##..", ".##...##.", "##.....##",
-};
-static const char *const CHEVRON_DOWN[CHEVRON_ROWS] = {
-    "##.....##", ".##...##.", "..##.##..", "...###...", "....#....",
-};
-
-#define TRASH_CELLS 11
-static const char *const TRASH[TRASH_CELLS] = {
-    "....###....", ".#########.", "...........", "..#######..", "..#.#.#.#..", "..#.#.#.#..",
-    "..#.#.#.#..", "..#.#.#.#..", "..#.#.#.#..", "..#######..", "...........",
-};
 
 /* Cuts a value that would run into its label, with "..." for what is gone. */
 static void fit(char text[TEXT_MAX + 1], int32_t max_width)
@@ -823,8 +802,8 @@ static void draw_list(page_t page, int32_t selected)
             /* What OK does to an application here, said by a picture. */
             int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
             gfx_color(first + slot == selected ? HOST_PAPER : HOST_INK);
-            draw_cells(TRASH, TRASH_CELLS, gfx_width() - MARGIN - TRASH_CELLS * CELL,
-                       baseline - (TRASH_CELLS - 1) * CELL);
+            gfx_icon(HOST_ICON_TRASH, gfx_width() - MARGIN - HOST_ICON_CELLS * CELL,
+                     baseline - (HOST_ICON_CELLS - 1) * CELL, CELL);
             gfx_color(HOST_INK);
         }
     }
@@ -873,8 +852,8 @@ static int32_t draw_part(int32_t left, int32_t baseline, int32_t font, const cha
         int32_t height = gfx_font_cap_height(font) + 2 * PART_PAD;
         draw_box(left - PART_PAD, top, width + 2 * PART_PAD, height);
         int32_t arrow_left = left + (width - CHEVRON_WIDTH) / 2;
-        draw_cells(CHEVRON_UP, CHEVRON_ROWS, arrow_left, top - PART_ARROW_GAP - CHEVRON_HEIGHT);
-        draw_cells(CHEVRON_DOWN, CHEVRON_ROWS, arrow_left, top + height + PART_ARROW_GAP);
+        draw_chevron(HOST_ICON_UP, arrow_left, top - PART_ARROW_GAP - CHEVRON_HEIGHT);
+        draw_chevron(HOST_ICON_DOWN, arrow_left, top + height + PART_ARROW_GAP);
     }
     return width;
 }
@@ -934,14 +913,14 @@ static void draw_wheel(const char *above, const char *chosen, const char *below)
 {
     int32_t arrow_left = (gfx_width() - CHEVRON_WIDTH) / 2;
     if (above[0] != '\0') {
-        draw_cells(CHEVRON_UP, CHEVRON_ROWS, arrow_left, WHEEL_UP_TOP);
+        draw_chevron(HOST_ICON_UP, arrow_left, WHEEL_UP_TOP);
         draw_centered(WHEEL_ABOVE_BASELINE, HOST_FONT_TEXT, above);
     }
     draw_box(WHEEL_BOX_LEFT, WHEEL_BOX_TOP, gfx_width() - 2 * WHEEL_BOX_LEFT, WHEEL_BOX_HEIGHT);
     draw_centered(WHEEL_BASELINE, HOST_FONT_MEDIUM, chosen);
     if (below[0] != '\0') {
         draw_centered(WHEEL_BELOW_BASELINE, HOST_FONT_TEXT, below);
-        draw_cells(CHEVRON_DOWN, CHEVRON_ROWS, arrow_left, WHEEL_DOWN_TOP);
+        draw_chevron(HOST_ICON_DOWN, arrow_left, WHEEL_DOWN_TOP);
     }
     draw_centered(WHEEL_HINT_BASELINE, HOST_FONT_SMALL, "OK: save   BACK: cancel");
 }

@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "gfx_icons.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
@@ -25,47 +26,10 @@ static void right_aligned(gfx_t *g, int baseline, const gfx_font_t *font, const 
  * 2 px. Three bars that grow to the right, nothing but right angles. */
 #define ICON_CELL          2
 #define ICON_COLS          11
-#define ICON_ROWS          11
 #define ICON_BASELINE_ROWS 9 /* rows that stand on the text baseline */
-static const char *const SIGNAL[ICON_ROWS] = {
-    ".......##..",
-    ".......##..",
-    ".......##..",
-    "....##.##..",
-    "....##.##..",
-    "....##.##..",
-    ".##.##.##..",
-    ".##.##.##..",
-    ".##.##.##..",
-    "...........",
-    "...........",
-};
-
-static void fill_cells(gfx_t *g, int x, int y, int col, int row, int count, bool black)
-{
-    gfx_fill(g, x + col * ICON_CELL, y + row * ICON_CELL, count * ICON_CELL, ICON_CELL, black);
-}
-
 static void icon_signal(gfx_t *g, int x, int y, bool connected)
 {
-    for (int row = 0; row < ICON_ROWS; row++) {
-        for (int col = 0; col < ICON_COLS; col++) {
-            if (SIGNAL[row][col] == '#') {
-                fill_cells(g, x, y, col, row, 1, true);
-            }
-        }
-    }
-    if (!connected) {
-        /* Struck through from the bottom left corner of the canvas to the
-         * top right: a staircase two cells wide, with a cell of white on
-         * both sides to keep it apart from the bars. */
-        for (int row = 0; row < ICON_ROWS; row++) {
-            int right = ICON_COLS - 1 - row, left = right > 0 ? right - 1 : right;
-            int width = right - left + 1;
-            fill_cells(g, x, y, left - 1, row, width + 2, false);
-            fill_cells(g, x, y, left, row, width, true);
-        }
-    }
+    gfx_icon(g, connected ? GFX_ICON_SIGNAL : GFX_ICON_NO_SIGNAL, x, y, ICON_CELL, true);
 }
 
 #define HEADER_BASELINE    30
@@ -163,26 +127,14 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
 #define CHOICE_DOWN_TOP       212
 #define CHOICE_HINT_BASELINE  250
 
-#define CHEVRON_COLUMNS 9
-#define CHEVRON_ROWS    5
-static const char *const CHEVRON_UP[CHEVRON_ROWS] = {
-    "....#....", "...###...", "..##.##..", ".##...##.", "##.....##",
-};
-static const char *const CHEVRON_DOWN[CHEVRON_ROWS] = {
-    "##.....##", ".##...##.", "..##.##..", "...###...", "....#....",
-};
+/* The arrow of the set is the middle of its canvas: five rows from the
+ * fourth. `top` is where the arrow begins. */
+#define CHEVRON_FIRST_ROW 3
 
-static void chevron(gfx_t *g, const char *const *rows, int top)
+static void chevron(gfx_t *g, gfx_icon_id_t arrow, int top)
 {
-    int left = (g->w - CHEVRON_COLUMNS * ICON_CELL) / 2;
-    for (int row = 0; row < CHEVRON_ROWS; row++) {
-        for (int column = 0; column < CHEVRON_COLUMNS; column++) {
-            if (rows[row][column] == '#') {
-                gfx_fill(g, left + column * ICON_CELL, top + row * ICON_CELL, ICON_CELL, ICON_CELL,
-                         true);
-            }
-        }
-    }
+    gfx_icon(g, arrow, (g->w - GFX_ICON_CELLS * ICON_CELL) / 2, top - CHEVRON_FIRST_ROW * ICON_CELL,
+             ICON_CELL, true);
 }
 
 static void centered(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
@@ -204,13 +156,13 @@ void screens_question(gfx_t *g, const screens_question_t *question)
     frame(g, CHOICE_BOX_LEFT, CHOICE_BOX_TOP, g->w - 2 * CHOICE_BOX_LEFT, CHOICE_BOX_HEIGHT,
           CHOICE_BOX_STROKE);
     if (question->action_is_selected) {
-        chevron(g, CHEVRON_UP, CHOICE_UP_TOP);
+        chevron(g, GFX_ICON_UP, CHOICE_UP_TOP);
         centered(g, CHOICE_ABOVE_BASELINE, text, question->cancel);
         centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->action);
     } else {
         centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->cancel);
         centered(g, CHOICE_BELOW_BASELINE, text, question->action);
-        chevron(g, CHEVRON_DOWN, CHOICE_DOWN_TOP);
+        chevron(g, GFX_ICON_DOWN, CHOICE_DOWN_TOP);
     }
     centered(g, CHOICE_HINT_BASELINE, gfx_font(GFX_FONT_SMALL), "OK: choose   BACK: cancel");
 }

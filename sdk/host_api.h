@@ -287,6 +287,33 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
 HOST_IMPORT(gfx_qr, int32_t gfx_qr(int32_t x, int32_t y, int32_t cell, const char *text,
                                    int32_t length));
 
+/* An icon of the host's own set, in the current colour: eleven cells
+ * square with its top left corner at (x, y), a cell `cell` pixels - 2 is
+ * the size that stands beside the host's text, HOST_ICON_CELL_MAX the
+ * largest. HOST_ERR_ARGUMENT for an icon there is none of. */
+#define HOST_ICON_SIGNAL     0
+#define HOST_ICON_NO_SIGNAL  1
+#define HOST_ICON_UP         2
+#define HOST_ICON_DOWN       3
+#define HOST_ICON_LEFT       4
+#define HOST_ICON_RIGHT      5
+#define HOST_ICON_CHECK      6
+#define HOST_ICON_CROSS      7
+#define HOST_ICON_PLUS       8
+#define HOST_ICON_MINUS      9
+#define HOST_ICON_TRASH      10
+#define HOST_ICON_GEAR       11
+#define HOST_ICON_CLOCK      12
+#define HOST_ICON_HOURGLASS  13
+#define HOST_ICON_BELL       14
+#define HOST_ICON_INFO       15
+#define HOST_ICON_WARNING    16
+#define HOST_ICON_PLAY       17
+#define HOST_ICON_PAUSE      18
+#define HOST_ICON_CELLS      11
+#define HOST_ICON_CELL_MAX   16
+HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
+
 /* From app_on_data() off the screen: what arrived is worth showing now.
  * The host decides; on the screen it means nothing. */
 HOST_IMPORT(request_focus, void request_focus(void));
