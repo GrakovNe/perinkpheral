@@ -124,11 +124,11 @@ static void test_boot_splash(void)
     boot->ops->draw(boot, &surface);
     CHECK(picture_draws == 1);
     scene_reaction_t on_timer = boot->ops->timer(boot, timer_set_id);
-    CHECK(on_timer.kind == SCENE_OPEN && on_timer.open == &first_target);
+    CHECK(on_timer.kind == SCENE_REPLACE && on_timer.open == &first_target);
 
     /* a press does not wait for the timer; a long one is somebody else's */
     scene_reaction_t on_press = press(boot, SCENE_BUTTON_OK);
-    CHECK(on_press.kind == SCENE_OPEN && on_press.open == &first_target);
+    CHECK(on_press.kind == SCENE_REPLACE && on_press.open == &first_target);
     CHECK(boot->ops->button(boot, SCENE_BUTTON_OK, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
 
     /* leaving cancels the timer, or it would fire into the next scene */
@@ -204,7 +204,7 @@ static void test_storage_error(void)
     formats = 0;
     /* BACK leads on with nothing erased */
     scene_reaction_t reaction = press(storage, SCENE_BUTTON_BACK);
-    CHECK(reaction.kind == SCENE_OPEN && reaction.open == &next_scene && formats == 0);
+    CHECK(reaction.kind == SCENE_REPLACE && reaction.open == &next_scene && formats == 0);
     /* the buttons that are not named do nothing */
     CHECK(press(storage, SCENE_BUTTON_DOWN).kind == SCENE_IGNORED && formats == 0);
     press(storage, SCENE_BUTTON_OK);

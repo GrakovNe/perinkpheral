@@ -360,11 +360,28 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_CELL_MAX   16
 HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
 
-/* From app_on_data() off the screen: what arrived is worth showing now.
- * The host decides; on the screen it means nothing. */
+/* ---- Moving about ----
+ *
+ * What is on the screen is the top of a stack, with the menu under it all.
+ * Whatever takes the screen - the menu on a long press of button 4, a
+ * question the host asks, an application whose alarm came - goes on top,
+ * and when it is done what was under it is there again. An application
+ * can count on that and on this much more:
+ *   - it is unloaded while something covers it, and loaded again when it
+ *     is back: app_on_blur() and app_on_terminate() before, app_init() and
+ *     app_on_focus() after. What it wants to come back to goes into its
+ *     store;
+ *   - request_exit() is one step down: to what the application was opened
+ *     over, the menu if nothing;
+ *   - an application that got the screen with request_focus() is on top
+ *     of what the user was looking at, and returns them there when it
+ *     exits. */
+
+/* From app_on_data() and app_on_alarm() off the screen: what arrived is
+ * worth showing now. The host decides; on the screen it means nothing. */
 HOST_IMPORT(request_focus, void request_focus(void));
 
-/* The application is done: give the screen back, as BACK does in the
+/* The application is done: one step down the stack, as BACK does in the
  * host's own pages. It takes effect when app_on_button() or app_on_timer()
  * returns, and is ignored anywhere else. The host's layout has it on a
  * short press of button 4; a long press of button 4 leaves any

@@ -27,7 +27,7 @@ static scene_reaction_t storage_button(scene_t *scene, scene_button_t button, sc
     if (button == SCENE_BUTTON_OK) {
         storage->format();
     } else if (button == SCENE_BUTTON_BACK) {
-        reaction.kind = SCENE_OPEN;
+        reaction.kind = SCENE_REPLACE;
         reaction.open = storage->next;
     }
     return reaction;

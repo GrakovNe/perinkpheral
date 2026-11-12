@@ -273,7 +273,7 @@ typedef struct {
 static void drop_app_scene(scene_t *scene, void *context)
 {
     reload_context_t *reload = context;
-    wm_drop(reload->wm, scene);
+    wm_close(reload->wm, scene);
     if (reload->delivery->in_background == scene) {
         /* In the middle of an answer that now has nobody to go to; the scene
          * that gave way to it comes back. */
@@ -376,7 +376,6 @@ static struct {
     bool              is_confirmed;
     bool              is_to_put_away; /* answered: the screen goes back once the handler returned */
     scene_t          *scene;
-    scene_t          *came_from; /* what had the screen, to give it back; NULL: the menu */
     char              first[CONFIRM_TEXT_MAX + 1];  /* the question, in two lines */
     char              second[CONFIRM_TEXT_MAX + 1];
     int               icon;
@@ -409,19 +408,15 @@ static void on_confirm_answer(bool is_confirmed)
     xSemaphoreGive(s_confirm.answered);
 }
 
-/* The question is answered and its scene is still about: on the screen,
- * set aside for an answer in pieces, or under the menu that was opened
- * over it. What had the screen before gets it back, and the question is
- * not something to return to. Not from inside a scene's own handler. */
+/* The question is answered and its scene is still in the stack: on the
+ * screen, set aside for an answer in pieces, or under the menu that was
+ * opened over it. It comes out, and what was under it is there again. Not
+ * from inside a scene's own handler. */
 static void put_question_away(void)
 {
     s_confirm.is_to_put_away = false;
     give_way_to_the_screen();
-    if (wm.current == s_confirm.scene) {
-        wm_show(&wm, s_confirm.came_from != NULL ? s_confirm.came_from : s_menu);
-    } else {
-        wm_drop(&wm, s_confirm.scene);
-    }
+    wm_close(&wm, s_confirm.scene);
 }
 
 static void open_confirm(void *argument)
@@ -429,14 +424,11 @@ static void open_confirm(void *argument)
     (void)argument;
     /* An application taking an answer off the screen gives way, as to a press. */
     give_way_to_the_screen();
-    if (wm.current != s_confirm.scene) {
-        s_confirm.came_from = wm.current;
-    }
     s_confirm.is_open = true;
     s_confirm.is_to_put_away = false;
     s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
                                     s_confirm.action, on_confirm_answer);
-    wm_show(&wm, s_confirm.scene);
+    wm_open(&wm, s_confirm.scene);
     /* The same scene with another question is another picture. */
     wm_invalidate(&wm, WM_CHANGED_BY_SWITCH);
     if (!deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS)) {
@@ -474,8 +466,7 @@ host_answer_t host_ask_at_the_device(const char *first, const char *second, int 
 
 /* ---- the device is busy with something that must not be interrupted ---- */
 
-static scene_t *s_working;         /* on the screen while it is; NULL otherwise */
-static scene_t *s_before_working;  /* what had the screen; NULL: the menu */
+static scene_t *s_working; /* in the stack while it is; NULL otherwise */
 
 static void open_working(void *argument)
 {
@@ -486,11 +477,8 @@ static void open_working(void *argument)
     if (s_confirm.is_to_put_away) {
         put_question_away();
     }
-    if (s_working == NULL) {
-        s_before_working = wm.current;
-    }
     s_working = scene_working(lines[0], lines[1]);
-    wm_show(&wm, s_working);
+    wm_open(&wm, s_working);
 }
 
 static void close_working(void *argument)
@@ -502,11 +490,7 @@ static void close_working(void *argument)
     /* One instance at a time: an application taking an answer off the
      * screen goes before the one that had the screen is loaded again. */
     give_way_to_the_screen();
-    if (wm.current == s_working) {
-        wm_show(&wm, s_before_working != NULL ? s_before_working : s_menu);
-    } else {
-        wm_drop(&wm, s_working);
-    }
+    wm_close(&wm, s_working);
     s_working = NULL;
 }
 
@@ -635,8 +619,6 @@ void host_reload_apps(void)
      * leave the screen here run their last handlers, and those may ask the
      * poller for something. */
     launcher_reload(drop_app_scene, &context);
-    s_confirm.came_from = NULL; /* the scenes were made anew */
-    s_before_working = NULL;
     poller_reload();
     forget_alarms_of_the_removed();
     int count;

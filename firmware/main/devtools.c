@@ -124,7 +124,7 @@ void devtools_serve(void *opaque, wm_t *wm, uint32_t frames_shown, bool frame_pe
         scene_t *scene = launcher_scene(request->app_name);
         request->done = scene != NULL;
         if (scene != NULL) {
-            wm_show(wm, scene);
+            wm_open(wm, scene);
         }
     }
     request->served = true;

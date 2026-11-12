@@ -69,7 +69,7 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     if (wants_screen && may_give_focus(state, now_ms)) {
         state->has_given_focus = true;
         state->last_focus_ms = now_ms;
-        wm_show(wm, owner);
+        wm_open(wm, owner);
     } else {
         wm_resume(wm);
     }

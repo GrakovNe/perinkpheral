@@ -45,13 +45,14 @@ typedef enum {
     SCENE_REDRAW_SOON,  /* it changed and should be seen now, though nobody pressed anything */
     SCENE_REDRAW_NO_BLINK, /* it changed, should be seen now, and one of a row: no full refresh */
     SCENE_REDRAW_CLEAN, /* it changed and should be shown without traces of the old one */
-    SCENE_OPEN,    /* give the screen to another scene */
+    SCENE_OPEN,    /* another scene over this one: BACK there returns here */
+    SCENE_REPLACE, /* another scene instead of this one, which is done */
     SCENE_BACK,    /* done here: return to where the user came from */
 } scene_reaction_kind_t;
 
 typedef struct {
     scene_reaction_kind_t kind;
-    scene_t              *open; /* for SCENE_OPEN */
+    scene_t              *open; /* for SCENE_OPEN and SCENE_REPLACE */
 } scene_reaction_t;
 
 typedef struct {

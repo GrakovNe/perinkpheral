@@ -32,7 +32,7 @@ static scene_reaction_t splash_button(scene_t *scene, scene_button_t button, sce
     const splash_scene_t *splash = (const splash_scene_t *)scene;
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
     if (press == SCENE_PRESS_SHORT) {
-        reaction.kind = SCENE_OPEN;
+        reaction.kind = SCENE_REPLACE;
         reaction.open = splash->next;
     }
     return reaction;
@@ -61,7 +61,7 @@ static scene_reaction_t splash_timer(scene_t *scene, int timer_id)
 {
     (void)timer_id;
     const splash_scene_t *splash = (const splash_scene_t *)scene;
-    scene_reaction_t reaction = { SCENE_OPEN, splash->next };
+    scene_reaction_t reaction = { SCENE_REPLACE, splash->next };
     return reaction;
 }
 

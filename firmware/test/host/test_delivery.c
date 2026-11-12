@@ -309,7 +309,7 @@ static void test_opened_while_taking_an_answer(void)
     deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
     CHECK(state.in_background == probe);
     /* the user opens it before the answer is whole */
-    wm_show(&wm, probe);
+    wm_open(&wm, probe);
     deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
     /* it is the scene now: an answer for anybody else must not unload it */
     CHECK(state.in_background == NULL && wm.current == probe);

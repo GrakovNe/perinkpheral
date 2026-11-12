@@ -35,25 +35,93 @@ static void give_screen_to(wm_t *wm, scene_t *next)
     mark_changed(wm, WM_CHANGED_BY_SWITCH);
 }
 
-/* The user asked for the menu over a scene that was not done: BACK from
- * the menu returns to it. */
-static void open_home_over_current(wm_t *wm)
+static scene_t *top(const wm_t *wm)
 {
-    if (wm->current != wm->home) {
-        wm->before_home = wm->current;
-        give_screen_to(wm, wm->home);
+    return wm->depth > 0 ? wm->stack[wm->depth - 1] : wm->home;
+}
+
+static int place_of(const wm_t *wm, const scene_t *scene)
+{
+    for (int i = 0; i < wm->depth; i++) {
+        if (wm->stack[i] == scene) {
+            return i;
+        }
     }
+    return -1;
+}
+
+static void remove_at(wm_t *wm, int place)
+{
+    for (int i = place; i + 1 < wm->depth; i++) {
+        wm->stack[i] = wm->stack[i + 1];
+    }
+    wm->depth--;
+}
+
+/* The home is under everything already: at the bottom of the stack it
+ * would only be itself twice. */
+static void settle(wm_t *wm)
+{
+    while (wm->depth > 0 && wm->stack[0] == wm->home) {
+        remove_at(wm, 0);
+    }
+}
+
+/* Onto the top. A scene that is in the stack already becomes the top by
+ * losing what was over it. */
+static void push(wm_t *wm, scene_t *scene)
+{
+    int place = place_of(wm, scene);
+    if (place >= 0) {
+        wm->depth = place + 1;
+    } else {
+        if (wm->depth == WM_STACK_DEPTH) {
+            remove_at(wm, 0); /* the oldest is the one to forget */
+        }
+        wm->stack[wm->depth++] = scene;
+    }
+    settle(wm);
+}
+
+static void show_top(wm_t *wm)
+{
+    give_screen_to(wm, top(wm));
+}
+
+static void open_over_current(wm_t *wm, scene_t *scene)
+{
+    if (scene == NULL) {
+        return;
+    }
+    push(wm, scene);
+    show_top(wm);
+}
+
+/* Opened from the menu: a start anew, whatever the menu was opened over. */
+static void open_from(wm_t *wm, const scene_t *opener, scene_t *scene)
+{
+    if (opener == wm->home) {
+        wm->depth = 0;
+    }
+    open_over_current(wm, scene);
+}
+
+static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
+{
+    int place = place_of(wm, done);
+    if (place >= 0) {
+        remove_at(wm, place);
+    }
+    open_over_current(wm, scene);
 }
 
 static void go_back(wm_t *wm)
 {
-    if (wm->current == wm->home) {
-        give_screen_to(wm, wm->before_home);
-    } else {
-        /* The scene ended itself: there is nothing to return to. */
-        wm->before_home = NULL;
-        give_screen_to(wm, wm->home);
+    if (wm->depth > 0) {
+        wm->depth--;
+        settle(wm);
     }
+    show_top(wm);
 }
 
 void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_header,
@@ -62,12 +130,12 @@ void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_hea
     assert(home != NULL && first != NULL && draw_header != NULL);
     wm->home = home;
     wm->current = NULL;
-    wm->before_home = NULL;
+    wm->depth = 0;
     wm->change = WM_CLEAN;
     wm->suspended = false;
     wm->draw_header = draw_header;
     wm->header_context = header_context;
-    give_screen_to(wm, first);
+    open_over_current(wm, first);
 }
 
 /* cause: what a redraw asked for by this reaction is due to. */
@@ -91,7 +159,10 @@ static void react(wm_t *wm, scene_reaction_t reaction, wm_change_t cause)
         mark_changed(wm, WM_CHANGED_CLEANLY);
         break;
     case SCENE_OPEN:
-        give_screen_to(wm, reaction.open);
+        open_from(wm, wm->current, reaction.open);
+        break;
+    case SCENE_REPLACE:
+        replace(wm, wm->current, reaction.open);
         break;
     case SCENE_BACK:
         go_back(wm);
@@ -106,7 +177,7 @@ void wm_button(wm_t *wm, scene_button_t button, scene_press_t press)
     }
     /* The one press no scene can take away from the user. */
     if (button == SCENE_BUTTON_BACK && press == SCENE_PRESS_LONG) {
-        open_home_over_current(wm);
+        open_over_current(wm, wm->home);
         return;
     }
 
@@ -152,12 +223,19 @@ void wm_resume(wm_t *wm)
     mark_changed(wm, WM_CHANGED_BY_DATA);
 }
 
-void wm_show(wm_t *wm, scene_t *scene)
+void wm_open(wm_t *wm, scene_t *scene)
 {
-    if (scene != wm->home && wm->current != scene) {
-        wm->before_home = NULL;
-    }
-    give_screen_to(wm, scene);
+    open_over_current(wm, scene);
+}
+
+void wm_back(wm_t *wm)
+{
+    go_back(wm);
+}
+
+bool wm_has(const wm_t *wm, const scene_t *scene)
+{
+    return place_of(wm, scene) >= 0;
 }
 
 void wm_invalidate(wm_t *wm, wm_change_t change)
@@ -170,13 +248,17 @@ wm_change_t wm_pending_change(const wm_t *wm)
     return wm->change;
 }
 
-void wm_drop(wm_t *wm, const scene_t *scene)
+void wm_close(wm_t *wm, const scene_t *scene)
 {
-    if (wm->before_home == scene) {
-        wm->before_home = NULL;
+    int place;
+    while ((place = place_of(wm, scene)) >= 0) {
+        remove_at(wm, place);
     }
-    if (wm->current == scene) {
-        give_screen_to(wm, wm->home);
+    settle(wm);
+    /* A scene that had the screen without being in the stack is closed the
+     * same way: what the stack says is shown. */
+    if (wm->current == scene || wm->current != top(wm)) {
+        show_top(wm);
     }
 }
 

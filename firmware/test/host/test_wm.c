@@ -295,7 +295,7 @@ static void test_suspend_and_resume(void)
      * asked to leave a second time */
     wm_shown(&wm);
     wm_suspend(&wm);
-    wm_show(&wm, &page.scene);
+    wm_open(&wm, &page.scene);
     CHECK(wm.current == &page.scene && app.left == 2 && page.entered == 1);
     CHECK(wm_pending_change(&wm) == WM_CHANGED_BY_SWITCH);
     press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
@@ -304,7 +304,7 @@ static void test_suspend_and_resume(void)
     /* suspended, and the screen is given back to the very same scene */
     wm_shown(&wm);
     wm_suspend(&wm);
-    wm_show(&wm, &page.scene);
+    wm_open(&wm, &page.scene);
     CHECK(page.entered == 2 && page.left == 1);
 }
 
@@ -374,25 +374,110 @@ static void test_drop(void)
     /* a scene that is going away: the home takes the screen from it, and
      * BACK from the home does not lead to it */
     start(&menu.scene);
-    wm_show(&wm, &app.scene);
+    wm_open(&wm, &app.scene);
     wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-    CHECK(wm.current == &menu.scene && wm.before_home == &app.scene);
-    wm_drop(&wm, &app.scene);
-    CHECK(wm.current == &menu.scene && wm.before_home == NULL);
+    CHECK(wm.current == &menu.scene && wm_has(&wm, &app.scene));
+    wm_close(&wm, &app.scene);
+    CHECK(wm.current == &menu.scene && !wm_has(&wm, &app.scene));
 
-    wm_show(&wm, &app.scene);
+    wm_open(&wm, &app.scene);
     int left = app.left;
-    wm_drop(&wm, &app.scene);
+    wm_close(&wm, &app.scene);
     CHECK(wm.current == &menu.scene && app.left == left + 1);
 
     /* any other scene is nothing to it */
-    wm_show(&wm, &page.scene);
-    wm_drop(&wm, &app.scene);
+    wm_open(&wm, &page.scene);
+    wm_close(&wm, &app.scene);
     CHECK(wm.current == &page.scene);
+}
+
+static void test_stack(void)
+{
+    static probe_t question, alarm;
+    start(&menu.scene);
+    memset(&question, 0, sizeof question);
+    memset(&alarm, 0, sizeof alarm);
+    question.scene.ops = alarm.scene.ops = &PROBE_OPS;
+
+    /* the menu opens the application: it is all there is */
+    menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &app.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
+
+    /* something over it: the application leaves and waits */
+    wm_open(&wm, &question.scene);
+    CHECK(wm.current == &question.scene && app.left == 1 && wm_has(&wm, &app.scene));
+    /* and is there again, entered anew, when that is closed */
+    wm_close(&wm, &question.scene);
+    CHECK(wm.current == &app.scene && app.entered == 2 && question.left == 1);
+
+    /* a scene opens another over itself; BACK there is one step down */
+    app.next_reaction = (scene_reaction_t){ SCENE_OPEN, &page.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &page.scene && wm.depth == 2);
+    page.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
+
+    /* the menu over the application, a question over the menu: closed, it
+     * leaves the menu, and BACK in the menu still leads to the application */
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    wm_open(&wm, &question.scene);
+    CHECK(wm.current == &question.scene && wm.depth == 3);
+    wm_close(&wm, &question.scene);
+    CHECK(wm.current == &menu.scene);
+    menu.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
+
+    /* a scene closed while it waits under another is simply not returned to */
+    wm_open(&wm, &alarm.scene);
+    wm_close(&wm, &app.scene);
+    CHECK(wm.current == &alarm.scene && wm.depth == 1);
+    wm_back(&wm);
+    CHECK(wm.current == &menu.scene && wm.depth == 0);
+    /* and BACK with nothing under is the menu, still */
+    wm_back(&wm);
+    CHECK(wm.current == &menu.scene);
+
+    /* opened again, a scene is the top: what was over it is gone */
+    wm_open(&wm, &app.scene);
+    wm_open(&wm, &page.scene);
+    wm_open(&wm, &alarm.scene);
+    wm_open(&wm, &app.scene);
+    CHECK(wm.current == &app.scene && wm.depth == 1 && !wm_has(&wm, &page.scene));
+
+    /* the long press over the menu's own overlay does not pile menus up */
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    wm_open(&wm, &question.scene);
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(wm.current == &menu.scene && wm.depth == 2 && !wm_has(&wm, &question.scene));
+
+    /* opening from the menu starts anew, whatever the menu was over */
+    menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &page.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &page.scene && wm.depth == 1 && !wm_has(&wm, &app.scene));
+
+    /* a scene that gives its place away is not returned to */
+    page.next_reaction = (scene_reaction_t){ SCENE_REPLACE, &app.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
+    page.next_reaction.kind = SCENE_IGNORED;
+
+    /* more than the stack holds: the oldest is forgotten, the top stays */
+    static probe_t many[WM_STACK_DEPTH + 1];
+    for (int i = 0; i <= WM_STACK_DEPTH; i++) {
+        memset(&many[i], 0, sizeof many[i]);
+        many[i].scene.ops = &PROBE_OPS;
+        wm_open(&wm, &many[i].scene);
+    }
+    CHECK(wm.depth == WM_STACK_DEPTH && wm.current == &many[WM_STACK_DEPTH].scene &&
+          !wm_has(&wm, &app.scene));
 }
 
 int main(void)
 {
+    test_stack();
     test_drop();
     test_header_share();
     test_first_scene();
