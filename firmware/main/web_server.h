@@ -32,6 +32,11 @@ bool web_server_is_up(void);
  * made by a page of another site, and has been answered with a refusal. */
 bool web_server_refuses_cross_site(httpd_req_t *request);
 
+/* The request's body is a firmware image: written into the spare slot,
+ * answered, and the device restarts into it. Nobody is asked: whoever
+ * calls this has seen to that. */
+esp_err_t web_server_take_firmware(httpd_req_t *request);
+
 #ifdef __cplusplus
 }
 #endif

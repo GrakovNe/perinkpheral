@@ -48,6 +48,18 @@ typedef void (*scenes_action_fn)(void);
  * `format`, which does not come back with the screen. */
 scene_t *scene_storage_error(scene_t *next, scenes_action_fn format);
 
+/* How a question was answered. */
+typedef void (*scenes_answer_fn)(bool is_confirmed);
+
+/* A question from the network that only somebody at the device may
+ * answer: `question` ("Update firmware?"), a line of `detail` under it
+ * (the network's name; "" for none), and Cancel above `action`. `answer`
+ * is called with the choice, and with false whenever the scene loses the
+ * screen: the first call is the answer. The texts must outlive the scene's time on the
+ * screen. */
+scene_t *scene_confirm(const char *question, const char *detail, const char *action,
+                       scenes_answer_fn answer);
+
 #ifdef __cplusplus
 }
 #endif

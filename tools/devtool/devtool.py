@@ -212,7 +212,7 @@ def command_set(device, options):
 
 def command_flash(device, options):
     with open(options.image, "rb") as image:
-        answer, _ = device.request("/api/ota", method="POST", body=image.read(),
+        answer, _ = device.request("/api/dev/flash", method="POST", body=image.read(),
                                    timeout=UPLOAD_TIMEOUT_S)
     print(answer.decode("utf-8", "replace").strip())
     status = device.wait_until_back()

@@ -310,6 +310,17 @@ static esp_err_t handle_app_file(httpd_req_t *http)
     return send_text(http, "200 OK", "stored");
 }
 
+/* A firmware image, as /api/ota takes it, with nobody asked at the device:
+ * a device on the bench is flashed many times an hour by whoever works on
+ * it. Not in a build for release, as nothing here is. */
+static esp_err_t handle_flash(httpd_req_t *http)
+{
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
+    return web_server_take_firmware(http);
+}
+
 /* The list of applications is read once, at start, so a new one is
  * started by starting over: the device comes back showing what it showed
  * last, and that is made to be this application. */
@@ -377,6 +388,7 @@ void devtools_register(httpd_handle_t server)
         { .uri = "/api/dev/open", .method = HTTP_POST, .handler = handle_open },
         { .uri = "/api/dev/app", .method = HTTP_POST, .handler = handle_app_file },
         { .uri = "/api/dev/run", .method = HTTP_POST, .handler = handle_run },
+        { .uri = "/api/dev/flash", .method = HTTP_POST, .handler = handle_flash },
         { .uri = "/api/dev/restart", .method = HTTP_POST, .handler = handle_restart },
         { .uri = "/api/dev/kv", .method = HTTP_POST, .handler = handle_kv },
     };

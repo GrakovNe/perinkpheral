@@ -29,6 +29,20 @@ typedef enum {
 } host_stop_t;
 void host_stop_soon(host_stop_t why);
 
+/* What somebody on the network asked for cannot be taken back: the device
+ * shows the question - `question`, a line of `detail` ("" for none), and
+ * Cancel above `action` - and this waits for whoever stands at it, a
+ * minute at most. From any task but the host loop. One question at a
+ * time: a second one meanwhile is answered HOST_ANSWER_BUSY at once. */
+typedef enum {
+    HOST_ANSWER_CONFIRMED,
+    HOST_ANSWER_NOT_CONFIRMED,
+    HOST_ANSWER_BUSY,
+} host_answer_t;
+
+host_answer_t host_ask_at_the_device(const char *question, const char *detail,
+                                     const char *action);
+
 /* For what runs in the host loop - a handler of events_call() - and
  * nothing else.
  *

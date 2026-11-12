@@ -259,6 +259,84 @@ void host_stop_soon(host_stop_t why)
     deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS);
 }
 
+/* ---- a question for whoever stands at the device ---- */
+
+#define CONFIRM_WAIT_MS   60000
+#define CONFIRM_TEXT_MAX  47
+
+/* One question at a time. The task that asks waits here for the answer;
+ * the question itself lives in the host loop. */
+static struct {
+    SemaphoreHandle_t turn;     /* held by the task whose question is open */
+    SemaphoreHandle_t answered;
+    bool              is_open;  /* the host loop's */
+    bool              is_confirmed;
+    scene_t          *scene;
+    char              question[CONFIRM_TEXT_MAX + 1];
+    char              detail[CONFIRM_TEXT_MAX + 1];
+    char              action[CONFIRM_TEXT_MAX + 1];
+} s_confirm;
+
+/* An answer is being handed to an application that is not on the screen:
+ * the scene on it is set aside for the moment and comes back. */
+static bool s_is_delivering;
+
+/* In the host loop: from the scene. The first call is the answer. */
+static void on_confirm_answer(bool is_confirmed)
+{
+    /* Set aside for a delivery is not an answer: the question is back in a
+     * moment. */
+    if (!s_confirm.is_open || (s_is_delivering && !is_confirmed)) {
+        return;
+    }
+    s_confirm.is_open = false;
+    s_confirm.is_confirmed = is_confirmed;
+    deadlines_cancel(DEADLINE_CONFIRM, 0, 0);
+    ESP_LOGW(TAG, "\"%s\" %s", s_confirm.question, is_confirmed ? "confirmed" : "not confirmed");
+    xSemaphoreGive(s_confirm.answered);
+}
+
+static void open_confirm(void *argument)
+{
+    (void)argument;
+    /* An application taking an answer off the screen gives way, as to a press. */
+    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    s_confirm.is_open = true;
+    s_confirm.scene = scene_confirm(s_confirm.question, s_confirm.detail, s_confirm.action,
+                                    on_confirm_answer);
+    wm_show(&wm, s_confirm.scene);
+    deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS);
+}
+
+/* Nobody came: the question leaves the screen, which answers it. */
+static void close_unanswered_confirm(void)
+{
+    if (s_confirm.is_open) {
+        scene_reaction_t back = { SCENE_BACK, NULL };
+        wm_scene_reacted(&wm, s_confirm.scene, back, WM_CHANGED_BY_SWITCH);
+        on_confirm_answer(false); /* if the scene was not on the screen to be told */
+    }
+}
+
+host_answer_t host_ask_at_the_device(const char *question, const char *detail,
+                                     const char *action)
+{
+    if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
+        return HOST_ANSWER_BUSY;
+    }
+    strlcpy(s_confirm.question, question, sizeof s_confirm.question);
+    strlcpy(s_confirm.detail, detail, sizeof s_confirm.detail);
+    strlcpy(s_confirm.action, action, sizeof s_confirm.action);
+    host_answer_t answer = HOST_ANSWER_BUSY;
+    if (events_call(open_confirm, NULL)) {
+        /* The host loop answers for certain: by a press, or by the deadline. */
+        xSemaphoreTake(s_confirm.answered, portMAX_DELAY);
+        answer = s_confirm.is_confirmed ? HOST_ANSWER_CONFIRMED : HOST_ANSWER_NOT_CONFIRMED;
+    }
+    xSemaphoreGive(s_confirm.turn);
+    return answer;
+}
+
 /* ---- deadlines ---- */
 
 /* Whether the host loop was told that some deadlines have come and has not
@@ -282,6 +360,9 @@ static bool tell_of_deadlines(void)
 
 void host_deadlines_start(void)
 {
+    s_confirm.turn = xSemaphoreCreateMutex();
+    s_confirm.answered = xSemaphoreCreateBinary();
+    configASSERT(s_confirm.turn != NULL && s_confirm.answered != NULL);
     deadlines_start(tell_of_deadlines);
 }
 
@@ -340,6 +421,9 @@ static void answer_deadlines(void)
         case DEADLINE_POLLER_LOOK:
             poller_look();
             break;
+        case DEADLINE_CONFIRM:
+            close_unanswered_confirm();
+            break;
         case DEADLINE_STOP:
             stop(s_stop_reason);
             break;
@@ -388,7 +472,9 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
 {
     scene_t *owner = launcher_app_scene(app_name);
     if (owner != NULL) {
+        s_is_delivering = true;
         app_deliver(&delivery_state, &wm, owner, delivery, esp_timer_get_time() / 1000);
+        s_is_delivering = false;
     }
 }
 

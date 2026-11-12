@@ -144,8 +144,81 @@ static void test_boot_splash(void)
     boot->ops->leave(boot);
 }
 
+static int answers, confirmations;
+
+static void record_answer(bool is_confirmed)
+{
+    answers++;
+    confirmations += is_confirmed ? 1 : 0;
+}
+
+/* A surface of the size the scenes have under the header. */
+static void draw_once(scene_t *scene)
+{
+    static uint8_t pixels[400 / 8 * 260];
+    gfx_t surface;
+    gfx_init(&surface, pixels, 400, 260);
+    scene->ops->draw(scene, &surface);
+}
+
+static void test_confirm(void)
+{
+    /* Cancel is where the selection starts: OK at once is "no" */
+    scene_t *confirm = scene_confirm("Update firmware?", "", "Update", record_answer);
+    answers = confirmations = 0;
+    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_BACK);
+    CHECK(answers == 1 && confirmations == 0);
+
+    /* down to the action, then OK */
+    confirm = scene_confirm("Update firmware?", "", "Update", record_answer);
+    answers = confirmations = 0;
+    CHECK(press(confirm, SCENE_BUTTON_DOWN).kind == SCENE_REDRAW_NO_BLINK);
+    CHECK(answers == 0);
+    CHECK(press(confirm, SCENE_BUTTON_OK).kind == SCENE_BACK);
+    CHECK(answers == 1 && confirmations == 1);
+
+    /* BACK is "no" wherever the selection is, and so is losing the screen */
+    confirm = scene_confirm("Factory reset?", "", "Reset", record_answer);
+    answers = confirmations = 0;
+    press(confirm, SCENE_BUTTON_DOWN);
+    CHECK(press(confirm, SCENE_BUTTON_BACK).kind == SCENE_BACK);
+    confirm->ops->leave(confirm);
+    CHECK(answers == 2 && confirmations == 0);
+
+    /* a press that is not a short one answers nothing */
+    CHECK(confirm->ops->button(confirm, SCENE_BUTTON_OK, SCENE_PRESS_DOWN).kind == SCENE_IGNORED);
+    CHECK(answers == 2);
+    draw_once(confirm);
+}
+
+static int formats;
+
+static void record_format(void)
+{
+    formats++;
+}
+
+static void test_storage_error(void)
+{
+    static scene_t next_scene;
+    scene_t *storage = scene_storage_error(&next_scene, record_format);
+    formats = 0;
+    /* Cancel is where the selection starts, and leads on */
+    scene_reaction_t reaction = press(storage, SCENE_BUTTON_OK);
+    CHECK(reaction.kind == SCENE_OPEN && reaction.open == &next_scene && formats == 0);
+    reaction = press(storage, SCENE_BUTTON_BACK);
+    CHECK(reaction.kind == SCENE_OPEN && reaction.open == &next_scene && formats == 0);
+    /* Format has to be chosen */
+    press(storage, SCENE_BUTTON_DOWN);
+    press(storage, SCENE_BUTTON_OK);
+    CHECK(formats == 1);
+    draw_once(storage);
+}
+
 int main(void)
 {
+    test_confirm();
+    test_storage_error();
     test_boot_splash();
     test_menu_moves_and_wraps();
     test_menu_back_and_long();

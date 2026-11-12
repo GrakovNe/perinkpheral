@@ -129,6 +129,36 @@ static esp_err_t send_failure(httpd_req_t *request, const char *http_status, con
     return send_json(request, http_status, json);
 }
 
+static esp_err_t send_error(httpd_req_t *request, const char *message);
+
+#define STATUS_FORBIDDEN "403 Forbidden"
+
+/* What cannot be taken back is done only when somebody at the device says
+ * so. False, with the answer sent, when nobody did. */
+static bool is_confirmed_at_the_device(httpd_req_t *request, const char *question,
+                                       const char *detail, const char *action)
+{
+    switch (host_ask_at_the_device(question, detail, action)) {
+    case HOST_ANSWER_CONFIRMED:
+        return true;
+    case HOST_ANSWER_BUSY:
+        send_failure(request, STATUS_BUSY, "Device busy.");
+        return false;
+    case HOST_ANSWER_NOT_CONFIRMED:
+        break;
+    }
+    send_failure(request, STATUS_FORBIDDEN, "Not confirmed.");
+    return false;
+}
+
+/* A change of settings that is asked about first: the question, the word
+ * for doing it, and the field of the request that says what exactly. */
+typedef struct {
+    const char *question;
+    const char *action;
+    const char *detail_field;
+} confirmation_t;
+
 static esp_err_t send_error(httpd_req_t *request, const char *message)
 {
     return send_failure(request, STATUS_BAD_REQUEST, message);
@@ -299,7 +329,7 @@ static void change_settings(void *argument)
 /* Reads the body, has the settings changed with `edit` and answers the
  * page. `restarts`: the change is one the device restarts for. */
 static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn edit,
-                                          bool restarts)
+                                          bool restarts, const confirmation_t *confirmation)
 {
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
@@ -311,6 +341,16 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     cJSON *json = cJSON_Parse(body);
     if (json == NULL) {
         return send_error(request, "Invalid request.");
+    }
+    if (confirmation != NULL) {
+        /* What is asked about is named by the request itself. */
+        const cJSON *named = cJSON_GetObjectItemCaseSensitive(json, confirmation->detail_field);
+        const char  *detail = cJSON_IsString(named) ? named->valuestring : "";
+        if (!is_confirmed_at_the_device(request, confirmation->question, detail,
+                                        confirmation->action)) {
+            cJSON_Delete(json);
+            return ESP_OK;
+        }
     }
     settings_command_t command = { .json = json, .edit = edit };
     bool is_asked = events_call(change_settings, &command);
@@ -345,7 +385,8 @@ static bool edit_network(const cJSON *json, appconf_t *wanted)
 
 static esp_err_t handle_wifi(httpd_req_t *request)
 {
-    return change_settings_as_asked(request, edit_network, true);
+    static const confirmation_t ASKED = { "Connect to Wi-Fi?", "Connect", "ssid" };
+    return change_settings_as_asked(request, edit_network, true, &ASKED);
 }
 
 /* The time zone takes effect at once: the header and the applications
@@ -358,7 +399,7 @@ static bool edit_time_zone(const cJSON *json, appconf_t *wanted)
 
 static esp_err_t handle_time(httpd_req_t *request)
 {
-    return change_settings_as_asked(request, edit_time_zone, false);
+    return change_settings_as_asked(request, edit_time_zone, false, NULL);
 }
 
 /* ---- the host's own settings ---- */
@@ -436,7 +477,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
 
 static esp_err_t handle_set_settings(httpd_req_t *request)
 {
-    return change_settings_as_asked(request, edit_settings, false);
+    return change_settings_as_asked(request, edit_settings, false, NULL);
 }
 
 static esp_err_t handle_restart(httpd_req_t *request)
@@ -456,6 +497,9 @@ static esp_err_t handle_restart(httpd_req_t *request)
 static esp_err_t handle_reset(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    if (!is_confirmed_at_the_device(request, "Factory reset?", "", "Reset")) {
         return ESP_OK;
     }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
@@ -502,6 +546,9 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
         return send_error(request, "Invalid request.");
     }
 
+    if (!is_confirmed_at_the_device(request, "Update firmware?", "", "Update")) {
+        return ESP_OK;
+    }
     ESP_LOGW(TAG, "installing the release at %s", address);
     const char *error = ota_upload_begin(image_size);
     if (error == NULL) {
@@ -534,6 +581,14 @@ static esp_err_t handle_ota(httpd_req_t *request)
     if (request->content_len == 0) {
         return send_error(request, "No image.");
     }
+    if (!is_confirmed_at_the_device(request, "Update firmware?", "", "Update")) {
+        return ESP_OK;
+    }
+    return web_server_take_firmware(request);
+}
+
+esp_err_t web_server_take_firmware(httpd_req_t *request)
+{
     const char *error = ota_upload_begin(request->content_len);
     uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
     if (error == NULL && chunk == NULL) {

@@ -36,7 +36,7 @@ extern "C" {
 void devtools_register(httpd_handle_t server);
 
 /* How many routes devtools_register() adds. */
-#define DEVTOOLS_ROUTES 7
+#define DEVTOOLS_ROUTES 8
 
 /* The host loop's side: it took EVENT_DEV_REQUEST off the queue. Whatever
  * touches the frame or the scenes is done here, on the host's own task.
