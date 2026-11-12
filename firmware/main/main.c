@@ -15,7 +15,6 @@
 #include "app_system.h"
 #include "m3_area.h"
 #include "poller.h"
-#include "deep_sleep.h"
 #include "power.h"
 #include "app_kv.h"
 #include "appconf.h"
@@ -106,18 +105,10 @@ static void on_button_event(uint8_t index, btn_event_t event)
 
 void app_main(void)
 {
-    deep_sleep_note_wake();
     log_capture_start();
     ESP_LOGI(TAG, "perINKpheral firmware %s (idf %s, built %s %s)",
              esp_app_get_description()->version, esp_get_idf_version(),
              __DATE__, __TIME__);
-
-    static const char *const WOKE_BY[] = {
-        [WOKE_NOT_FROM_SLEEP] = "a start",
-        [WOKE_BY_CLOCK] = "woken by the clock",
-        [WOKE_BY_BUTTON] = "woken by a button",
-    };
-    ESP_LOGI(TAG, "%s", WOKE_BY[deep_sleep_woke_by()]);
 
     reset_early_init();
     /* First of all: the heap will not be this whole again. */
@@ -161,9 +152,7 @@ void app_main(void)
     };
     status_start();
     wifi_start(&wifi);
-    power_start(cfg->power_saving != APPCONF_POWER_PLUGGED,
-                cfg->power_saving == APPCONF_POWER_EXTREME,
-                deep_sleep_woke_by() != WOKE_BY_CLOCK);
+    power_start(cfg->power_saving != APPCONF_POWER_PLUGGED);
     announce_name(cfg);
     net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);

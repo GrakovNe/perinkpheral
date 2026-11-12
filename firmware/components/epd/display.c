@@ -29,23 +29,6 @@ static const char *TAG = "display";
 #define KEEPALIVE_WITHOUT_A_FRAME_MS (60 * 1000)
 #define WHITE_BYTE         0xFF
 
-/* What the panel shows, as a number, in the memory that outlives the
- * chip's deep sleep: the panel keeps its picture through it and the copy
- * below does not. A frame that comes to the same number after waking is
- * the one on the panel, and costs no refresh. 0: not known. */
-static RTC_DATA_ATTR uint32_t s_panel_shows;
-
-#define FNV_OFFSET 2166136261u
-#define FNV_PRIME  16777619u
-
-static uint32_t number_of(const uint8_t *frame)
-{
-    uint32_t number = FNV_OFFSET;
-    for (size_t i = 0; i < DISPLAY_FRAME_SIZE; i++) {
-        number = (number ^ frame[i]) * FNV_PRIME;
-    }
-    return number != 0 ? number : 1;
-}
 
 static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
 /* False after a reset and after a failed refresh: the panel holds
@@ -98,9 +81,6 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     if (kind == REFRESH_NONE) {
         return kind;
     }
-    /* Whatever comes of this, the number from before the sleep is not what
-     * the panel shows any more. */
-    s_panel_shows = 0;
     frame_box_t changed = s_shown_is_on_panel
                               ? frame_box_of_change(s_shown, frame, EPD_COLUMNS, DISPLAY_HEIGHT)
                               : WHOLE_FRAME;
@@ -149,29 +129,17 @@ void display_keepalive(void)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     esp_err_t err = ESP_OK;
     if (!s_shown_is_on_panel) {
-        /* Nothing was shown since the start - it came due through a deep
-         * sleep, ahead of the first frame: there is no picture here to
+        /* Nothing was shown since the start: there is no picture here to
          * refresh the panel with yet. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, KEEPALIVE_WITHOUT_A_FRAME_MS);
-        /* And the first frame is not taken for the one on the panel: it is
-         * the refresh that is owed. */
-        s_panel_shows = 0;
     } else if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
         s_shown_is_on_panel = err == ESP_OK;
-        s_panel_shows = err == ESP_OK ? number_of(s_shown) : 0;
     } else {
         /* Came early - the setting was changed since: at its time, then. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0,
                          refresh_policy_wait_ms(&s_policy, &s_cfg, REFRESH_FOR_KEEPALIVE,
                                                 now_ms()));
     }
-    xSemaphoreGive(s_lock);
-}
-
-void display_keep_lines_through_sleep(void)
-{
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    epd_keep_lines_through_deep_sleep();
     xSemaphoreGive(s_lock);
 }
 
@@ -223,11 +191,6 @@ display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
 {
     display_result_t result;
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    if (!s_shown_is_on_panel && s_panel_shows != 0 && number_of(frame) == s_panel_shows) {
-        /* Woken from deep sleep with the picture still on the panel. */
-        memcpy(s_shown, frame, sizeof s_shown);
-        s_shown_is_on_panel = true;
-    }
     if (s_shown_is_on_panel && memcmp(s_shown, frame, sizeof s_shown) == 0) {
         result = DISPLAY_UNCHANGED;
     } else {
@@ -236,12 +199,10 @@ display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
             result = DISPLAY_DEFERRED;
         } else if (err != ESP_OK) {
             s_shown_is_on_panel = false;
-            s_panel_shows = 0;
             result = DISPLAY_FAILED;
         } else {
             memcpy(s_shown, frame, sizeof s_shown);
             s_shown_is_on_panel = true;
-            s_panel_shows = number_of(frame);
             result = DISPLAY_SHOWN;
         }
     }

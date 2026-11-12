@@ -4,7 +4,6 @@
  */
 #include "deadlines.h"
 
-#include "esp_attr.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -15,12 +14,7 @@
  * offered again this soon. */
 #define TELL_AGAIN_MS       50
 
-/* In the memory that keeps its contents through the chip's deep sleep, and
- * is loaded from the image on any other start: after a sleep the deadlines
- * that outlive it are still here. */
-#define TABLE_IS_KEPT 0x444c4e53u /* "DLNS" */
-static RTC_DATA_ATTR deadline_table_t s_table;
-static RTC_DATA_ATTR uint32_t         s_table_mark;
+static deadline_table_t s_table;
 static SemaphoreHandle_t  s_lock;
 static esp_timer_handle_t s_timer; /* the one timer: set for the nearest deadline */
 static bool (*s_some_are_due)(void);
@@ -54,20 +48,15 @@ static void on_timer(void *arg)
     }
 }
 
-void deadlines_start(bool (*some_are_due)(void), bool woke_from_deep_sleep)
+void deadlines_start(bool (*some_are_due)(void))
 {
     s_some_are_due = some_are_due;
-    if (woke_from_deep_sleep && s_table_mark == TABLE_IS_KEPT) {
-        deadline_table_keep_kinds(&s_table, DEADLINES_THAT_OUTLIVE_SLEEP);
-    } else {
-        deadline_table_init(&s_table);
-        s_table_mark = TABLE_IS_KEPT;
-    }
+    deadline_table_init(&s_table);
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
     esp_timer_create_args_t timer = { .callback = on_timer, .name = "deadlines" };
     ESP_ERROR_CHECK(esp_timer_create(&timer, &s_timer));
-    aim_timer(); /* for what was kept through the sleep */
+    aim_timer();
 }
 
 static bool set(deadline_kind_t kind, uint32_t owner, int number, int64_t when_ms,
@@ -131,15 +120,6 @@ bool deadlines_take_due(deadline_id_t *id)
     }
     xSemaphoreGive(s_lock);
     return is_due;
-}
-
-int64_t deadlines_next_worth_waking_for(void)
-{
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    int64_t next_ms = deadline_table_nearest_of(
-        &s_table, DEADLINES_THAT_OUTLIVE_SLEEP | 1u << DEADLINE_DATE);
-    xSemaphoreGive(s_lock);
-    return next_ms;
 }
 
 void deadlines_look_again(void)

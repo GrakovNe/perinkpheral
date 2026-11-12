@@ -152,8 +152,7 @@ const char *ota_upload_end(void)
     const char *error = upload_result(ota_stream_end(&s_upload.stream));
     if (error == NULL) {
         /* Still in progress, and the radio still held: the next thing is
-         * the restart into the image, and a deep sleep before it would wake
-         * as that image with this one's memory. */
+         * the restart into the image. */
         ESP_LOGW(TAG, "the uploaded image is in place");
     }
     return error;

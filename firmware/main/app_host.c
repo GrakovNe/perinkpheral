@@ -4,7 +4,6 @@
  */
 #include "app_host.h"
 
-#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
@@ -107,8 +106,7 @@ void app_host_tell_started(void)
 
 /* The alarms that come again and again: how often each, and when it is
  * due next on the deadlines' own clock - so that a late call does not
- * make every one after it late. Kept through deep sleep with the
- * deadlines themselves; a restart forgets both. */
+ * make every one after it late. A restart forgets them with the alarms. */
 #define RECURRING_MAX 8
 typedef struct {
     uint32_t app_id; /* 0: free */
@@ -116,7 +114,7 @@ typedef struct {
     int32_t  every_s;
     int64_t  due_ms;
 } recurring_t;
-static RTC_DATA_ATTR recurring_t s_recurring[RECURRING_MAX];
+static recurring_t s_recurring[RECURRING_MAX];
 
 static recurring_t *recurring_of(uint32_t app_id, int alarm)
 {

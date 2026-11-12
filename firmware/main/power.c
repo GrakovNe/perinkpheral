@@ -18,7 +18,6 @@ static const char *TAG = "power";
 
 static SemaphoreHandle_t  s_lock;
 static bool               s_is_saving;
-static bool               s_sleeps_deeply; /* saving, and asleep for good between the polls */
 static int                s_radio_holds;
 static bool               s_is_awake_for_user; /* the while after a press */
 
@@ -59,33 +58,28 @@ static void stay_awake_for_user(void)
     deadlines_set_in(DEADLINE_AWAKE_WINDOW, 0, 0, POWER_AWAKE_AFTER_PRESS_MS);
 }
 
-void power_start(bool is_saving, bool sleeps_deeply, bool is_user_here)
+void power_start(bool is_saving)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_is_saving = is_saving;
-    s_sleeps_deeply = is_saving && sleeps_deeply;
-    /* Powered up, or woken by a button: whoever did it may want the page.
-     * Woken by its own clock for a poll, nobody is there. */
-    if (is_user_here) {
-        stay_awake_for_user();
-    }
+    /* Powered up: whoever did it may want the page. */
+    stay_awake_for_user();
     apply_radio();
     xSemaphoreGive(s_lock);
     apply_sleep();
     ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "plugged");
 }
 
-void power_set_saving(bool is_saving, bool sleeps_deeply)
+void power_set_saving(bool is_saving)
 {
     if (s_lock == NULL) {
         return;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool changed = s_is_saving != is_saving || s_sleeps_deeply != (is_saving && sleeps_deeply);
+    bool changed = s_is_saving != is_saving;
     s_is_saving = is_saving;
-    s_sleeps_deeply = is_saving && sleeps_deeply;
     if (changed) {
         /* Whoever changed it is here. */
         stay_awake_for_user();
@@ -101,17 +95,6 @@ void power_set_saving(bool is_saving, bool sleeps_deeply)
 bool power_is_saving(void)
 {
     return s_is_saving;
-}
-
-bool power_may_sleep_deeply(void)
-{
-    if (s_lock == NULL) {
-        return false;
-    }
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool may = s_sleeps_deeply && s_radio_holds == 0 && !s_is_awake_for_user;
-    xSemaphoreGive(s_lock);
-    return may;
 }
 
 void power_hold_radio(void)

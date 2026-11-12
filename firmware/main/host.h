@@ -26,7 +26,6 @@ void host_deadlines_start(void);
 typedef enum {
     HOST_STOP_RESTART,
     HOST_STOP_FACTORY_RESET, /* the settings and what applications stored are erased on the way up */
-    HOST_STOP_DEEP_SLEEP,    /* not asked for by anybody: the host loop's own, when nothing is left to do */
 } host_stop_t;
 void host_stop_soon(host_stop_t why);
 

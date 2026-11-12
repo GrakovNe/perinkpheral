@@ -57,9 +57,6 @@ esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window, bool st
 /* Puts a panel that was left awake into deep sleep; nothing if it is there. */
 void epd_sleep(void);
 
-/* The chip is about to sleep deeply and lets go of its lines: the panel's
- * reset and chip select keep their levels until epd_init() after it. */
-void epd_keep_lines_through_deep_sleep(void);
 
 #ifdef __cplusplus
 }

@@ -115,6 +115,11 @@ static void load(appconf_t *c, const char device_id[5])
     nvs_get_u8(h, KEY_REFRESH_FAST, &c->refresh_fast);
     nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
     nvs_get_u8(h, KEY_POWER_SAVING, &c->power_saving);
+    if (c->power_saving > APPCONF_POWER_SAVING) {
+        /* Stored by a firmware that had a deeper way of saving: the device
+         * goes on saving the way that is left, and keeps its settings. */
+        c->power_saving = APPCONF_POWER_SAVING;
+    }
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -321,8 +326,7 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
     if (power_changed) {
         /* Only then: the polls are another distance apart, and scheduling
          * them anew is not something to do for a change of the time zone. */
-        power_set_saving(s_live.power_saving != APPCONF_POWER_PLUGGED,
-                         s_live.power_saving == APPCONF_POWER_EXTREME);
+        power_set_saving(s_live.power_saving != APPCONF_POWER_PLUGGED);
         poller_reschedule();
     }
     if (zone_changed) {

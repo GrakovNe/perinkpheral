@@ -94,8 +94,8 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
 
 #define ROOT_ROWS 5
 
-#define POWER_SAVINGS 3
-static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On", "Extreme" };
+#define POWER_SAVINGS 2
+static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On" };
 
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
@@ -479,8 +479,7 @@ static void activate(page_t page, int32_t row)
             int32_t city = current_city();
             open(PAGE_ZONE, city >= 0 ? city : 0);
         } else {
-            /* On: the device runs from its battery. Extreme: and sleeps
-             * deeply between its polls. */
+            /* On: the device runs from its battery. */
             sys_number_set(SYS_NUMBER_POWER_SAVING,
                            (read_number(SYS_NUMBER_POWER_SAVING) + 1) % POWER_SAVINGS);
             show();

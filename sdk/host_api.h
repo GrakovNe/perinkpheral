@@ -653,8 +653,7 @@ HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t s
 #define HOST_INTENT_STARTED      3 /* the device was powered up or restarted: what a restart
                                       forgets - alarms, a poll's own pace, requests under way -
                                       is set up again from the store. Nobody has to open the
-                                      application for it. Not sent when the device only wakes
-                                      from its sleep: alarms and polls outlive that */
+                                      application for it */
 APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 
 /* ---- Alarms ---- */
@@ -685,8 +684,7 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * first time that long from now, until alarm_set(id, 0) takes it back or
  * the alarm is set another way. For what has to be kept up while the
  * application is away - the minutes left, in the header (header_status).
- * From a minute to a day: every call loads the application for a moment,
- * and a device that sleeps between its polls is woken for each. */
+ * From a minute to a day: every call loads the application for a moment. */
 #define HOST_ALARM_EVERY_MIN 60
 #define HOST_ALARM_EVERY_MAX 86400
 HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds));
@@ -812,9 +810,7 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 #define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* without a refresh before one is forced */
 #define SYS_NUMBER_POWER_SAVING        4 /* 0: the device is plugged in; 1: it runs from its
                                             battery - it sleeps when nothing runs and its radio
-                                            is on only for a poll and for a while after a press;
-                                            2: the same, and between the polls it sleeps so
-                                            deeply that it starts anew each time */
+                                            is on only for a poll and for a while after a press */
 #define SYS_NUMBER_REFRESH_FAST        5 /* 1: the shorter full refresh, with less of a blink */
 #define SYS_NUMBER_FONT                6 /* the typeface everything is set in: 0 Departure Mono,
                                             1 Jersey */

@@ -232,7 +232,6 @@
     <label class="check"><input id="refresh_fast" type="checkbox">Fast refresh</label>
     <label class="check"><input id="dither" type="checkbox">Dithering</label>
     <label class="check"><input id="power_saving" type="checkbox">Power saving</label>
-    <label class="check"><input id="power_extreme" type="checkbox">Extreme power saving</label>
     <button>Save</button>
   </form>
 
@@ -1035,8 +1034,6 @@ async function loadSettings() {
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").checked = settings.power_saving;
-  byId("power_extreme").checked = settings.power_extreme;
-  byId("power_extreme").disabled = !settings.power_saving;
   byId("ssid").value = settings.wifi_ssid;
   byId("hostname").value = settings.hostname;
 }
@@ -1062,7 +1059,6 @@ saveSettings("display", () => ({
   font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
   power_saving: byId("power_saving").checked,
-  power_extreme: byId("power_saving").checked && byId("power_extreme").checked,
 }));
 
 byId("tz-detect").addEventListener("click", () => { byId("tz").value = posixZone(); });
