@@ -83,7 +83,7 @@ def build(app_dir, wasm_path):
     sources += sorted(glob.glob(os.path.join(SDK, "lib", "*.c")))
     command = [
         clang(), "--target=wasm32", "-nostdlib", "-ffreestanding", "-fno-builtin",
-        "-Os", "-Wall", "-Wextra", "-Werror",
+        "-Oz", "-flto", "-Wall", "-Wextra", "-Werror",
         "-I" + SDK, "-I" + os.path.join(SDK, "lib"),
         "-Wl,--no-entry", "-Wl,--strip-all", "-Wl,--gc-sections",
         "-Wl,--initial-memory=%d" % WASM_PAGE, "-Wl,--max-memory=%d" % WASM_PAGE,

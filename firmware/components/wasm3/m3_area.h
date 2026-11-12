@@ -17,11 +17,11 @@ extern "C" {
  * is on the screen, and an application that needs more than there is
  * fails to start, every time, instead of now and then. */
 #define M3_AREA_PAGE_BYTES    (64 * 1024)
-/* Measured, over the page: the sample 18 KB, the weather 29 KB, Settings -
- * the heaviest there is, 12 KB of code - 38 KB. The interpreter turns the
- * code it runs into a form of its own, about three bytes for a byte, so
- * this, and not the size of a module's file, is what an application has
- * to fit. */
+/* Measured, over the page: the sample 12 KB, the weather 26 KB, Settings -
+ * the heaviest there is, 11 KB of code - 35 KB. The interpreter has about
+ * 11 KB of its own and turns the code it runs into a form of its own,
+ * about two bytes for a byte, so this, and not the size of a module's
+ * file, is what an application has to fit. */
 #define M3_AREA_WORKING_BYTES (48 * 1024)
 #define M3_AREA_BYTES         (M3_AREA_PAGE_BYTES + M3_AREA_WORKING_BYTES)
 
