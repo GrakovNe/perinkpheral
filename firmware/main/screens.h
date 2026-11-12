@@ -31,16 +31,23 @@ typedef struct {
 
 void screens_header(gfx_t *g, const screens_header_t *header);
 
-/* The two answers to a question, the chosen one in a frame and the other
- * beside it - the way the Settings application shows a value being set.
- * The question itself is the scene's text in the header. */
-typedef struct {
-    const char *cancel;
-    const char *action;
-    bool        action_is_selected;
-} screens_question_t;
+/* A notice of the host's own, on the whole screen: what it has to ask,
+ * what went wrong, what it is busy with. Two lines of large text on the
+ * left, a large icon on the right; along the bottom what the buttons do
+ * when somebody is expected to press one, or three strokes for work that
+ * is going on. */
+#define SCREENS_NO_ICON (-1)
 
-void screens_question(gfx_t *g, const screens_question_t *question);
+typedef struct {
+    const char *first;
+    const char *second;  /* NULL: one line */
+    int         icon;    /* a gfx_icon_id_t, or SCREENS_NO_ICON */
+    const char *ok;      /* what OK does; NULL: nothing */
+    const char *back;    /* what BACK does; NULL: nothing */
+    bool        is_working;
+} screens_notice_t;
+
+void screens_notice(gfx_t *g, const screens_notice_t *notice);
 
 /* The view asks for the rows it is about to draw, so a list can be of any
  * length and live anywhere. */

@@ -97,19 +97,34 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* A question from the network, as it waits for an answer and as it is
-     * about to be confirmed. The question takes the whole header. */
-    const screens_header_t asking = { true, "Update firmware?", " " };
-    const screens_question_t unanswered = { "Cancel", "Update", false };
-    start_screen(&asking, &content);
-    screens_question(&content, &unanswered);
-    if (save(dir, "question")) {
+    /* The host's notices take the whole screen. */
+    gfx_init(&g, fb, W, H);
+    const screens_notice_t asking = { "Update", "firmware?", GFX_ICON_UPDATE, "Update", "Cancel",
+                                      false };
+    memset(fb, 0xFF, sizeof fb);
+    screens_notice(&g, &asking);
+    if (save(dir, "notice-question")) {
         return 1;
     }
-    const screens_question_t chosen = { "Cancel", "Update", true };
-    start_screen(&asking, &content);
-    screens_question(&content, &chosen);
-    if (save(dir, "question-chosen")) {
+    const screens_notice_t joining = { "Join", "GrakovNe Home?", GFX_ICON_SIGNAL, "Join", "Cancel",
+                                       false };
+    memset(fb, 0xFF, sizeof fb);
+    screens_notice(&g, &joining);
+    if (save(dir, "notice-join")) {
+        return 1;
+    }
+    const screens_notice_t failed = { "Storage", "error", GFX_ICON_WARNING, "Format", "Skip",
+                                      false };
+    memset(fb, 0xFF, sizeof fb);
+    screens_notice(&g, &failed);
+    if (save(dir, "notice-error")) {
+        return 1;
+    }
+    const screens_notice_t working = { "Updating", "in progress", SCREENS_NO_ICON, NULL, NULL,
+                                       true };
+    memset(fb, 0xFF, sizeof fb);
+    screens_notice(&g, &working);
+    if (save(dir, "notice-progress")) {
         return 1;
     }
 

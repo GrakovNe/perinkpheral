@@ -31,17 +31,25 @@ typedef enum {
 void host_stop_soon(host_stop_t why);
 
 /* What somebody on the network asked for cannot be taken back: the device
- * shows the question - `question` in its header, Cancel or `action` to
- * choose between - and this waits for whoever stands at it, a
- * minute at most. From any task but the host loop. One question at a
- * time: a second one meanwhile is answered HOST_ANSWER_BUSY at once. */
+ * shows the question - two lines of it, an icon beside them (a
+ * gfx_icon_id_t), and what OK does - and this waits for whoever stands at
+ * it, a minute at most. From any task but the host loop. One question at
+ * a time: a second one meanwhile is answered HOST_ANSWER_BUSY at once. */
 typedef enum {
     HOST_ANSWER_CONFIRMED,
     HOST_ANSWER_NOT_CONFIRMED,
     HOST_ANSWER_BUSY,
 } host_answer_t;
 
-host_answer_t host_ask_at_the_device(const char *question, const char *action);
+host_answer_t host_ask_at_the_device(const char *first, const char *second, int icon,
+                                     const char *action);
+
+/* The device is busy with something that takes a while and must not be
+ * interrupted: the screen says so, in two lines, until host_work_is_over()
+ * - or until the device restarts, when the work was an update. From any
+ * task but the host loop. */
+void host_show_working(const char *first, const char *second);
+void host_work_is_over(void);
 
 /* For what runs in the host loop - a handler of events_call() - and
  * nothing else.

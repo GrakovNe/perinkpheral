@@ -9,42 +9,31 @@
 #include "screens.h"
 
 /* Somebody on the network asked for something that cannot be taken back:
- * the device says what, and whoever stands at it answers. Cancel is where
- * the selection starts; BACK, the menu and silence all mean the same. */
+ * the device says what, and whoever stands at it answers - OK does it,
+ * BACK does not, and so do the menu and silence. */
 typedef struct {
-    scene_t           scene;
-    const char       *action;
-    scenes_answer_fn  answer;
-    bool              action_is_selected;
+    scene_t          scene;
+    const char      *first;
+    const char      *second;
+    int              icon;
+    const char      *action;
+    scenes_answer_fn answer;
 } confirm_scene_t;
 
 /* Whoever asked takes the first answer and makes nothing of the rest: a
  * press is followed by the scene leaving the screen, which says "no". */
-static void give_answer(confirm_scene_t *confirm, bool is_confirmed)
-{
-    confirm->answer(is_confirmed);
-}
-
 static scene_reaction_t confirm_button(scene_t *scene, scene_button_t button, scene_press_t press)
 {
-    confirm_scene_t *confirm = (confirm_scene_t *)scene;
+    const confirm_scene_t *confirm = (const confirm_scene_t *)scene;
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
     if (press != SCENE_PRESS_SHORT) {
         return reaction;
     }
-    switch (button) {
-    case SCENE_BUTTON_UP:
-    case SCENE_BUTTON_DOWN:
-        confirm->action_is_selected = !confirm->action_is_selected;
-        reaction.kind = SCENE_REDRAW_NO_BLINK;
-        break;
     /* Answered: whoever asked gives the screen back to what had it. */
-    case SCENE_BUTTON_OK:
-        give_answer(confirm, confirm->action_is_selected);
-        break;
-    case SCENE_BUTTON_BACK:
-        give_answer(confirm, false);
-        break;
+    if (button == SCENE_BUTTON_OK) {
+        confirm->answer(true);
+    } else if (button == SCENE_BUTTON_BACK) {
+        confirm->answer(false);
     }
     return reaction;
 }
@@ -52,18 +41,20 @@ static scene_reaction_t confirm_button(scene_t *scene, scene_button_t button, sc
 /* The screen went to somebody else with the question open: not confirmed. */
 static void confirm_leave(scene_t *scene)
 {
-    give_answer((confirm_scene_t *)scene, false);
+    ((const confirm_scene_t *)scene)->answer(false);
 }
 
 static void confirm_draw(scene_t *scene, gfx_t *surface)
 {
     const confirm_scene_t *confirm = (const confirm_scene_t *)scene;
-    const screens_question_t question = {
-        .cancel = "Cancel",
-        .action = confirm->action,
-        .action_is_selected = confirm->action_is_selected,
+    const screens_notice_t notice = {
+        .first = confirm->first,
+        .second = confirm->second,
+        .icon = confirm->icon,
+        .ok = confirm->action,
+        .back = "Cancel",
     };
-    screens_question(surface, &question);
+    screens_notice(surface, &notice);
 }
 
 static const scene_ops_t CONFIRM_OPS = {
@@ -72,13 +63,14 @@ static const scene_ops_t CONFIRM_OPS = {
     .draw = confirm_draw,
 };
 
-scene_t *scene_confirm(const char *question, const char *action, scenes_answer_fn answer)
+scene_t *scene_confirm(const char *first, const char *second, int icon, const char *action,
+                       scenes_answer_fn answer)
 {
-    /* The whole header is the question's: no date beside it. */
-    static confirm_scene_t confirm = { .scene = { .ops = &CONFIRM_OPS, .header_right = " " } };
-    confirm.scene.header_left = question;
+    static confirm_scene_t confirm = { .scene = { .ops = &CONFIRM_OPS, .fullscreen = true } };
+    confirm.first = first;
+    confirm.second = second;
+    confirm.icon = icon;
     confirm.action = action;
     confirm.answer = answer;
-    confirm.action_is_selected = false;
     return &confirm.scene;
 }

@@ -112,57 +112,84 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
     }
 }
 
-/* One of two answers, as the Settings application shows one of a row of
- * values: the chosen one in a frame in the middle, the other over it or
- * under it with an arrow that way, and what the buttons do along the
- * bottom. The numbers are that application's (system/settings). */
-#define CHOICE_BOX_LEFT       40
-#define CHOICE_BOX_TOP        96
-#define CHOICE_BOX_HEIGHT     56
-#define CHOICE_BOX_STROKE     2
-#define CHOICE_BASELINE       136
-#define CHOICE_ABOVE_BASELINE 76
-#define CHOICE_BELOW_BASELINE 196
-#define CHOICE_UP_TOP         26
-#define CHOICE_DOWN_TOP       212
-#define CHOICE_HINT_BASELINE  250
+/* A notice of the host's own, on the whole screen: two lines on the left,
+ * a large icon on the right, and along the bottom either what the buttons
+ * do - each button's name white on black, what it does beside it - or
+ * three strokes that stand for work going on. */
+#define NOTICE_MARGIN          24
+#define NOTICE_ICON_CELL       9  /* the icon is 99 pixels square */
+#define NOTICE_FOOTER_HEIGHT   44
+#define NOTICE_LINE_STEP       44 /* from one line's baseline to the next */
+#define NOTICE_TEXT_ICON_GAP   16
+#define NOTICE_KEY_PAD_X       6  /* around a button's name, inside its black */
+#define NOTICE_KEY_PAD_TOP     5
+#define NOTICE_KEY_PAD_BOTTOM  7
+#define NOTICE_KEY_LABEL_GAP   8  /* from the name to what the button does */
+#define NOTICE_KEYS_GAP        22 /* between the two buttons */
+#define NOTICE_STROKES         3
+#define NOTICE_STROKE_GAP      24
+#define NOTICE_STROKE_HEIGHT   6
+#define NOTICE_TEXT_BUFFER     32
 
-/* The arrow of the set is the middle of its canvas: five rows from the
- * fourth. `top` is where the arrow begins. */
-#define CHEVRON_FIRST_ROW 3
-
-static void chevron(gfx_t *g, gfx_icon_id_t arrow, int top)
+/* A button's name white on black with what it does beside it; returns
+ * where the next one may start. */
+static int key_hint(gfx_t *g, int left, int baseline, const char *key, const char *does)
 {
-    gfx_icon(g, arrow, (g->w - GFX_ICON_CELLS * ICON_CELL) / 2, top - CHEVRON_FIRST_ROW * ICON_CELL,
-             ICON_CELL, true);
+    const gfx_font_t *font = gfx_font_system();
+    int key_width = gfx_text_font_width(font, key);
+    gfx_fill(g, left, baseline - gfx_font_ascent(font) - NOTICE_KEY_PAD_TOP,
+             key_width + 2 * NOTICE_KEY_PAD_X,
+             gfx_font_ascent(font) + NOTICE_KEY_PAD_TOP + NOTICE_KEY_PAD_BOTTOM, true);
+    gfx_text_font(g, left + NOTICE_KEY_PAD_X, baseline, font, key, false);
+    int label_left = left + key_width + 2 * NOTICE_KEY_PAD_X + NOTICE_KEY_LABEL_GAP;
+    gfx_text_font(g, label_left, baseline, font, does, true);
+    return label_left + gfx_text_font_width(font, does) + NOTICE_KEYS_GAP;
 }
 
-static void centered(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
+void screens_notice(gfx_t *g, const screens_notice_t *notice)
 {
-    gfx_text_font(g, (g->w - gfx_text_font_width(font, text)) / 2, baseline, font, text, true);
-}
-
-static void frame(gfx_t *g, int left, int top, int width, int height, int stroke)
-{
-    gfx_fill(g, left, top, width, stroke, true);
-    gfx_fill(g, left, top + height - stroke, width, stroke, true);
-    gfx_fill(g, left, top, stroke, height, true);
-    gfx_fill(g, left + width - stroke, top, stroke, height, true);
-}
-
-void screens_question(gfx_t *g, const screens_question_t *question)
-{
-    const gfx_font_t *text = gfx_font_system();
-    frame(g, CHOICE_BOX_LEFT, CHOICE_BOX_TOP, g->w - 2 * CHOICE_BOX_LEFT, CHOICE_BOX_HEIGHT,
-          CHOICE_BOX_STROKE);
-    if (question->action_is_selected) {
-        chevron(g, GFX_ICON_UP, CHOICE_UP_TOP);
-        centered(g, CHOICE_ABOVE_BASELINE, text, question->cancel);
-        centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->action);
-    } else {
-        centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->cancel);
-        centered(g, CHOICE_BELOW_BASELINE, text, question->action);
-        chevron(g, GFX_ICON_DOWN, CHOICE_DOWN_TOP);
+    int body_height = g->h - NOTICE_FOOTER_HEIGHT;
+    int text_right = g->w - NOTICE_MARGIN;
+    if (notice->icon != SCREENS_NO_ICON) {
+        int icon_size = GFX_ICON_CELLS * NOTICE_ICON_CELL;
+        int icon_left = g->w - NOTICE_MARGIN - icon_size;
+        gfx_icon(g, (gfx_icon_id_t)notice->icon, icon_left, (body_height - icon_size) / 2,
+                 NOTICE_ICON_CELL, true);
+        text_right = icon_left - NOTICE_TEXT_ICON_GAP;
     }
-    centered(g, CHOICE_HINT_BASELINE, gfx_font(GFX_FONT_SMALL), "OK: choose   BACK: cancel");
+    const gfx_font_t *large = gfx_font(GFX_FONT_MEDIUM);
+    const char *const lines[] = { notice->first, notice->second };
+    /* The two lines stand around the middle of what is above the footer. */
+    int baseline = body_height / 2 - NOTICE_LINE_STEP / 2 + gfx_font_cap_height(large) / 2;
+    for (int line = 0; line < 2; line++, baseline += NOTICE_LINE_STEP) {
+        const char *text = lines[line] != NULL ? lines[line] : "";
+        int         room = text_right - NOTICE_MARGIN;
+        /* A name too long for the large letters - a network's - is set in
+         * the host's own before it is cut. */
+        const gfx_font_t *font = gfx_text_font_width(large, text) <= room ? large
+                                                                            : gfx_font_system();
+        char fitted[NOTICE_TEXT_BUFFER];
+        gfx_text_fit(font, text, room, fitted, sizeof fitted);
+        gfx_text_font(g, NOTICE_MARGIN, baseline, font, fitted, true);
+    }
+
+    int footer_baseline = g->h - NOTICE_FOOTER_HEIGHT / 2 + gfx_font_cap_height(gfx_font_system()) / 2;
+    if (notice->is_working) {
+        int stroke_width =
+            (g->w - 2 * NOTICE_MARGIN - (NOTICE_STROKES - 1) * NOTICE_STROKE_GAP) / NOTICE_STROKES;
+        for (int stroke = 0; stroke < NOTICE_STROKES; stroke++) {
+            gfx_fill(g, NOTICE_MARGIN + stroke * (stroke_width + NOTICE_STROKE_GAP),
+                     g->h - NOTICE_FOOTER_HEIGHT / 2 - NOTICE_STROKE_HEIGHT / 2, stroke_width,
+                     NOTICE_STROKE_HEIGHT, true);
+        }
+    } else if (notice->ok != NULL || notice->back != NULL) {
+        gfx_fill(g, 0, g->h - NOTICE_FOOTER_HEIGHT, g->w, 1, true);
+        int left = NOTICE_MARGIN;
+        if (notice->ok != NULL) {
+            left = key_hint(g, left, footer_baseline, "OK", notice->ok);
+        }
+        if (notice->back != NULL) {
+            key_hint(g, left, footer_baseline, "BACK", notice->back);
+        }
+    }
 }

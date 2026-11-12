@@ -253,6 +253,19 @@ static const char *const ICONS[GFX_ICON_COUNT][GFX_ICON_CELLS] = {
         "..###.###..",
         "...........",
     },
+    [GFX_ICON_UPDATE] = {
+        "...........",
+        "....######.",
+        ".........#.",
+        ".........#.",
+        ".........#.",
+        "...........",
+        ".#.........",
+        ".#.........",
+        ".#.........",
+        ".######....",
+        "...........",
+    },
 };
 
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)

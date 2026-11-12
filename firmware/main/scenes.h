@@ -44,20 +44,27 @@ scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t
 typedef void (*scenes_action_fn)(void);
 
 /* The applications' partition cannot be read: says so and offers to
- * format it. Cancel, or BACK, gives the screen to `next`; Format calls
- * `format`, which does not come back with the screen. */
+ * format it. BACK gives the screen to `next`; OK calls `format`, which
+ * does not come back with the screen. */
 scene_t *scene_storage_error(scene_t *next, scenes_action_fn format);
 
 /* How a question was answered. */
 typedef void (*scenes_answer_fn)(bool is_confirmed);
 
 /* A question from the network that only somebody at the device may
- * answer: `question` in the header ("Update firmware?"), and Cancel or
- * `action` to choose between. `answer`
- * is called with the choice, and with false whenever the scene loses the
- * screen: the first call is the answer. The texts must outlive the scene's time on the
+ * answer, on the whole screen: two lines ("Update", "firmware?"), an icon
+ * beside them (a gfx_icon_id_t, or SCREENS_NO_ICON) and, along the bottom,
+ * what the buttons do - OK is `action`, BACK is Cancel. `answer` is called
+ * with the choice, and with false whenever the scene loses the screen: the
+ * first call is the answer. The texts must outlive the scene's time on the
  * screen. */
-scene_t *scene_confirm(const char *question, const char *action, scenes_answer_fn answer);
+scene_t *scene_confirm(const char *first, const char *second, int icon, const char *action,
+                       scenes_answer_fn answer);
+
+/* The device is busy with something that takes a while - an update being
+ * written: two lines and three strokes under them. The buttons do
+ * nothing. */
+scene_t *scene_working(const char *first, const char *second);
 
 #ifdef __cplusplus
 }

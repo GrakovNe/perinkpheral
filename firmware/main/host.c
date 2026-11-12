@@ -320,7 +320,9 @@ static struct {
     bool              is_to_put_away; /* answered: the screen goes back once the handler returned */
     scene_t          *scene;
     scene_t          *came_from; /* what had the screen, to give it back; NULL: the menu */
-    char              question[CONFIRM_TEXT_MAX + 1];
+    char              first[CONFIRM_TEXT_MAX + 1];  /* the question, in two lines */
+    char              second[CONFIRM_TEXT_MAX + 1];
+    int               icon;
     char              action[CONFIRM_TEXT_MAX + 1];
 } s_confirm;
 
@@ -360,7 +362,8 @@ static void on_confirm_answer(bool is_confirmed)
     s_confirm.is_confirmed = is_confirmed;
     s_confirm.is_to_put_away = true;
     deadlines_cancel(DEADLINE_CONFIRM, 0, 0);
-    ESP_LOGW(TAG, "\"%s\" %s", s_confirm.question, is_confirmed ? "confirmed" : "not confirmed");
+    ESP_LOGW(TAG, "\"%s %s\" %s", s_confirm.first, s_confirm.second,
+             is_confirmed ? "confirmed" : "not confirmed");
     xSemaphoreGive(s_confirm.answered);
 }
 
@@ -390,7 +393,8 @@ static void open_confirm(void *argument)
     s_confirm.is_open = true;
     s_confirm.is_seen = false;
     s_confirm.is_to_put_away = false;
-    s_confirm.scene = scene_confirm(s_confirm.question, s_confirm.action, on_confirm_answer);
+    s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
+                                    s_confirm.action, on_confirm_answer);
     wm_show(&wm, s_confirm.scene);
     /* The same scene with another question is another picture. */
     wm_invalidate(&wm, WM_CHANGED_BY_SWITCH);
@@ -407,12 +411,15 @@ static void close_unanswered_confirm(void)
     }
 }
 
-host_answer_t host_ask_at_the_device(const char *question, const char *action)
+host_answer_t host_ask_at_the_device(const char *first, const char *second, int icon,
+                                     const char *action)
 {
     if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
         return HOST_ANSWER_BUSY;
     }
-    strlcpy(s_confirm.question, question, sizeof s_confirm.question);
+    strlcpy(s_confirm.first, first, sizeof s_confirm.first);
+    strlcpy(s_confirm.second, second, sizeof s_confirm.second);
+    s_confirm.icon = icon;
     strlcpy(s_confirm.action, action, sizeof s_confirm.action);
     host_answer_t answer = HOST_ANSWER_BUSY;
     if (events_call(open_confirm, NULL)) {
@@ -422,6 +429,52 @@ host_answer_t host_ask_at_the_device(const char *question, const char *action)
     }
     xSemaphoreGive(s_confirm.turn);
     return answer;
+}
+
+/* ---- the device is busy with something that must not be interrupted ---- */
+
+static scene_t *s_working;         /* on the screen while it is; NULL otherwise */
+static scene_t *s_before_working;  /* what had the screen; NULL: the menu */
+
+static void open_working(void *argument)
+{
+    const char *const *lines = argument;
+    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    /* The question that led here is put away first: it is not what the
+     * screen goes back to. */
+    if (s_confirm.is_to_put_away) {
+        put_question_away();
+    }
+    if (s_working == NULL) {
+        s_before_working = wm.current;
+    }
+    s_working = scene_working(lines[0], lines[1]);
+    wm_show(&wm, s_working);
+}
+
+static void close_working(void *argument)
+{
+    (void)argument;
+    if (s_working == NULL) {
+        return;
+    }
+    if (wm.current == s_working) {
+        wm_show(&wm, s_before_working != NULL ? s_before_working : s_menu);
+    } else {
+        wm_drop(&wm, s_working);
+    }
+    s_working = NULL;
+}
+
+void host_show_working(const char *first, const char *second)
+{
+    const char *lines[] = { first, second };
+    events_call(open_working, lines); /* a busy queue: the work goes on unannounced */
+}
+
+void host_work_is_over(void)
+{
+    events_call_patiently(close_working, NULL);
 }
 
 /* ---- deadlines ---- */
@@ -539,6 +592,7 @@ void host_reload_apps(void)
      * poller for something. */
     launcher_reload(drop_app_scene, &context);
     s_confirm.came_from = NULL; /* the scenes were made anew */
+    s_before_working = NULL;
     poller_reload();
     forget_alarms_of_the_removed();
     int count;

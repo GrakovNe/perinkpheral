@@ -38,6 +38,7 @@ typedef enum {
     GFX_ICON_WARNING,
     GFX_ICON_PLAY,
     GFX_ICON_PAUSE,
+    GFX_ICON_UPDATE,
     GFX_ICON_COUNT,
 } gfx_icon_id_t;
 
