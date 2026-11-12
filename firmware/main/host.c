@@ -17,6 +17,7 @@
 #include "deadlines.h"
 #include "app_host.h"
 #include "deep_sleep.h"
+#include "gfx_icons.h"
 #include "devtools.h"
 #include "display.h"
 #include "events.h"
@@ -49,44 +50,44 @@ static const char *TAG = "host";
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
-/* The one place in the header an application may keep while it is away:
- * its icon instead of the host's, its line beside it. Kept through deep
- * sleep, as the frame it is part of is. */
+/* What applications keep in the header while they are away: on each side
+ * an icon and a line, the application's that set it last. Kept through
+ * deep sleep, as the frame they are part of is. */
+#define HEADER_SIDES           2 /* HOST_HEADER_LEFT, HOST_HEADER_RIGHT of host_api.h */
+#define HEADER_LEFT            0
+#define HEADER_RIGHT           1
 #define HEADER_STATUS_TEXT_MAX 15
 #define HEADER_NO_ICON         (-1)
 static RTC_DATA_ATTR struct {
-    uint32_t app_id; /* 0: nobody has it */
+    uint32_t app_id; /* 0: nobody has this side */
     int      icon;
     char     text[HEADER_STATUS_TEXT_MAX + 1];
-} s_header_status;
+} s_header_status[HEADER_SIDES];
 
+/* Each side is, in this order: what an application keeps there, what the
+ * scene on the screen gave, the host's own - the Wi-Fi icon on the left,
+ * the date on the right. */
 static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
     (void)context;
     status_t status;
     status_read(&status);
-    if (s_header_status.app_id != 0) {
-        screens_header_t kept = {
-            .wifi = status.wifi_connected,
-            .icon = s_header_status.icon,
-            .left = s_header_status.text,
-            .right = scene->header_right != NULL ? scene->header_right
-                     : status.date_known         ? status.date
-                                                 : NULL,
-        };
-        screens_header(surface, &kept);
-        return;
-    }
-    /* Each side is the scene's if it gave one, and the host's own otherwise:
-     * nothing on the left, the date on the right. */
     screens_header_t header = {
-        .wifi = status.wifi_connected,
-        .icon = HEADER_NO_ICON,
+        .left_icon = status.wifi_connected ? GFX_ICON_SIGNAL : GFX_ICON_NO_SIGNAL,
         .left = scene->header_left,
         .right = scene->header_right != NULL ? scene->header_right
                  : status.date_known         ? status.date
                                              : NULL,
+        .right_icon = SCREENS_NO_ICON,
     };
+    if (s_header_status[HEADER_LEFT].app_id != 0) {
+        header.left_icon = s_header_status[HEADER_LEFT].icon;
+        header.left = s_header_status[HEADER_LEFT].text;
+    }
+    if (s_header_status[HEADER_RIGHT].app_id != 0) {
+        header.right_icon = s_header_status[HEADER_RIGHT].icon;
+        header.right = s_header_status[HEADER_RIGHT].text;
+    }
     screens_header(surface, &header);
 }
 
@@ -371,18 +372,21 @@ static bool may_sleep_deeply(void)
     return next_ms == DEADLINE_NONE || next_ms - deadlines_now_ms() >= DEEP_SLEEP_LEAST_MS;
 }
 
-void host_set_header_status(uint32_t app_id, int icon, const char *text)
+void host_set_header_status(uint32_t app_id, int side, int icon, const char *text)
 {
+    if (side != HEADER_LEFT && side != HEADER_RIGHT) {
+        return;
+    }
     bool is_empty = icon == HEADER_NO_ICON && text[0] == '\0';
     if (is_empty) {
-        if (s_header_status.app_id != app_id) {
+        if (s_header_status[side].app_id != app_id) {
             return; /* not its to give back */
         }
-        s_header_status.app_id = 0;
+        s_header_status[side].app_id = 0;
     } else {
-        s_header_status.app_id = app_id;
-        s_header_status.icon = icon;
-        strlcpy(s_header_status.text, text, sizeof s_header_status.text);
+        s_header_status[side].app_id = app_id;
+        s_header_status[side].icon = icon;
+        strlcpy(s_header_status[side].text, text, sizeof s_header_status[side].text);
     }
     wm_invalidate(&wm, WM_CHANGED_BY_DATA);
 }
@@ -665,13 +669,15 @@ static void forget_alarms_of_the_removed(void)
     }
     deadlines_keep_only(DEADLINE_ALARM, ids, count);
     app_host_keep_recurring_of(ids, count);
-    bool is_owner_there = false;
-    for (int i = 0; i < count; i++) {
-        is_owner_there = is_owner_there || ids[i] == s_header_status.app_id;
-    }
-    if (!is_owner_there && s_header_status.app_id != 0) {
-        s_header_status.app_id = 0;
-        wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+    for (int side = 0; side < HEADER_SIDES; side++) {
+        bool is_owner_there = false;
+        for (int i = 0; i < count; i++) {
+            is_owner_there = is_owner_there || ids[i] == s_header_status[side].app_id;
+        }
+        if (!is_owner_there && s_header_status[side].app_id != 0) {
+            s_header_status[side].app_id = 0;
+            wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+        }
     }
 }
 

@@ -19,15 +19,16 @@ extern "C" {
  * about where the data came from. Pure: tools/preview renders them
  * without the device. */
 
-/* The host's header: the Wi-Fi icon on the left, struck through when
- * the last connection attempt failed, a text beside it and a text against
- * the right edge, a rule along the bottom edge. A text that does not fit
- * is cut with "...", and the two do not meet. */
+/* The host's header: on the left an icon and a text beside it, on the
+ * right a text and an icon after it, a rule along the bottom edge -
+ * icon text ... text icon. A text that does not fit is cut with "...",
+ * and the two do not meet. */
+#define SCREENS_NO_ICON (-1)
 typedef struct {
-    bool        wifi;  /* the last connection attempt succeeded */
-    int         icon;  /* a gfx_icon_id_t shown instead of the Wi-Fi one; negative: none */
-    const char *left;  /* NULL: nothing */
-    const char *right; /* "Wed 11 Nov"; NULL: nothing */
+    int         left_icon;  /* a gfx_icon_id_t, or SCREENS_NO_ICON */
+    const char *left;       /* NULL: nothing */
+    const char *right;      /* "Wed 11 Nov"; NULL: nothing */
+    int         right_icon; /* a gfx_icon_id_t, or SCREENS_NO_ICON */
 } screens_header_t;
 
 void screens_header(gfx_t *g, const screens_header_t *header);

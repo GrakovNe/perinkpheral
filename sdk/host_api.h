@@ -325,14 +325,17 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
 
 /* An icon and a short line that stay in the header when the application
  * is not on the screen: something is going on that the user set going and
- * wants to keep in sight - a countdown, a track playing. They stand at the
- * left, the icon in place of the host's own and the line beside it,
- * above every screen that has a header, whoever is on it. The device has
- * one such place: the application that set it last has it. A length of 0
- * with HOST_ICON_NONE gives it back; so does removing the application,
- * and a restart. It may be set from any handler, on the screen or off it. */
+ * wants to keep in sight - a countdown, a track playing. The header reads
+ * icon text ... text icon: on HOST_HEADER_LEFT the icon stands in place of
+ * the host's own with the line after it, on HOST_HEADER_RIGHT the line
+ * stands in place of the date with the icon after it. They are there above
+ * every screen that has a header, whoever is on it. A side is the
+ * application's that set it last. A length of 0 with HOST_ICON_NONE gives
+ * the side back; so does removing the application, and a restart. It may
+ * be set from any handler, on the screen or off it. */
 #define HOST_STATUS_TEXT_MAX 15
-HOST_IMPORT(header_status, int32_t header_status(int32_t icon, const char *text, int32_t length));
+HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, const char *text,
+                                                 int32_t length));
 
 /* A QR code of `text`, its top left corner at x, y, each of its modules
  * `cell` pixels square; the white a reader wants around it - four modules -

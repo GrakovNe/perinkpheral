@@ -845,18 +845,20 @@ HOST_FUNCTION(host_header_text)
 HOST_FUNCTION(host_header_status)
 {
     m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, side);
     m3ApiGetArg(int32_t, icon);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, length);
     app_t *app = APP_OF(runtime);
     char text[HOST_TEXT_MAX + 1];
     bool is_an_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
-    if (!is_an_icon || length > HOST_STATUS_TEXT_MAX ||
+    if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || !is_an_icon ||
+        length > HOST_STATUS_TEXT_MAX ||
         !copy_text(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (app->services->header_status != NULL) {
-        app->services->header_status(app->name, icon, text);
+        app->services->header_status(app->name, side, icon, text);
     }
     m3ApiReturn(HOST_OK);
 }
@@ -1563,7 +1565,7 @@ static const struct {
     { "alarm_set", "i(ii)", host_alarm_set },
     { "alarm_set_at", "i(iI)", host_alarm_set_at },
     { "alarm_set_every", "i(ii)", host_alarm_set_every },
-    { "header_status", "i(i*i)", host_header_status },
+    { "header_status", "i(ii*i)", host_header_status },
     { "file_write", "i(iiiii)", host_file_write },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },

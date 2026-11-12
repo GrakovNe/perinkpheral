@@ -46,10 +46,6 @@ typedef enum {
  * False for an id that is not one of the above. */
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black);
 
-/* The same icon `side` pixels square, for a size that is not a whole
- * number of pixels a cell: the cells are then one pixel or two, as evenly
- * as they come. */
-bool gfx_icon_sized(gfx_t *g, gfx_icon_id_t id, int x, int y, int side, bool black);
 
 #ifdef __cplusplus
 }

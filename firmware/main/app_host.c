@@ -204,11 +204,11 @@ void app_host_keep_recurring_of(const uint32_t *app_ids, int count)
     }
 }
 
-static void header_status(const char *app_name, int icon, const char *text)
+static void header_status(const char *app_name, int side, int icon, const char *text)
 {
     uint32_t app_id = id_of(app_name);
     if (app_id != 0) {
-        host_set_header_status(app_id, icon, text);
+        host_set_header_status(app_id, side, icon, text);
     }
 }
 

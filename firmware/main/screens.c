@@ -18,21 +18,11 @@
 #define MARGIN        16
 #define TEXT_BASELINE 30 /* of the first line under a top edge */
 
-static void right_aligned(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
-{
-    gfx_text_font(g, g->w - MARGIN - gfx_text_font_width(font, text), baseline, font, text, true);
-}
-
 /* The connection icon on the icon canvas: 11 x 11 cells of the font's own
  * 2 px. Three bars that grow to the right, nothing but right angles. */
 #define ICON_CELL          2
 #define ICON_COLS          11
 #define ICON_BASELINE_ROWS 9 /* rows that stand on the text baseline */
-/* In the header an icon is as tall as the letters beside it, not taller. */
-#ifndef HEADER_ICON_SIDE
-#define HEADER_ICON_SIDE   18
-#endif
-
 #define HEADER_BASELINE    30
 #define HEADER_ICON_GAP    12 /* from the icon to the text beside it */
 #define HEADER_TEXTS_GAP   14 /* the least between the two texts: a character */
@@ -40,17 +30,23 @@ static void right_aligned(gfx_t *g, int baseline, const gfx_font_t *font, const 
 
 void screens_header(gfx_t *g, const screens_header_t *header)
 {
-    int icon_top = HEADER_BASELINE - ICON_BASELINE_ROWS * HEADER_ICON_SIDE / ICON_COLS;
-    int icon = header->icon >= 0    ? header->icon
-               : header->wifi       ? GFX_ICON_SIGNAL
-                                    : GFX_ICON_NO_SIGNAL;
-    gfx_icon_sized(g, (gfx_icon_id_t)icon, MARGIN, icon_top, HEADER_ICON_SIDE, true);
+    int icon_side = ICON_COLS * ICON_CELL;
+    int icon_top = HEADER_BASELINE - ICON_BASELINE_ROWS * ICON_CELL;
+    int text_left = MARGIN, text_right = g->w - MARGIN;
+    if (header->left_icon != SCREENS_NO_ICON) {
+        gfx_icon(g, (gfx_icon_id_t)header->left_icon, MARGIN, icon_top, ICON_CELL, true);
+        text_left += icon_side + HEADER_ICON_GAP;
+    }
+    if (header->right_icon != SCREENS_NO_ICON) {
+        gfx_icon(g, (gfx_icon_id_t)header->right_icon, g->w - MARGIN - icon_side, icon_top,
+                 ICON_CELL, true);
+        text_right -= icon_side + HEADER_ICON_GAP;
+    }
 
     const gfx_font_t *font = gfx_font_system();
     const char *left = header->left != NULL ? header->left : "";
     const char *right = header->right != NULL ? header->right : "";
-    int text_left = MARGIN + HEADER_ICON_SIDE + HEADER_ICON_GAP;
-    int available = g->w - MARGIN - text_left - HEADER_TEXTS_GAP;
+    int available = text_right - text_left - HEADER_TEXTS_GAP;
     int left_max, right_max;
     wm_header_share(gfx_text_font_width(font, left), gfx_text_font_width(font, right), available,
                     &left_max, &right_max);
@@ -58,7 +54,8 @@ void screens_header(gfx_t *g, const screens_header_t *header)
     gfx_text_fit(font, left, left_max, fitted, sizeof fitted);
     gfx_text_font(g, text_left, HEADER_BASELINE, font, fitted, true);
     gfx_text_fit(font, right, right_max, fitted, sizeof fitted);
-    right_aligned(g, HEADER_BASELINE, font, fitted);
+    gfx_text_font(g, text_right - gfx_text_font_width(font, fitted), HEADER_BASELINE, font, fitted,
+                  true);
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }
 
