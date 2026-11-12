@@ -308,7 +308,6 @@ static struct {
     bool              is_confirmed;
     scene_t          *scene;
     char              question[CONFIRM_TEXT_MAX + 1];
-    char              detail[CONFIRM_TEXT_MAX + 1];
     char              action[CONFIRM_TEXT_MAX + 1];
 } s_confirm;
 
@@ -342,8 +341,7 @@ static void open_confirm(void *argument)
     /* An application taking an answer off the screen gives way, as to a press. */
     app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
     s_confirm.is_open = true;
-    s_confirm.scene = scene_confirm(s_confirm.question, s_confirm.detail, s_confirm.action,
-                                    on_confirm_answer);
+    s_confirm.scene = scene_confirm(s_confirm.question, s_confirm.action, on_confirm_answer);
     wm_show(&wm, s_confirm.scene);
     deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS);
 }
@@ -358,14 +356,12 @@ static void close_unanswered_confirm(void)
     }
 }
 
-host_answer_t host_ask_at_the_device(const char *question, const char *detail,
-                                     const char *action)
+host_answer_t host_ask_at_the_device(const char *question, const char *action)
 {
     if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
         return HOST_ANSWER_BUSY;
     }
     strlcpy(s_confirm.question, question, sizeof s_confirm.question);
-    strlcpy(s_confirm.detail, detail, sizeof s_confirm.detail);
     strlcpy(s_confirm.action, action, sizeof s_confirm.action);
     host_answer_t answer = HOST_ANSWER_BUSY;
     if (events_call(open_confirm, NULL)) {

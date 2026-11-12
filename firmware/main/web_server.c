@@ -136,9 +136,9 @@ static esp_err_t send_error(httpd_req_t *request, const char *message);
 /* What cannot be taken back is done only when somebody at the device says
  * so. False, with the answer sent, when nobody did. */
 static bool is_confirmed_at_the_device(httpd_req_t *request, const char *question,
-                                       const char *detail, const char *action)
+                                       const char *action)
 {
-    switch (host_ask_at_the_device(question, detail, action)) {
+    switch (host_ask_at_the_device(question, action)) {
     case HOST_ANSWER_CONFIRMED:
         return true;
     case HOST_ANSWER_BUSY:
@@ -151,13 +151,15 @@ static bool is_confirmed_at_the_device(httpd_req_t *request, const char *questio
     return false;
 }
 
-/* A change of settings that is asked about first: the question, the word
- * for doing it, and the field of the request that says what exactly. */
+/* A change of settings that is asked about first: the question, with a %s
+ * for what the request names in `named_by`, and the word for doing it. */
 typedef struct {
-    const char *question;
+    const char *question_format;
     const char *action;
-    const char *detail_field;
+    const char *named_by;
 } confirmation_t;
+
+#define QUESTION_MAX 47
 
 static esp_err_t send_error(httpd_req_t *request, const char *message)
 {
@@ -344,10 +346,11 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     }
     if (confirmation != NULL) {
         /* What is asked about is named by the request itself. */
-        const cJSON *named = cJSON_GetObjectItemCaseSensitive(json, confirmation->detail_field);
-        const char  *detail = cJSON_IsString(named) ? named->valuestring : "";
-        if (!is_confirmed_at_the_device(request, confirmation->question, detail,
-                                        confirmation->action)) {
+        const cJSON *named = cJSON_GetObjectItemCaseSensitive(json, confirmation->named_by);
+        char         question[QUESTION_MAX + 1];
+        snprintf(question, sizeof question, confirmation->question_format,
+                 cJSON_IsString(named) ? named->valuestring : "");
+        if (!is_confirmed_at_the_device(request, question, confirmation->action)) {
             cJSON_Delete(json);
             return ESP_OK;
         }
@@ -385,7 +388,7 @@ static bool edit_network(const cJSON *json, appconf_t *wanted)
 
 static esp_err_t handle_wifi(httpd_req_t *request)
 {
-    static const confirmation_t ASKED = { "Connect to Wi-Fi?", "Connect", "ssid" };
+    static const confirmation_t ASKED = { "Join %s?", "Join", "ssid" };
     return change_settings_as_asked(request, edit_network, true, &ASKED);
 }
 
@@ -507,7 +510,7 @@ static esp_err_t handle_reset(httpd_req_t *request)
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
     }
-    if (!is_confirmed_at_the_device(request, "Factory reset?", "", "Reset")) {
+    if (!is_confirmed_at_the_device(request, "Factory reset?", "Reset")) {
         return ESP_OK;
     }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
@@ -554,7 +557,7 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
         return send_error(request, "Invalid request.");
     }
 
-    if (!is_confirmed_at_the_device(request, "Update firmware?", "", "Update")) {
+    if (!is_confirmed_at_the_device(request, "Update firmware?", "Update")) {
         return ESP_OK;
     }
     ESP_LOGW(TAG, "installing the release at %s", address);
@@ -589,7 +592,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
     if (request->content_len == 0) {
         return send_error(request, "No image.");
     }
-    if (!is_confirmed_at_the_device(request, "Update firmware?", "", "Update")) {
+    if (!is_confirmed_at_the_device(request, "Update firmware?", "Update")) {
         return ESP_OK;
     }
     return web_server_take_firmware(request);

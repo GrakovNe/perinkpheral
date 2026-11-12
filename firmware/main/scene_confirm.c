@@ -13,8 +13,6 @@
  * the selection starts; BACK, the menu and silence all mean the same. */
 typedef struct {
     scene_t           scene;
-    const char       *question;
-    const char       *detail;
     const char       *action;
     scenes_answer_fn  answer;
     bool              action_is_selected;
@@ -62,8 +60,6 @@ static void confirm_draw(scene_t *scene, gfx_t *surface)
 {
     const confirm_scene_t *confirm = (const confirm_scene_t *)scene;
     const screens_question_t question = {
-        .title = confirm->question,
-        .question = confirm->detail,
         .cancel = "Cancel",
         .action = confirm->action,
         .action_is_selected = confirm->action_is_selected,
@@ -77,12 +73,11 @@ static const scene_ops_t CONFIRM_OPS = {
     .draw = confirm_draw,
 };
 
-scene_t *scene_confirm(const char *question, const char *detail, const char *action,
-                       scenes_answer_fn answer)
+scene_t *scene_confirm(const char *question, const char *action, scenes_answer_fn answer)
 {
-    static confirm_scene_t confirm = { .scene = { .ops = &CONFIRM_OPS } };
-    confirm.question = question;
-    confirm.detail = detail;
+    /* The whole header is the question's: no date beside it. */
+    static confirm_scene_t confirm = { .scene = { .ops = &CONFIRM_OPS, .header_right = " " } };
+    confirm.scene.header_left = question;
     confirm.action = action;
     confirm.answer = answer;
     confirm.action_is_selected = false;

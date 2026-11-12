@@ -49,8 +49,6 @@ static void storage_draw(scene_t *scene, gfx_t *surface)
 {
     const storage_scene_t *storage = (const storage_scene_t *)scene;
     const screens_question_t question = {
-        .title = "Storage error.",
-        .question = "Format storage?",
         .cancel = "Cancel",
         .action = "Format",
         .action_is_selected = storage->format_is_selected,
@@ -65,7 +63,9 @@ static const scene_ops_t STORAGE_OPS = {
 
 scene_t *scene_storage_error(scene_t *next, scenes_action_fn format)
 {
-    static storage_scene_t storage = { .scene = { .ops = &STORAGE_OPS } };
+    static storage_scene_t storage = {
+        .scene = { .ops = &STORAGE_OPS, .header_left = "Storage error", .header_right = " " },
+    };
     storage.next = next;
     storage.format = format;
     storage.format_is_selected = false;

@@ -148,24 +148,69 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
     }
 }
 
-#define QUESTION_ANSWERS_TOP (2 * MENU_ROW_HEIGHT + MENU_TOP_GAP)
+/* One of two answers, as the Settings application shows one of a row of
+ * values: the chosen one in a frame in the middle, the other over it or
+ * under it with an arrow that way, and what the buttons do along the
+ * bottom. The numbers are that application's (system/settings). */
+#define CHOICE_BOX_LEFT       40
+#define CHOICE_BOX_TOP        96
+#define CHOICE_BOX_HEIGHT     56
+#define CHOICE_BOX_STROKE     2
+#define CHOICE_BASELINE       136
+#define CHOICE_ABOVE_BASELINE 76
+#define CHOICE_BELOW_BASELINE 196
+#define CHOICE_UP_TOP         26
+#define CHOICE_DOWN_TOP       212
+#define CHOICE_HINT_BASELINE  250
 
-static void question_answer(gfx_t *g, int row, const char *text, bool is_selected)
+#define CHEVRON_COLUMNS 9
+#define CHEVRON_ROWS    5
+static const char *const CHEVRON_UP[CHEVRON_ROWS] = {
+    "....#....", "...###...", "..##.##..", ".##...##.", "##.....##",
+};
+static const char *const CHEVRON_DOWN[CHEVRON_ROWS] = {
+    "##.....##", ".##...##.", "..##.##..", "...###...", "....#....",
+};
+
+static void chevron(gfx_t *g, const char *const *rows, int top)
 {
-    int baseline = QUESTION_ANSWERS_TOP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
-    if (is_selected) {
-        gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE, g->w - 2 * MENU_BAR_INSET,
-                 MENU_BAR_HEIGHT, true);
+    int left = (g->w - CHEVRON_COLUMNS * ICON_CELL) / 2;
+    for (int row = 0; row < CHEVRON_ROWS; row++) {
+        for (int column = 0; column < CHEVRON_COLUMNS; column++) {
+            if (rows[row][column] == '#') {
+                gfx_fill(g, left + column * ICON_CELL, top + row * ICON_CELL, ICON_CELL, ICON_CELL,
+                         true);
+            }
+        }
     }
-    gfx_text_font(g, MARGIN, baseline, gfx_font_system(), text, !is_selected);
+}
+
+static void centered(gfx_t *g, int baseline, const gfx_font_t *font, const char *text)
+{
+    gfx_text_font(g, (g->w - gfx_text_font_width(font, text)) / 2, baseline, font, text, true);
+}
+
+static void frame(gfx_t *g, int left, int top, int width, int height, int stroke)
+{
+    gfx_fill(g, left, top, width, stroke, true);
+    gfx_fill(g, left, top + height - stroke, width, stroke, true);
+    gfx_fill(g, left, top, stroke, height, true);
+    gfx_fill(g, left + width - stroke, top, stroke, height, true);
 }
 
 void screens_question(gfx_t *g, const screens_question_t *question)
 {
-    const gfx_font_t *font = gfx_font_system();
-    gfx_text_font(g, MARGIN, MENU_TOP_GAP + TEXT_BASELINE, font, question->title, true);
-    gfx_text_font(g, MARGIN, MENU_TOP_GAP + MENU_ROW_HEIGHT + TEXT_BASELINE, font,
-                  question->question, true);
-    question_answer(g, 0, question->cancel, !question->action_is_selected);
-    question_answer(g, 1, question->action, question->action_is_selected);
+    const gfx_font_t *text = gfx_font_system();
+    frame(g, CHOICE_BOX_LEFT, CHOICE_BOX_TOP, g->w - 2 * CHOICE_BOX_LEFT, CHOICE_BOX_HEIGHT,
+          CHOICE_BOX_STROKE);
+    if (question->action_is_selected) {
+        chevron(g, CHEVRON_UP, CHOICE_UP_TOP);
+        centered(g, CHOICE_ABOVE_BASELINE, text, question->cancel);
+        centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->action);
+    } else {
+        centered(g, CHOICE_BASELINE, gfx_font(GFX_FONT_MEDIUM), question->cancel);
+        centered(g, CHOICE_BELOW_BASELINE, text, question->action);
+        chevron(g, CHEVRON_DOWN, CHOICE_DOWN_TOP);
+    }
+    centered(g, CHOICE_HINT_BASELINE, gfx_font(GFX_FONT_SMALL), "OK: choose   BACK: cancel");
 }

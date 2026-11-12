@@ -90,5 +90,21 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* A question from the network, as it waits for an answer and as it is
+     * about to be confirmed. The question takes the whole header. */
+    const screens_header_t asking = { true, "Update firmware?", " " };
+    const screens_question_t unanswered = { "Cancel", "Update", false };
+    start_screen(&asking, &content);
+    screens_question(&content, &unanswered);
+    if (save(dir, "question")) {
+        return 1;
+    }
+    const screens_question_t chosen = { "Cancel", "Update", true };
+    start_screen(&asking, &content);
+    screens_question(&content, &chosen);
+    if (save(dir, "question-chosen")) {
+        return 1;
+    }
+
     return 0;
 }

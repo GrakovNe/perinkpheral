@@ -31,11 +31,10 @@ typedef struct {
 
 void screens_header(gfx_t *g, const screens_header_t *header);
 
-/* What went wrong and what can be done about it: two lines, and the two
- * answers as rows of a menu, the selected one white on a black bar. */
+/* The two answers to a question, the chosen one in a frame and the other
+ * beside it - the way the Settings application shows a value being set.
+ * The question itself is the scene's text in the header. */
 typedef struct {
-    const char *title;
-    const char *question;
     const char *cancel;
     const char *action;
     bool        action_is_selected;
