@@ -322,6 +322,12 @@ static void answer_deadlines(void)
         case DEADLINE_PANEL_KEEPALIVE:
             display_keepalive();
             break;
+        case DEADLINE_POLL:
+            poller_poll_is_due(due.owner, due.number);
+            break;
+        case DEADLINE_POLLER_LOOK:
+            poller_look();
+            break;
         case DEADLINE_STOP:
             stop(s_stop_reason);
             break;

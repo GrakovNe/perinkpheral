@@ -1,6 +1,6 @@
 set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
-         "scene_menu.c" "scene_splash.c" "scene_storage.c" "launcher.c" "poller.c" "power.c")
+         "scene_menu.c" "scene_splash.c" "scene_storage.c" "launcher.c" "poller.c" "poller_net.c" "image_layout.c" "power.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c" "devtools.c")
 endif()
@@ -13,6 +13,17 @@ idf_component_register(SRCS ${srcs}
                               nvs_flash esp_partition esp_hw_support esp_system esp_timer esp_pm
                               app_update esp_app_format esp_driver_usb_serial_jtag
                               esp_http_server esp_http_client mbedtls json)
+
+# A number that is another for another partition table: the lines of
+# partitions.csv that say something, without the spaces. An image carries
+# it, and a device takes no update built for another table.
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../partitions.csv" partition_lines REGEX "^[^#]")
+string(REPLACE " " "" partition_lines "${partition_lines}")
+string(SHA256 partition_hash "${partition_lines}")
+string(SUBSTRING "${partition_hash}" 0 8 partition_table_number)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE "APP_PARTITION_TABLE=0x${partition_table_number}u")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../partitions.csv")
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-u image_layout")
 
 # The applications in sdk/apps are built with the SDK and packed into the
 # image of the "apps" partition, which is flashed with the firmware.

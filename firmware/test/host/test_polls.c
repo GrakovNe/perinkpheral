@@ -165,101 +165,93 @@ static void test_schedule(void)
 {
     poll_schedule_t schedule;
     poll_schedule_init(&schedule);
-    uint32_t wait_ms;
-    CHECK(poll_schedule_due(&schedule, 0, &wait_ms) == NULL && wait_ms == UINT32_MAX);
+    CHECK(poll_schedule_next_wanted(&schedule) == NULL);
+    CHECK(poll_schedule_pace_ms(&schedule, 0, 0) == 0);
 
-    /* two applications; the first runs are spread out, in the order added */
-    CHECK(poll_schedule_add(&schedule, 0, 0, 60, 1000));
-    CHECK(poll_schedule_add(&schedule, 1, 0, 15, 1000));
-    const poll_entry_t *due = poll_schedule_due(&schedule, 1000, &wait_ms);
-    CHECK(due != NULL && due->app == 0 && wait_ms == 0);
-    poll_schedule_done(&schedule, due, 1500);
+    /* the first runs are spread out */
+    uint32_t first_in_ms;
+    CHECK(poll_schedule_add(&schedule, 0xA, 0, 60, &first_in_ms) && first_in_ms == 0);
+    CHECK(poll_schedule_add(&schedule, 0xB, 0, 15, &first_in_ms) && first_in_ms == 2000);
+    CHECK(poll_schedule_add(&schedule, 0xB, 1, 900, &first_in_ms) && first_in_ms == 4000);
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 60000);
+    CHECK(poll_schedule_pace_ms(&schedule, 0xB, 0) == 15000);
 
-    CHECK(poll_schedule_due(&schedule, 1500, &wait_ms) == NULL && wait_ms == 1500);
-    due = poll_schedule_due(&schedule, 3000, &wait_ms);
-    CHECK(due != NULL && due->app == 1);
-    poll_schedule_done(&schedule, due, 3200);
-
-    /* then each on its own period, counted from when it was fetched */
-    CHECK(poll_schedule_due(&schedule, 3200, &wait_ms) == NULL && wait_ms == 15000);
-    due = poll_schedule_due(&schedule, 18200, &wait_ms);
-    CHECK(due != NULL && due->app == 1);
-    poll_schedule_done(&schedule, due, 18200);
-    CHECK(poll_schedule_due(&schedule, 18200, &wait_ms) == NULL && wait_ms == 15000);
-
-    /* after a long sleep both are due: the one waiting longest first, and
-     * no burst to catch up with the periods slept through */
-    int64_t much_later = 10 * 60 * 1000;
-    due = poll_schedule_due(&schedule, much_later, &wait_ms);
-    CHECK(due != NULL && due->app == 1);
-    poll_schedule_done(&schedule, due, much_later);
-    due = poll_schedule_due(&schedule, much_later, &wait_ms);
-    CHECK(due != NULL && due->app == 0);
-    poll_schedule_done(&schedule, due, much_later);
-    CHECK(poll_schedule_due(&schedule, much_later, &wait_ms) == NULL && wait_ms == 15000);
+    /* nothing is wanted until its time comes; then the one waiting longest first */
+    CHECK(poll_schedule_next_wanted(&schedule) == NULL);
+    CHECK(poll_schedule_want(&schedule, 0xB, 0));
+    CHECK(poll_schedule_want(&schedule, 0xA, 0));
+    CHECK(poll_schedule_want(&schedule, 0xB, 0)); /* wanted already: keeps its place */
+    const poll_entry_t *next = poll_schedule_next_wanted(&schedule);
+    CHECK(next != NULL && next->app == 0xB && next->poll == 0);
+    /* not answered yet - no network, say: it stays the next */
+    CHECK(poll_schedule_next_wanted(&schedule) == next);
+    poll_schedule_answered(&schedule, 0xB, 0);
+    next = poll_schedule_next_wanted(&schedule);
+    CHECK(next != NULL && next->app == 0xA);
+    poll_schedule_answered(&schedule, 0xA, 0);
+    CHECK(poll_schedule_next_wanted(&schedule) == NULL);
+    CHECK(!poll_schedule_want(&schedule, 0xC, 0));
+    CHECK(!poll_schedule_want(&schedule, 0xA, 1));
 }
 
 static void test_schedule_hurry(void)
 {
     poll_schedule_t schedule;
+    uint32_t first_in_ms;
     poll_schedule_init(&schedule);
-    CHECK(poll_schedule_add(&schedule, 0, 0, 600, 0));
-    CHECK(poll_schedule_add(&schedule, 1, 0, 600, 0));
-    CHECK(poll_schedule_add(&schedule, 1, 1, 900, 0));
-    uint32_t wait_ms;
-    const poll_entry_t *due;
-    /* run everything once, so that all three wait for their periods */
-    while ((due = poll_schedule_due(&schedule, 100000, &wait_ms)) != NULL) {
-        poll_schedule_done(&schedule, due, 100000);
+    poll_schedule_add(&schedule, 0xA, 0, 600, &first_in_ms);
+    poll_schedule_add(&schedule, 0xB, 0, 600, &first_in_ms);
+    poll_schedule_add(&schedule, 0xB, 1, 900, &first_in_ms);
+    /* the settings of one application changed: its polls, and only its */
+    poll_schedule_want_of(&schedule, 0xB);
+    int asked = 0;
+    const poll_entry_t *next;
+    while ((next = poll_schedule_next_wanted(&schedule)) != NULL) {
+        CHECK(next->app == 0xB && next->poll == asked);
+        poll_schedule_answered(&schedule, next->app, next->poll);
+        asked++;
     }
-    CHECK(wait_ms == 600000);
-
-    /* the settings of application 1 changed: both of its polls, and only they */
-    poll_schedule_hurry(&schedule, 1, 100500);
-    int hurried = 0;
-    while ((due = poll_schedule_due(&schedule, 100500, &wait_ms)) != NULL) {
-        CHECK(due->app == 1);
-        poll_schedule_done(&schedule, due, 100500);
-        hurried++;
+    CHECK(asked == 2);
+    /* the network is back: everything */
+    poll_schedule_want_all(&schedule);
+    asked = 0;
+    while ((next = poll_schedule_next_wanted(&schedule)) != NULL) {
+        poll_schedule_answered(&schedule, next->app, next->poll);
+        asked++;
     }
-    CHECK(hurried == 2);
-    CHECK(wait_ms == 599500); /* application 0 kept its time */
+    CHECK(asked == 3);
 }
 
-static void test_pace_and_alarms(void)
+static void test_pace(void)
 {
     poll_schedule_t schedule;
+    uint32_t first_in_ms;
+    bool is_another = false;
     poll_schedule_init(&schedule);
-    CHECK(poll_schedule_add(&schedule, 0, 0, 600, 0));
-    uint32_t wait_ms;
-    const poll_entry_t *due;
-    while ((due = poll_schedule_due(&schedule, 50000, &wait_ms)) != NULL) {
-        poll_schedule_finished(&schedule, due->app, due->poll, 50000);
-    }
-    CHECK(wait_ms == 600000);
-    /* the server said: come again in an hour */
-    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 3600, 60000));
-    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 3600000);
-    /* said again a while later, it is the same pace: the hour is not started over */
-    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 3600, 1860000));
-    CHECK(poll_schedule_due(&schedule, 1860000, &wait_ms) == NULL && wait_ms == 1800000);
+    poll_schedule_add(&schedule, 0xA, 0, 600, &first_in_ms);
+    /* the server said when to come again */
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 3600, &is_another) && is_another);
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 3600000);
+    /* saying it again moves nothing */
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 3600, &is_another) && !is_another);
     /* the limits of a manifest hold */
-    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 1, 60000));
-    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 10000);
-    CHECK(poll_schedule_set_interval(&schedule, 0, 0, 999999999, 60000));
-    CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 86400000);
-    CHECK(!poll_schedule_set_interval(&schedule, 0, 1, 60, 60000));
-    CHECK(!poll_schedule_set_interval(&schedule, 5, 0, 60, 60000));
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 1, &is_another));
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 10000);
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 999999999, &is_another));
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 86400000);
+    CHECK(!poll_schedule_set_interval(&schedule, 0xA, 1, 60, &is_another));
+    CHECK(!poll_schedule_set_interval(&schedule, 0xC, 0, 60, &is_another));
 }
 
 static void test_schedule_is_bounded(void)
 {
     poll_schedule_t schedule;
+    uint32_t first_in_ms;
     poll_schedule_init(&schedule);
     for (int i = 0; i < POLL_SCHEDULE_MAX; i++) {
-        CHECK(poll_schedule_add(&schedule, i, 0, 60, 0));
+        CHECK(poll_schedule_add(&schedule, i, 0, 60, &first_in_ms));
     }
-    CHECK(!poll_schedule_add(&schedule, 99, 0, 60, 0));
+    CHECK(!poll_schedule_add(&schedule, 99, 0, 60, &first_in_ms));
 }
 
 static void test_pick(void)
@@ -293,26 +285,24 @@ static void test_pick(void)
 static void test_floor_and_removal(void)
 {
     poll_schedule_t schedule;
-    uint32_t wait_ms;
+    uint32_t first_in_ms;
     poll_schedule_init(&schedule);
-    CHECK(poll_schedule_add(&schedule, 0xA, 0, 60, 0));
-    CHECK(poll_schedule_add(&schedule, 0xB, 0, 900, 0));
-    /* saving power: nothing is closer than five minutes, and the pace asked
-     * for is kept for when the floor is gone */
+    poll_schedule_add(&schedule, 0xA, 0, 60, &first_in_ms);
+    poll_schedule_add(&schedule, 0xB, 0, 900, &first_in_ms);
+    /* saving power: no poll closer to its last than the floor */
     poll_schedule_set_floor(&schedule, 300);
-    poll_schedule_finished(&schedule, 0xA, 0, 1000);
-    poll_schedule_finished(&schedule, 0xB, 0, 1000);
-    CHECK(poll_schedule_due(&schedule, 300999, &wait_ms) == NULL && wait_ms == 1);
-    CHECK(poll_schedule_due(&schedule, 301000, &wait_ms)->app == 0xA);
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 300000);
+    CHECK(poll_schedule_pace_ms(&schedule, 0xB, 0) == 900000);
+    /* and the pace it asked for is back with the floor gone */
     poll_schedule_set_floor(&schedule, 0);
-    poll_schedule_finished(&schedule, 0xA, 0, 301000);
-    CHECK(poll_schedule_due(&schedule, 361000, &wait_ms)->app == 0xA);
-    /* one application is removed: its polls go, the other's stay */
-    CHECK(poll_schedule_has(&schedule, 0xA, 0) && poll_schedule_has(&schedule, 0xB, 0));
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 60000);
+    /* an application that was removed loses its polls, wanted or not */
+    poll_schedule_want_all(&schedule);
     const int left[] = { 0xB };
     poll_schedule_keep_only(&schedule, left, 1);
     CHECK(!poll_schedule_has(&schedule, 0xA, 0) && poll_schedule_has(&schedule, 0xB, 0));
-    CHECK(schedule.count == 1);
+    const poll_entry_t *next = poll_schedule_next_wanted(&schedule);
+    CHECK(next != NULL && next->app == 0xB);
 }
 
 int main(void)
@@ -326,6 +316,6 @@ int main(void)
     test_pick();
     test_schedule_hurry();
     test_template_for_a_url();
-    test_pace_and_alarms();
+    test_pace();
     REPORT();
 }

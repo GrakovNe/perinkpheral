@@ -88,6 +88,15 @@ bool events_call(events_call_fn run, void *argument)
     return is_asked;
 }
 
+#define QUEUE_FULL_RETRY_MS 50 /* the host loop is busy with the panel: not for long */
+
+void events_call_patiently(events_call_fn run, void *argument)
+{
+    while (!events_call(run, argument)) {
+        vTaskDelay(pdMS_TO_TICKS(QUEUE_FULL_RETRY_MS));
+    }
+}
+
 void events_answer_call(void *asked)
 {
     call_t *call = asked;

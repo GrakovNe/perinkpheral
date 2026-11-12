@@ -6,20 +6,24 @@
 
 #include <stddef.h>
 
-#define MS_PER_SECOND      1000
+#define MS_PER_SECOND       1000
 #define FIRST_RUN_SPREAD_MS 2000 /* between the first runs of two polls */
 
 void poll_schedule_init(poll_schedule_t *schedule)
 {
     schedule->count = 0;
     schedule->floor_ms = 0;
+    schedule->next_order = 0;
 }
 
-/* How far the poll's next run is from its last: what it asked for, or the
- * floor when that is more. */
-static uint32_t pace_ms(const poll_schedule_t *schedule, const poll_entry_t *entry)
+static poll_entry_t *find(poll_schedule_t *schedule, int app, int poll)
 {
-    return entry->every_ms > schedule->floor_ms ? entry->every_ms : schedule->floor_ms;
+    for (int i = 0; i < schedule->count; i++) {
+        if (schedule->entries[i].app == app && schedule->entries[i].poll == poll) {
+            return &schedule->entries[i];
+        }
+    }
+    return NULL;
 }
 
 void poll_schedule_set_floor(poll_schedule_t *schedule, uint32_t floor_s)
@@ -29,12 +33,7 @@ void poll_schedule_set_floor(poll_schedule_t *schedule, uint32_t floor_s)
 
 bool poll_schedule_has(const poll_schedule_t *schedule, int app, int poll)
 {
-    for (int i = 0; i < schedule->count; i++) {
-        if (schedule->entries[i].app == app && schedule->entries[i].poll == poll) {
-            return true;
-        }
-    }
-    return false;
+    return find((poll_schedule_t *)schedule, app, poll) != NULL;
 }
 
 static bool is_among(int app, const int *apps, int app_count)
@@ -59,109 +58,98 @@ void poll_schedule_keep_only(poll_schedule_t *schedule, const int *apps, int app
 }
 
 bool poll_schedule_add(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
-                       int64_t now_ms)
+                       uint32_t *first_in_ms)
 {
     if (schedule->count >= POLL_SCHEDULE_MAX) {
         return false;
     }
-    poll_entry_t *entry = &schedule->entries[schedule->count];
+    *first_in_ms = (uint32_t)schedule->count * FIRST_RUN_SPREAD_MS;
+    poll_entry_t *entry = &schedule->entries[schedule->count++];
     entry->app = app;
     entry->poll = poll;
     entry->every_ms = every_s * MS_PER_SECOND;
-    entry->due_ms = now_ms + (int64_t)schedule->count * FIRST_RUN_SPREAD_MS;
-    schedule->count++;
+    entry->is_wanted = false;
     return true;
 }
 
-const poll_entry_t *poll_schedule_due(const poll_schedule_t *schedule, int64_t now_ms,
-                                      uint32_t *wait_ms)
+uint32_t poll_schedule_pace_ms(const poll_schedule_t *schedule, int app, int poll)
 {
-    const poll_entry_t *earliest = NULL;
-    for (int i = 0; i < schedule->count; i++) {
-        if (earliest == NULL || schedule->entries[i].due_ms < earliest->due_ms) {
-            earliest = &schedule->entries[i];
-        }
+    const poll_entry_t *entry = find((poll_schedule_t *)schedule, app, poll);
+    if (entry == NULL) {
+        return 0;
     }
-    if (earliest == NULL) {
-        *wait_ms = UINT32_MAX;
-        return NULL;
-    }
-    if (earliest->due_ms <= now_ms) {
-        *wait_ms = 0;
-        return earliest;
-    }
-    *wait_ms = (uint32_t)(earliest->due_ms - now_ms);
-    return NULL;
-}
-
-void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, int64_t now_ms)
-{
-    poll_entry_t *done = &schedule->entries[entry - schedule->entries];
-    done->due_ms = now_ms + pace_ms(schedule, done);
-}
-
-void poll_schedule_hurry_all(poll_schedule_t *schedule, int64_t now_ms)
-{
-    for (int i = 0; i < schedule->count; i++) {
-        if (schedule->entries[i].due_ms > now_ms) {
-            schedule->entries[i].due_ms = now_ms;
-        }
-    }
-}
-
-void poll_schedule_hurry(poll_schedule_t *schedule, int app, int64_t now_ms)
-{
-    for (int i = 0; i < schedule->count; i++) {
-        if (schedule->entries[i].app == app && schedule->entries[i].due_ms > now_ms) {
-            schedule->entries[i].due_ms = now_ms;
-        }
-    }
-}
-
-bool poll_schedule_hurry_one(poll_schedule_t *schedule, int app, int poll, int64_t now_ms)
-{
-    for (int i = 0; i < schedule->count; i++) {
-        poll_entry_t *entry = &schedule->entries[i];
-        if (entry->app == app && entry->poll == poll) {
-            if (entry->due_ms > now_ms) {
-                entry->due_ms = now_ms;
-            }
-            return true;
-        }
-    }
-    return false;
+    return entry->every_ms > schedule->floor_ms ? entry->every_ms : schedule->floor_ms;
 }
 
 bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
-                                int64_t now_ms)
+                                bool *is_another)
 {
     if (every_s < APP_POLL_EVERY_MIN_S) {
         every_s = APP_POLL_EVERY_MIN_S;
     } else if (every_s > APP_POLL_EVERY_MAX_S) {
         every_s = APP_POLL_EVERY_MAX_S;
     }
-    for (int i = 0; i < schedule->count; i++) {
-        poll_entry_t *entry = &schedule->entries[i];
-        if (entry->app == app && entry->poll == poll) {
-            /* Asking for the pace it already has moves nothing: an
-             * application says it every time it is loaded. */
-            if (entry->every_ms != every_s * MS_PER_SECOND) {
-                entry->every_ms = every_s * MS_PER_SECOND;
-                entry->due_ms = now_ms + pace_ms(schedule, entry);
-            }
-            return true;
-        }
+    poll_entry_t *entry = find(schedule, app, poll);
+    if (entry == NULL) {
+        return false;
     }
-    return false;
+    *is_another = entry->every_ms != every_s * MS_PER_SECOND;
+    entry->every_ms = every_s * MS_PER_SECOND;
+    return true;
 }
 
-void poll_schedule_finished(poll_schedule_t *schedule, int app, int poll, int64_t now_ms)
+static void want(poll_schedule_t *schedule, poll_entry_t *entry)
+{
+    if (!entry->is_wanted) {
+        entry->is_wanted = true;
+        entry->wanted_order = schedule->next_order++;
+    }
+}
+
+bool poll_schedule_want(poll_schedule_t *schedule, int app, int poll)
+{
+    poll_entry_t *entry = find(schedule, app, poll);
+    if (entry == NULL) {
+        return false;
+    }
+    want(schedule, entry);
+    return true;
+}
+
+void poll_schedule_want_of(poll_schedule_t *schedule, int app)
 {
     for (int i = 0; i < schedule->count; i++) {
-        poll_entry_t *entry = &schedule->entries[i];
-        if (entry->app == app && entry->poll == poll) {
-            entry->due_ms = now_ms + pace_ms(schedule, entry);
-            return;
+        if (schedule->entries[i].app == app) {
+            want(schedule, &schedule->entries[i]);
         }
+    }
+}
+
+void poll_schedule_want_all(poll_schedule_t *schedule)
+{
+    for (int i = 0; i < schedule->count; i++) {
+        want(schedule, &schedule->entries[i]);
+    }
+}
+
+const poll_entry_t *poll_schedule_next_wanted(const poll_schedule_t *schedule)
+{
+    const poll_entry_t *first = NULL;
+    for (int i = 0; i < schedule->count; i++) {
+        const poll_entry_t *entry = &schedule->entries[i];
+        /* The difference, not the numbers: the count may wrap. */
+        if (entry->is_wanted &&
+            (first == NULL || (int32_t)(entry->wanted_order - first->wanted_order) < 0)) {
+            first = entry;
+        }
+    }
+    return first;
+}
+
+void poll_schedule_answered(poll_schedule_t *schedule, int app, int poll)
+{
+    poll_entry_t *entry = find(schedule, app, poll);
+    if (entry != NULL) {
+        entry->is_wanted = false;
     }
 }

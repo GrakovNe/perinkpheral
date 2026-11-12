@@ -29,6 +29,8 @@ typedef enum {
     DEADLINE_DATE,            /* the day in the header is another */
     DEADLINE_PANEL_SLEEP,     /* the panel into its deep sleep */
     DEADLINE_PANEL_KEEPALIVE, /* the refresh that is due when nothing else was */
+    DEADLINE_POLL,            /* owner: the application's id; number: its poll */
+    DEADLINE_POLLER_LOOK,     /* the poller has something to look at again */
 } deadline_kind_t;
 
 /* `some_are_due` is called from the timer's task whenever a deadline has

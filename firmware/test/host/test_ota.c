@@ -57,6 +57,23 @@ static void flash_abort(void *context)
 
 static const ota_writer_t WRITER = { flash_begin, flash_write, flash_finish, flash_abort };
 
+#define PARTITION_TABLE 0x1234abcdu
+#define LAYOUT_AT       (32 + 256)
+
+static void put_u32_le(uint8_t *at, uint32_t value)
+{
+    for (int i = 0; i < 4; i++) {
+        at[i] = (uint8_t)(value >> (8 * i));
+    }
+}
+
+/* What the project says of its image, right after the description. */
+static void set_layout(uint32_t partition_table)
+{
+    put_u32_le(image + LAYOUT_AT, OTA_LAYOUT_MAGIC);
+    put_u32_le(image + LAYOUT_AT + 4, partition_table);
+}
+
 /* An image as ESP-IDF lays it out, as far as the stream looks. */
 static void make_image(const char *project_name)
 {
@@ -68,6 +85,7 @@ static void make_image(const char *project_name)
     memcpy(image + 32, description_magic, sizeof description_magic);
     memset(image + 32 + 48, 0, 32);
     strcpy((char *)image + 32 + 48, project_name);
+    set_layout(PARTITION_TABLE);
 }
 
 static ota_stream_t stream;
@@ -75,7 +93,8 @@ static ota_stream_t stream;
 static bool start(size_t image_size)
 {
     memset(&flash, 0, sizeof flash);
-    return ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", image_size, SLOT_BYTES);
+    return ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", PARTITION_TABLE, image_size,
+                            SLOT_BYTES);
 }
 
 /* Feeds the whole image in pieces of `piece` bytes. */
@@ -103,6 +122,23 @@ static void test_good_image_in_any_pieces(void)
         CHECK(flash.announced == IMAGE_BYTES && flash.length == IMAGE_BYTES);
         CHECK(memcmp(flash.written, image, IMAGE_BYTES) == 0);
     }
+}
+
+static void test_an_image_for_another_partition_table(void)
+{
+    make_image("perinkpheral");
+    set_layout(PARTITION_TABLE + 1);
+    CHECK(start(IMAGE_BYTES));
+    CHECK(!feed_all(64));
+    CHECK(flash.begun == 0 && flash.length == 0);
+    CHECK_STR(ota_stream_error(&stream), "Image is for another partition table. Flash over USB.");
+
+    /* one from before images said what they were built for */
+    make_image("perinkpheral");
+    put_u32_le(image + LAYOUT_AT, 0);
+    CHECK(start(IMAGE_BYTES));
+    CHECK(!feed_all(64));
+    CHECK(flash.begun == 0);
 }
 
 static void test_foreign_images_never_reach_the_flash(void)
@@ -161,7 +197,8 @@ static void test_edges(void)
     /* an image that is nothing but its head */
     make_image("perinkpheral");
     memset(&flash, 0, sizeof flash);
-    CHECK(ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", OTA_HEAD_BYTES, SLOT_BYTES));
+    CHECK(ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", PARTITION_TABLE,
+                           OTA_HEAD_BYTES, SLOT_BYTES));
     CHECK(ota_stream_feed(&stream, image, OTA_HEAD_BYTES));
     CHECK(ota_stream_end(&stream));
     CHECK(flash.length == OTA_HEAD_BYTES && flash.finished == 1);
@@ -177,9 +214,9 @@ static void test_edges(void)
      * that another project's image could match */
     memset(&flash, 0, sizeof flash);
     CHECK(ota_stream_start(&stream, &WRITER, NULL, "a-project-name-of-31-characters",
-                           IMAGE_BYTES, SLOT_BYTES));
+                           PARTITION_TABLE, IMAGE_BYTES, SLOT_BYTES));
     CHECK(!ota_stream_start(&stream, &WRITER, NULL, "a-project-name-of-32-characters!",
-                            IMAGE_BYTES, SLOT_BYTES));
+                            PARTITION_TABLE, IMAGE_BYTES, SLOT_BYTES));
     CHECK(!ota_stream_feed(&stream, image, 10));
 }
 
@@ -251,6 +288,7 @@ int main(void)
 {
     test_good_image_in_any_pieces();
     test_foreign_images_never_reach_the_flash();
+    test_an_image_for_another_partition_table();
     test_sizes();
     test_edges();
     test_writer_failures();

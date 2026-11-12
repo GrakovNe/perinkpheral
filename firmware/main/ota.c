@@ -17,6 +17,7 @@
 #include "sdkconfig.h"
 
 #include "ota_health.h"
+#include "image_layout.h"
 #include "ota_stream.h"
 #include "web_server.h"
 #include "wifi.h"
@@ -115,7 +116,8 @@ const char *ota_upload_begin(size_t image_size)
     s_upload.in_progress = true;
     ESP_LOGI(TAG, "upload of %u bytes into %s", (unsigned)image_size, s_upload.slot->label);
     return upload_result(ota_stream_start(&s_upload.stream, &SLOT_WRITER, NULL,
-                                          esp_app_get_description()->project_name, image_size,
+                                          esp_app_get_description()->project_name,
+                                          image_layout_partition_table(), image_size,
                                           s_upload.slot->size));
 }
 

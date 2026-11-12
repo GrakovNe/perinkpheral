@@ -13,6 +13,7 @@
 #define DESCRIPTION_MAGIC_WORD   0xABCD5432u
 #define PROJECT_NAME_OFFSET      (DESCRIPTION_OFFSET + 48)
 #define PROJECT_NAME_FIELD_BYTES 32
+#define LAYOUT_OFFSET            (DESCRIPTION_OFFSET + 256) /* right after the description */
 
 static bool fail(ota_stream_t *stream, const char *error)
 {
@@ -41,8 +42,17 @@ static bool head_is_ours(const ota_stream_t *stream)
            memcmp(name, stream->project_name, our_length) == 0 && name[our_length] == '\0';
 }
 
+/* Whether the image was built for the partition table this device has. */
+static bool head_fits_the_device(const ota_stream_t *stream)
+{
+    const uint8_t *layout = stream->head + LAYOUT_OFFSET;
+    return read_u32_le(layout) == OTA_LAYOUT_MAGIC &&
+           read_u32_le(layout + sizeof(uint32_t)) == stream->partition_table;
+}
+
 bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *writer_context,
-                      const char *project_name, size_t image_size, size_t slot_size)
+                      const char *project_name, uint32_t partition_table, size_t image_size,
+                      size_t slot_size)
 {
     memset(stream, 0, sizeof *stream);
     stream->writer = writer;
@@ -53,6 +63,7 @@ bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *wr
         return fail(stream, "Internal error.");
     }
     strcpy(stream->project_name, project_name);
+    stream->partition_table = partition_table;
     if (image_size < OTA_HEAD_BYTES) {
         return fail(stream, "Invalid image.");
     }
@@ -94,6 +105,9 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
         }
         if (!head_is_ours(stream)) {
             return fail(stream, "Invalid image.");
+        }
+        if (!head_fits_the_device(stream)) {
+            return fail(stream, "Image is for another partition table. Flash over USB.");
         }
         if (!stream->writer->begin(stream->writer_context, stream->image_size)) {
             return fail(stream, "Write failed.");

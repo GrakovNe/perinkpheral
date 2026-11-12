@@ -28,9 +28,23 @@ typedef struct {
     void (*abort)(void *context);
 } ota_writer_t;
 
-/* The image header, the first segment's header and the application
- * description: all that is needed to recognize an image. */
-#define OTA_HEAD_BYTES (24 + 8 + 256)
+/* The image header, the first segment's header, the application
+ * description and, after it, what this project says of its image
+ * (ota_layout_t): all that is needed to recognize an image. */
+#define OTA_HEAD_BYTES (24 + 8 + 256 + 16)
+
+/* What an image of this project carries right after its description: the
+ * partition table it was built for. An image for another table would
+ * look for its applications where there are none, and the table itself
+ * cannot be changed over the air. Sixteen bytes, as they lie in the
+ * image. */
+#define OTA_LAYOUT_MAGIC 0x54524150u /* "PART" */
+
+typedef struct {
+    uint32_t magic;
+    uint32_t partition_table; /* a number that is another for another table */
+    uint32_t reserved[2];
+} ota_layout_t;
 
 #define OTA_PROJECT_NAME_MAX 31
 
@@ -38,6 +52,7 @@ typedef struct {
     const ota_writer_t *writer;
     void               *writer_context;
     char                project_name[OTA_PROJECT_NAME_MAX + 1];
+    uint32_t            partition_table;
     size_t              image_size;
     size_t              received;
     uint8_t             head[OTA_HEAD_BYTES];
@@ -48,7 +63,8 @@ typedef struct {
 /* False, with the reason in ota_stream_error(), when the size alone rules
  * the image out. slot_size is the room there is for it. */
 bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *writer_context,
-                      const char *project_name, size_t image_size, size_t slot_size);
+                      const char *project_name, uint32_t partition_table, size_t image_size,
+                      size_t slot_size);
 
 /* False when the image is refused or cannot be written; nothing more is
  * accepted then. */

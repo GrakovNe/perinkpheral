@@ -27,6 +27,13 @@ extern "C" {
  * After launcher_start(). */
 void poller_start(void);
 
+/* DEADLINE_POLL has come: the poll is to be asked. */
+void poller_poll_is_due(uint32_t app, int poll);
+
+/* DEADLINE_POLLER_LOOK has come: the moment the poller asked to look at
+ * its things again. */
+void poller_look(void);
+
 /* Whether the last time the network was needed it was not there; and the
  * network saying it is there again, which also makes every poll due. For
  * the header's icon. */

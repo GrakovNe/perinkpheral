@@ -60,6 +60,11 @@ void events_post_button(uint8_t index, event_press_t press);
 typedef void (*events_call_fn)(void *argument);
 bool events_call(events_call_fn run, void *argument);
 
+/* The same for a caller that has nothing better to do than wait for room
+ * in the queue: returns when the call was made. Not from the host loop's
+ * own callers that must answer somebody soon. */
+void events_call_patiently(events_call_fn run, void *argument);
+
 /* For the host loop: marks the task that is one, and answers a call. */
 void events_this_is_the_host_loop(void);
 void events_answer_call(void *call);
