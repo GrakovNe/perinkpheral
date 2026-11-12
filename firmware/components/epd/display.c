@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -25,7 +26,26 @@ static const char *TAG = "display";
  * for the next one to come without a reset: a row of pictures, steps
  * through a menu. */
 #define PANEL_AWAKE_MS     1500
+#define KEEPALIVE_WITHOUT_A_FRAME_MS (60 * 1000)
 #define WHITE_BYTE         0xFF
+
+/* What the panel shows, as a number, in the memory that outlives the
+ * chip's deep sleep: the panel keeps its picture through it and the copy
+ * below does not. A frame that comes to the same number after waking is
+ * the one on the panel, and costs no refresh. 0: not known. */
+static RTC_DATA_ATTR uint32_t s_panel_shows;
+
+#define FNV_OFFSET 2166136261u
+#define FNV_PRIME  16777619u
+
+static uint32_t number_of(const uint8_t *frame)
+{
+    uint32_t number = FNV_OFFSET;
+    for (size_t i = 0; i < DISPLAY_FRAME_SIZE; i++) {
+        number = (number ^ frame[i]) * FNV_PRIME;
+    }
+    return number != 0 ? number : 1;
+}
 
 static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
 /* False after a reset and after a failed refresh: the panel holds
@@ -127,7 +147,12 @@ void display_keepalive(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     esp_err_t err = ESP_OK;
-    if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
+    if (!s_shown_is_on_panel) {
+        /* Nothing was shown since the start - it came due through a deep
+         * sleep, ahead of the first frame: there is no picture here to
+         * refresh the panel with yet. */
+        deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, KEEPALIVE_WITHOUT_A_FRAME_MS);
+    } else if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
         s_shown_is_on_panel = err == ESP_OK;
     } else {
         /* Came early - the setting was changed since: at its time, then. */
@@ -176,13 +201,21 @@ void display_start(const refresh_policy_cfg_t *policy)
         .busy_gpio = CONFIG_APP_EPD_BUSY_GPIO,
     };
     ESP_ERROR_CHECK(epd_init(&cfg));
-    expect_keepalive();
+    /* Woken from deep sleep, the one that was due before it still is. */
+    if (!deadlines_has(DEADLINE_PANEL_KEEPALIVE, 0, 0)) {
+        expect_keepalive();
+    }
 }
 
 display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
 {
     display_result_t result;
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (!s_shown_is_on_panel && s_panel_shows != 0 && number_of(frame) == s_panel_shows) {
+        /* Woken from deep sleep with the picture still on the panel. */
+        memcpy(s_shown, frame, sizeof s_shown);
+        s_shown_is_on_panel = true;
+    }
     if (s_shown_is_on_panel && memcmp(s_shown, frame, sizeof s_shown) == 0) {
         result = DISPLAY_UNCHANGED;
     } else {
@@ -191,10 +224,12 @@ display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
             result = DISPLAY_DEFERRED;
         } else if (err != ESP_OK) {
             s_shown_is_on_panel = false;
+            s_panel_shows = 0;
             result = DISPLAY_FAILED;
         } else {
             memcpy(s_shown, frame, sizeof s_shown);
             s_shown_is_on_panel = true;
+            s_panel_shows = number_of(frame);
             result = DISPLAY_SHOWN;
         }
     }

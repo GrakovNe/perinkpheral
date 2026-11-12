@@ -26,10 +26,15 @@ extern "C" {
 #define POWER_AWAKE_AFTER_PRESS_MS (2 * 60 * 1000)
 
 /* Once, after Wi-Fi has started. */
-void power_start(bool is_saving);
+void power_start(bool is_saving, bool sleeps_deeply, bool is_user_here);
+
+/* Whether the device is one that sleeps deeply between its polls, and
+ * nothing of the power's keeps it up now: nobody holds the radio, and the
+ * while after a press is over. */
+bool power_may_sleep_deeply(void);
 
 /* The setting changed. From any task. */
-void power_set_saving(bool is_saving);
+void power_set_saving(bool is_saving, bool sleeps_deeply);
 bool power_is_saving(void);
 
 /* Somebody needs the network until the matching release: counted. In the

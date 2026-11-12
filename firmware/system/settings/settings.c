@@ -89,6 +89,9 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
     { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
+#define POWER_SAVINGS 3
+static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On", "Extreme" };
+
 static const display_setting_t *edited; /* on PAGE_VALUE */
 static int32_t                  edited_choice;
 
@@ -365,7 +368,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
             copy_text(value, TEXT_MAX + 1, city >= 0 ? CITIES[city].name : "Custom");
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
-                      read_number(SYS_NUMBER_POWER_SAVING) != 0 ? "On" : "Off");
+                      POWER_SAVING_NAMES[read_number(SYS_NUMBER_POWER_SAVING) % POWER_SAVINGS]);
         }
         break;
     case PAGE_DATE_TIME:
@@ -511,9 +514,10 @@ static void activate(page_t page, int32_t row)
             int32_t city = current_city();
             open(PAGE_ZONE, city >= 0 ? city : 0);
         } else {
-            /* On: the device runs from its battery. */
+            /* On: the device runs from its battery. Extreme: and sleeps
+             * deeply between its polls. */
             sys_number_set(SYS_NUMBER_POWER_SAVING,
-                           read_number(SYS_NUMBER_POWER_SAVING) != 0 ? 0 : 1);
+                           (read_number(SYS_NUMBER_POWER_SAVING) + 1) % POWER_SAVINGS);
             show();
         }
         break;

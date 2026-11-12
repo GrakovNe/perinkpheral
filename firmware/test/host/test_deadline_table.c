@@ -111,6 +111,23 @@ static void test_owners_that_are_no_more(void)
     CHECK(takes_none(&table, 99999));
 }
 
+static void test_what_outlives_a_sleep(void)
+{
+    deadline_table_t table;
+    deadline_table_init(&table);
+    deadline_table_set(&table, TIMER_0, 1000, true);
+    deadline_table_set(&table, ALARM_A2, 5000, true);
+    deadline_table_set(&table, ALARM_B0, 3000, false);
+    /* the timer is nearer, and is not what the chip wakes for */
+    CHECK(deadline_table_nearest_of(&table, 1u << ALARM) == 3000);
+    CHECK(deadline_table_nearest_of(&table, 1u << TIMER) == 1000);
+    CHECK(deadline_table_nearest_of(&table, 0) == DEADLINE_NONE);
+    deadline_table_keep_kinds(&table, 1u << ALARM);
+    CHECK(deadline_table_when(&table, TIMER_0) == DEADLINE_NONE);
+    CHECK(deadline_table_when(&table, ALARM_A2) == 5000);
+    CHECK(deadline_table_nearest(&table) == 3000);
+}
+
 static void test_the_table_is_of_a_size(void)
 {
     deadline_table_t table;
@@ -132,6 +149,7 @@ int main(void)
     test_set_anew_and_cancel();
     test_the_clock_is_set();
     test_owners_that_are_no_more();
+    test_what_outlives_a_sleep();
     test_the_table_is_of_a_size();
     REPORT();
 }

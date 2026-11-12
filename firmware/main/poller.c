@@ -185,6 +185,9 @@ static void look_again_in(int64_t milliseconds)
     }
 }
 
+/* The task is asleep with nothing it means to come back to. */
+static volatile bool s_is_resting;
+
 /* Nothing to do now: until somebody wakes the task, or the moment it
  * asked to look again comes. */
 static void rest(void)
@@ -194,7 +197,9 @@ static void rest(void)
     } else {
         deadlines_set_in(DEADLINE_POLLER_LOOK, 0, 0, s_look_again_in_ms);
     }
+    s_is_resting = s_look_again_in_ms == NEVER;
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    s_is_resting = false;
 }
 
 /* ---- requests the applications make themselves ---- */
@@ -568,14 +573,23 @@ static int schedule_installed(void)
     for (int i = 0; i < s_known_count; i++) {
         for (int poll = 0; poll < s_known[i].poll_count; poll++) {
             uint32_t first_in_ms;
+            /* A poll whose time was set before the chip slept deeply keeps
+             * it: the sleep was timed by it. */
             if (!poll_schedule_has(&s_schedule, apps[i], poll) &&
                 poll_schedule_add(&s_schedule, apps[i], poll, s_known[i].poll_every_s[poll],
-                                  &first_in_ms)) {
+                                  &first_in_ms) &&
+                !deadlines_has(DEADLINE_POLL, owners[i], poll)) {
                 deadlines_set_in(DEADLINE_POLL, owners[i], poll, first_in_ms);
             }
         }
     }
     return s_schedule.count;
+}
+
+bool poller_is_idle(void)
+{
+    /* Resting, and not about to be woken by something already asked. */
+    return s_is_resting && !wants_network();
 }
 
 void poller_reschedule(void)

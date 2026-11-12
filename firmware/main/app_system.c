@@ -106,8 +106,8 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
         return HOST_OK;
     case SYS_NUMBER_POWER_SAVING:
         *value = settings.power_saving;
-        *least = 0;
-        *most = 1;
+        *least = APPCONF_POWER_PLUGGED;
+        *most = APPCONF_POWER_EXTREME;
         return HOST_OK;
     case SYS_NUMBER_REFRESH_FAST:
         *value = settings.refresh_fast;

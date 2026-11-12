@@ -15,6 +15,7 @@
 #include "app_system.h"
 #include "m3_area.h"
 #include "poller.h"
+#include "deep_sleep.h"
 #include "power.h"
 #include "appconf.h"
 #include "board.h"
@@ -149,7 +150,9 @@ void app_main(void)
     };
     status_start();
     wifi_start(&wifi);
-    power_start(cfg->power_saving != 0);
+    power_start(cfg->power_saving != APPCONF_POWER_PLUGGED,
+                cfg->power_saving == APPCONF_POWER_EXTREME,
+                deep_sleep_woke_by() != WOKE_BY_CLOCK);
     announce_name(cfg);
     net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);

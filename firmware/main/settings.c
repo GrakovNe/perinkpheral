@@ -306,7 +306,8 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
     if (power_changed) {
         /* Only then: the polls are another distance apart, and scheduling
          * them anew is not something to do for a change of the time zone. */
-        power_set_saving(s_live.power_saving != 0);
+        power_set_saving(s_live.power_saving != APPCONF_POWER_PLUGGED,
+                         s_live.power_saving == APPCONF_POWER_EXTREME);
         poller_reschedule();
     }
     if (zone_changed) {

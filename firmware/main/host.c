@@ -15,10 +15,12 @@
 #include "devconsole.h"
 #include "app_delivery.h"
 #include "deadlines.h"
+#include "deep_sleep.h"
 #include "devtools.h"
 #include "display.h"
 #include "events.h"
 #include "launcher.h"
+#include "ota.h"
 #include "poller.h"
 #include "reset.h"
 #include "power.h"
@@ -235,7 +237,12 @@ static host_stop_t s_stop_reason;
 
 static void stop(host_stop_t why)
 {
-    ESP_LOGW(TAG, "stopping: %s", why == HOST_STOP_FACTORY_RESET ? "factory reset" : "restart");
+    static const char *const WHY[] = {
+        [HOST_STOP_RESTART] = "restart",
+        [HOST_STOP_FACTORY_RESET] = "factory reset",
+        [HOST_STOP_DEEP_SLEEP] = "deep sleep",
+    };
+    ESP_LOGW(TAG, "stopping: %s", WHY[why]);
     /* The application on the screen: app_on_blur(), app_on_terminate(). */
     wm_suspend(&wm);
     /* And one that was taking an answer off the screen. */
@@ -244,10 +251,38 @@ static void stop(host_stop_t why)
     }
     poller_hold(); /* and never let go: nothing more is asked */
     display_rest();
+    if (why == HOST_STOP_DEEP_SLEEP) {
+        deep_sleep_until(deadlines_next_worth_waking_for());
+    }
     if (why == HOST_STOP_FACTORY_RESET) {
         reset_mark_factory();
     }
     esp_restart();
+}
+
+static bool is_question_open(void);
+
+/* Not worth going down for less: the start after it takes a few seconds. */
+#define DEEP_SLEEP_LEAST_MS (30 * 1000)
+
+/* A device that sleeps deeply between its polls does so the moment nothing
+ * is left to do: every one of these is known to be done, none is waited
+ * for on the off chance. */
+static bool may_sleep_deeply(void)
+{
+    if (!power_may_sleep_deeply() || !poller_is_idle() || ota_is_on_probation()) {
+        return false;
+    }
+    if (is_question_open() || delivery_state.in_background != NULL || wm.suspended ||
+        wm_pending_change(&wm) != WM_CLEAN) {
+        return false;
+    }
+    /* The panel is still awake after its last refresh. */
+    if (deadlines_has(DEADLINE_PANEL_SLEEP, 0, 0) || deadlines_has(DEADLINE_STOP, 0, 0)) {
+        return false;
+    }
+    int64_t next_ms = deadlines_next_worth_waking_for();
+    return next_ms == DEADLINE_NONE || next_ms - deadlines_now_ms() >= DEEP_SLEEP_LEAST_MS;
 }
 
 void host_stop_soon(host_stop_t why)
@@ -280,6 +315,11 @@ static struct {
 /* An answer is being handed to an application that is not on the screen:
  * the scene on it is set aside for the moment and comes back. */
 static bool s_is_delivering;
+
+static bool is_question_open(void)
+{
+    return s_confirm.is_open;
+}
 
 /* In the host loop: from the scene. The first call is the answer. */
 static void on_confirm_answer(bool is_confirmed)
@@ -513,10 +553,12 @@ void host_run(void)
     /* The splash is the About application; a firmware without one starts
      * where the splash would have led. */
     scene_t *after_boot = scene_after_boot(menu);
-    scene_t *first = launcher_about() != NULL
-                         ? scene_boot_splash(after_boot, timers_set, launcher_about(),
-                                             about_is_shown)
-                         : after_boot;
+    /* Woken from deep sleep is not powered up: the device goes on showing
+     * what it showed, with no splash in between. */
+    bool     shows_splash = launcher_about() != NULL && deep_sleep_woke_by() == WOKE_NOT_FROM_SLEEP;
+    scene_t *first = shows_splash ? scene_boot_splash(after_boot, timers_set, launcher_about(),
+                                                       about_is_shown)
+                                  : after_boot;
     wm_init(&wm, menu, first, draw_header, NULL);
 
     app_delivery_init(&delivery_state);
@@ -537,6 +579,9 @@ void host_run(void)
         }
         events_since_shown++;
 
+        if (!events_are_waiting() && may_sleep_deeply()) {
+            stop(HOST_STOP_DEEP_SLEEP);
+        }
         event_t event;
         if (!events_wait(&event, wait_ms)) {
             continue;

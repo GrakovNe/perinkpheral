@@ -64,6 +64,12 @@ bool deadline_table_take_due(deadline_table_t *table, int64_t now_ms, deadline_i
 /* The moment of the nearest, or DEADLINE_NONE. */
 int64_t deadline_table_nearest(const deadline_table_t *table);
 
+/* The same among the kinds of `kinds` only, a bit for each kind. */
+int64_t deadline_table_nearest_of(const deadline_table_t *table, uint32_t kinds);
+
+/* Takes back every deadline whose kind is not among `kinds`. */
+void deadline_table_keep_kinds(deadline_table_t *table, uint32_t kinds);
+
 /* The moment a deadline is set for, or DEADLINE_NONE when it is not. */
 int64_t deadline_table_when(const deadline_table_t *table, deadline_id_t id);
 

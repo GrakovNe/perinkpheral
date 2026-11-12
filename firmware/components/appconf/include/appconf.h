@@ -43,6 +43,11 @@ extern "C" {
 
 /* Everything a user can set. Pure: no ESP-IDF, host-tested. The network
  * fields are here from day one so that NVS keys never have to move. */
+/* How the device is powered, which is what it does when idle. */
+#define APPCONF_POWER_PLUGGED 0 /* the radio always on */
+#define APPCONF_POWER_SAVING  1 /* light sleep; the radio on for a poll and after a press */
+#define APPCONF_POWER_EXTREME 2 /* the same, and deep sleep between the polls */
+
 typedef struct {
     char device_name[APPCONF_NAME_MAX + 1];
     char wifi_ssid[APPCONF_SSID_MAX + 1];
@@ -58,7 +63,8 @@ typedef struct {
     uint8_t  refresh_fast;          /* 1: the shorter full refresh, with less of a blink */
     uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
-    uint8_t  power_saving;          /* 1: the device runs from its battery; 0: it is plugged in */
+    uint8_t  power_saving;          /* an APPCONF_POWER_*: plugged in, from its battery, or
+                                       from its battery and asleep between polls */
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

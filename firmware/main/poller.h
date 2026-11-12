@@ -30,6 +30,10 @@ void poller_start(void);
 /* DEADLINE_POLL has come: the poll is to be asked. */
 void poller_poll_is_due(uint32_t app, int poll);
 
+/* Whether the poller has nothing to do and nothing it waits for: no poll
+ * wanted, no request, no file being fetched. */
+bool poller_is_idle(void);
+
 /* DEADLINE_POLLER_LOOK has come: the moment the poller asked to look at
  * its things again. */
 void poller_look(void);
