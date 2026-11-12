@@ -3,7 +3,7 @@
 # Copyright (c) 2026 GrakovNe
 """Turn a video into a 1-bit stream small enough to be a file of an application.
 
-    mkvideo.py <video> --out frames.bin [--width 200] [--height 150] [--fps 1]
+    mkvideo.py <video> --out frames.bin [--width 200] [--height 150] [--fps 1.5]
                [--threshold 128]
 
 The video is scaled down and cut to black and white. Every frame stands on
@@ -82,7 +82,7 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--width", type=int, default=200)
     parser.add_argument("--height", type=int, default=150)
-    parser.add_argument("--fps", type=float, default=1)
+    parser.add_argument("--fps", type=float, default=1.5)
     parser.add_argument("--threshold", type=int, default=128,
                         help="a pixel darker than this (0-255) is ink")
     options = parser.parse_args()

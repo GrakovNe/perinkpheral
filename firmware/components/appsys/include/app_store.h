@@ -49,7 +49,7 @@ char *app_store_read_manifest(const char *root, const char *name);
  * starting with a dot. */
 #define APP_FILE_NAME_MAX 23
 /* All the data files of one application may take this much. */
-#define APP_FILES_MAX_BYTES (100 * 1024)
+#define APP_FILES_MAX_BYTES (120 * 1024)
 
 /* True for the manifest, the module and any well-named data file. */
 bool app_store_is_file_name(const char *file);

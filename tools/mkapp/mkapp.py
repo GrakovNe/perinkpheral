@@ -50,7 +50,7 @@ SETTING_OPTION_MAX = 23
 INTENTS = ("time_changed", "network_up")
 SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place")
 FILE_NAME_MAX = 23
-FILES_MAX_BYTES = 100 * 1024
+FILES_MAX_BYTES = 120 * 1024
 HEADER_NAME_MAX = 31
 HEADER_VALUE_MAX = 127
 
