@@ -205,6 +205,9 @@ static void connect(void)
     if (err != ESP_OK) {
         /* The plan hears of it as of any other failed attempt. */
         ESP_LOGW(TAG, "cannot start connecting: %s", esp_err_to_name(err));
+        /* If it was the place that the radio would not take, not again. */
+        s_is_looking_in_one_place = false;
+        s_found_at.is_known = false;
         post(WIFI_EVENT_DISCONNECTED);
     }
 }

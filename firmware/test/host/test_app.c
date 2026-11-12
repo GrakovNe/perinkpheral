@@ -55,6 +55,14 @@ static int32_t fake_time_zone_offset(void)
     return 3600;
 }
 
+/* A zone an hour east of UTC that moves its clocks another hour ahead at
+ * the start of 2030: summer time, as an application meets it. */
+#define SUMMER_BEGINS 1893456000 /* 2030-01-01 00:00:00 UTC */
+static int32_t fake_time_zone_offset_at(int64_t unix_time)
+{
+    return unix_time >= SUMMER_BEGINS - 3600 ? 7200 : 3600;
+}
+
 /* Stands still, so that the probe can check what it reads, unless a test
  * lets it run: then every look at it is a millisecond later. */
 #define FAKE_UPTIME_MS 1234
@@ -228,6 +236,7 @@ static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
+    .time_zone_offset_at = fake_time_zone_offset_at,
     .uptime_ms = fake_uptime_ms,
     .log = record_log,
     .timer_set = record_timer,
@@ -613,6 +622,9 @@ static void test_color_and_local_time(void)
 
     CHECK(gfx_get(&surface, 0, ROW_LOCAL_TIME) && !gfx_get(&surface, 2, ROW_LOCAL_TIME));
     CHECK(gfx_get(&surface, 4, ROW_LOCAL_TIME));
+    /* any moment taken apart, put together again, across a change of the clocks, past a month's end */
+    CHECK(gfx_get(&surface, 6, ROW_LOCAL_TIME) && gfx_get(&surface, 8, ROW_LOCAL_TIME));
+    CHECK(gfx_get(&surface, 10, ROW_LOCAL_TIME) && gfx_get(&surface, 12, ROW_LOCAL_TIME));
     fake_now = 1794439815; /* 2026-11-11 23:30:15 UTC */
     draw(app);
     CHECK(!gfx_get(&surface, 0, ROW_LOCAL_TIME) && gfx_get(&surface, 2, ROW_LOCAL_TIME));

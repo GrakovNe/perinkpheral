@@ -107,6 +107,11 @@ static void load(appconf_t *c, const char device_id[5])
     nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
     nvs_get_u8(h, KEY_DITHER, &c->dither);
     nvs_get_u8(h, KEY_FONT, &c->font);
+    if (c->font >= APPCONF_FONT_COUNT) {
+        /* Stored by a firmware that had more of them: not a reason to throw
+         * every setting away, the network's among them. */
+        c->font = 0;
+    }
     nvs_get_u8(h, KEY_REFRESH_FAST, &c->refresh_fast);
     nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
     nvs_get_u8(h, KEY_POWER_SAVING, &c->power_saving);

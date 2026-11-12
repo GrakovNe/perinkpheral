@@ -53,7 +53,9 @@ static const scene_ops_t STORAGE_OPS = {
 
 scene_t *scene_storage_error(scene_t *next, scenes_action_fn format)
 {
-    static storage_scene_t storage = { .scene = { .ops = &STORAGE_OPS, .fullscreen = true } };
+    static storage_scene_t storage = {
+        .scene = { .ops = &STORAGE_OPS, .fullscreen = true, .asks_once = true },
+    };
     storage.next = next;
     storage.format = format;
     return &storage.scene;

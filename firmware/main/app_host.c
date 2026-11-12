@@ -139,6 +139,7 @@ const app_services_t *app_host_services(void)
     static const app_services_t SERVICES = {
         .unix_time = net_time_now,
         .time_zone_offset = net_time_zone_offset,
+        .time_zone_offset_at = net_time_zone_offset_at,
         .uptime_ms = uptime_ms,
         .log = log_from_app,
         .timer_set = timers_set,

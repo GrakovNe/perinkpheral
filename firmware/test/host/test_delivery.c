@@ -21,6 +21,12 @@
  * window manager, and a stand-in for the menu. */
 
 static int64_t no_time(void) { return 0; }
+static int32_t no_offset_at(int64_t unix_time)
+{
+    (void)unix_time;
+    return 0;
+}
+
 static int32_t no_offset(void) { return 0; }
 static void no_log(int level, const char *text, int length) { (void)level; (void)text; (void)length; }
 static void no_timer(int id, int32_t milliseconds) { (void)id; (void)milliseconds; }
@@ -68,7 +74,7 @@ static int32_t no_file_read(const char *app, const char *file, int32_t offset, v
 }
 static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
-    .unix_time = no_time, .time_zone_offset = no_offset, .uptime_ms = no_time, .log = no_log,
+    .unix_time = no_time, .time_zone_offset = no_offset, .time_zone_offset_at = no_offset_at, .uptime_ms = no_time, .log = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
     .dithers = always_dithers, .poll_now = no_poll_now, .poll_set_interval = no_interval,
     .alarm_set = no_alarm, .http_request = no_request, .file_write = no_file_write,

@@ -66,7 +66,9 @@ static const scene_ops_t CONFIRM_OPS = {
 scene_t *scene_confirm(const char *first, const char *second, int icon, const char *action,
                        scenes_answer_fn answer)
 {
-    static confirm_scene_t confirm = { .scene = { .ops = &CONFIRM_OPS, .fullscreen = true } };
+    static confirm_scene_t confirm = {
+        .scene = { .ops = &CONFIRM_OPS, .fullscreen = true, .asks_once = true },
+    };
     confirm.first = first;
     confirm.second = second;
     confirm.icon = icon;

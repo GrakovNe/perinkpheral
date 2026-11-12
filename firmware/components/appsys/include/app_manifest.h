@@ -36,10 +36,10 @@ extern "C" {
 #define APP_POLLS_MAX            4
 #define APP_POLL_EVERY_MIN_S     10
 #define APP_POLL_EVERY_MAX_S     (24 * 60 * 60)
-#define APP_URL_MAX              255
+#define APP_URL_MAX              511 /* a calendar's secret address is long */
 #define APP_HEADERS_MAX          4
 #define APP_HEADER_NAME_MAX      31
-#define APP_HEADER_VALUE_MAX     127
+#define APP_HEADER_VALUE_MAX     255 /* "Bearer " and a token of two hundred characters */
 
 /* An application may bring an icon, drawn like the host's own: 11 rows of
  * 11 characters in the manifest, '#' for ink and '.' for paper.
@@ -142,7 +142,7 @@ const char *app_manifest_result_text(app_manifest_result_t result);
 #define APP_SETTING_KEY_MAX     15 /* a kv key */
 #define APP_SETTING_TITLE_MAX   31
 #define APP_SETTING_HELP_MAX    95
-#define APP_SETTING_VALUE_MAX   127
+#define APP_SETTING_VALUE_MAX   255
 #define APP_SETTING_OPTIONS_MAX 8
 #define APP_SETTING_OPTION_MAX  23
 

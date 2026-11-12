@@ -349,7 +349,7 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * when something worth keeping changed - in app_on_terminate(), say - not
  * on every tick. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~': no spaces */
-#define HOST_KV_VALUE_MAX 256
+#define HOST_KV_VALUE_MAX 1024
 
 /* Returns the length of the value, which is then in `value`. */
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,
@@ -404,7 +404,7 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
 #define HOST_HTTP_DELETE 3
-#define HOST_HTTP_HEADERS_MAX 255
+#define HOST_HTTP_HEADERS_MAX 1023
 #define HOST_HTTP_BODY_MAX    512
 #define HOST_HTTP_PENDING_MAX 2
 #define HOST_REQUEST_FIRST    16
@@ -506,6 +506,18 @@ typedef struct {
     int32_t second;
 } host_local_time_t;
 HOST_IMPORT(time_local, int32_t time_local(host_local_time_t *now));
+
+/* The same for any moment (unix seconds), by the user's zone as its clocks
+ * stand at that moment - after the next change to summer time too. For a
+ * calendar: what day an event is, what the clock will say. Events that
+ * carry a zone of their own are whoever prepares the feed's to convert. */
+HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_time_t *parts));
+
+/* And back: the moment at which the user's clock and calendar show this -
+ * "07:30 tomorrow" for alarm_set_at(). The weekday is not looked at, and
+ * a day or an hour past the end of its month or day counts on into the
+ * next: day 32 of January is the first of February. */
+HOST_IMPORT(time_from_local, int64_t time_from_local(const host_local_time_t *parts));
 
 /* Milliseconds since the device started; always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));

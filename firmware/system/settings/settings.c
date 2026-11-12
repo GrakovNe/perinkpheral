@@ -467,6 +467,12 @@ static void show(void)
     request_redraw(REDRAW);
 }
 
+/* When the page on the screen was opened. A question is answered by one
+ * press of OK, and the panel takes a moment to show it: an OK that comes
+ * sooner was meant for the row that led here. */
+#define QUESTION_READING_MS 1500
+static int64_t opened_ms;
+
 static void open(page_t page, int32_t selected)
 {
     if (depth + 1 < DEPTH_MAX) {
@@ -474,6 +480,7 @@ static void open(page_t page, int32_t selected)
     }
     HERE.page = page;
     HERE.selected = selected;
+    opened_ms = time_uptime_ms();
     show();
 }
 
@@ -658,6 +665,9 @@ static void press_up_or_down(int32_t by)
 static void press_ok(void)
 {
     page_t page = HERE.page;
+    if (is_question(page) && time_uptime_ms() - opened_ms < QUESTION_READING_MS) {
+        return;
+    }
     if (page == PAGE_CLOCK) {
         if (HERE.selected + 1 < CLOCK_PARTS) {
             HERE.selected++;
@@ -899,7 +909,12 @@ static void draw_question(const char *first, const char *second, int32_t icon, c
         /* A title too long for the large letters is set in the ordinary ones. */
         int32_t font = text_width(HOST_FONT_MEDIUM, lines[line]) <= room ? HOST_FONT_MEDIUM
                                                                          : HOST_FONT_TEXT;
-        draw_text(NOTICE_MARGIN, baseline, font, lines[line]);
+        char fitted[TEXT_MAX + 1];
+        copy_text(fitted, sizeof fitted, lines[line]);
+        if (font == HOST_FONT_TEXT) {
+            fit(fitted, room); /* and one too long for those is cut */
+        }
+        draw_text(NOTICE_MARGIN, baseline, font, fitted);
     }
 
     gfx_rect(0, body_height, gfx_width(), 1, HOST_RECT_FILLED);

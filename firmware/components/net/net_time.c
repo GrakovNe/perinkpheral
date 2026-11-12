@@ -114,17 +114,20 @@ bool net_time_is_known(void)
     return net_time_now() != 0;
 }
 
-int32_t net_time_zone_offset(void)
+int32_t net_time_zone_offset_at(int64_t unix_time)
 {
-    time_t now = (time_t)net_time_now();
-    if (now == 0) {
-        return 0;
-    }
+    time_t moment = (time_t)unix_time;
     /* The same instant read as local time and as UTC: the difference of
      * the two as calendar times is the offset. */
     struct tm local, utc;
-    localtime_r(&now, &local);
-    gmtime_r(&now, &utc);
+    localtime_r(&moment, &local);
+    gmtime_r(&moment, &utc);
     utc.tm_isdst = local.tm_isdst;
     return (int32_t)(mktime(&local) - mktime(&utc));
+}
+
+int32_t net_time_zone_offset(void)
+{
+    int64_t now = net_time_now();
+    return now != 0 ? net_time_zone_offset_at(now) : 0;
 }

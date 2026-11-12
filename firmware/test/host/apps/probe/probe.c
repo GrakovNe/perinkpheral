@@ -430,6 +430,29 @@ void app_on_draw(void)
     if (time_local((host_local_time_t *)far_outside_memory) == HOST_ERR_ARGUMENT) {
         mark(4, ROW_LOCAL_TIME);
     }
+    /* Any moment, not only now: 2023-11-14 22:13:20 UTC, an hour east of it. */
+    host_local_time_t then;
+    if (time_local_at(1700000000, &then) == HOST_OK && then.year == 2023 && then.month == 11 &&
+        then.day == 14 && then.weekday == 2 && then.hour == 23 && then.minute == 13 &&
+        then.second == 20) {
+        mark(6, ROW_LOCAL_TIME);
+    }
+    /* And back, to the second. */
+    if (time_from_local(&then) == 1700000000) {
+        mark(8, ROW_LOCAL_TIME);
+    }
+    /* After the clocks moved an hour ahead - the test's zone does at the
+     * start of 2030 - two in the morning is midnight UTC. */
+    const host_local_time_t summer = { .year = 2030, .month = 1, .day = 1, .hour = 2 };
+    if (time_from_local(&summer) == 1893456000) {
+        mark(10, ROW_LOCAL_TIME);
+    }
+    /* A day past the end of its month counts on into the next. */
+    const host_local_time_t day_32 = { .year = 2023, .month = 1, .day = 32 };
+    const host_local_time_t february = { .year = 2023, .month = 2, .day = 1 };
+    if (time_from_local(&day_32) == time_from_local(&february)) {
+        mark(12, ROW_LOCAL_TIME);
+    }
 
     /* Far beyond the surface: has to vanish, not land somewhere. */
     gfx_rect(gfx_width(), gfx_height(), 5000, 5000, HOST_RECT_FILLED);

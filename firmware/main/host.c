@@ -85,7 +85,42 @@ static refresh_reason_t refresh_reason(wm_change_t change)
 
 static app_delivery_state_t delivery_state;
 
-static bool is_question_unseen(void);
+/* The scene whose picture the panel shows: what a person pressing a
+ * button is looking at. Not the scene that has the screen while its first
+ * frame is still being put on the panel. */
+static const scene_t *s_scene_on_panel;
+/* The buttons that went down while a scene that asks once was on the
+ * panel: only their presses are that scene's to take. */
+static uint8_t s_went_down_on_question;
+
+/* Whether the press is one the scene on the screen may have: every press,
+ * unless one press there does what cannot be taken back - then only a
+ * press that began with the question in front of whoever made it. The
+ * panel takes seconds to show a question, and a press made for the
+ * picture before it must not answer it. */
+static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t press)
+{
+    if (!scene->asks_once) {
+        s_went_down_on_question = 0;
+        return true;
+    }
+    uint8_t button = (uint8_t)(1u << index);
+    if (press == EVENT_PRESS_DOWN) {
+        if (s_scene_on_panel == scene) {
+            s_went_down_on_question |= button;
+        } else {
+            s_went_down_on_question &= (uint8_t)~button;
+        }
+        return false; /* a question has no use for the way down itself */
+    }
+    bool began_here = (s_went_down_on_question & button) != 0;
+    if (press == EVENT_PRESS_SHORT || press == EVENT_PRESS_LONG) {
+        s_went_down_on_question &= (uint8_t)~button;
+    }
+    return began_here;
+}
+
+#define BUTTON_BACK_INDEX 3
 
 /* The buttons in the order they sit on the device. */
 static const scene_button_t BUTTON_ROLE[] = {
@@ -107,10 +142,12 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
-    if (is_question_unseen()) {
+    app_delivery_give_way(&delivery_state, wm, esp_timer_get_time() / 1000);
+    /* The long press on BACK is the user's own way out of anything. */
+    bool is_way_out = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
+    if (!is_way_out && !is_press_for(wm->current, index, press)) {
         return;
     }
-    app_delivery_give_way(&delivery_state, wm, esp_timer_get_time() / 1000);
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
 }
 
@@ -118,7 +155,6 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
  * new picture from the one it has already seen. */
 static uint32_t s_frames_shown;
 
-static void note_question_is_seen(void);
 
 /* Puts the frame together and offers it to the display if anything
  * changed. Returns how long to wait before offering again, or
@@ -152,7 +188,7 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     case DISPLAY_UNCHANGED:
         break;
     }
-    note_question_is_seen();
+    s_scene_on_panel = wm->current;
     wm_shown(wm);
     return NOTHING_TO_SHOW;
 }
@@ -306,7 +342,9 @@ void host_stop_soon(host_stop_t why)
     if (s_stop_reason != HOST_STOP_FACTORY_RESET) {
         s_stop_reason = why;
     }
-    deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS);
+    if (!deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS)) {
+        esp_restart(); /* no way to do it properly: the restart is not lost */
+    }
 }
 
 /* ---- a question for whoever stands at the device ---- */
@@ -321,7 +359,6 @@ static struct {
     SemaphoreHandle_t answered;
     bool              is_open;  /* the host loop's */
     bool              is_confirmed;
-    bool              is_seen;  /* its frame is on the panel: only then is a press an answer */
     bool              is_to_put_away; /* answered: the screen goes back once the handler returned */
     scene_t          *scene;
     scene_t          *came_from; /* what had the screen, to give it back; NULL: the menu */
@@ -338,21 +375,6 @@ static bool s_is_delivering;
 static bool is_question_open(void)
 {
     return s_confirm.is_open;
-}
-
-/* The frame on the panel is the question's. */
-static void note_question_is_seen(void)
-{
-    if (s_confirm.is_open && wm.current == s_confirm.scene) {
-        s_confirm.is_seen = true;
-    }
-}
-
-/* Asked and not on the panel yet: a press now was meant for the picture
- * that is still there, and must not answer a question nobody has read. */
-static bool is_question_unseen(void)
-{
-    return s_confirm.is_open && !s_confirm.is_seen;
 }
 
 /* In the host loop: from the scene. The first call is the answer. */
@@ -396,7 +418,6 @@ static void open_confirm(void *argument)
         s_confirm.came_from = wm.current;
     }
     s_confirm.is_open = true;
-    s_confirm.is_seen = false;
     s_confirm.is_to_put_away = false;
     s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
                                     s_confirm.action, on_confirm_answer);
@@ -463,6 +484,9 @@ static void close_working(void *argument)
     if (s_working == NULL) {
         return;
     }
+    /* One instance at a time: an application taking an answer off the
+     * screen goes before the one that had the screen is loaded again. */
+    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
     if (wm.current == s_working) {
         wm_show(&wm, s_before_working != NULL ? s_before_working : s_menu);
     } else {

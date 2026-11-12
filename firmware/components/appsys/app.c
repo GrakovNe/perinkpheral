@@ -803,26 +803,34 @@ HOST_FUNCTION(host_time_zone_offset)
     m3ApiReturn(APP_OF(runtime)->services->time_zone_offset());
 }
 
-HOST_FUNCTION(host_time_local)
+#define SECONDS_PER_DAY 86400
+
+/* Days from 1970-01-01 to a date of the calendar; any year, any month
+ * number - the thirteenth month is next January. */
+static int64_t days_from_civil(int64_t year, int64_t month, int64_t day)
 {
-    m3ApiReturnType(int32_t);
-    m3ApiGetArg(uint32_t, now_offset);
-    app_t *app = APP_OF(runtime);
-    host_local_time_t *now = (host_local_time_t *)in_app_memory_to_fill(
-        runtime, _mem, now_offset, (int32_t)sizeof(host_local_time_t));
-    if (now == NULL) {
-        m3ApiReturn(HOST_ERR_ARGUMENT);
+    year += (month - 1) / 12;
+    month = (month - 1) % 12 + 1;
+    if (month < 1) {
+        month += 12;
+        year -= 1;
     }
-    int64_t utc_seconds = app->services->unix_time();
-    if (utc_seconds == 0) {
-        m3ApiReturn(HOST_ERR_NOT_FOUND);
-    }
+    year -= month <= 2;
+    int64_t era = (year >= 0 ? year : year - 399) / 400;
+    int64_t year_of_era = year - era * 400;
+    int64_t day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    int64_t day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    return era * 146097 + day_of_era - 719468;
+}
+
+/* The moment as the user's clock and calendar show it. */
+static void take_apart(const app_t *app, int64_t utc_seconds, host_local_time_t *parts_out)
+{
     /* Local time is UTC moved by the offset, so the calendar of UTC reads it. */
-    time_t local_seconds = (time_t)(utc_seconds + app->services->time_zone_offset());
+    time_t local_seconds = (time_t)(utc_seconds + app->services->time_zone_offset_at(utc_seconds));
     struct tm parts;
     gmtime_r(&local_seconds, &parts);
-    /* The application's memory is not aligned for anybody: copy, do not assign. */
-    host_local_time_t taken_apart = {
+    *parts_out = (host_local_time_t){
         .year = parts.tm_year + 1900,
         .month = parts.tm_mon + 1,
         .day = parts.tm_mday,
@@ -831,8 +839,65 @@ HOST_FUNCTION(host_time_local)
         .minute = parts.tm_min,
         .second = parts.tm_sec,
     };
-    memcpy(now, &taken_apart, sizeof taken_apart);
-    m3ApiReturn(HOST_OK);
+}
+
+static int32_t local_time_at(IM3Runtime runtime, void *memory, uint32_t parts_offset,
+                             int64_t utc_seconds)
+{
+    host_local_time_t *parts = (host_local_time_t *)in_app_memory_to_fill(
+        runtime, memory, parts_offset, (int32_t)sizeof(host_local_time_t));
+    if (parts == NULL) {
+        return HOST_ERR_ARGUMENT;
+    }
+    /* The application's memory is not aligned for anybody: copy, do not assign. */
+    host_local_time_t taken_apart;
+    take_apart(APP_OF(runtime), utc_seconds, &taken_apart);
+    memcpy(parts, &taken_apart, sizeof taken_apart);
+    return HOST_OK;
+}
+
+HOST_FUNCTION(host_time_local)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, now_offset);
+    int64_t utc_seconds = APP_OF(runtime)->services->unix_time();
+    if (utc_seconds == 0) {
+        m3ApiReturn(in_app_memory_to_fill(runtime, _mem, now_offset,
+                                          (int32_t)sizeof(host_local_time_t)) != NULL
+                        ? HOST_ERR_NOT_FOUND
+                        : HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(local_time_at(runtime, _mem, now_offset, utc_seconds));
+}
+
+HOST_FUNCTION(host_time_local_at)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int64_t, unix_time);
+    m3ApiGetArg(uint32_t, parts_offset);
+    m3ApiReturn(local_time_at(runtime, _mem, parts_offset, unix_time));
+}
+
+HOST_FUNCTION(host_time_from_local)
+{
+    m3ApiReturnType(int64_t);
+    m3ApiGetArg(uint32_t, parts_offset);
+    const uint8_t *given = in_app_memory(runtime, _mem, parts_offset,
+                                         (int32_t)sizeof(host_local_time_t));
+    if (given == NULL) {
+        m3ApiReturn(0);
+    }
+    host_local_time_t parts;
+    memcpy(&parts, given, sizeof parts);
+    app_t *app = APP_OF(runtime);
+    /* The date and time as if they were UTC; the moment is that less the
+     * zone's offset - the offset at the moment itself, which a second look
+     * finds when the clocks changed in between. */
+    int64_t as_utc = days_from_civil(parts.year, parts.month, parts.day) * SECONDS_PER_DAY +
+                     (int64_t)parts.hour * 3600 + (int64_t)parts.minute * 60 + parts.second;
+    int64_t moment = as_utc - app->services->time_zone_offset_at(as_utc);
+    moment = as_utc - app->services->time_zone_offset_at(moment);
+    m3ApiReturn(moment);
 }
 
 HOST_FUNCTION(host_time_uptime_ms)
@@ -1067,6 +1132,8 @@ static const struct {
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },
     { "time_local", "i(i)", host_time_local },
+    { "time_local_at", "i(Ii)", host_time_local_at },
+    { "time_from_local", "I(i)", host_time_from_local },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
     { "log", "v(i*i)", host_log },
 };

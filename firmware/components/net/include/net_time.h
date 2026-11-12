@@ -43,6 +43,10 @@ int64_t net_time_now(void);
 /* Seconds to add to UTC for local time now; 0 while the time is not known. */
 int32_t net_time_zone_offset(void);
 
+/* The same at any moment (unix seconds): the zone's clocks may have stood
+ * otherwise then, or will. */
+int32_t net_time_zone_offset_at(int64_t unix_time);
+
 #ifdef __cplusplus
 }
 #endif
