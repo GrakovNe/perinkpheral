@@ -22,6 +22,7 @@
 #define ROW_TEXT           20
 #define ROW_COLOR          60 /* pixels 0 1 4..7: a bar with a hole of paper; pixel 10: a wrong colour refused */
 #define ROW_VALUES         63 /* pixel 0: picked values read right; 2: a failed request told apart; 4: no values outside the handler; 6: numbers parse */
+#define ROW_PICTURE        44 /* a picture read from the file; under it an icon; pixel 30: what there is none of is refused */
 #define ROW_LOCAL_TIME     62 /* pixel 0: no time yet; pixel 2: the time taken apart; pixel 4: a wild pointer refused */
 
 #define BUTTON_DRAW_OUTSIDE 3
@@ -432,4 +433,14 @@ void app_on_draw(void)
 
     /* Far beyond the surface: has to vanish, not land somewhere. */
     gfx_rect(gfx_width(), gfx_height(), 5000, 5000, HOST_RECT_FILLED);
+
+    /* The file is "0123456789": its first two bytes as a row of sixteen. */
+    gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 0);
+    gfx_icon(HOST_ICON_PLUS, 0, ROW_PICTURE + 2, 1);
+    if (gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "none.bin", 8, 0) == HOST_ERR_NOT_FOUND &&
+        gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 9) == HOST_ERR_NOT_FOUND &&
+        gfx_icon(99, 0, 0, 1) == HOST_ERR_ARGUMENT &&
+        gfx_icon(HOST_ICON_PLUS, 0, 0, 0) == HOST_ERR_ARGUMENT) {
+        mark(30, ROW_PICTURE);
+    }
 }

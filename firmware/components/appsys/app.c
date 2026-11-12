@@ -590,6 +590,54 @@ HOST_FUNCTION(host_file_read)
     m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
 }
 
+/* A picture is read from its file a few rows at a time: whole, it would
+ * not fit the application's hands, and the host has no use for a copy. */
+#define PICTURE_CHUNK_BYTES 512
+
+HOST_FUNCTION(host_gfx_bitmap_file)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, width);
+    m3ApiGetArg(int32_t, height);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    m3ApiGetArg(int32_t, offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char name[HOST_FILE_NAME_MAX + 1];
+    if (!is_drawable(x) || !is_drawable(y) || width <= 0 || height <= 0 ||
+        width > app->surface->w || height > app->surface->h || offset < 0 ||
+        !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int32_t bytes_per_row = (width + 7) / 8;
+    int32_t rows_per_chunk = PICTURE_CHUNK_BYTES / bytes_per_row;
+    uint8_t rows[PICTURE_CHUNK_BYTES];
+    for (int32_t row = 0; row < height; row += rows_per_chunk) {
+        int32_t row_count = height - row < rows_per_chunk ? height - row : rows_per_chunk;
+        int32_t wanted = row_count * bytes_per_row;
+        if (app->services->file_read(app->name, name, offset + row * bytes_per_row, rows,
+                                     wanted) != wanted) {
+            /* No such file, or it ends before the picture does. */
+            m3ApiReturn(HOST_ERR_NOT_FOUND);
+        }
+        for (int32_t chunk_row = 0; chunk_row < row_count; chunk_row++) {
+            const uint8_t *bits = rows + chunk_row * bytes_per_row;
+            for (int32_t column = 0; column < width; column++) {
+                if ((bits[column / 8] & (0x80 >> (column % 8))) != 0) {
+                    gfx_pixel(app->surface, x + column, y + row + chunk_row, true);
+                }
+            }
+        }
+    }
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(host_poll_now)
 {
     m3ApiReturnType(int32_t);
@@ -1000,6 +1048,7 @@ static const struct {
     { "data_value", "i(iii)", host_data_value },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
+    { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "request_exit", "v()", host_request_exit },

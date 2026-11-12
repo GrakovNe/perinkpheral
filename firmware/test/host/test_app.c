@@ -33,6 +33,7 @@
 #define ROW_COLOR         60
 #define ROW_LOCAL_TIME    62
 #define ROW_VALUES        63
+#define ROW_PICTURE       44
 
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
 static gfx_t surface;
@@ -563,6 +564,17 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 16, ROW_VALUES));
     /* its file: the length, a piece from the middle, the end, the names it may not use */
     CHECK(gfx_get(&surface, 10, ROW_VALUES));
+    /* a picture straight from the file: '0' and '1' are 00110000 00110001 */
+    CHECK(!gfx_get(&surface, 1, ROW_PICTURE) && gfx_get(&surface, 2, ROW_PICTURE) &&
+          gfx_get(&surface, 3, ROW_PICTURE) && !gfx_get(&surface, 4, ROW_PICTURE));
+    CHECK(gfx_get(&surface, 10, ROW_PICTURE) && gfx_get(&surface, 11, ROW_PICTURE) &&
+          !gfx_get(&surface, 14, ROW_PICTURE) && gfx_get(&surface, 15, ROW_PICTURE));
+    /* the host's plus, a cell one pixel: its bar and its post */
+    CHECK(gfx_get(&surface, 2, ROW_PICTURE + 2 + 5) && gfx_get(&surface, 8, ROW_PICTURE + 2 + 5) &&
+          !gfx_get(&surface, 9, ROW_PICTURE + 2 + 5));
+    CHECK(gfx_get(&surface, 5, ROW_PICTURE + 2 + 2) && !gfx_get(&surface, 4, ROW_PICTURE + 2 + 2));
+    /* a file that is not there, one too short, an icon there is none of */
+    CHECK(gfx_get(&surface, 30, ROW_PICTURE));
     CHECK(!app_has_stopped(app));
     app_unload(app);
 }

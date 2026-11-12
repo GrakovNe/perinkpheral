@@ -287,6 +287,15 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
 HOST_IMPORT(gfx_qr, int32_t gfx_qr(int32_t x, int32_t y, int32_t cell, const char *text,
                                    int32_t length));
 
+/* The same picture read by the host from one of the application's files,
+ * `offset` bytes into it - a file may hold several. A whole frame is
+ * 15 KB: more than an application wants to hold, and here it holds none
+ * of it. HOST_ERR_NOT_FOUND when there is no such file or it ends before
+ * the picture does. */
+HOST_IMPORT(gfx_bitmap_file,
+            int32_t gfx_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height,
+                                    const char *name, int32_t name_length, int32_t offset));
+
 /* An icon of the host's own set, in the current colour: eleven cells
  * square with its top left corner at (x, y), a cell `cell` pixels - 2 is
  * the size that stands beside the host's text, HOST_ICON_CELL_MAX the
