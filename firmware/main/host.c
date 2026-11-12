@@ -107,7 +107,7 @@ static void give_way_to_the_screen(void)
 /* The scene whose picture the panel shows: what a person pressing a
  * button is looking at. Not the scene that has the screen while its first
  * frame is still being put on the panel. */
-static const scene_t *s_scene_on_panel;
+static const scene_t *volatile s_scene_on_panel;
 /* The buttons that went down while a scene that asks once was on the
  * panel: only their presses are that scene's to take. */
 static uint8_t s_went_down_on_question;
@@ -495,10 +495,22 @@ static void close_working(void *argument)
     s_working = NULL;
 }
 
+/* Whoever is told that the work began has just pressed a button: the
+ * notice is on the panel before the work - which may well keep the host
+ * loop from the panel for seconds, as erasing the flash does - begins. */
+#define WORKING_SHOWN_WAIT_MS 5000
+#define WORKING_SHOWN_POLL_MS 50
+
 void host_show_working(const char *first, const char *second)
 {
     const char *lines[] = { first, second };
-    events_call(open_working, lines); /* a busy queue: the work goes on unannounced */
+    if (!events_call(open_working, lines)) {
+        return; /* a busy queue: the work goes on unannounced */
+    }
+    for (int waited_ms = 0; waited_ms < WORKING_SHOWN_WAIT_MS && s_scene_on_panel != s_working;
+         waited_ms += WORKING_SHOWN_POLL_MS) {
+        vTaskDelay(pdMS_TO_TICKS(WORKING_SHOWN_POLL_MS));
+    }
 }
 
 void host_work_is_over(void)

@@ -7,6 +7,7 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_pm.h"
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/gpio_ll.h"
@@ -108,13 +109,23 @@ static bool wait_busy(const char *what, int timeout_ms)
     return true;
 }
 
+/* Waveshare's reset: high, low for 2 ms, high. The low part is 2 ms and
+ * not more: the module's own circuit takes a longer one for "power off",
+ * and the panel then does not answer at all. A delay of the scheduler's is
+ * at least what was asked - while the flash is being erased it was twenty
+ * milliseconds - so this one is counted with nothing else running. */
+#define RESET_LOW_US 2000
+
 static void hw_reset(void)
 {
+    static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
     gpio_set_level(s_cfg.rst_gpio, 1);
     vTaskDelay(pdMS_TO_TICKS(100));
-    gpio_set_level(s_cfg.rst_gpio, 0);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    gpio_set_level(s_cfg.rst_gpio, 1);
+    portENTER_CRITICAL(&lock);
+    set_pin(s_cfg.rst_gpio, 0);
+    esp_rom_delay_us(RESET_LOW_US);
+    set_pin(s_cfg.rst_gpio, 1);
+    portEXIT_CRITICAL(&lock);
     vTaskDelay(pdMS_TO_TICKS(100));
     wait_busy("hw reset", BUSY_INIT_MS);
 }
