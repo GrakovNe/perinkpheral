@@ -200,6 +200,11 @@ static void test_hosts(void)
     /* another port is another host; so is a longer or a shorter name */
     CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10/status"));
     CHECK(!app_manifest_allows_url(manifest, "https://api.example.com.evil.net/"));
+    CHECK(app_manifest_is_same_host("http://Example.com/a", "https://example.COM/b?c"));
+    CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com:8080/a"));
+    CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com.evil.net/a"));
+    CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com@evil.net/a"));
+    CHECK(!app_manifest_is_same_host("http://example.com/a", "ftp://example.com/a"));
     CHECK(!app_manifest_allows_url(manifest, "https://example.com/"));
     CHECK(!app_manifest_allows_url(manifest, "https://evil.net/api.example.com"));
     /* what is before an @ is not the host */

@@ -4,6 +4,7 @@
  */
 #include "esp_app_desc.h"
 #include "esp_log.h"
+#include "mdns.h"
 #include "esp_mac.h"
 #include "esp_system.h"
 
@@ -36,6 +37,28 @@
 
 static const char *TAG = "main";
 
+#define WEB_PORT 80
+
+
+/* The device answers to its name: <hostname>.local, and says it has a page.
+ * Without this the name on the page and in the log is one nobody can open.
+ * Not worth failing to start over: the address still works. */
+static void announce_name(const appconf_t *settings)
+{
+    esp_err_t err = mdns_init();
+    if (err == ESP_OK) {
+        err = mdns_hostname_set(settings->hostname);
+    }
+    if (err == ESP_OK) {
+        err = mdns_instance_name_set(settings->device_name);
+    }
+    if (err == ESP_OK) {
+        err = mdns_service_add(NULL, "_http", "_tcp", WEB_PORT, NULL, 0);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "the name is not announced: %s", esp_err_to_name(err));
+    }
+}
 
 /* The wall clock was set to another time, by the network or by hand.
  * Alarms for a time of day follow it; applications are told only of a
@@ -123,6 +146,7 @@ void app_main(void)
     status_start();
     wifi_start(&wifi);
     power_start(cfg->power_saving != 0);
+    announce_name(cfg);
     net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
     web_server_start();

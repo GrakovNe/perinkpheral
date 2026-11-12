@@ -15,8 +15,14 @@ extern "C" {
 
 /* Mounts the "apps" partition (LittleFS) at STORAGE_APPS_ROOT. False when
  * it cannot be mounted: the host then runs with no applications rather
- * than not at all. A partition that was never written is formatted. */
+ * than not at all, and nothing is erased: the user is asked. */
 bool storage_start(void);
+
+bool storage_is_mounted(void);
+
+/* Erases the partition and leaves an empty file system in it, to be
+ * mounted at the next start. Takes seconds. */
+bool storage_format(void);
 
 #ifdef __cplusplus
 }

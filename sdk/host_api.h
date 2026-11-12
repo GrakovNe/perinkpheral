@@ -137,6 +137,7 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 #define HOST_FAILED_NO_NETWORK (-1) /* the device is not on a network */
 #define HOST_FAILED_NO_ANSWER  (-2) /* it is, and the server did not answer, or not to the end */
 #define HOST_FAILED_NOT_READY  (-3) /* a {{setting}} the request needs is not set */
+#define HOST_FAILED_NOT_ALLOWED (-4) /* redirected to a host the manifest's "hosts" does not list */
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 

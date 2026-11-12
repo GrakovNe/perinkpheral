@@ -40,6 +40,14 @@ typedef bool (*scenes_is_shown_fn)(scene_t *scene);
 scene_t *scene_boot_splash(scene_t *next, scenes_set_timer_fn set_timer, scene_t *picture,
                            scenes_is_shown_fn picture_is_shown);
 
+/* What a scene asks the host to do when the user chose it. */
+typedef void (*scenes_action_fn)(void);
+
+/* The applications' partition cannot be read: says so and offers to
+ * format it. Cancel, or BACK, gives the screen to `next`; Format calls
+ * `format`, which does not come back with the screen. */
+scene_t *scene_storage_error(scene_t *next, scenes_action_fn format);
+
 #ifdef __cplusplus
 }
 #endif

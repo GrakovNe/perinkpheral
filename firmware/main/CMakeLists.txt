@@ -1,6 +1,6 @@
 set(srcs "main.c" "settings.c" "reset.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
-         "scene_menu.c" "scene_splash.c" "launcher.c" "poller.c" "power.c")
+         "scene_menu.c" "scene_splash.c" "scene_storage.c" "launcher.c" "poller.c" "power.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c" "devtools.c")
 endif()

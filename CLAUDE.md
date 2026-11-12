@@ -133,6 +133,7 @@ They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (
 - **Scene** - one application, it owns the screen and the buttons.
 - **Polling** - the host itself fetches every `polls` entry of every installed application at its `every`. This is the background mechanism ("pushes").
 - **Raw requests** - an application may itself call `http_request` (method, URL, headers, body) - for OAuth, calendars, actions on a button. Requests go into the host's queue, one at a time; only hosts from the manifest's `hosts` are allowed. The response arrives through the same `app_on_data`.
+- **Redirects** - a `GET` that is answered with one is asked again where it says, up to three times. A request of the application's own stays inside its `hosts`: sent elsewhere, it fails with `HOST_FAILED_NOT_ALLOWED`. The headers an application gave do not travel to another host. A request with a body is not sent twice: its redirect is the answer.
 - **Delivery** - the host calls `app_on_data(req_id, ptr, len, flags)` in chunks (flags: FIRST, LAST, ERROR; the HTTP status is in the first chunk) on the owning application, **whether it is on the scene or not**:
   - on the scene - the call is made right away;
   - not on the scene - unload the scene (`app_on_blur`) → load the owner → deliver → if it called `request_focus()` it stays as the scene, otherwise unload it and bring the previous scene back (`app_on_focus`).
@@ -162,6 +163,8 @@ The host is layers, and each knows only the ones under it:
 - **Development tools** (`APP_DEV_CONSOLE`, on by default, off for a release): the device is driven and looked at without hands on it. Over the network, `/api/dev` gives the frame the panel shows, takes presses, opens an application and takes a new build of one; `tools/devtool` is the command line for it, and `devtool.py run <app dir>` builds an application, uploads it and restarts the device into it in about ten seconds, with no reflashing. Over the cable, characters typed into the USB console do the same for a device with no network (`tools/devshot`). Whatever touches the frame or the scenes is handed to the host loop through the event queue.
 
 ### Power-up
+A partition of applications that cannot be read is never formatted behind the user's back: after the splash the device says "Storage error. Format storage?" with Cancel and Format (`scene_storage.c`, native - it has to work when nothing else does). Cancel leaves the device running with no installed applications; Format erases the partition and restarts. What the applications stored is in NVS and stays.
+
 The splash is drawn once and the device moves on by itself after a few seconds (a press does it at once):
 - **no network stored** - to the setup screen: the name of its access point and the address to open;
 - **otherwise** - back to the application that was on the screen last (its name is kept in NVS), or to the menu when there was none.
@@ -173,6 +176,7 @@ A device on a shelf has to come back from a restart showing what it showed, with
 - **A network stored** - it connects; a lost or failed connection is tried again after 2, 4, 8 ... at most 30 seconds.
 - **Two minutes without success** - rescue: the setup access point comes up as well and the device keeps trying once a minute, so a wrong password never needs the cable. Connected again, the access point goes away.
 - The rules are `components/net/wifi_plan.c`, pure and host-tested; `wifi.c` only carries them out. The Wi-Fi library keeps nothing in flash: the credentials are the host's settings.
+- The device answers to its name: `perinkpheral-xxxx.local` (mDNS, the `espressif/mdns` component), and announces its page as `_http._tcp`. It costs about 8 KB of memory and 42 KB of the firmware.
 - Time comes from SNTP whenever there is a network, in the user's time zone (a POSIX TZ string in the settings). Everything a person reads is local time: the header, the status page, the applications through `time_zone_offset()`. Until the first answer the device does not know the time: the header shows no date and `time_now()` is 0.
 
 ### Header

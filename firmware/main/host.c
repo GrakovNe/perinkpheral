@@ -24,6 +24,7 @@
 #include "scenes.h"
 #include "screens.h"
 #include "settings.h"
+#include "storage.h"
 #include "status.h"
 #include "timers.h"
 #include "wifi.h"
@@ -129,10 +130,17 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     return NOTHING_TO_SHOW;
 }
 
+/* The file system is empty when the device is back. */
+static void format_storage(void)
+{
+    storage_format();
+    host_stop_soon(HOST_STOP_RESTART);
+}
+
 /* Where the device goes after the splash at power-up: to be set up when
  * it has no network, else back to the application it showed last, else to
  * the menu. */
-static scene_t *scene_after_boot(scene_t *menu)
+static scene_t *scene_with_storage(scene_t *menu)
 {
     wifi_status_t wifi;
     wifi_get_status(&wifi);
@@ -145,6 +153,14 @@ static scene_t *scene_after_boot(scene_t *menu)
     settings_load_last_app(last_app, sizeof last_app);
     scene_t *last_scene = launcher_app_scene(last_app);
     return last_scene != NULL ? last_scene : menu;
+}
+
+/* Before any of that, a partition of applications that cannot be read is
+ * the user's to decide about. */
+static scene_t *scene_after_boot(scene_t *menu)
+{
+    scene_t *next = scene_with_storage(menu);
+    return storage_is_mounted() ? next : scene_storage_error(next, format_storage);
 }
 
 /* The About application as the splash: only while it is loaded and has

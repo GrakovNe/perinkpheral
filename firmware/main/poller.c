@@ -324,10 +324,57 @@ void poller_network_is_back(void)
     }
 }
 
+#define REDIRECTS_MAX 3
+
+static bool is_redirect(int http_status)
+{
+    return http_status == 301 || http_status == 302 || http_status == 303 ||
+           http_status == 307 || http_status == 308;
+}
+
+typedef enum {
+    REDIRECT_NONE,     /* the answer in hand is the answer */
+    REDIRECT_FOLLOWED, /* the client is set to the new address, and closed */
+    REDIRECT_REFUSED,  /* to a host the application may not ask */
+} redirect_t;
+
+/* Points the client where the answer in hand sends it. A request of the
+ * application's own stays inside the manifest's "hosts"; and the headers
+ * an application gave - a token, most likely - were meant for the host it
+ * named, so they do not travel to another. */
+static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t client,
+                                  const char *app_name, bool only_listed_hosts)
+{
+    if (esp_http_client_set_redirection(client) != ESP_OK) {
+        return REDIRECT_NONE; /* no Location, or one too long to read */
+    }
+    char *next_url = (char *)request->piece;
+    if (esp_http_client_get_url(client, next_url, sizeof request->piece) != ESP_OK) {
+        return REDIRECT_REFUSED;
+    }
+    if (!app_manifest_is_same_host(request->url, next_url)) {
+        if (only_listed_hosts) {
+            char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+            bool  allowed = manifest != NULL && app_manifest_allows_url(manifest, next_url);
+            free(manifest);
+            if (!allowed) {
+                return REDIRECT_REFUSED;
+            }
+        }
+        for (int i = 0; i < request->poll.header_count; i++) {
+            esp_http_client_delete_header(client, request->poll.headers[i].name);
+        }
+    }
+    esp_http_client_close(client);
+    return REDIRECT_FOLLOWED;
+}
+
 /* Makes the request that request->poll describes and hands the answer
- * to the application under `number`. */
+ * to the application under `number`. `only_listed_hosts`: a request of
+ * the application's own, which a redirect must not take out of its
+ * manifest's "hosts". */
 static void perform(request_t *request, const char *app_name, int number, int method,
-                    const uint8_t *body, int body_length)
+                    const uint8_t *body, int body_length, bool only_listed_hosts)
 {
     bool wants_values = request->poll.pick_count > 0;
     esp_http_client_handle_t client = NULL;
@@ -349,7 +396,29 @@ static void perform(request_t *request, const char *app_name, int number, int me
         esp_http_client_fetch_headers(client);
         http_status = esp_http_client_get_status_code(client);
     }
-    if (err != ESP_OK || http_status == 0) {
+    /* Only what can be asked again as it was: a body is not sent twice. */
+    bool is_refused = false;
+    for (int hop = 0; err == ESP_OK && method == HOST_HTTP_GET && is_redirect(http_status) &&
+                      hop < REDIRECTS_MAX; hop++) {
+        redirect_t redirect = follow_redirect(request, client, app_name, only_listed_hosts);
+        if (redirect == REDIRECT_NONE) {
+            break;
+        }
+        if (redirect == REDIRECT_REFUSED) {
+            is_refused = true;
+            break;
+        }
+        err = esp_http_client_open(client, 0);
+        http_status = 0;
+        if (err == ESP_OK) {
+            esp_http_client_fetch_headers(client);
+            http_status = esp_http_client_get_status_code(client);
+        }
+    }
+    if (is_refused) {
+        ESP_LOGW(TAG, "%s/%d: redirected to a host its manifest does not list", app_name, number);
+        tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_ALLOWED);
+    } else if (err != ESP_OK || http_status == 0) {
         ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, number, esp_err_to_name(err));
         bool has_network = wifi_is_online();
         note_network_use(false);
@@ -395,7 +464,7 @@ static void run_poll(const char *app_name, int poll_number)
         return;
     }
     if (load_poll(request, app_name, poll_number)) {
-        perform(request, app_name, poll_number, HOST_HTTP_GET, NULL, 0);
+        perform(request, app_name, poll_number, HOST_HTTP_GET, NULL, 0, false);
     }
     free(request);
 }
@@ -495,7 +564,7 @@ static bool run_pending_request(void)
     }
     unlock();
     if (app != NO_APP) {
-        perform(request, app_name, number, method, body, body_length);
+        perform(request, app_name, number, method, body, body_length, true);
     }
     free(request);
     return app != NO_APP;
@@ -560,8 +629,6 @@ static SemaphoreHandle_t s_fetch_done; /* given when it is */
 static SemaphoreHandle_t s_fetch_turn; /* one caller at a time */
 
 #define FETCH_HEADER_BYTES  4096
-#define FETCH_REDIRECTS_MAX 3
-
 static void do_fetch(fetch_job_t *job)
 {
     static uint8_t piece[HOST_DATA_CHUNK_MAX]; /* only this task fetches */
@@ -580,16 +647,13 @@ static void do_fetch(fetch_job_t *job)
     if (client == NULL) {
         return;
     }
-    for (int hop = 0; hop <= FETCH_REDIRECTS_MAX; hop++) {
+    for (int hop = 0; hop <= REDIRECTS_MAX; hop++) {
         if (esp_http_client_open(client, 0) != ESP_OK) {
             break;
         }
         esp_http_client_fetch_headers(client);
         job->http_status = esp_http_client_get_status_code(client);
-        bool is_redirect = job->http_status == 301 || job->http_status == 302 ||
-                           job->http_status == 303 || job->http_status == 307 ||
-                           job->http_status == 308;
-        if (!is_redirect || esp_http_client_set_redirection(client) != ESP_OK) {
+        if (!is_redirect(job->http_status) || esp_http_client_set_redirection(client) != ESP_OK) {
             break;
         }
         esp_http_client_close(client);

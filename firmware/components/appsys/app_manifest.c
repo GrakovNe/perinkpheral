@@ -368,17 +368,45 @@ static bool is_same_host(const char *host, const char *other, size_t other_lengt
     return true;
 }
 
-bool app_manifest_allows_url(const char *json, const char *url)
+/* The host of an http or https URL, with its port if it names one, as it
+ * stands there; NULL when the URL has none to be sure of. */
+static const char *host_in_url(const char *url, size_t *host_length)
 {
     const char *host = starts_with(url, "http://")    ? url + sizeof "http://" - 1
                        : starts_with(url, "https://") ? url + sizeof "https://" - 1
                                                       : NULL;
     if (host == NULL) {
-        return false;
+        return NULL;
     }
     /* "user@host" would make the part before the @ look like the host. */
-    size_t host_length = strcspn(host, "/?#");
-    if (host_length == 0 || memchr(host, '@', host_length) != NULL) {
+    *host_length = strcspn(host, "/?#");
+    if (*host_length == 0 || memchr(host, '@', *host_length) != NULL) {
+        return NULL;
+    }
+    return host;
+}
+
+bool app_manifest_is_same_host(const char *url, const char *other_url)
+{
+    size_t      host_length, other_length;
+    const char *host = host_in_url(url, &host_length);
+    const char *other = host_in_url(other_url, &other_length);
+    if (host == NULL || other == NULL || host_length != other_length) {
+        return false;
+    }
+    for (size_t i = 0; i < host_length; i++) {
+        if (lower(host[i]) != lower(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool app_manifest_allows_url(const char *json, const char *url)
+{
+    size_t      host_length;
+    const char *host = host_in_url(url, &host_length);
+    if (host == NULL) {
         return false;
     }
     cJSON *root = cJSON_Parse(json);

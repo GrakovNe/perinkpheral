@@ -63,3 +63,7 @@ CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
 # A smaller TCP window: less of an answer waits in memory for TLS to take it.
 CONFIG_LWIP_TCP_WND_DEFAULT=2880
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
+
+# mDNS: one service (the page), no console commands of its own.
+CONFIG_MDNS_MAX_SERVICES=1
+CONFIG_MDNS_ENABLE_CONSOLE_CLI=n

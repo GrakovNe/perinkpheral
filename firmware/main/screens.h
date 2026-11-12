@@ -31,6 +31,18 @@ typedef struct {
 
 void screens_header(gfx_t *g, const screens_header_t *header);
 
+/* What went wrong and what can be done about it: two lines, and the two
+ * answers as rows of a menu, the selected one white on a black bar. */
+typedef struct {
+    const char *title;
+    const char *question;
+    const char *cancel;
+    const char *action;
+    bool        action_is_selected;
+} screens_question_t;
+
+void screens_question(gfx_t *g, const screens_question_t *question);
+
 /* The view asks for the rows it is about to draw, so a list can be of any
  * length and live anywhere. */
 #define SCREENS_ICON_CELLS 11

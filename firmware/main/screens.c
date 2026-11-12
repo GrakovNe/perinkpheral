@@ -147,3 +147,25 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         gfx_text_font(g, title_left, baseline, gfx_font_system(), item.title, !is_selected);
     }
 }
+
+#define QUESTION_ANSWERS_TOP (2 * MENU_ROW_HEIGHT + MENU_TOP_GAP)
+
+static void question_answer(gfx_t *g, int row, const char *text, bool is_selected)
+{
+    int baseline = QUESTION_ANSWERS_TOP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
+    if (is_selected) {
+        gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE, g->w - 2 * MENU_BAR_INSET,
+                 MENU_BAR_HEIGHT, true);
+    }
+    gfx_text_font(g, MARGIN, baseline, gfx_font_system(), text, !is_selected);
+}
+
+void screens_question(gfx_t *g, const screens_question_t *question)
+{
+    const gfx_font_t *font = gfx_font_system();
+    gfx_text_font(g, MARGIN, MENU_TOP_GAP + TEXT_BASELINE, font, question->title, true);
+    gfx_text_font(g, MARGIN, MENU_TOP_GAP + MENU_ROW_HEIGHT + TEXT_BASELINE, font,
+                  question->question, true);
+    question_answer(g, 0, question->cancel, !question->action_is_selected);
+    question_answer(g, 1, question->action, question->action_is_selected);
+}
