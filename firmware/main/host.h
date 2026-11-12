@@ -34,6 +34,11 @@ void host_stop_soon(host_stop_t why);
  * on the screen is drawn anew. In the host loop. */
 void host_redraw(void);
 
+/* What an application keeps in the header while it is away: an icon of
+ * the host's set (or -1) and a line. Both empty: the place is free again.
+ * In the host loop. */
+void host_set_header_status(uint32_t app_id, int icon, const char *text);
+
 /* What somebody on the network asked for cannot be taken back: the device
  * shows the question - two lines of it, an icon beside them (a
  * gfx_icon_id_t), and what OK does - and this waits for whoever stands at

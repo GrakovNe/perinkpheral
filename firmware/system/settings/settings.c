@@ -77,7 +77,12 @@ static const int32_t FORCE_HOURS_CHOICES[] = { 1, 2, 3, 6, 12, 24, 48, 72, 168 }
 static const int32_t OFF_ON_CHOICES[] = { 0, 1 };
 #define COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof(array)[0]))
 
+/* The typeface is one of them: Departure Mono or Jersey. */
+static const int32_t FONT_CHOICES[] = { 0, 1 };
+static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
+
 static const display_setting_t DISPLAY_SETTINGS[] = {
+    { "Font", SYS_NUMBER_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
     { "Full refresh", SYS_NUMBER_REFRESH_FULL_EVERY, FULL_EVERY_CHOICES,
       COUNT_OF(FULL_EVERY_CHOICES) },
     { "Refresh interval", SYS_NUMBER_REFRESH_MIN_SECONDS, MIN_SECONDS_CHOICES,
@@ -87,17 +92,11 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
     { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
-#define ROOT_ROWS     6
-#define ROOT_ROW_FONT 3
+#define ROOT_ROWS 5
 
 #define POWER_SAVINGS 3
 static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On", "Extreme" };
 
-/* The typeface is a value like those, with a page of its own in the root. */
-static const int32_t FONT_CHOICES[] = { 0, 1 };
-static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
-static const display_setting_t FONT_SETTING = { "Font", SYS_NUMBER_FONT, FONT_CHOICES,
-                                                COUNT_OF(FONT_CHOICES) };
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
 static app_picker_t             edited_choice; /* which of its choices is in the frame */
@@ -293,8 +292,7 @@ static int32_t row_count(page_t page)
 static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
                          char value[TEXT_MAX + 1])
 {
-    static const char *const ROOT[ROOT_ROWS] = { "General", "Apps", "Display", "Font", "Wi-Fi",
-                                                 "Reset" };
+    static const char *const ROOT[ROOT_ROWS] = { "General", "Apps", "Display", "Wi-Fi", "Reset" };
     static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving" };
     static const char *const WIFI[] = { "Network", "IP address", "Status", "Forget network" };
     label[0] = '\0';
@@ -302,9 +300,6 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
     switch (page) {
     case PAGE_ROOT:
         copy_text(label, TEXT_MAX + 1, ROOT[row]);
-        if (row == ROOT_ROW_FONT) {
-            copy_text(value, TEXT_MAX + 1, FONT_NAMES[read_number(SYS_NUMBER_FONT) % 2]);
-        }
         break;
     case PAGE_GENERAL:
         copy_text(label, TEXT_MAX + 1, GENERAL[row]);
@@ -473,12 +468,8 @@ static void activate(page_t page, int32_t row)
     switch (page) {
     case PAGE_ROOT: {
         static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS, PAGE_DISPLAY,
-                                                    PAGE_VALUE,   PAGE_WIFI, PAGE_RESET };
-        if (row == ROOT_ROW_FONT) {
-            edit_value(&FONT_SETTING);
-        } else {
-            open(SECTIONS[row], 0);
-        }
+                                                    PAGE_WIFI, PAGE_RESET };
+        open(SECTIONS[row], 0);
         break;
     }
     case PAGE_GENERAL:

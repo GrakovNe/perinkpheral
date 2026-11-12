@@ -25,6 +25,7 @@ extern "C" {
  * is cut with "...", and the two do not meet. */
 typedef struct {
     bool        wifi;  /* the last connection attempt succeeded */
+    int         icon;  /* a gfx_icon_id_t shown instead of the Wi-Fi one; negative: none */
     const char *left;  /* NULL: nothing */
     const char *right; /* "Wed 11 Nov"; NULL: nothing */
 } screens_header_t;

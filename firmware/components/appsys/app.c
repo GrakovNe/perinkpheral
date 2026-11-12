@@ -842,6 +842,25 @@ HOST_FUNCTION(host_header_text)
     m3ApiReturn(HOST_OK);
 }
 
+HOST_FUNCTION(host_header_status)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, icon);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    app_t *app = APP_OF(runtime);
+    char text[HOST_TEXT_MAX + 1];
+    bool is_an_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
+    if (!is_an_icon || length > HOST_STATUS_TEXT_MAX ||
+        !copy_text(runtime, _mem, text_offset, length, text)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (app->services->header_status != NULL) {
+        app->services->header_status(app->name, icon, text);
+    }
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(host_request_focus)
 {
     APP_OF(runtime)->focus_requested = true;
@@ -1144,6 +1163,20 @@ HOST_FUNCTION(host_alarm_set)
     }
     m3ApiReturn(app->services->alarm_set(app->name, id, seconds, false) ? HOST_OK
                                                                          : HOST_ERR_NO_SPACE);
+}
+
+HOST_FUNCTION(host_alarm_set_every)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, id);
+    m3ApiGetArg(int32_t, seconds);
+    app_t *app = APP_OF(runtime);
+    if (id < 0 || id >= HOST_ALARM_COUNT || seconds < HOST_ALARM_EVERY_MIN ||
+        seconds > HOST_ALARM_EVERY_MAX || app->services->alarm_set_every == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->alarm_set_every(app->name, id, seconds) ? HOST_OK
+                                                                       : HOST_ERR_NO_SPACE);
 }
 
 HOST_FUNCTION(host_alarm_set_at)
@@ -1529,6 +1562,8 @@ static const struct {
     { "poll_set_interval", "i(ii)", host_poll_set_interval },
     { "alarm_set", "i(ii)", host_alarm_set },
     { "alarm_set_at", "i(iI)", host_alarm_set_at },
+    { "alarm_set_every", "i(ii)", host_alarm_set_every },
+    { "header_status", "i(i*i)", host_header_status },
     { "file_write", "i(iiiii)", host_file_write },
     { "time_now", "I()", host_time_now },
     { "time_zone_offset", "i()", host_time_zone_offset },

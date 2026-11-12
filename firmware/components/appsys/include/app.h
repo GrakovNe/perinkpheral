@@ -62,6 +62,11 @@ typedef struct {
      * now, 0 taking the alarm back, or - `is_a_time` - a moment in unix
      * seconds. False when there is no room for one more. */
     bool (*alarm_set)(const char *app_name, int alarm, int64_t when, bool is_a_time);
+    /* The same alarm every so many seconds, until it is set another way. */
+    bool (*alarm_set_every)(const char *app_name, int alarm, int32_t every_s);
+    /* What stays in the header while the application is away: an icon of
+     * the host's (or -1) and a line; both empty gives the place back. */
+    void (*header_status)(const char *app_name, int icon, const char *text);
     /* The application's own files, as file_size and file_read of
      * host_api.h answer; the name is checked and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);

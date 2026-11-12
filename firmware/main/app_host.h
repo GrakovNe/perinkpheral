@@ -20,6 +20,12 @@ const app_services_t *app_host_services(void);
  * and said so in the log. */
 void app_host_tell_time_changed(void);
 void app_host_tell_network_is_up(void);
+
+/* An alarm was handed to its application: one that comes again is set for
+ * its next time. Before the handler runs, so that it may take it back. */
+void app_host_alarm_rang(uint32_t app_id, int alarm);
+/* The applications that are still there; the recurrences of the others go. */
+void app_host_keep_recurring_of(const uint32_t *app_ids, int count);
 /* The device was powered up or restarted - not woken from its sleep. */
 void app_host_tell_started(void);
 

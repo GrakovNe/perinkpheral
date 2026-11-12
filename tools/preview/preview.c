@@ -87,9 +87,9 @@ int main(int argc, char **argv)
         gfx_font_use(GFX_FAMILY_JERSEY);
     }
 
-    const screens_header_t online = { true, NULL, "Wed 11 Nov" };
+    const screens_header_t online = { true, -1, NULL, "Wed 11 Nov" };
     /* As the device shows it before there is a network: no Wi-Fi, no date. */
-    const screens_header_t offline = { false, NULL, NULL };
+    const screens_header_t offline = { false, -1, NULL, NULL };
     gfx_t content;
 
     const char *titles[] = { "Clock", "Hello", "Device", "About" };
@@ -153,6 +153,15 @@ int main(int argc, char **argv)
     memset(fb, 0xFF, sizeof fb);
     notice_draw(&g, &working);
     if (save(dir, "notice-progress")) {
+        return 1;
+    }
+
+    /* What an application keeps in the header while it is away: its icon
+     * in place of the host's, its line beside it. */
+    const screens_header_t counting = { true, GFX_ICON_HOURGLASS, "12 min", "Wed 11 Nov" };
+    start_screen(&counting, &content);
+    screens_menu(&content, row_from_array, titles, 4, 0);
+    if (save(dir, "header-status")) {
         return 1;
     }
 

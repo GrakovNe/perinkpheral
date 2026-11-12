@@ -268,6 +268,36 @@ static const char *const ICONS[GFX_ICON_COUNT][GFX_ICON_CELLS] = {
     },
 };
 
+/* Where cell number `cell` begins in an icon `side` pixels square. */
+static int cell_edge(int cell, int side)
+{
+    return (cell * side + GFX_ICON_CELLS / 2) / GFX_ICON_CELLS;
+}
+
+bool gfx_icon_sized(gfx_t *g, gfx_icon_id_t id, int x, int y, int side, bool black)
+{
+    if ((int)id < 0 || id >= GFX_ICON_COUNT || side < GFX_ICON_CELLS) {
+        return false;
+    }
+    for (int row = 0; row < GFX_ICON_CELLS; row++) {
+        const char *cells = ICONS[id][row];
+        for (int column = 0; column < GFX_ICON_CELLS;) {
+            if (cells[column] != '#') {
+                column++;
+                continue;
+            }
+            int run_start = column;
+            while (column < GFX_ICON_CELLS && cells[column] == '#') {
+                column++;
+            }
+            gfx_fill(g, x + cell_edge(run_start, side), y + cell_edge(row, side),
+                     cell_edge(column, side) - cell_edge(run_start, side),
+                     cell_edge(row + 1, side) - cell_edge(row, side), black);
+        }
+    }
+    return true;
+}
+
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)
 {
     if ((int)id < 0 || id >= GFX_ICON_COUNT) {

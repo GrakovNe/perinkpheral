@@ -4,6 +4,7 @@
  */
 #include "app_host.h"
 
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
@@ -11,6 +12,7 @@
 #include "app_store.h"
 #include "app_system.h"
 #include "deadlines.h"
+#include "host.h"
 #include "launcher.h"
 #include "storage.h"
 #include "events.h"
@@ -103,6 +105,113 @@ void app_host_tell_started(void)
 
 #define MS_PER_SECOND 1000
 
+/* The alarms that come again and again: how often each, and when it is
+ * due next on the deadlines' own clock - so that a late call does not
+ * make every one after it late. Kept through deep sleep with the
+ * deadlines themselves; a restart forgets both. */
+#define RECURRING_MAX 8
+typedef struct {
+    uint32_t app_id; /* 0: free */
+    int      alarm;
+    int32_t  every_s;
+    int64_t  due_ms;
+} recurring_t;
+static RTC_DATA_ATTR recurring_t s_recurring[RECURRING_MAX];
+
+static recurring_t *recurring_of(uint32_t app_id, int alarm)
+{
+    for (int i = 0; i < RECURRING_MAX; i++) {
+        if (s_recurring[i].app_id == app_id && s_recurring[i].alarm == alarm) {
+            return &s_recurring[i];
+        }
+    }
+    return NULL;
+}
+
+static void forget_recurrence(uint32_t app_id, int alarm)
+{
+    recurring_t *recurring = recurring_of(app_id, alarm);
+    if (recurring != NULL) {
+        recurring->app_id = 0;
+    }
+}
+
+static uint32_t id_of(const char *app_name)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(installed[i].name, app_name) == 0) {
+            return installed[i].id;
+        }
+    }
+    return 0;
+}
+
+static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s)
+{
+    uint32_t app_id = id_of(app_name);
+    if (app_id == 0) {
+        return false;
+    }
+    recurring_t *recurring = recurring_of(app_id, alarm);
+    if (recurring == NULL) {
+        for (int i = 0; recurring == NULL && i < RECURRING_MAX; i++) {
+            if (s_recurring[i].app_id == 0) {
+                recurring = &s_recurring[i];
+            }
+        }
+    }
+    int64_t every_ms = (int64_t)every_s * MS_PER_SECOND;
+    if (recurring == NULL || !deadlines_set_in(DEADLINE_ALARM, app_id, alarm, every_ms)) {
+        return false;
+    }
+    *recurring = (recurring_t){ app_id, alarm, every_s, deadlines_now_ms() + every_ms };
+    return true;
+}
+
+void app_host_alarm_rang(uint32_t app_id, int alarm)
+{
+    recurring_t *recurring = recurring_of(app_id, alarm);
+    if (recurring == NULL) {
+        return;
+    }
+    int64_t every_ms = (int64_t)recurring->every_s * MS_PER_SECOND;
+    int64_t now_ms = deadlines_now_ms();
+    int64_t next_ms = recurring->due_ms + every_ms;
+    /* The clock was set meanwhile, or the device was away for longer than
+     * a turn: the count starts from now. */
+    if (next_ms <= now_ms || next_ms > now_ms + every_ms) {
+        next_ms = now_ms + every_ms;
+    }
+    if (deadlines_set_in(DEADLINE_ALARM, app_id, alarm, next_ms - now_ms)) {
+        recurring->due_ms = next_ms;
+    } else {
+        recurring->app_id = 0;
+    }
+}
+
+void app_host_keep_recurring_of(const uint32_t *app_ids, int count)
+{
+    for (int i = 0; i < RECURRING_MAX; i++) {
+        bool is_kept = false;
+        for (int kept = 0; kept < count; kept++) {
+            is_kept = is_kept || s_recurring[i].app_id == app_ids[kept];
+        }
+        if (!is_kept) {
+            s_recurring[i].app_id = 0;
+        }
+    }
+}
+
+static void header_status(const char *app_name, int icon, const char *text)
+{
+    uint32_t app_id = id_of(app_name);
+    if (app_id != 0) {
+        host_set_header_status(app_id, icon, text);
+    }
+}
+
 /* The application's alarm: a deadline like any other, under the
  * application's id. `when` is seconds from now, 0 taking the alarm back,
  * or - `is_a_time` - a moment in unix seconds. */
@@ -115,6 +224,7 @@ static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_t
             continue;
         }
         uint32_t app_id = installed[i].id;
+        forget_recurrence(app_id, alarm); /* set another way: once */
         if (is_a_time) {
             return deadlines_set_at(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
         }
@@ -155,6 +265,8 @@ const app_services_t *app_host_services(void)
         .http_request = poller_request,
         .poll_set_interval = poller_set_interval,
         .alarm_set = alarm_set,
+        .alarm_set_every = alarm_set_every,
+        .header_status = header_status,
         .file_size = file_size,
         .file_read = file_read,
         .file_write = file_write,

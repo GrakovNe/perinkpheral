@@ -49,15 +49,39 @@ static const char *TAG = "host";
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
+/* The one place in the header an application may keep while it is away:
+ * its icon instead of the host's, its line beside it. Kept through deep
+ * sleep, as the frame it is part of is. */
+#define HEADER_STATUS_TEXT_MAX 15
+#define HEADER_NO_ICON         (-1)
+static RTC_DATA_ATTR struct {
+    uint32_t app_id; /* 0: nobody has it */
+    int      icon;
+    char     text[HEADER_STATUS_TEXT_MAX + 1];
+} s_header_status;
+
 static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
     (void)context;
     status_t status;
     status_read(&status);
+    if (s_header_status.app_id != 0) {
+        screens_header_t kept = {
+            .wifi = status.wifi_connected,
+            .icon = s_header_status.icon,
+            .left = s_header_status.text,
+            .right = scene->header_right != NULL ? scene->header_right
+                     : status.date_known         ? status.date
+                                                 : NULL,
+        };
+        screens_header(surface, &kept);
+        return;
+    }
     /* Each side is the scene's if it gave one, and the host's own otherwise:
      * nothing on the left, the date on the right. */
     screens_header_t header = {
         .wifi = status.wifi_connected,
+        .icon = HEADER_NO_ICON,
         .left = scene->header_left,
         .right = scene->header_right != NULL ? scene->header_right
                  : status.date_known         ? status.date
@@ -347,6 +371,22 @@ static bool may_sleep_deeply(void)
     return next_ms == DEADLINE_NONE || next_ms - deadlines_now_ms() >= DEEP_SLEEP_LEAST_MS;
 }
 
+void host_set_header_status(uint32_t app_id, int icon, const char *text)
+{
+    bool is_empty = icon == HEADER_NO_ICON && text[0] == '\0';
+    if (is_empty) {
+        if (s_header_status.app_id != app_id) {
+            return; /* not its to give back */
+        }
+        s_header_status.app_id = 0;
+    } else {
+        s_header_status.app_id = app_id;
+        s_header_status.icon = icon;
+        strlcpy(s_header_status.text, text, sizeof s_header_status.text);
+    }
+    wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+}
+
 void host_redraw(void)
 {
     wm_invalidate(&wm, WM_CHANGED_CLEANLY);
@@ -554,6 +594,7 @@ static void ring_alarm(uint32_t app_id, int alarm_number)
     const app_manifest_t *installed = launcher_installed(&count);
     for (int i = 0; i < count; i++) {
         if (installed[i].id == app_id) {
+            app_host_alarm_rang(app_id, alarm_number);
             app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
             host_deliver(installed[i].name, &alarm);
             return;
@@ -623,6 +664,15 @@ static void forget_alarms_of_the_removed(void)
         ids[i] = installed[i].id;
     }
     deadlines_keep_only(DEADLINE_ALARM, ids, count);
+    app_host_keep_recurring_of(ids, count);
+    bool is_owner_there = false;
+    for (int i = 0; i < count; i++) {
+        is_owner_there = is_owner_there || ids[i] == s_header_status.app_id;
+    }
+    if (!is_owner_there && s_header_status.app_id != 0) {
+        s_header_status.app_id = 0;
+        wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+    }
 }
 
 void host_reload_apps(void)

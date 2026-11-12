@@ -323,6 +323,17 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 #define HOST_HEADER_TEXT_MAX 31
 HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
 
+/* An icon and a short line that stay in the header when the application
+ * is not on the screen: something is going on that the user set going and
+ * wants to keep in sight - a countdown, a track playing. They stand at the
+ * left, the icon in place of the host's own and the line beside it,
+ * above every screen that has a header, whoever is on it. The device has
+ * one such place: the application that set it last has it. A length of 0
+ * with HOST_ICON_NONE gives it back; so does removing the application,
+ * and a restart. It may be set from any handler, on the screen or off it. */
+#define HOST_STATUS_TEXT_MAX 15
+HOST_IMPORT(header_status, int32_t header_status(int32_t icon, const char *text, int32_t length));
+
 /* A QR code of `text`, its top left corner at x, y, each of its modules
  * `cell` pixels square; the white a reader wants around it - four modules -
  * is the application's to leave. Returns how many modules a side has, and
@@ -504,9 +515,10 @@ HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
 /* ---- Moving about ----
  *
  * What is on the screen is the top of a stack, with the menu under it all.
- * Whatever takes the screen - the menu on a long press of button 4, a
- * question the host asks, an application whose alarm came - goes on top,
- * and when it is done what was under it is there again. An application
+ * Whatever takes the screen - a question the host asks, an application
+ * whose alarm came - goes on top, and when it is done what was under it
+ * is there again. A long press of button 4 is the beginning again: the
+ * stack is emptied and the menu shows. An application
  * can count on that and on this much more:
  *   - it is unloaded while something covers it, and loaded again when it
  *     is back: app_on_blur() and app_on_terminate() before, app_init() and
@@ -665,6 +677,16 @@ APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 #define HOST_ALARM_COUNT 4
 HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t id, int32_t seconds));
 HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
+
+/* The same alarm again and again: app_on_alarm(id) every `seconds`, the
+ * first time that long from now, until alarm_set(id, 0) takes it back or
+ * the alarm is set another way. For what has to be kept up while the
+ * application is away - the minutes left, in the header (header_status).
+ * From a minute to a day: every call loads the application for a moment,
+ * and a device that sleeps between its polls is woken for each. */
+#define HOST_ALARM_EVERY_MIN 60
+#define HOST_ALARM_EVERY_MAX 86400
+HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds));
 APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
 
 /* ---- Files ---- */
