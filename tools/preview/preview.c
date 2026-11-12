@@ -12,6 +12,8 @@
 
 #include "gfx.h"
 #include "gfx_icons.h"
+#include "kit.h"
+#include "list.h"
 #include "notice.h"
 #include "screens.h"
 #include "wm.h"
@@ -151,6 +153,109 @@ int main(int argc, char **argv)
     memset(fb, 0xFF, sizeof fb);
     notice_draw(&g, &working);
     if (save(dir, "notice-progress")) {
+        return 1;
+    }
+
+    /* ---- the kit: what applications are put together from ---- */
+
+    /* The primitives on one page: a title, text, a caption, icons in their
+     * three sizes, a button, a bar, the row of buttons. */
+    start_screen(&online, &content);
+    {
+        int top = kit_title(&content, "Title");
+        kit_text(&content, KIT_MARGIN, top, KIT_TEXT, "Text, as it is read", 0);
+        kit_text(&content, KIT_MARGIN, top + 30, KIT_CAPTION, "CAPTION, BESIDE SOMETHING LARGER", 0);
+        int row_top = top + 54;
+        kit_icon(&content, KIT_MARGIN, row_top + 22, GFX_ICON_BELL, KIT_ICON_SMALL);
+        kit_icon(&content, KIT_MARGIN + 36, row_top, GFX_ICON_BELL, KIT_ICON_MEDIUM);
+        kit_text(&content, 120, row_top - 12, KIT_VALUE, "21", 0);
+        kit_button(&content, 262, row_top + 36, "UP", "More", false);
+        kit_bar(&content, KIT_MARGIN, row_top + 58, content.w - 2 * KIT_MARGIN, 37, 100);
+        kit_actions(&content, "Start", "Close");
+    }
+    if (save(dir, "kit-primitives")) {
+        return 1;
+    }
+
+    /* A value chosen from a row of them. */
+    const kit_picker_t pickers[] = {
+        { "10 min", "15 min", "30 min", "Save", "Cancel" },
+        { NULL, "Off", "On", "Save", "Cancel" },
+        { "Saint Petersburg", "Stockholm", NULL, "Save", "Cancel" },
+    };
+    const char *const picker_names[] = { "kit-picker", "kit-picker-first", "kit-picker-last" };
+    for (int shot = 0; shot < 3; shot++) {
+        start_screen(&online, &content);
+        kit_picker(&content, &pickers[shot]);
+        if (save(dir, picker_names[shot])) {
+            return 1;
+        }
+    }
+
+    /* A time and a date, a time alone, a date alone. */
+    const kit_date_t dates[] = {
+        { 2026, 11, 12, 21, 5, true, true, KIT_DATE_HOUR, "Next", "Cancel" },
+        { 2026, 11, 12, 21, 5, true, true, KIT_DATE_MONTH, "Next", "Back" },
+        { 2026, 11, 12, 7, 30, true, false, KIT_DATE_MINUTE, "Save", "Back" },
+        { 2026, 11, 12, 0, 0, false, true, KIT_DATE_YEAR, "Save", "Back" },
+    };
+    const char *const date_names[] = { "kit-date-hour", "kit-date-month", "kit-time", "kit-date" };
+    for (int shot = 0; shot < 4; shot++) {
+        start_screen(&online, &content);
+        kit_date(&content, &dates[shot]);
+        if (save(dir, date_names[shot])) {
+            return 1;
+        }
+    }
+
+    /* The list in its three uses: rows with values, one of several chosen,
+     * and facts nobody chooses from. */
+    {
+        const char *const labels[] = { "Date and time", "Time zone", "Power saving" };
+        const char *const values[] = { "Automatic", "Saint Petersburg", "Off" };
+        start_screen(&online, &content);
+        for (int i = 0; i < 3; i++) {
+            list_row_t row = { labels[i], values[i], LIST_NO_ICON, NULL };
+            list_draw_row(&content, 3, 1, i, &row, false);
+        }
+        if (save(dir, "kit-list")) {
+            return 1;
+        }
+        const char *const options[] = { "Celsius", "Fahrenheit", "Kelvin" };
+        start_screen(&online, &content);
+        for (int i = 0; i < 3; i++) {
+            list_row_t row = { options[i], NULL, i == 0 ? GFX_ICON_CHECK : LIST_NO_ICON, NULL };
+            list_draw_row(&content, 3, 1, i, &row, false);
+        }
+        if (save(dir, "kit-options")) {
+            return 1;
+        }
+        const char *const facts[] = { "Network", "Address", "Firmware", "Uptime" };
+        const char *const told[] = { "GrakovNe Home", "192.168.1.70", "0.1.0", "3 h 12 min" };
+        start_screen(&online, &content);
+        for (int i = 0; i < 4; i++) {
+            list_row_t row = { facts[i], told[i], LIST_NO_ICON, NULL };
+            list_draw_row(&content, 4, -1, i, &row, false);
+        }
+        if (save(dir, "kit-details")) {
+            return 1;
+        }
+    }
+
+    /* What an application says when it has nothing to show, and a question
+     * of its own: the host's notice under the header. */
+    const notice_t not_set_up = { .first = "Not set up", .detail = "Open the page",
+                                  .icon = GFX_ICON_GEAR };
+    start_screen(&online, &content);
+    notice_draw(&content, &not_set_up);
+    if (save(dir, "kit-message")) {
+        return 1;
+    }
+    const notice_t no_network = { .first = "No network", .icon = GFX_ICON_NO_SIGNAL,
+                                  .ok = "Retry" };
+    start_screen(&offline, &content);
+    notice_draw(&content, &no_network);
+    if (save(dir, "kit-message-retry")) {
         return 1;
     }
 
