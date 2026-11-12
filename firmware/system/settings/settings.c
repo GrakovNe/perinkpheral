@@ -89,8 +89,17 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
     { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
+#define ROOT_ROWS     6
+#define ROOT_ROW_FONT 3
+
 #define POWER_SAVINGS 3
 static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On", "Extreme" };
+
+/* The typeface is a value like those, with a page of its own in the root. */
+static const int32_t FONT_CHOICES[] = { 0, 1 };
+static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
+static const display_setting_t FONT_SETTING = { "Font", SYS_NUMBER_FONT, FONT_CHOICES,
+                                                COUNT_OF(FONT_CHOICES) };
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
 static int32_t                  edited_choice;
@@ -295,6 +304,9 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
     case SYS_NUMBER_REFRESH_FAST:
         app_text_add(&out, value != 0 ? "On" : "Off");
         break;
+    case SYS_NUMBER_FONT:
+        app_text_add(&out, FONT_NAMES[value % 2]);
+        break;
     case SYS_NUMBER_REFRESH_MIN_SECONDS:
         if (value >= SECONDS_PER_MINUTE && value % SECONDS_PER_MINUTE == 0) {
             app_text_add_number(&out, value / SECONDS_PER_MINUTE);
@@ -327,7 +339,7 @@ static int32_t row_count(page_t page)
 {
     switch (page) {
     case PAGE_ROOT:
-        return 5;
+        return ROOT_ROWS;
     case PAGE_GENERAL:
         return 3;
     case PAGE_DATE_TIME:
@@ -352,7 +364,8 @@ static int32_t row_count(page_t page)
 static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
                          char value[TEXT_MAX + 1])
 {
-    static const char *const ROOT[] = { "General", "Apps", "Display", "Wi-Fi", "Reset" };
+    static const char *const ROOT[ROOT_ROWS] = { "General", "Apps", "Display", "Font", "Wi-Fi",
+                                                 "Reset" };
     static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving" };
     static const char *const WIFI[] = { "Network", "IP address", "Status", "Forget network" };
     label[0] = '\0';
@@ -360,6 +373,9 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
     switch (page) {
     case PAGE_ROOT:
         copy_text(label, TEXT_MAX + 1, ROOT[row]);
+        if (row == ROOT_ROW_FONT) {
+            copy_text(value, TEXT_MAX + 1, FONT_NAMES[read_number(SYS_NUMBER_FONT) % 2]);
+        }
         break;
     case PAGE_GENERAL:
         copy_text(label, TEXT_MAX + 1, GENERAL[row]);
@@ -498,13 +514,34 @@ static void tell_result(int32_t result)
 
 /* ---- OK on a row ---- */
 
+/* Opens the page where one of a few values is chosen. */
+static void edit_value(const display_setting_t *setting)
+{
+    edited = setting;
+    /* The value may be one the web page set: start from the nearest choice
+     * that is not below it. */
+    int32_t value = read_number(edited->what);
+    edited_choice = edited->choice_count - 1;
+    for (int32_t choice = 0; choice < edited->choice_count; choice++) {
+        if (edited->choices[choice] >= value) {
+            edited_choice = choice;
+            break;
+        }
+    }
+    open(PAGE_VALUE, 0);
+}
+
 static void activate(page_t page, int32_t row)
 {
     switch (page) {
     case PAGE_ROOT: {
-        static const page_t SECTIONS[] = { PAGE_GENERAL, PAGE_APPS, PAGE_DISPLAY, PAGE_WIFI,
-                                           PAGE_RESET };
-        open(SECTIONS[row], 0);
+        static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS, PAGE_DISPLAY,
+                                                    PAGE_VALUE,   PAGE_WIFI, PAGE_RESET };
+        if (row == ROOT_ROW_FONT) {
+            edit_value(&FONT_SETTING);
+        } else {
+            open(SECTIONS[row], 0);
+        }
         break;
     }
     case PAGE_GENERAL:
@@ -551,21 +588,9 @@ static void activate(page_t page, int32_t row)
         }
         break;
     }
-    case PAGE_DISPLAY: {
-        edited = &DISPLAY_SETTINGS[row];
-        /* The value may be one the web page set: start from the nearest
-         * choice that is not below it. */
-        int32_t value = read_number(edited->what);
-        edited_choice = edited->choice_count - 1;
-        for (int32_t choice = 0; choice < edited->choice_count; choice++) {
-            if (edited->choices[choice] >= value) {
-                edited_choice = choice;
-                break;
-            }
-        }
-        open(PAGE_VALUE, 0);
+    case PAGE_DISPLAY:
+        edit_value(&DISPLAY_SETTINGS[row]);
         break;
-    }
     case PAGE_WIFI:
         if (row == 3) {
             open(PAGE_FORGET, 0);
@@ -757,18 +782,42 @@ static void fit(char text[TEXT_MAX + 1], int32_t max_width)
 }
 
 /* One row of a list at the place number `slot` on the screen. */
-static void draw_row(int32_t slot, const char *label, char value[TEXT_MAX + 1], bool is_selected)
+/* The bar beside a list that is longer than the screen, as the host draws
+ * its own (components/ui/scrollbar.c): a thin line down the right edge
+ * and a thumb on it. The numbers are the host's. */
+#define SCROLLBAR_ROOM   12 /* what a list leaves free at its right edge for it */
+#define THUMB_WIDTH      5
+#define THUMB_FROM_EDGE  4
+#define THUMB_HEIGHT_MIN 12
+
+static void draw_scrollbar(int32_t rows, int32_t visible, int32_t first)
+{
+    int32_t top = LIST_TOP_GAP + ROW_BASELINE - BAR_RISE;
+    int32_t track = (visible - 1) * ROW_HEIGHT + BAR_HEIGHT;
+    int32_t thumb_height = track * visible / rows;
+    if (thumb_height < THUMB_HEIGHT_MIN) {
+        thumb_height = THUMB_HEIGHT_MIN;
+    }
+    int32_t thumb_left = gfx_width() - THUMB_FROM_EDGE - THUMB_WIDTH;
+    gfx_rect(thumb_left + THUMB_WIDTH / 2, top, 1, track, HOST_RECT_FILLED);
+    gfx_rect(thumb_left, top + (track - thumb_height) * first / (rows - visible), THUMB_WIDTH,
+             thumb_height, HOST_RECT_FILLED);
+}
+
+/* `room` is what the row gives up at its right edge: the scroll bar's. */
+static void draw_row(int32_t slot, const char *label, char value[TEXT_MAX + 1], bool is_selected,
+                     int32_t room)
 {
     int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
+    int32_t right = gfx_width() - room;
     if (is_selected) {
-        gfx_rect(BAR_INSET, baseline - BAR_RISE, gfx_width() - 2 * BAR_INSET, BAR_HEIGHT,
+        gfx_rect(BAR_INSET, baseline - BAR_RISE, right - 2 * BAR_INSET, BAR_HEIGHT,
                  HOST_RECT_FILLED);
         gfx_color(HOST_PAPER);
     }
     draw_text(MARGIN, baseline, HOST_FONT_TEXT, label);
-    fit(value, gfx_width() - 2 * MARGIN - text_width(HOST_FONT_TEXT, label) - VALUE_GAP);
-    draw_text(gfx_width() - MARGIN - text_width(HOST_FONT_TEXT, value), baseline, HOST_FONT_TEXT,
-              value);
+    fit(value, right - 2 * MARGIN - text_width(HOST_FONT_TEXT, label) - VALUE_GAP);
+    draw_text(right - MARGIN - text_width(HOST_FONT_TEXT, value), baseline, HOST_FONT_TEXT, value);
     gfx_color(HOST_INK);
 }
 
@@ -784,16 +833,21 @@ static void draw_list(page_t page, int32_t selected)
     if (first < 0) {
         first = 0;
     }
+    int32_t room = 0;
+    if (rows > visible) {
+        room = SCROLLBAR_ROOM;
+        draw_scrollbar(rows, visible, first);
+    }
     for (int32_t slot = 0; slot < visible && first + slot < rows; slot++) {
         char label[TEXT_MAX + 1];
         char value[TEXT_MAX + 1];
         describe_row(page, first + slot, label, value);
-        draw_row(slot, label, value, first + slot == selected);
+        draw_row(slot, label, value, first + slot == selected, room);
         if (page == PAGE_APPS && app_title_at(first + slot, value)) {
             /* What OK does to an application here, said by a picture. */
             int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
             gfx_color(first + slot == selected ? HOST_PAPER : HOST_INK);
-            gfx_icon(HOST_ICON_TRASH, gfx_width() - MARGIN - HOST_ICON_CELLS * CELL,
+            gfx_icon(HOST_ICON_TRASH, gfx_width() - room - MARGIN - HOST_ICON_CELLS * CELL,
                      baseline - (HOST_ICON_CELLS - 1) * CELL, CELL);
             gfx_color(HOST_INK);
         }

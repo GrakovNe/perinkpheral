@@ -425,6 +425,10 @@ int gfx_font_cap_height(const gfx_font_t *font)
 }
 
 #include "departure_11.h"
+#include "jersey_10.h"
+#include "jersey_15.h"
+#include "jersey_20.h"
+#include "jersey_25.h"
 
 #define DEPARTURE_MONO(pixels_per_dot)                                              \
     {                                                                               \
@@ -433,18 +437,53 @@ int gfx_font_cap_height(const gfx_font_t *font)
         .bits = departure_11_bits, .scale = (pixels_per_dot),                       \
     }
 
-static const gfx_font_t FONTS[GFX_FONT_COUNT] = {
-    [GFX_FONT_TEXT] = DEPARTURE_MONO(2),    [GFX_FONT_MEDIUM] = DEPARTURE_MONO(3),
-    [GFX_FONT_LARGE] = DEPARTURE_MONO(4),   [GFX_FONT_DISPLAY] = DEPARTURE_MONO(6),
-    [GFX_FONT_HUGE] = DEPARTURE_MONO(10),   [GFX_FONT_SMALL] = DEPARTURE_MONO(1),
+/* One of the Jersey faces - each is drawn for capitals of so many pixels,
+ * which is its number - with a dot so many pixels large. */
+#define JERSEY(face, pixels_per_dot)                                                \
+    {                                                                               \
+        .ascent = jersey_##face##_ascent, .descent = jersey_##face##_descent,       \
+        .glyphs = jersey_##face##_glyphs, .count = jersey_##face##_count,           \
+        .bits = jersey_##face##_bits, .scale = (pixels_per_dot),                    \
+    }
+
+/* A family has every size. Departure Mono is one bitmap at whole
+ * multiples; Jersey is four faces, picked so that the capitals of a size
+ * are as tall as Departure Mono's - 10, 15, 25, 30, 50 and 80 pixels for
+ * its 8, 16, 24, 32, 48 and 80 - and what is laid out for one family
+ * holds for the other. */
+static const gfx_font_t FONTS[GFX_FAMILY_COUNT][GFX_FONT_COUNT] = {
+    [GFX_FAMILY_DEPARTURE_MONO] = {
+        [GFX_FONT_TEXT] = DEPARTURE_MONO(2),    [GFX_FONT_MEDIUM] = DEPARTURE_MONO(3),
+        [GFX_FONT_LARGE] = DEPARTURE_MONO(4),   [GFX_FONT_DISPLAY] = DEPARTURE_MONO(6),
+        [GFX_FONT_HUGE] = DEPARTURE_MONO(10),   [GFX_FONT_SMALL] = DEPARTURE_MONO(1),
+    },
+    [GFX_FAMILY_JERSEY] = {
+        [GFX_FONT_TEXT] = JERSEY(15, 1),    [GFX_FONT_MEDIUM] = JERSEY(25, 1),
+        [GFX_FONT_LARGE] = JERSEY(15, 2),   [GFX_FONT_DISPLAY] = JERSEY(25, 2),
+        [GFX_FONT_HUGE] = JERSEY(20, 4),    [GFX_FONT_SMALL] = JERSEY(10, 1),
+    },
 };
+
+static gfx_family_t s_family = GFX_FAMILY_DEPARTURE_MONO;
+
+void gfx_font_use(gfx_family_t family)
+{
+    if ((unsigned)family < GFX_FAMILY_COUNT) {
+        s_family = family;
+    }
+}
+
+gfx_family_t gfx_font_family(void)
+{
+    return s_family;
+}
 
 const gfx_font_t *gfx_font(gfx_font_id_t id)
 {
-    return (unsigned)id < GFX_FONT_COUNT ? &FONTS[id] : NULL;
+    return (unsigned)id < GFX_FONT_COUNT ? &FONTS[s_family][id] : NULL;
 }
 
 const gfx_font_t *gfx_font_system(void)
 {
-    return &FONTS[GFX_FONT_TEXT];
+    return &FONTS[s_family][GFX_FONT_TEXT];
 }

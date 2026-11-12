@@ -74,13 +74,15 @@ def write_png(path, rows, scale):
 
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), "perinkpheral-preview")
+    # A second argument names the typeface: "jersey" for the other family.
+    family = sys.argv[2:3]
     os.makedirs(out, exist_ok=True)
     with tempfile.TemporaryDirectory() as d:
         exe = os.path.join(d, "preview")
         cmd = ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-o", exe] + \
               ["-I" + i for i in INCS] + SRCS
         subprocess.run(cmd, check=True)
-        subprocess.run([exe, d], check=True)
+        subprocess.run([exe, d] + family, check=True)
         for name in sorted(os.listdir(d)):
             if name.endswith(".pbm"):
                 png = os.path.join(out, name[:-4] + ".png")

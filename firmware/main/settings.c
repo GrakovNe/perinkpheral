@@ -17,6 +17,8 @@
 #include "freertos/task.h"
 
 #include "events.h"
+#include "host.h"
+#include "gfx.h"
 #include "app_host.h"
 #include "display.h"
 #include "net_time.h"
@@ -42,6 +44,7 @@ static const char *TAG = "settings";
 #define KEY_REFRESH_FULL   "rf_full"
 #define KEY_REFRESH_KEEP   "rf_keep"
 #define KEY_DITHER         "dither"
+#define KEY_FONT           "font"
 #define KEY_REFRESH_FAST   "refresh_fast"
 #define KEY_TIME_AUTO      "time_auto"
 #define KEY_POWER_SAVING   "power_saving"
@@ -103,6 +106,7 @@ static void load(appconf_t *c, const char device_id[5])
     nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
     nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
     nvs_get_u8(h, KEY_DITHER, &c->dither);
+    nvs_get_u8(h, KEY_FONT, &c->font);
     nvs_get_u8(h, KEY_REFRESH_FAST, &c->refresh_fast);
     nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
     nvs_get_u8(h, KEY_POWER_SAVING, &c->power_saving);
@@ -142,6 +146,7 @@ static esp_err_t save(const appconf_t *c)
     PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
     PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
     PUT(nvs_set_u8(h, KEY_DITHER, c->dither));
+    PUT(nvs_set_u8(h, KEY_FONT, c->font));
     PUT(nvs_set_u8(h, KEY_REFRESH_FAST, c->refresh_fast));
     PUT(nvs_set_u8(h, KEY_TIME_AUTO, c->time_auto));
     PUT(nvs_set_u8(h, KEY_POWER_SAVING, c->power_saving));
@@ -301,6 +306,11 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
     net_time_set_zone(s_live.tz);
     net_time_set_automatic(s_live.time_auto != 0);
     app_host_set_dithering(s_live.dither != 0);
+    if (gfx_font_family() != (gfx_family_t)s_live.font) {
+        /* Every letter on the screen is another one now. */
+        gfx_font_use((gfx_family_t)s_live.font);
+        host_redraw();
+    }
     refresh_policy_cfg_t policy = settings_refresh_policy(&s_live);
     display_set_policy(&policy);
     if (power_changed) {

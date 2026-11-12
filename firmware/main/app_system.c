@@ -109,6 +109,11 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
         *least = APPCONF_POWER_PLUGGED;
         *most = APPCONF_POWER_EXTREME;
         return HOST_OK;
+    case SYS_NUMBER_FONT:
+        *value = settings.font;
+        *least = 0;
+        *most = APPCONF_FONT_COUNT - 1;
+        return HOST_OK;
     case SYS_NUMBER_REFRESH_FAST:
         *value = settings.refresh_fast;
         *least = 0;
@@ -164,6 +169,9 @@ int32_t app_system_number_set(int what, int32_t value)
         break;
     case SYS_NUMBER_POWER_SAVING:
         wanted.power_saving = (uint8_t)value;
+        break;
+    case SYS_NUMBER_FONT:
+        wanted.font = (uint8_t)value;
         break;
     case SYS_NUMBER_REFRESH_FAST:
         wanted.refresh_fast = (uint8_t)value;

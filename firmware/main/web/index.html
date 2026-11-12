@@ -220,6 +220,11 @@
       <option value="50">Every 50 updates</option>
       <option value="255">Never</option>
     </select>
+    <label for="font">Font</label>
+    <select id="font">
+      <option value="0">Departure Mono</option>
+      <option value="1">Jersey</option>
+    </select>
     <label for="refresh_min_data_s">Minimum update interval, s</label>
     <input id="refresh_min_data_s" type="number" min="10" max="3600" required>
     <label for="refresh_keepalive_h">Keep-alive refresh, h</label>
@@ -972,6 +977,7 @@ async function loadSettings() {
                                       textContent: "Every " + settings.refresh_full_every + " updates" }));
   fullEvery.value = settings.refresh_full_every;
   byId("dither").checked = settings.dither;
+  byId("font").value = settings.font;
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").checked = settings.power_saving;
@@ -999,6 +1005,7 @@ saveSettings("display", () => ({
   refresh_min_data_s: Number(byId("refresh_min_data_s").value),
   refresh_keepalive_h: Number(byId("refresh_keepalive_h").value),
   dither: byId("dither").checked,
+  font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
   power_saving: byId("power_saving").checked,
   power_extreme: byId("power_saving").checked && byId("power_extreme").checked,

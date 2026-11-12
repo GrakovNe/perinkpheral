@@ -137,6 +137,7 @@ void app_main(void)
     const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
     display_start(&refresh_policy);
     app_host_set_dithering(cfg->dither != 0);
+    gfx_font_use((gfx_family_t)cfg->font);
     buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();

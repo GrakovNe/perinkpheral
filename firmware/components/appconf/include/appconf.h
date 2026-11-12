@@ -43,6 +43,9 @@ extern "C" {
 
 /* Everything a user can set. Pure: no ESP-IDF, host-tested. The network
  * fields are here from day one so that NVS keys never have to move. */
+/* The typefaces there are to choose from: gfx_family_t in this order. */
+#define APPCONF_FONT_COUNT 2
+
 /* How the device is powered, which is what it does when idle. */
 #define APPCONF_POWER_PLUGGED 0 /* the radio always on */
 #define APPCONF_POWER_SAVING  1 /* light sleep; the radio on for a poll and after a press */
@@ -61,6 +64,7 @@ typedef struct {
     uint8_t  refresh_full_every;    /* partial refreshes before a full one */
     uint8_t  refresh_keepalive_h;   /* hours without a refresh before one is forced */
     uint8_t  refresh_fast;          /* 1: the shorter full refresh, with less of a blink */
+    uint8_t  font;                  /* the typeface: 0 Departure Mono, 1 Jersey */
     uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
     uint8_t  power_saving;          /* an APPCONF_POWER_*: plugged in, from its battery, or

@@ -132,6 +132,19 @@ typedef enum {
     GFX_FONT_COUNT,
 } gfx_font_id_t;
 
+/* The typeface all of the above are set in: the user's choice. Departure
+ * Mono, monospaced, is what the device starts with; Jersey is heavier and
+ * its letters are of their own widths. The sizes of one stand for the
+ * sizes of the other. */
+typedef enum {
+    GFX_FAMILY_DEPARTURE_MONO,
+    GFX_FAMILY_JERSEY,
+    GFX_FAMILY_COUNT,
+} gfx_family_t;
+
+void         gfx_font_use(gfx_family_t family);
+gfx_family_t gfx_font_family(void);
+
 /* NULL for an id that is not one of the above. */
 const gfx_font_t *gfx_font(gfx_font_id_t id);
 

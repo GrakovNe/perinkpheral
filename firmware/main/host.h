@@ -30,6 +30,10 @@ typedef enum {
 } host_stop_t;
 void host_stop_soon(host_stop_t why);
 
+/* Something every picture depends on changed - the typeface: whatever is
+ * on the screen is drawn anew. In the host loop. */
+void host_redraw(void);
+
 /* What somebody on the network asked for cannot be taken back: the device
  * shows the question - two lines of it, an icon beside them (a
  * gfx_icon_id_t), and what OK does - and this waits for whoever stands at

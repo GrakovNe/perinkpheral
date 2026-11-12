@@ -571,6 +571,8 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
                                             2: the same, and between the polls it sleeps so
                                             deeply that it starts anew each time */
 #define SYS_NUMBER_REFRESH_FAST        5 /* 1: the shorter full refresh, with less of a blink */
+#define SYS_NUMBER_FONT                6 /* the typeface everything is set in: 0 Departure Mono,
+                                            1 Jersey */
 #define SYS_REFRESH_FULL_NEVER         255
 typedef struct {
     int32_t value;

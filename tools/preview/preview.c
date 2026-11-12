@@ -75,11 +75,15 @@ static void start_screen(const screens_header_t *header, gfx_t *content)
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        fprintf(stderr, "usage: preview <out-dir>\n");
+        fprintf(stderr, "usage: preview <out-dir> [jersey]\n");
         return 2;
     }
     const char *dir = argv[1];
     gfx_init(&g, fb, W, H);
+    /* preview <out-dir> jersey: everything in the other family. */
+    if (argc > 2 && strcmp(argv[2], "jersey") == 0) {
+        gfx_font_use(GFX_FAMILY_JERSEY);
+    }
 
     const screens_header_t online = { true, NULL, "Wed 11 Nov" };
     /* As the device shows it before there is a network: no Wi-Fi, no date. */

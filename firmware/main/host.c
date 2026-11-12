@@ -295,6 +295,11 @@ static bool may_sleep_deeply(void)
     return next_ms == DEADLINE_NONE || next_ms - deadlines_now_ms() >= DEEP_SLEEP_LEAST_MS;
 }
 
+void host_redraw(void)
+{
+    wm_invalidate(&wm, WM_CHANGED_CLEANLY);
+}
+
 void host_stop_soon(host_stop_t why)
 {
     /* A reset asked for is not turned into a restart by a later request. */

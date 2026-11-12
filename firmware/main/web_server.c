@@ -428,6 +428,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "refresh_full_every", settings.refresh_full_every);
     cJSON_AddNumberToObject(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
     cJSON_AddBoolToObject(json, "dither", settings.dither != 0);
+    cJSON_AddNumberToObject(json, "font", settings.font);
     cJSON_AddBoolToObject(json, "refresh_fast", settings.refresh_fast != 0);
     cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
     cJSON_AddBoolToObject(json, "power_saving", settings.power_saving != APPCONF_POWER_PLUGGED);
@@ -471,6 +472,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
     uint8_t is_extreme = wanted->power_saving == APPCONF_POWER_EXTREME;
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
     uint32_t keepalive_h = wanted->refresh_keepalive_h;
+    uint32_t font = wanted->font;
     bool fits =
         take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
         take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
@@ -478,6 +480,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
         take_number(json, "refresh_min_data_s", UINT16_MAX, &min_data_s) &&
         take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
         take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
+        take_number(json, "font", UINT8_MAX, &font) &&
         take_flag(json, "dither", &wanted->dither) &&
         take_flag(json, "refresh_fast", &wanted->refresh_fast) &&
         take_flag(json, "time_auto", &wanted->time_auto) &&
@@ -490,6 +493,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
     wanted->refresh_min_data_s = (uint16_t)min_data_s;
     wanted->refresh_full_every = (uint8_t)full_every;
     wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
+    wanted->font = (uint8_t)font;
     return fits;
 }
 
