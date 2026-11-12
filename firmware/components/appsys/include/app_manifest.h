@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "json_pick.h"
+#include "manifest_limits.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,19 +28,19 @@ extern "C" {
 /* The name is the application's folder, its key in the catalog and, after
  * a prefix that keeps applications apart from the host, the NVS namespace
  * of its store - which is what limits its length. */
-#define APP_NAME_MAX    13
-#define APP_TITLE_MAX   23
-#define APP_VERSION_MAX 15
+#define APP_NAME_MAX    MANIFEST_NAME_MAX
+#define APP_TITLE_MAX   MANIFEST_TITLE_MAX
+#define APP_VERSION_MAX MANIFEST_VERSION_MAX
 
 /* What the host fetches for the application and how often. A poll is
  * known to the application by its number in the manifest. */
-#define APP_POLLS_MAX            4
-#define APP_POLL_EVERY_MIN_S     10
-#define APP_POLL_EVERY_MAX_S     (24 * 60 * 60)
-#define APP_URL_MAX              511 /* a calendar's secret address is long */
-#define APP_HEADERS_MAX          4
-#define APP_HEADER_NAME_MAX      31
-#define APP_HEADER_VALUE_MAX     255 /* "Bearer " and a token of two hundred characters */
+#define APP_POLLS_MAX            MANIFEST_POLLS_MAX
+#define APP_POLL_EVERY_MIN_S     MANIFEST_POLL_EVERY_MIN_S
+#define APP_POLL_EVERY_MAX_S     MANIFEST_POLL_EVERY_MAX_S
+#define APP_URL_MAX              MANIFEST_URL_MAX
+#define APP_HEADERS_MAX          MANIFEST_HEADERS_MAX
+#define APP_HEADER_NAME_MAX      MANIFEST_HEADER_NAME_MAX
+#define APP_HEADER_VALUE_MAX     MANIFEST_HEADER_VALUE_MAX
 
 /* An application may bring an icon, drawn like the host's own: 11 rows of
  * 11 characters in the manifest, '#' for ink and '.' for paper.
@@ -48,7 +49,7 @@ extern "C" {
  *
  * The device draws it beside the title in its list, a cell two pixels;
  * the web page draws it larger. */
-#define APP_ICON_CELLS 11
+#define APP_ICON_CELLS MANIFEST_ICON_CELLS
 
 typedef struct {
     char name[APP_NAME_MAX + 1];       /* a-z, 0-9, '-' and '_' */
@@ -138,13 +139,13 @@ const char *app_manifest_result_text(app_manifest_result_t result);
  *
  * The page offers places as the name is typed and, with the one chosen,
  * fills the two number settings the place names; it does not show them. */
-#define APP_SETTINGS_MAX        8
-#define APP_SETTING_KEY_MAX     15 /* a kv key */
-#define APP_SETTING_TITLE_MAX   31
-#define APP_SETTING_HELP_MAX    95
-#define APP_SETTING_VALUE_MAX   255
-#define APP_SETTING_OPTIONS_MAX 8
-#define APP_SETTING_OPTION_MAX  23
+#define APP_SETTINGS_MAX        MANIFEST_SETTINGS_MAX
+#define APP_SETTING_KEY_MAX     MANIFEST_SETTING_KEY_MAX
+#define APP_SETTING_TITLE_MAX   MANIFEST_SETTING_TITLE_MAX
+#define APP_SETTING_HELP_MAX    MANIFEST_SETTING_HELP_MAX
+#define APP_SETTING_VALUE_MAX   MANIFEST_SETTING_VALUE_MAX
+#define APP_SETTING_OPTIONS_MAX MANIFEST_SETTING_OPTIONS_MAX
+#define APP_SETTING_OPTION_MAX  MANIFEST_SETTING_OPTION_MAX
 
 typedef enum {
     APP_SETTING_TEXT,
@@ -173,8 +174,8 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
  * A server of the user's own is how an application reaches what lives in
  * somebody's home: a poll or a request may begin with "{{key}}" of such a
  * setting ("{{server}}/api/states"), and only begin with it. */
-#define APP_HOSTS_MAX 4
-#define APP_HOST_MAX  63
+#define APP_HOSTS_MAX MANIFEST_HOSTS_MAX
+#define APP_HOST_MAX  MANIFEST_HOST_MAX
 typedef bool (*app_manifest_value_fn)(void *context, const char *key, char *value,
                                       size_t value_size);
 bool app_manifest_allows_url(const char *json, const char *url,

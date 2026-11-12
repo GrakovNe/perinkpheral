@@ -27,32 +27,46 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SDK = os.path.join(ROOT, "sdk")
 
-# As in firmware/components/appsys/include/app_manifest.h.
-NAME_MAX = 13
-TITLE_MAX = 23
-VERSION_MAX = 15
-POLLS_MAX = 4
-POLL_EVERY_MIN_S = 10
-POLL_EVERY_MAX_S = 24 * 60 * 60
-URL_MAX = 511
-HEADERS_MAX = 4
-PICK_PATHS_MAX = 16
-PICK_PATH_MAX = 63
-ICON_CELLS = 11
-HOSTS_MAX = 4
-HOST_MAX = 63
-SETTINGS_MAX = 8
-SETTING_KEY_MAX = 15
-SETTING_TITLE_MAX = 31
-SETTING_HELP_MAX = 95
-SETTING_OPTIONS_MAX = 8
-SETTING_OPTION_MAX = 23
+
+
+def manifest_limits():
+    """The limits of a manifest, from the one place they are written."""
+    limits = {}
+    with open(os.path.join(SDK, "lib", "manifest_limits.h")) as f:
+        for name, value in re.findall(r"^#define\s+MANIFEST_(\w+)\s+([^/\n]+)", f.read(), re.M):
+            # Numbers and products of them, nothing else.
+            if not re.fullmatch(r"[\d\s*()]+", value):
+                sys.exit("sdk/lib/manifest_limits.h: %s is not a number" % name)
+            limits[name] = eval(value)
+    return limits
+
+
+LIMITS = manifest_limits()
+NAME_MAX = LIMITS["NAME_MAX"]
+TITLE_MAX = LIMITS["TITLE_MAX"]
+VERSION_MAX = LIMITS["VERSION_MAX"]
+POLLS_MAX = LIMITS["POLLS_MAX"]
+POLL_EVERY_MIN_S = LIMITS["POLL_EVERY_MIN_S"]
+POLL_EVERY_MAX_S = LIMITS["POLL_EVERY_MAX_S"]
+URL_MAX = LIMITS["URL_MAX"]
+HEADERS_MAX = LIMITS["HEADERS_MAX"]
+PICK_PATHS_MAX = LIMITS["PICK_PATHS_MAX"]
+PICK_PATH_MAX = LIMITS["PICK_PATH_MAX"]
+ICON_CELLS = LIMITS["ICON_CELLS"]
+HOSTS_MAX = LIMITS["HOSTS_MAX"]
+HOST_MAX = LIMITS["HOST_MAX"]
+SETTINGS_MAX = LIMITS["SETTINGS_MAX"]
+SETTING_KEY_MAX = LIMITS["SETTING_KEY_MAX"]
+SETTING_TITLE_MAX = LIMITS["SETTING_TITLE_MAX"]
+SETTING_HELP_MAX = LIMITS["SETTING_HELP_MAX"]
+SETTING_OPTIONS_MAX = LIMITS["SETTING_OPTIONS_MAX"]
+SETTING_OPTION_MAX = LIMITS["SETTING_OPTION_MAX"]
+FILE_NAME_MAX = LIMITS["FILE_NAME_MAX"]
 INTENTS = ("time_changed", "network_up", "started")
 SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url")
-FILE_NAME_MAX = 23
 FILES_MAX_BYTES = 120 * 1024
-HEADER_NAME_MAX = 31
-HEADER_VALUE_MAX = 255
+HEADER_NAME_MAX = LIMITS["HEADER_NAME_MAX"]
+HEADER_VALUE_MAX = LIMITS["HEADER_VALUE_MAX"]
 
 WASM_PAGE = 65536
 APP_STACK = 8192

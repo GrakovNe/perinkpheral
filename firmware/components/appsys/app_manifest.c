@@ -4,6 +4,10 @@
  */
 #include "app_manifest.h"
 
+_Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
+                   MANIFEST_PICK_PATH_MAX == JSON_PICK_PATH_MAX,
+               "a manifest names as many paths, as long, as the picker takes");
+
 #include <stdlib.h>
 #include <string.h>
 

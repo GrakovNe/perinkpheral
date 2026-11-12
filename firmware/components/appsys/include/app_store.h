@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "manifest_limits.h"
+
 #include "app_manifest.h"
 
 #ifdef __cplusplus
@@ -47,7 +49,7 @@ char *app_store_read_manifest(const char *root, const char *name);
 
 /* A data file is named with 1-23 of a-z, 0-9, '.', '-' and '_', not
  * starting with a dot. */
-#define APP_FILE_NAME_MAX 23
+#define APP_FILE_NAME_MAX MANIFEST_FILE_NAME_MAX
 /* All the data files of one application may take this much. */
 #define APP_FILES_MAX_BYTES (120 * 1024)
 
