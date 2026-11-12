@@ -237,6 +237,17 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 #define HOST_FONT_HUGE    4 /* about 80 px: five digits fill the width */
 #define HOST_FONT_SMALL   5 /* about 9 px: secondary text beside something larger */
 
+/* A number that changes where it stands - a clock, a countdown - should
+ * not shift what is beside it, and in a typeface whose digits are of
+ * their own widths it does. Add HOST_FONT_TABULAR to the font and every
+ * digit takes the room of the widest one:
+ *
+ *     gfx_text(x, y, HOST_FONT_HUGE | HOST_FONT_TABULAR, "12:07", 5);
+ *
+ * gfx_text_width() takes the same, and must be asked the same way. What
+ * is not a digit keeps its own width. */
+#define HOST_FONT_TABULAR 0x100
+
 /* y is the top of the line, not the baseline. Text longer than
  * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
 #define HOST_TEXT_MAX 127

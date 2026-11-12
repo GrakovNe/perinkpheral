@@ -228,6 +228,8 @@ gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
                                        // fonts: 0 text 22 px, 1 medium 33, 2 large 44, 3 display 66, 4 huge 110, 5 small 11; all of ASCII in each
 gfx_text_width(font_id, str_ptr, len) -> px
+                                       // font_id | HOST_FONT_TABULAR: every digit takes the room of the widest one,
+                                       // so a time that changes does not shift - for a typeface whose digits differ
 gfx_text_fit(font_id, str_ptr, len, max_width, out_ptr, cap) -> len   // the text cut with "..." to fit the width
 gfx_font_height(font_id) -> px          // the whole line
 gfx_font_ascent(font_id) -> px          // from the top of the line to the baseline

@@ -357,42 +357,86 @@ static const gfx_glyph_t *font_glyph(const gfx_font_t *font, uint32_t cp)
     return cp == '?' ? NULL : font_glyph(font, '?');
 }
 
-int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
+static bool is_digit(uint32_t cp)
+{
+    return cp >= '0' && cp <= '9';
+}
+
+/* The widest of the ten digits, in the font's own dots. */
+static int digit_cell(const gfx_font_t *font)
+{
+    int widest = 0;
+    for (uint32_t digit = '0'; digit <= '9'; digit++) {
+        const gfx_glyph_t *gl = font_glyph(font, digit);
+        if (gl != NULL && gl->advance > widest) {
+            widest = gl->advance;
+        }
+    }
+    return widest;
+}
+
+/* What the glyph takes of the line, and how far into that it is drawn:
+ * its own advance, or - a digit among digits that keep their columns - a
+ * cell as wide as the widest digit, with the glyph in the middle of it. */
+static int glyph_room(const gfx_glyph_t *gl, uint32_t cp, int cell, int *inset)
+{
+    *inset = 0;
+    if (cell == 0 || !is_digit(cp)) {
+        return gl->advance;
+    }
+    *inset = (cell - gl->advance) / 2;
+    return cell;
+}
+
+static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black,
+                     int cell)
 {
     int x0 = x;
     int scale = font->scale;
     const char *s = utf8;
     while (*s != '\0') {
-        const gfx_glyph_t *gl = font_glyph(font, next_cp(&s));
+        uint32_t cp = next_cp(&s);
+        const gfx_glyph_t *gl = font_glyph(font, cp);
         if (gl == NULL) {
             continue;
         }
-        int stride = (gl->w + 7) / 8;
-        const uint8_t *bits = font->bits + gl->offset;
-        for (int row = 0; row < gl->h; row++) {
-            for (int col = 0; col < gl->w; col++) {
-                if (bits[row * stride + (col >> 3)] & (0x80 >> (col & 7))) {
-                    gfx_fill(g, x + (gl->left + col) * scale, y + (row - gl->top) * scale, scale,
-                             scale, black);
+        int inset;
+        int room = glyph_room(gl, cp, cell, &inset);
+        if (g != NULL) {
+            int stride = (gl->w + 7) / 8;
+            const uint8_t *bits = font->bits + gl->offset;
+            for (int row = 0; row < gl->h; row++) {
+                for (int col = 0; col < gl->w; col++) {
+                    if (bits[row * stride + (col >> 3)] & (0x80 >> (col & 7))) {
+                        gfx_fill(g, x + (inset + gl->left + col) * scale,
+                                 y + (row - gl->top) * scale, scale, scale, black);
+                    }
                 }
             }
         }
-        x += gl->advance * scale;
+        x += room * scale;
     }
     return x - x0;
 }
 
+int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
+{
+    return draw_text(g, x, y, font, utf8, black, 0);
+}
+
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
 {
-    int w = 0;
-    const char *s = utf8;
-    while (*s != '\0') {
-        const gfx_glyph_t *gl = font_glyph(font, next_cp(&s));
-        if (gl != NULL) {
-            w += gl->advance * font->scale;
-        }
-    }
-    return w;
+    return draw_text(NULL, 0, 0, font, utf8, true, 0);
+}
+
+int gfx_text_tabular(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
+{
+    return draw_text(g, x, y, font, utf8, black, digit_cell(font));
+}
+
+int gfx_text_tabular_width(const gfx_font_t *font, const char *utf8)
+{
+    return draw_text(NULL, 0, 0, font, utf8, true, digit_cell(font));
 }
 
 void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,

@@ -114,9 +114,15 @@ _Static_assert(HOST_FONT_TEXT == GFX_FONT_TEXT && HOST_FONT_MEDIUM == GFX_FONT_M
                    HOST_FONT_HUGE == GFX_FONT_HUGE && HOST_FONT_SMALL == GFX_FONT_SMALL,
                "applications name the fonts by the numbers gfx gives them");
 
+/* The font an application names, HOST_FONT_TABULAR or not. */
 static const gfx_font_t *font_by_id(int32_t font)
 {
-    return gfx_font((gfx_font_id_t)font);
+    return gfx_font((gfx_font_id_t)(font & ~HOST_FONT_TABULAR));
+}
+
+static bool is_tabular(int32_t font)
+{
+    return (font & HOST_FONT_TABULAR) != 0;
 }
 
 /* An offset and a length from the application, which is not trusted, as
@@ -206,7 +212,10 @@ HOST_FUNCTION(host_gfx_text)
         !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(gfx_text_font(app->surface, x, y + gfx_font_ascent(font), font, terminated, true));
+    int baseline = y + gfx_font_ascent(font);
+    m3ApiReturn(is_tabular(font_id)
+                    ? gfx_text_tabular(app->surface, x, baseline, font, terminated, true)
+                    : gfx_text_font(app->surface, x, baseline, font, terminated, true));
 }
 
 HOST_FUNCTION(host_gfx_text_width)
@@ -221,7 +230,8 @@ HOST_FUNCTION(host_gfx_text_width)
     if (font == NULL || !copy_text(runtime, _mem, text, length, terminated)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(gfx_text_font_width(font, terminated));
+    m3ApiReturn(is_tabular(font_id) ? gfx_text_tabular_width(font, terminated)
+                                    : gfx_text_font_width(font, terminated));
 }
 
 HOST_FUNCTION(host_gfx_text_fit)

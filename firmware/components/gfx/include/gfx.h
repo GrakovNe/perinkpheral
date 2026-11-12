@@ -114,6 +114,13 @@ int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *ut
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
 
+/* The same with the digits in columns: each takes the room of the widest
+ * of the ten, and stands in the middle of it - so a number that changes
+ * does not shift what is beside it. In a font whose digits are of one
+ * width already this is gfx_text_font(). */
+int gfx_text_tabular(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black);
+int gfx_text_tabular_width(const gfx_font_t *font, const char *utf8);
+
 /* `text` as it fits into `max_width`: whole, or its start with "..." after
  * it, or nothing when not even that fits. `fitted` takes up to `capacity`
  * bytes with the terminator. ASCII. */

@@ -306,8 +306,34 @@ static void test_text_fit(void)
     CHECK_STR(small, "Saint P");
 }
 
+static void test_digits_in_columns(void)
+{
+    /* a typeface whose digits are of their own widths: a time that changes
+     * is as wide as any other, once its digits keep their columns */
+    gfx_font_use(GFX_FAMILY_JERSEY);
+    const gfx_font_t *jersey = gfx_font(GFX_FONT_HUGE);
+    CHECK(gfx_text_font_width(jersey, "11:11") != gfx_text_font_width(jersey, "00:00"));
+    CHECK(gfx_text_tabular_width(jersey, "11:11") == gfx_text_tabular_width(jersey, "00:00"));
+    CHECK(gfx_text_tabular_width(jersey, "12:34") == gfx_text_tabular_width(jersey, "56:78"));
+    /* what is not a digit keeps its own width */
+    CHECK(gfx_text_tabular_width(jersey, "min") == gfx_text_font_width(jersey, "min"));
+    /* and what is drawn is as wide as what was measured */
+    static uint8_t wide_bits[400 / 8 * 120];
+    gfx_t wide;
+    gfx_init(&wide, wide_bits, 400, 120);
+    gfx_clear(&wide, false);
+    CHECK(gfx_text_tabular(&wide, 0, 100, jersey, "11:11", true) ==
+          gfx_text_tabular_width(jersey, "11:11"));
+
+    /* a typeface that is of one width already is not changed by it */
+    gfx_font_use(GFX_FAMILY_DEPARTURE_MONO);
+    const gfx_font_t *mono = gfx_font(GFX_FONT_HUGE);
+    CHECK(gfx_text_tabular_width(mono, "11:11") == gfx_text_font_width(mono, "11:11"));
+}
+
 int main(void)
 {
+    test_digits_in_columns();
     test_text_fit();
     test_clear_and_pixel();
     test_fill_frame();
