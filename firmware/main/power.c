@@ -6,9 +6,11 @@
 
 #include "esp_log.h"
 #include "driver/usb_serial_jtag.h"
+#include "hal/usb_serial_jtag_ll.h"
 #include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #include "deadlines.h"
 #include "wifi.h"
@@ -93,6 +95,24 @@ static void stay_up(bool wanted)
     }
 }
 
+/* Shows itself to the computer anew. One that found the device asleep
+ * when the cable went in asked it who it was, got no answer and stopped
+ * asking; it asks again only of a device that has just appeared - so the
+ * device goes off the bus for a moment and comes back. Not while it is
+ * known to the computer already: that would drop the console. */
+#define OFF_THE_BUS_MS 200
+
+static void show_to_the_computer(void)
+{
+    if (s_mode != POWER_AUTO || usb_serial_jtag_is_connected()) {
+        return;
+    }
+    const usb_serial_jtag_pull_override_vals_t off_the_bus = { 0 };
+    usb_serial_jtag_ll_phy_enable_pull_override(&off_the_bus);
+    vTaskDelay(pdMS_TO_TICKS(OFF_THE_BUS_MS));
+    usb_serial_jtag_ll_phy_disable_pull_override();
+}
+
 void power_awake_is_over(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -175,6 +195,7 @@ void power_set_mode(power_mode_t mode)
     s_mode = mode;
     set_saving(is_to_save(mode));
     look_again_later();
+    show_to_the_computer();
 }
 
 bool power_look(void)
@@ -226,4 +247,6 @@ void power_note_press(void)
     apply_radio();
     xSemaphoreGive(s_lock);
     tell_reachable();
+    /* The chip is up for a while now: long enough to be found. */
+    show_to_the_computer();
 }

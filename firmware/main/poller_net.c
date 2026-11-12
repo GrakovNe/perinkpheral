@@ -365,6 +365,23 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
     return REDIRECT_FOLLOWED;
 }
 
+/* Waits for the answer's headers. A server that takes the connection and
+ * then says nothing is a timeout, which the client reports as "again". */
+static esp_err_t headers_or_why_not(esp_http_client_handle_t client)
+{
+    int64_t length = esp_http_client_fetch_headers(client);
+    if (length == -ESP_ERR_HTTP_EAGAIN) {
+        return ESP_ERR_TIMEOUT;
+    }
+    return length < 0 ? ESP_FAIL : ESP_OK;
+}
+
+/* mbedTLS's own numbers for a certificate that did not pass, without
+ * their sign: MBEDTLS_ERR_X509_CERT_VERIFY_FAILED and
+ * MBEDTLS_ERR_X509_FATAL_ERROR. */
+#define X509_VERIFY_FAILED  0x2700
+#define X509_NO_ROOT_FOR_IT 0x3000
+
 /* Why a request that got no answer got none, as an application is told. */
 static int why_no_answer(esp_http_client_handle_t client, esp_err_t err)
 {
@@ -373,10 +390,13 @@ static int why_no_answer(esp_http_client_handle_t client, esp_err_t err)
     }
     int tls_error = 0, certificate_flags = 0;
     esp_http_client_get_and_clear_last_tls_error(client, &tls_error, &certificate_flags);
-    /* The flags are what was wrong with the certificate the server showed;
-     * a handshake that failed without any is a server that does not speak
-     * what the device does, which is no answer. */
-    if (certificate_flags != 0) {
+    /* The certificate the server showed was looked at and not accepted:
+     * the flags say what was wrong with it, and the set of roots says
+     * "fatal" when none of them signed it. Any other failed handshake is a
+     * server that does not speak what the device does: no answer. */
+    int tls_code = tls_error < 0 ? -tls_error : tls_error;
+    if (certificate_flags != 0 || tls_code == X509_VERIFY_FAILED ||
+        tls_code == X509_NO_ROOT_FOR_IT) {
         return HOST_FAILED_NOT_TRUSTED;
     }
     int socket_error = esp_http_client_get_errno(client);
@@ -410,7 +430,7 @@ static void perform(request_t *request, const char *app_name, int number, int me
     }
     int http_status = 0;
     if (err == ESP_OK) {
-        esp_http_client_fetch_headers(client);
+        err = headers_or_why_not(client);
         http_status = esp_http_client_get_status_code(client);
     }
     /* Only what can be asked again as it was: a body is not sent twice. */
@@ -438,7 +458,7 @@ static void perform(request_t *request, const char *app_name, int number, int me
         err = esp_http_client_open(client, 0);
         http_status = 0;
         if (err == ESP_OK) {
-            esp_http_client_fetch_headers(client);
+            err = headers_or_why_not(client);
             http_status = esp_http_client_get_status_code(client);
         }
     }
