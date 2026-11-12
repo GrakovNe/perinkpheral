@@ -34,6 +34,7 @@
 #define ROW_LOCAL_TIME    62
 #define ROW_VALUES        63
 #define ROW_PICTURE       44
+#define ROW_UI            1
 
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
 static gfx_t surface;
@@ -437,6 +438,7 @@ static void test_data(void)
 
     draw(app);
     CHECK(gfx_get(&surface, 0, ROW_DATA) && gfx_get(&surface, 2, ROW_DATA));
+    CHECK(gfx_get(&surface, 0, ROW_UI));
 
     /* what the headers said is there for the handler to ask, and only then */
     host_response_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };

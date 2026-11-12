@@ -12,6 +12,8 @@
 #include "m3_area.h"
 #endif
 #include "gfx_icons.h"
+#include "list.h"
+#include "notice.h"
 #include "host_api.h"
 #include "qrcodegen.h"
 #include "wasm3.h"
@@ -364,6 +366,111 @@ HOST_FUNCTION(host_gfx_icon)
         !gfx_icon(app->surface, (gfx_icon_id_t)icon, x, y, cell, true)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_ui_list_visible)
+{
+    m3ApiReturnType(int32_t);
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    m3ApiReturn(list_visible_rows(app->surface));
+}
+
+/* A list of more rows than this is somebody's mistake, not a list. */
+#define LIST_ROWS_MAX 10000
+
+static bool is_a_list(int32_t count, int32_t selected)
+{
+    return count >= 0 && count <= LIST_ROWS_MAX && selected >= 0 && selected <= LIST_ROWS_MAX;
+}
+
+HOST_FUNCTION(host_ui_list_first)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, count);
+    m3ApiGetArg(int32_t, selected);
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (!is_a_list(count, selected)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(list_first_row(count, selected, list_visible_rows(app->surface)));
+}
+
+HOST_FUNCTION(host_ui_list_row)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, count);
+    m3ApiGetArg(int32_t, selected);
+    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(uint32_t, label_offset);
+    m3ApiGetArg(int32_t, label_length);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, value_length);
+    m3ApiGetArg(int32_t, icon);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char label[HOST_TEXT_MAX + 1];
+    char value[HOST_TEXT_MAX + 1];
+    bool is_an_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
+    if (!is_a_list(count, selected) || !is_an_icon ||
+        !copy_text(runtime, _mem, label_offset, label_length, label) ||
+        !copy_text(runtime, _mem, value_offset, value_length, value)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    list_row_t row = { .label = label, .value = value,
+                       .icon = icon == HOST_ICON_NONE ? LIST_NO_ICON : icon };
+    list_draw_row(app->surface, count, selected, index, &row, false);
+    list_draw_scrollbar(app->surface, count, selected);
+    m3ApiReturn(HOST_OK);
+}
+
+/* A text of the notice, or NULL for an empty one: terminated here whatever
+ * the application left in its last byte. */
+static const char *notice_text(char *text, size_t size)
+{
+    text[size - 1] = '\0';
+    return text[0] != '\0' ? text : NULL;
+}
+
+HOST_FUNCTION(host_ui_notice)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, notice_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    const uint8_t *given = in_app_memory(runtime, _mem, notice_offset, sizeof(host_notice_t));
+    if (given == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    host_notice_t asked;
+    memcpy(&asked, given, sizeof asked);
+    bool is_an_icon = asked.icon == HOST_ICON_NONE ||
+                      (asked.icon >= 0 && asked.icon < GFX_ICON_COUNT);
+    if (!is_an_icon || asked.first[0] == '\0') {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    notice_t notice = {
+        .first = notice_text(asked.first, sizeof asked.first),
+        .second = notice_text(asked.second, sizeof asked.second),
+        .detail = notice_text(asked.detail, sizeof asked.detail),
+        .icon = asked.icon == HOST_ICON_NONE ? NOTICE_NO_ICON : asked.icon,
+        .ok = notice_text(asked.ok, sizeof asked.ok),
+        .back = notice_text(asked.back, sizeof asked.back),
+        .is_working = asked.is_working != 0,
+    };
+    notice_draw(app->surface, &notice);
     m3ApiReturn(HOST_OK);
 }
 
@@ -1169,6 +1276,10 @@ static const struct {
     { "data_response", "i(i)", host_data_response },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
+    { "ui_list_visible", "i()", host_ui_list_visible },
+    { "ui_list_first", "i(ii)", host_ui_list_first },
+    { "ui_list_row", "i(iii*i*ii)", host_ui_list_row },
+    { "ui_notice", "i(*)", host_ui_notice },
     { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },
     { "request_redraw", "v(i)", host_request_redraw },

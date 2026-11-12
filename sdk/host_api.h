@@ -360,6 +360,53 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_CELL_MAX   16
 HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
 
+/* ---- The host's own look ----
+ *
+ * What the host draws for itself, drawn for an application by the host:
+ * the same code that draws the menu and the host's questions, so an
+ * application that uses it looks the part and stays so when the host's
+ * look changes. Inside app_on_draw(), like all drawing. */
+
+/* A list the user moves through with UP and DOWN: a row a line of text,
+ * the chosen one white on a black bar, a scroll bar when there are more
+ * rows than fit, the chosen row kept in the middle. The application keeps
+ * `count` and `selected` and calls ui_list_row() for the rows in sight:
+ *
+ *     int32_t first = ui_list_first(count, selected);
+ *     for (int32_t i = first; i < first + ui_list_visible() && i < count; i++) {
+ *         ui_list_row(count, selected, i, label, label_length, value, value_length,
+ *                     HOST_ICON_NONE);
+ *     }
+ *
+ * `value` stands at the right edge, cut to what the label leaves; a length
+ * of 0 is none. `icon` is a HOST_ICON_* at the right edge, or
+ * HOST_ICON_NONE. A row out of sight draws nothing. */
+#define HOST_ICON_NONE (-1)
+HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(void));
+HOST_IMPORT(ui_list_first, int32_t ui_list_first(int32_t count, int32_t selected));
+HOST_IMPORT(ui_list_row,
+            int32_t ui_list_row(int32_t count, int32_t selected, int32_t index, const char *label,
+                                int32_t label_length, const char *value, int32_t value_length,
+                                int32_t icon));
+
+/* A notice on the whole surface, the way the host asks and tells: two
+ * lines of large text on the left, a large icon on the right, and along
+ * the bottom what the buttons do - "OK <ok>" from the left edge,
+ * "<back> BACK" from the right - or, for `is_working`, three strokes that
+ * stand for work going on. Every text is terminated; an empty one is not
+ * drawn. A question that cannot be taken back should not take a press
+ * made before it was on the screen: the host's own wait until it is. */
+typedef struct host_notice {
+    char    first[32];
+    char    second[32];
+    char    detail[48]; /* a line of ordinary text under them */
+    char    ok[16];     /* what OK does: "Remove" */
+    char    back[16];   /* what BACK does: "Cancel" */
+    int32_t icon;       /* a HOST_ICON_*, or HOST_ICON_NONE */
+    int32_t is_working;
+} host_notice_t;
+HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
+
 /* ---- Moving about ----
  *
  * What is on the screen is the top of a stack, with the menu under it all.

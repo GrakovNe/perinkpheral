@@ -735,14 +735,6 @@ void app_on_button(int32_t event)
 /* ---- the picture ---- */
 
 #define MARGIN       16
-#define LIST_TOP_GAP 8
-#define ROW_HEIGHT   42
-#define ROW_BASELINE 30 /* under the row's top */
-/* The bar behind the selected row, as in the host's menu. */
-#define BAR_INSET    8
-#define BAR_HEIGHT   36
-#define BAR_RISE     26 /* its top above the row's baseline */
-#define VALUE_GAP    14 /* the least between a label and its value */
 #define LINE_HEIGHT  30
 
 static int32_t text_width(int32_t font, const char *text)
@@ -779,154 +771,35 @@ static void draw_chevron(int32_t arrow, int32_t left, int32_t top)
     gfx_icon(arrow, left - CHEVRON_FIRST_COLUMN * CELL, top - CHEVRON_FIRST_ROW * CELL, CELL);
 }
 
-/* Cuts a value that would run into its label, with "..." for what is gone. */
-static void fit(char text[TEXT_MAX + 1], int32_t max_width)
-{
-    int32_t length = app_text_length(text);
-    while (length > 0 && text_width(HOST_FONT_TEXT, text) > max_width) {
-        length--;
-        app_text_t out;
-        app_text_start(&out, text + length, TEXT_MAX + 1 - length);
-        app_text_add(&out, "...");
-    }
-}
-
-/* One row of a list at the place number `slot` on the screen. */
-/* The bar beside a list that is longer than the screen, as the host draws
- * its own (components/ui/scrollbar.c): a thin line down the right edge
- * and a thumb on it. The numbers are the host's. */
-#define SCROLLBAR_ROOM   12 /* what a list leaves free at its right edge for it */
-#define THUMB_WIDTH      5
-#define THUMB_FROM_EDGE  4
-#define THUMB_HEIGHT_MIN 12
-
-static void draw_scrollbar(int32_t rows, int32_t visible, int32_t first)
-{
-    int32_t top = LIST_TOP_GAP + ROW_BASELINE - BAR_RISE;
-    int32_t track = (visible - 1) * ROW_HEIGHT + BAR_HEIGHT;
-    int32_t thumb_height = track * visible / rows;
-    if (thumb_height < THUMB_HEIGHT_MIN) {
-        thumb_height = THUMB_HEIGHT_MIN;
-    }
-    int32_t thumb_left = gfx_width() - THUMB_FROM_EDGE - THUMB_WIDTH;
-    gfx_rect(thumb_left + THUMB_WIDTH / 2, top, 1, track, HOST_RECT_FILLED);
-    gfx_rect(thumb_left, top + (track - thumb_height) * first / (rows - visible), THUMB_WIDTH,
-             thumb_height, HOST_RECT_FILLED);
-}
-
-/* `room` is what the row gives up at its right edge: the scroll bar's. */
-static void draw_row(int32_t slot, const char *label, char value[TEXT_MAX + 1], bool is_selected,
-                     int32_t room)
-{
-    int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
-    int32_t right = gfx_width() - room;
-    if (is_selected) {
-        gfx_rect(BAR_INSET, baseline - BAR_RISE, right - 2 * BAR_INSET, BAR_HEIGHT,
-                 HOST_RECT_FILLED);
-        gfx_color(HOST_PAPER);
-    }
-    draw_text(MARGIN, baseline, HOST_FONT_TEXT, label);
-    fit(value, right - 2 * MARGIN - text_width(HOST_FONT_TEXT, label) - VALUE_GAP);
-    draw_text(right - MARGIN - text_width(HOST_FONT_TEXT, value), baseline, HOST_FONT_TEXT, value);
-    gfx_color(HOST_INK);
-}
-
+/* A list, drawn by the host as it draws its own. */
 static void draw_list(page_t page, int32_t selected)
 {
     int32_t rows = row_count(page);
-    int32_t visible = (gfx_height() - LIST_TOP_GAP) / ROW_HEIGHT;
-    /* The selected row stays in the middle while there is more both ways. */
-    int32_t first = selected - visible / 2;
-    if (first > rows - visible) {
-        first = rows - visible;
-    }
-    if (first < 0) {
-        first = 0;
-    }
-    int32_t room = 0;
-    if (rows > visible) {
-        room = SCROLLBAR_ROOM;
-        draw_scrollbar(rows, visible, first);
-    }
-    for (int32_t slot = 0; slot < visible && first + slot < rows; slot++) {
+    int32_t first = ui_list_first(rows, selected);
+    int32_t visible = ui_list_visible();
+    for (int32_t row = first; row < first + visible && row < rows; row++) {
         char label[TEXT_MAX + 1];
         char value[TEXT_MAX + 1];
-        describe_row(page, first + slot, label, value);
-        draw_row(slot, label, value, first + slot == selected, room);
-        if (page == PAGE_APPS && app_title_at(first + slot, value)) {
-            /* What OK does to an application here, said by a picture. */
-            int32_t baseline = LIST_TOP_GAP + slot * ROW_HEIGHT + ROW_BASELINE;
-            gfx_color(first + slot == selected ? HOST_PAPER : HOST_INK);
-            gfx_icon(HOST_ICON_TRASH, gfx_width() - room - MARGIN - HOST_ICON_CELLS * CELL,
-                     baseline - (HOST_ICON_CELLS - 1) * CELL, CELL);
-            gfx_color(HOST_INK);
+        describe_row(page, row, label, value);
+        /* What OK does to an application here, said by a picture. */
+        bool is_an_app = page == PAGE_APPS && app_title_at(row, value);
+        if (is_an_app) {
+            value[0] = '\0';
         }
+        ui_list_row(rows, selected, row, label, app_text_length(label), value,
+                    app_text_length(value), is_an_app ? HOST_ICON_TRASH : HOST_ICON_NONE);
     }
 }
 
-/* A question, drawn as the host draws its own (components/ui/notice.c):
- * two lines of large text on the left, a large icon on the right, and
- * along the bottom what the buttons do - OK from the left edge, BACK from
- * the right. The numbers are the host's. */
-#define NOTICE_MARGIN         24
-#define NOTICE_ICON_CELL      9
-#define NOTICE_FOOTER_HEIGHT  44
-#define NOTICE_LINE_STEP      44
-#define NOTICE_TEXT_ICON_GAP  16
-#define NOTICE_KEY_PAD_X      6
-#define NOTICE_KEY_PAD_TOP    5
-#define NOTICE_KEY_PAD_BOTTOM 7
-#define NOTICE_KEY_LABEL_GAP  8
-
-static int32_t key_width(const char *key)
-{
-    return text_width(HOST_FONT_TEXT, key) + 2 * NOTICE_KEY_PAD_X;
-}
-
-/* A button's name, white on black. */
-static void draw_key(int32_t left, int32_t baseline, const char *key)
-{
-    int32_t ascent = gfx_font_ascent(HOST_FONT_TEXT);
-    gfx_rect(left, baseline - ascent - NOTICE_KEY_PAD_TOP, key_width(key),
-             ascent + NOTICE_KEY_PAD_TOP + NOTICE_KEY_PAD_BOTTOM, HOST_RECT_FILLED);
-    gfx_color(HOST_PAPER);
-    draw_text(left + NOTICE_KEY_PAD_X, baseline, HOST_FONT_TEXT, key);
-    gfx_color(HOST_INK);
-}
-
+/* A question, asked by the host's own notice. */
 static void draw_question(const char *first, const char *second, int32_t icon, const char *action)
 {
-    int32_t body_height = gfx_height() - NOTICE_FOOTER_HEIGHT;
-    int32_t icon_size = HOST_ICON_CELLS * NOTICE_ICON_CELL;
-    int32_t icon_left = gfx_width() - NOTICE_MARGIN - icon_size;
-    gfx_icon(icon, icon_left, (body_height - icon_size) / 2, NOTICE_ICON_CELL);
-
-    int32_t room = icon_left - NOTICE_TEXT_ICON_GAP - NOTICE_MARGIN;
-    int32_t baseline =
-        body_height / 2 - NOTICE_LINE_STEP / 2 + gfx_font_cap_height(HOST_FONT_MEDIUM) / 2;
-    const char *const lines[] = { first, second };
-    for (int32_t line = 0; line < 2; line++, baseline += NOTICE_LINE_STEP) {
-        /* A title too long for the large letters is set in the ordinary ones. */
-        int32_t font = text_width(HOST_FONT_MEDIUM, lines[line]) <= room ? HOST_FONT_MEDIUM
-                                                                         : HOST_FONT_TEXT;
-        char fitted[TEXT_MAX + 1];
-        copy_text(fitted, sizeof fitted, lines[line]);
-        if (font == HOST_FONT_TEXT) {
-            fit(fitted, room); /* and one too long for those is cut */
-        }
-        draw_text(NOTICE_MARGIN, baseline, font, fitted);
-    }
-
-    gfx_rect(0, body_height, gfx_width(), 1, HOST_RECT_FILLED);
-    int32_t footer_baseline =
-        gfx_height() - NOTICE_FOOTER_HEIGHT / 2 + gfx_font_cap_height(HOST_FONT_TEXT) / 2;
-    draw_key(NOTICE_MARGIN, footer_baseline, "OK");
-    draw_text(NOTICE_MARGIN + key_width("OK") + NOTICE_KEY_LABEL_GAP, footer_baseline,
-              HOST_FONT_TEXT, action);
-    int32_t back_left = gfx_width() - NOTICE_MARGIN - key_width("BACK");
-    draw_key(back_left, footer_baseline, "BACK");
-    draw_text(back_left - NOTICE_KEY_LABEL_GAP - text_width(HOST_FONT_TEXT, "Cancel"),
-              footer_baseline, HOST_FONT_TEXT, "Cancel");
+    host_notice_t question = { .icon = icon };
+    copy_text(question.first, sizeof question.first, first);
+    copy_text(question.second, sizeof question.second, second);
+    copy_text(question.ok, sizeof question.ok, action);
+    copy_text(question.back, sizeof question.back, "Cancel");
+    ui_notice(&question);
 }
 
 /* ---- setting a value: what UP and DOWN lead to is on the screen ---- */

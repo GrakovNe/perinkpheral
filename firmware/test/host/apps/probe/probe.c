@@ -10,6 +10,7 @@
 #include "host_api.h"
 #include "json_pick.h"
 
+#define ROW_UI             1  /* one pixel: the host's list and notice answer as they should */
 #define ROW_PRESSES        0  /* as many pixels as the buttons pressed add up to */
 #define ROW_TIMER          2  /* timer id + 1 pixels, once a timer fired */
 #define ROW_NOT_DRAWING    4  /* one pixel: drawing outside app_on_draw was refused */
@@ -298,6 +299,16 @@ void app_on_draw(void)
     }
     if (result_outside_draw == HOST_ERR_NOT_DRAWING) {
         mark(0, ROW_NOT_DRAWING);
+    }
+
+    /* the host's own look: the list keeps the chosen row in sight, and
+     * what is not a list or not the application's to give is refused */
+    int32_t visible = ui_list_visible();
+    if (visible > 0 && ui_list_first(100, 0) == 0 && ui_list_first(100, 99) == 100 - visible &&
+        ui_list_row(-1, 0, 0, "a", 1, "", 0, HOST_ICON_NONE) == HOST_ERR_ARGUMENT &&
+        ui_list_row(3, 0, 0, "a", 1, "", 0, 999) == HOST_ERR_ARGUMENT &&
+        ui_notice((const host_notice_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT) {
+        mark(0, ROW_UI);
     }
 
     const char *far_outside_memory = (const char *)0xFFFFFF00u;

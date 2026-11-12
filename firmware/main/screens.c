@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #include "gfx_icons.h"
-#include "scrollbar.h"
+#include "list.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
@@ -58,62 +58,21 @@ void screens_header(gfx_t *g, const screens_header_t *header)
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }
 
-#define MENU_TOP_GAP    8
-#define MENU_ROW_HEIGHT 42
-/* The bar behind the selected row. */
-#define MENU_BAR_INSET  8  /* from both sides of the surface */
-#define MENU_BAR_HEIGHT 36
-#define MENU_BAR_RISE   26 /* its top above the row's baseline */
-
 int screens_menu_first_row(int count, int selected, int visible_rows)
 {
-    int first = selected - visible_rows / 2;
-    if (first > count - visible_rows) {
-        first = count - visible_rows;
-    }
-    return first > 0 ? first : 0;
-}
-
-#define MENU_ICON_GAP 12 /* between an icon and its title */
-
-/* An application's icon on the cells the host's own icons use. */
-static void menu_icon(gfx_t *g, int x, int y, const uint16_t *rows, bool black)
-{
-    for (int row = 0; row < SCREENS_ICON_CELLS; row++) {
-        for (int column = 0; column < SCREENS_ICON_CELLS; column++) {
-            if (rows[row] >> (SCREENS_ICON_CELLS - 1 - column) & 1) {
-                gfx_fill(g, x + column * ICON_CELL, y + row * ICON_CELL, ICON_CELL, ICON_CELL,
-                         black);
-            }
-        }
-    }
+    return list_first_row(count, selected, visible_rows);
 }
 
 void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected)
 {
-    int visible_rows = (g->h - MENU_TOP_GAP) / MENU_ROW_HEIGHT;
-    int first = screens_menu_first_row(count, selected, visible_rows);
-    /* One column for the titles whether a row has an icon or not. */
-    int title_left = MARGIN + SCREENS_ICON_CELLS * ICON_CELL + MENU_ICON_GAP;
-    /* A list longer than the surface gives its right edge to the bar. */
-    int bar_right_inset = MENU_BAR_INSET + (count > visible_rows ? SCROLLBAR_ROOM : 0);
-    scrollbar_draw(g, MENU_TOP_GAP + TEXT_BASELINE - MENU_BAR_RISE,
-                   (visible_rows - 1) * MENU_ROW_HEIGHT + MENU_BAR_HEIGHT, count, visible_rows,
-                   first);
-    for (int row = 0; row < visible_rows && first + row < count; row++) {
+    int visible_rows = list_visible_rows(g);
+    int first = list_first_row(count, selected, visible_rows);
+    list_draw_scrollbar(g, count, selected);
+    for (int index = first; index < first + visible_rows && index < count; index++) {
         screens_menu_row_t item;
-        row_at(context, first + row, &item);
-        int  baseline = MENU_TOP_GAP + row * MENU_ROW_HEIGHT + TEXT_BASELINE;
-        bool is_selected = first + row == selected;
-        if (is_selected) {
-            gfx_fill(g, MENU_BAR_INSET, baseline - MENU_BAR_RISE,
-                     g->w - MENU_BAR_INSET - bar_right_inset, MENU_BAR_HEIGHT, true);
-        }
-        if (item.icon != NULL) {
-            /* Standing on the baseline like a letter, two cells below its feet. */
-            menu_icon(g, MARGIN, baseline - (SCREENS_ICON_CELLS - 2) * ICON_CELL, item.icon,
-                      !is_selected);
-        }
-        gfx_text_font(g, title_left, baseline, gfx_font_system(), item.title, !is_selected);
+        row_at(context, index, &item);
+        /* One column for the titles whether a row has an icon or not. */
+        list_row_t row = { .label = item.title, .icon = LIST_NO_ICON, .picture = item.icon };
+        list_draw_row(g, count, selected, index, &row, true);
     }
 }
