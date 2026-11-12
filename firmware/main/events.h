@@ -17,13 +17,12 @@ extern "C" {
  * concurrently with anything else. */
 typedef enum {
     EVENT_BUTTON,
-    EVENT_TIMER,      /* a timer of the scene on the screen ran out */
+    EVENT_DEADLINES,  /* some deadlines have come: see deadlines.h */
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
     EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
-    EVENT_STOP,       /* the device is to stop: see host_stop_soon() */
     EVENT_INTENT,     /* news for the applications that asked for the kind */
 } event_kind_t;
 
@@ -42,12 +41,8 @@ typedef struct {
         uint8_t       index; /* 0..3, as the buttons sit on the device */
         event_press_t press;
     } button;
-    struct {
-        uint8_t id;
-    } timer;
     void *dev_request; /* a devtools request, see devtools.h */
     void *call;        /* of events_call() */
-    int   stop;        /* a host_stop_t */
     int   intent;      /* a HOST_INTENT_* */
 } event_t;
 

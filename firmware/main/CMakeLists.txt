@@ -9,7 +9,7 @@ idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS "."
                        PRIV_INCLUDE_DIRS "../../sdk"
                        EMBED_TXTFILES "web/index.html"
-                       REQUIRES appconf appsys board epd gfx input net qr ui wasm3
+                       REQUIRES appconf appsys board deadlines epd gfx input net qr ui wasm3
                               nvs_flash esp_partition esp_hw_support esp_system esp_timer esp_pm
                               app_update esp_app_format esp_driver_usb_serial_jtag
                               esp_http_server esp_http_client mbedtls json)

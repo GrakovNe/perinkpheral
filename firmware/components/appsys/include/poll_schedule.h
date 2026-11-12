@@ -73,48 +73,6 @@ bool poll_schedule_has(const poll_schedule_t *schedule, int app, int poll);
  * they were removed. The others stay as they are. */
 void poll_schedule_keep_only(poll_schedule_t *schedule, const int *apps, int app_count);
 
-/* ---- alarms ----
- *
- * An application has a few alarms, each under a number of its own. One is
- * a moment on the caller's clock - a clock that only goes forward; an
- * alarm set for a time of day says so, and moves when the wall clock is
- * set to another time. */
-#define APP_ALARMS_MAX 16
-
-typedef struct {
-    bool    is_set;
-    bool    follows_wall_clock; /* set "at such a time", not "in so long" */
-    int     app;
-    int     alarm;
-    int64_t due_ms;
-} app_alarm_t;
-
-typedef struct {
-    app_alarm_t alarms[APP_ALARMS_MAX];
-} app_alarms_t;
-
-void app_alarms_init(app_alarms_t *alarms);
-
-/* Sets the alarm, or sets it anew. False when the table is full. */
-bool app_alarms_set(app_alarms_t *alarms, int app, int alarm, int64_t due_ms,
-                    bool follows_wall_clock);
-
-/* Takes the alarm back; one that was not set is gone already. */
-void app_alarms_cancel(app_alarms_t *alarms, int app, int alarm);
-
-/* An alarm that has come, taken out of the table; false when none has. */
-bool app_alarms_take_due(app_alarms_t *alarms, int64_t now_ms, int *app, int *alarm);
-
-/* How long until the nearest; UINT32_MAX when none is set, 0 when one is due. */
-uint32_t app_alarms_wait_ms(const app_alarms_t *alarms, int64_t now_ms);
-
-/* The alarms of applications that are not among `apps` go. */
-void app_alarms_keep_only(app_alarms_t *alarms, const int *apps, int app_count);
-
-/* The wall clock was set `delta_ms` ahead (or back, negative): an alarm
- * for a time of day comes that much sooner, one "in so long" not at all. */
-void app_alarms_clock_moved(app_alarms_t *alarms, int64_t delta_ms);
-
 /* The same as poll_schedule_done(), for a caller that kept the numbers
  * and not the entry. */
 void poll_schedule_finished(poll_schedule_t *schedule, int app, int poll, int64_t now_ms);

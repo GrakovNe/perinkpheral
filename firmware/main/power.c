@@ -6,19 +6,17 @@
 
 #include "esp_log.h"
 #include "esp_pm.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "deadlines.h"
 #include "wifi.h"
 
 static const char *TAG = "power";
 
 #define CPU_MHZ             160
-#define MICROSECONDS_PER_MS 1000
 
 static SemaphoreHandle_t  s_lock;
-static esp_timer_handle_t s_awake_timer;
 static bool               s_is_saving;
 static int                s_radio_holds;
 static bool               s_is_awake_for_user; /* the while after a press */
@@ -45,9 +43,8 @@ static void apply_sleep(void)
     }
 }
 
-static void on_awake_timer(void *arg)
+void power_awake_is_over(void)
 {
-    (void)arg;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_is_awake_for_user = false;
     apply_radio();
@@ -58,16 +55,13 @@ static void on_awake_timer(void *arg)
 static void stay_awake_for_user(void)
 {
     s_is_awake_for_user = true;
-    esp_timer_stop(s_awake_timer); /* not running is fine */
-    esp_timer_start_once(s_awake_timer, (uint64_t)POWER_AWAKE_AFTER_PRESS_MS * MICROSECONDS_PER_MS);
+    deadlines_set_in(DEADLINE_AWAKE_WINDOW, 0, 0, POWER_AWAKE_AFTER_PRESS_MS);
 }
 
 void power_start(bool is_saving)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
-    esp_timer_create_args_t awake = { .callback = on_awake_timer, .name = "power-awake" };
-    ESP_ERROR_CHECK(esp_timer_create(&awake, &s_awake_timer));
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_is_saving = is_saving;
     /* Just powered up: whoever did it may want the page. */

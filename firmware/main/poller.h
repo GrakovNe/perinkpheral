@@ -61,15 +61,6 @@ int32_t poller_request(const char *app_name, const app_request_t *request);
  * restarts. False when there is no such poll. */
 bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
 
-/* The application's alarm numbered `alarm`: it is called once when the
- * time comes, on the screen or off it. `when` is seconds from now, 0
- * taking the alarm back, or - `is_a_time` - a moment in unix seconds.
- * False when there is no room for one more. Kept in memory: a restart
- * forgets it. */
-bool poller_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time);
-
-/* The wall clock was set `delta_ms` ahead: alarms for a time of day follow. */
-void poller_clock_moved(int64_t delta_ms);
 
 /* Fetches `url` on the poller's task - the one with the stack for TLS -
  * and hands the answer to `take` piece by piece, there. Waits until it is

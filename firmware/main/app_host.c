@@ -10,6 +10,8 @@
 #include "app_kv.h"
 #include "app_store.h"
 #include "app_system.h"
+#include "deadlines.h"
+#include "launcher.h"
 #include "storage.h"
 #include "events.h"
 #include "host_api.h"
@@ -94,6 +96,32 @@ void app_host_tell_network_is_up(void)
     tell(HOST_INTENT_NETWORK_UP);
 }
 
+#define MS_PER_SECOND 1000
+
+/* The application's alarm: a deadline like any other, under the
+ * application's id. `when` is seconds from now, 0 taking the alarm back,
+ * or - `is_a_time` - a moment in unix seconds. */
+static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(installed[i].name, app_name) != 0) {
+            continue;
+        }
+        uint32_t app_id = installed[i].id;
+        if (is_a_time) {
+            return deadlines_set_at(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
+        }
+        if (when == 0) {
+            deadlines_cancel(DEADLINE_ALARM, app_id, alarm);
+            return true;
+        }
+        return deadlines_set_in(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
+    }
+    return false;
+}
+
 static bool s_dithers = true;
 
 void app_host_set_dithering(bool dithers)
@@ -120,7 +148,7 @@ const app_services_t *app_host_services(void)
         .poll_now = poller_poll_now,
         .http_request = poller_request,
         .poll_set_interval = poller_set_interval,
-        .alarm_set = poller_alarm_set,
+        .alarm_set = alarm_set,
         .file_size = file_size,
         .file_read = file_read,
         .file_write = file_write,

@@ -11,6 +11,8 @@
 
 #include "esp_sntp.h"
 
+#include "deadlines.h"
+
 /* A clock that was never set counts from 1970; anything before this is
  * that, not the time. */
 #define EARLIEST_REAL_TIME 1767225600 /* 2026-01-01 00:00:00 UTC */
@@ -35,14 +37,13 @@ void net_time_on_change(void (*moved)(int64_t delta_ms))
  * it went. */
 static bool set_clock(const struct timeval *to)
 {
-    struct timeval before;
-    gettimeofday(&before, NULL);
-    if (settimeofday(to, NULL) != 0) {
+    /* The deadlines live on this clock: they are moved with it. */
+    int64_t moved_ms;
+    if (!deadlines_set_clock(to, &moved_ms)) {
         return false;
     }
     if (s_moved != NULL) {
-        s_moved(((int64_t)to->tv_sec - before.tv_sec) * 1000 +
-                ((int64_t)to->tv_usec - before.tv_usec) / 1000);
+        s_moved(moved_ms);
     }
     return true;
 }

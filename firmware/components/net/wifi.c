@@ -17,6 +17,7 @@
 #include "freertos/task.h"
 
 #include "captive_dns.h"
+#include "deadlines.h"
 
 static const char *TAG = "wifi";
 
@@ -35,7 +36,6 @@ static struct {
 
     wifi_plan_t        plan; /* the Wi-Fi task's alone */
     QueueHandle_t      events;
-    esp_timer_handle_t retry_timer;
     bool               access_point_up;
     bool               radio_off; /* the Wi-Fi task's alone */
 
@@ -96,9 +96,8 @@ static void on_station_started(void *arg, esp_event_base_t base, int32_t id, voi
     post(WIFI_EVENT_STARTED);
 }
 
-static void on_retry_timer(void *arg)
+void wifi_retry_is_due(void)
 {
-    (void)arg;
     post(WIFI_EVENT_RETRY_DUE);
 }
 
@@ -173,9 +172,7 @@ static void carry_out(const wifi_plan_actions_t *actions)
         connect();
     }
     if (actions->retry_in_ms > 0) {
-        esp_timer_stop(s_wifi.retry_timer); /* not running is fine */
-        ESP_ERROR_CHECK(esp_timer_start_once(
-            s_wifi.retry_timer, (uint64_t)actions->retry_in_ms * MICROSECONDS_PER_MS));
+        deadlines_set_in(DEADLINE_WIFI_RETRY, 0, 0, actions->retry_in_ms);
     }
 }
 
@@ -215,7 +212,7 @@ static void wifi_task(void *arg)
             if (!s_wifi.radio_off && s_wifi.plan.has_network &&
                 !wifi_phase_has_access_point(s_wifi.plan.phase)) {
                 s_wifi.radio_off = true;
-                esp_timer_stop(s_wifi.retry_timer); /* not running is fine */
+                deadlines_cancel(DEADLINE_WIFI_RETRY, 0, 0);
                 esp_wifi_stop();
             }
             publish_phase(false);
@@ -254,8 +251,6 @@ void wifi_start(const wifi_config_in_t *config)
     s_wifi.lock = xSemaphoreCreateMutex();
     s_wifi.events = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(wifi_plan_event_t));
     configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL);
-    esp_timer_create_args_t retry = { .callback = on_retry_timer, .name = "wifi-retry" };
-    ESP_ERROR_CHECK(esp_timer_create(&retry, &s_wifi.retry_timer));
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());

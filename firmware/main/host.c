@@ -14,6 +14,7 @@
 #include "app_manifest.h"
 #include "devconsole.h"
 #include "app_delivery.h"
+#include "deadlines.h"
 #include "devtools.h"
 #include "display.h"
 #include "events.h"
@@ -220,11 +221,9 @@ static void drop_app_scene(scene_t *scene, void *context)
  * step is done when its call returns; nothing is waited for on the off
  * chance. */
 
-#define STOP_DELAY_US (1000 * 1000) /* for the answer to whoever asked to leave the device */
-#define STOP_RETRY_US (200 * 1000)
+#define STOP_DELAY_MS 1000 /* for the answer to whoever asked to leave the device */
 
-static esp_timer_handle_t s_stop_timer;
-static host_stop_t        s_stop_reason;
+static host_stop_t s_stop_reason;
 
 static void stop(host_stop_t why)
 {
@@ -243,28 +242,104 @@ static void stop(host_stop_t why)
     esp_restart();
 }
 
-static void on_stop_timer(void *arg)
-{
-    (void)arg;
-    event_t event = { .kind = EVENT_STOP, .stop = s_stop_reason };
-    if (!events_post(&event)) {
-        /* The queue is full now; it will not be for long. */
-        esp_timer_start_once(s_stop_timer, STOP_RETRY_US);
-    }
-}
-
 void host_stop_soon(host_stop_t why)
 {
-    esp_timer_create_args_t args = { .callback = on_stop_timer, .name = "stop" };
-    if (s_stop_timer == NULL && esp_timer_create(&args, &s_stop_timer) != ESP_OK) {
-        esp_restart(); /* no way to do it properly: the restart is not lost */
-    }
     /* A reset asked for is not turned into a restart by a later request. */
     if (s_stop_reason != HOST_STOP_FACTORY_RESET) {
         s_stop_reason = why;
     }
-    esp_timer_stop(s_stop_timer); /* not running is fine */
-    esp_timer_start_once(s_stop_timer, STOP_DELAY_US);
+    deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS);
+}
+
+/* ---- deadlines ---- */
+
+/* Whether the host loop was told that some deadlines have come and has not
+ * looked yet: one event says it for all of them. */
+static volatile bool s_deadlines_are_told;
+
+/* From the timer's task. */
+static bool tell_of_deadlines(void)
+{
+    if (s_deadlines_are_told) {
+        return true;
+    }
+    event_t event = { .kind = EVENT_DEADLINES };
+    s_deadlines_are_told = events_post(&event);
+    return s_deadlines_are_told;
+}
+
+void host_deadlines_start(void)
+{
+    deadlines_start(tell_of_deadlines);
+}
+
+/* An alarm that has come is handed to its application like an answer. */
+static void ring_alarm(uint32_t app_id, int alarm_number)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (installed[i].id == app_id) {
+            app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
+            host_deliver(installed[i].name, &alarm);
+            return;
+        }
+    }
+}
+
+/* So many that have come are answered in a row; with more of them the
+ * queue gets its turn first - a press is not kept waiting by a timer that
+ * is set anew every time it fires. */
+#define DEADLINES_IN_A_ROW 8
+
+static void answer_deadlines(void)
+{
+    s_deadlines_are_told = false;
+    deadline_id_t due;
+    for (int answered = 0; answered < DEADLINES_IN_A_ROW; answered++) {
+        if (!deadlines_take_due(&due)) {
+            return;
+        }
+        switch ((deadline_kind_t)due.kind) {
+        case DEADLINE_SCENE_TIMER:
+            wm_timer(&wm, due.number);
+            break;
+        case DEADLINE_ALARM:
+            ring_alarm(due.owner, due.number);
+            break;
+        case DEADLINE_AWAKE_WINDOW:
+            power_awake_is_over();
+            break;
+        case DEADLINE_WIFI_RETRY:
+            wifi_retry_is_due();
+            break;
+        case DEADLINE_DATE:
+            status_check();
+            break;
+        case DEADLINE_PANEL_SLEEP:
+            display_rest();
+            break;
+        case DEADLINE_PANEL_KEEPALIVE:
+            display_keepalive();
+            break;
+        case DEADLINE_STOP:
+            stop(s_stop_reason);
+            break;
+        }
+    }
+    deadlines_look_again();
+}
+
+/* The alarms of applications that are no more go with them. */
+static void forget_alarms_of_the_removed(void)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    uint32_t ids[LAUNCHER_INSTALLED_MAX];
+    for (int i = 0; i < count; i++) {
+        ids[i] = installed[i].id;
+    }
+    deadlines_keep_only(DEADLINE_ALARM, ids, count);
 }
 
 void host_reload_apps(void)
@@ -273,6 +348,7 @@ void host_reload_apps(void)
     poller_hold();
     launcher_reload(drop_app_scene, &context);
     poller_release_reloaded();
+    forget_alarms_of_the_removed();
     int count;
     const menu_entry_t *entries = launcher_entries(&count);
     scene_menu(entries, count);
@@ -364,10 +440,8 @@ void host_run(void)
         case EVENT_BUTTON:
             on_button(&wm, event.button.index, event.button.press);
             break;
-        case EVENT_TIMER:
-            if (timers_take_due(event.timer.id)) {
-                wm_timer(&wm, event.timer.id);
-            }
+        case EVENT_DEADLINES:
+            answer_deadlines();
             break;
         case EVENT_STATUS_CHANGED:
             wm_invalidate(&wm, WM_CHANGED_BY_DATA);
@@ -385,9 +459,6 @@ void host_run(void)
             break;
         case EVENT_INTENT:
             broadcast(event.intent);
-            break;
-        case EVENT_STOP:
-            stop((host_stop_t)event.stop);
             break;
         case EVENT_DEV_REQUEST:
 #ifdef CONFIG_APP_DEV_CONSOLE

@@ -15,6 +15,10 @@ extern "C" {
  * to the display when it changed. Never returns. */
 void host_run(void) __attribute__((noreturn));
 
+/* The deadlines of the whole host are kept from here on, and those that
+ * come are answered by the host loop. Before anything that has one. */
+void host_deadlines_start(void);
+
 /* The device restarts, or is reset to what it was when new: about a second
  * from now - an answer to whoever asked has to leave it first - and in the
  * host loop, which tells the loaded application before it goes. From any

@@ -48,6 +48,9 @@ void wifi_get_status(wifi_status_t *status);
 
 bool wifi_is_online(void);
 
+/* DEADLINE_WIFI_RETRY has come: time to try the network again. */
+void wifi_retry_is_due(void);
+
 /* Turns the radio off to save power, or on again to join the stored
  * network. Off is not taken while the device has no network or its setup
  * access point is up: then it has to be found. From any task. */

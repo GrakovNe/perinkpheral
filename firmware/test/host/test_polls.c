@@ -250,47 +250,6 @@ static void test_pace_and_alarms(void)
     CHECK(poll_schedule_due(&schedule, 60000, &wait_ms) == NULL && wait_ms == 86400000);
     CHECK(!poll_schedule_set_interval(&schedule, 0, 1, 60, 60000));
     CHECK(!poll_schedule_set_interval(&schedule, 5, 0, 60, 60000));
-
-    app_alarms_t alarms;
-    int app = 0, alarm = 0;
-    app_alarms_init(&alarms);
-    CHECK(!app_alarms_take_due(&alarms, 1000, &app, &alarm));
-    CHECK(app_alarms_wait_ms(&alarms, 1000) == UINT32_MAX);
-    /* two applications, and two alarms of one of them */
-    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 31000, false));
-    CHECK(app_alarms_set(&alarms, 0x1111, 2, 11000, false));
-    CHECK(app_alarms_set(&alarms, 0x1111, 3, 21000, true));
-    CHECK(app_alarms_wait_ms(&alarms, 1000) == 10000);
-    CHECK(!app_alarms_take_due(&alarms, 10999, &app, &alarm));
-    CHECK(app_alarms_take_due(&alarms, 11000, &app, &alarm) && app == 0x1111 && alarm == 2);
-    CHECK(!app_alarms_take_due(&alarms, 11000, &app, &alarm)); /* once */
-    /* set anew: the same alarm, another time */
-    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 15000, false));
-    CHECK(app_alarms_take_due(&alarms, 15000, &app, &alarm) && app == 0x7a7a && alarm == 0);
-    /* the wall clock is set five seconds ahead: the alarm for a time of day
-     * comes five seconds sooner */
-    app_alarms_clock_moved(&alarms, 5000);
-    CHECK(!app_alarms_take_due(&alarms, 15999, &app, &alarm));
-    CHECK(app_alarms_take_due(&alarms, 16000, &app, &alarm) && app == 0x1111 && alarm == 3);
-    /* and one "in so long" does not move */
-    CHECK(app_alarms_set(&alarms, 0x1111, 1, 40000, false));
-    app_alarms_clock_moved(&alarms, -3600000);
-    CHECK(app_alarms_wait_ms(&alarms, 30000) == 10000);
-    /* taken back; an application that was removed loses its own */
-    app_alarms_cancel(&alarms, 0x1111, 1);
-    CHECK(app_alarms_wait_ms(&alarms, 30000) == UINT32_MAX);
-    CHECK(app_alarms_set(&alarms, 0x1111, 0, 50000, false));
-    CHECK(app_alarms_set(&alarms, 0x7a7a, 0, 60000, false));
-    const int left[] = { 0x7a7a };
-    app_alarms_keep_only(&alarms, left, 1);
-    CHECK(app_alarms_take_due(&alarms, 99999, &app, &alarm) && app == 0x7a7a);
-    CHECK(!app_alarms_take_due(&alarms, 99999, &app, &alarm));
-    /* the table is of a size */
-    for (int i = 0; i < APP_ALARMS_MAX; i++) {
-        CHECK(app_alarms_set(&alarms, 1, i, 1, false));
-    }
-    CHECK(!app_alarms_set(&alarms, 2, 0, 1, false));
-    CHECK(app_alarms_set(&alarms, 1, 0, 2, false)); /* one that is there can be set anew */
 }
 
 static void test_schedule_is_bounded(void)

@@ -58,8 +58,7 @@ static poll_schedule_t       s_schedule;
 static app_manifest_t        s_known[LAUNCHER_INSTALLED_MAX];
 static int                   s_known_count;
 static bool s_is_holding_radio; /* the poller's task alone: it asked for the radio and has it */
-static app_alarms_t          s_alarms;
-/* The schedule and the alarms are changed from other tasks too: an
+/* The schedule is changed from other tasks too: an
  * application asks for a poll, the web page saves settings. */
 static SemaphoreHandle_t     s_lock;
 
@@ -712,23 +711,6 @@ bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *
     return job.is_whole;
 }
 
-/* An alarm that has come is handed to its application like an answer. */
-static bool ring_due_alarm(void)
-{
-    char app_name[APP_NAME_MAX + 1];
-    int  app = NO_APP, alarm_number = 0;
-    lock();
-    bool is_due = app_alarms_take_due(&s_alarms, now_ms(), &app, &alarm_number) &&
-                  name_of(app, app_name);
-    unlock();
-    if (!is_due) {
-        return false;
-    }
-    app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-    hand_over(app_name, &alarm);
-    return true;
-}
-
 /* A request waits for the network only so long: then the application is
  * told there is none, and decides what to show. */
 static bool fail_request_without_network(void)
@@ -803,9 +785,6 @@ static void poller_task(void *arg)
     (void)arg;
     for (;;) {
         keep_radio_for_work();
-        if (ring_due_alarm()) {
-            continue;
-        }
         /* Somebody is waiting for this one: before the polls. */
         if (run_fetch_job()) {
             continue;
@@ -872,7 +851,6 @@ static int schedule_installed(void)
         ids[i] = (int)s_known[i].id;
     }
     poll_schedule_keep_only(&s_schedule, ids, s_known_count);
-    app_alarms_keep_only(&s_alarms, ids, s_known_count);
     for (int i = 0; i < PENDING_MAX; i++) {
         char name[APP_NAME_MAX + 1];
         if (s_pending[i].is_waiting && !name_of(s_pending[i].app, name)) {
@@ -904,16 +882,6 @@ void poller_reschedule(void)
     unlock();
 }
 
-void poller_clock_moved(int64_t delta_ms)
-{
-    if (s_lock == NULL) {
-        return;
-    }
-    lock();
-    app_alarms_clock_moved(&s_alarms, delta_ms);
-    unlock();
-}
-
 void poller_hold(void)
 {
     lock();
@@ -929,13 +897,12 @@ void poller_release_reloaded(void)
 void poller_start(void)
 {
     poll_schedule_init(&s_schedule);
-    app_alarms_init(&s_alarms);
     int polls = schedule_installed();
     s_fetch_done = xSemaphoreCreateBinary();
     s_fetch_turn = xSemaphoreCreateMutex();
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL && s_fetch_done != NULL && s_fetch_turn != NULL);
-    /* Started even with nothing to fetch: alarms are rung from here too. */
+    /* Started even with nothing to fetch: an application may ask later. */
     BaseType_t ok = xTaskCreate(poller_task, "poller", TASK_STACK_BYTES, NULL, TASK_PRIORITY,
                                 NULL);
     configASSERT(ok == pdPASS);
@@ -974,25 +941,4 @@ bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
     bool found = poll_schedule_set_interval(&s_schedule, app, poll, every_s, now_ms());
     unlock();
     return found;
-}
-
-bool poller_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
-{
-    int app = app_number(app_name);
-    if (app == NO_APP) {
-        return false;
-    }
-    lock();
-    bool set = true;
-    if (!is_a_time && when == 0) {
-        app_alarms_cancel(&s_alarms, app, alarm);
-    } else {
-        /* A time of day is so far from now by the wall clock, and is kept
-         * on the clock that only goes forward - with a note that it moves
-         * when the wall clock is set. */
-        int64_t in_ms = is_a_time ? (when - (int64_t)time(NULL)) * 1000 : when * 1000;
-        set = app_alarms_set(&s_alarms, app, alarm, now_ms() + in_ms, is_a_time);
-    }
-    unlock();
-    return set;
 }

@@ -68,7 +68,7 @@ static void announce_name(const appconf_t *settings)
 
 static void on_clock_moved(int64_t delta_ms)
 {
-    poller_clock_moved(delta_ms);
+    status_check(); /* the day may be another, and midnight is elsewhere */
     if (delta_ms >= CLOCK_CHANGE_WORTH_TELLING_MS || delta_ms <= -CLOCK_CHANGE_WORTH_TELLING_MS) {
         app_host_tell_time_changed();
     }
@@ -127,7 +127,7 @@ void app_main(void)
     /* The screen and the buttons come first: the device works without a
      * network. */
     events_start();
-    timers_start();
+    host_deadlines_start();
     const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
     display_start(&refresh_policy);
     app_host_set_dithering(cfg->dither != 0);

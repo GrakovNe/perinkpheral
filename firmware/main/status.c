@@ -7,17 +7,16 @@
 #include <string.h>
 #include <time.h>
 
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "deadlines.h"
 #include "events.h"
 #include "net_time.h"
 #include "poller.h"
 #include "wifi.h"
 
-/* The date turns once a day, but nobody says when the clock gets set. */
-#define DATE_CHECK_PERIOD_US (60LL * 1000 * 1000)
+#define MS_PER_SECOND        1000
 #define DATE_FORMAT          "%a %d %b"
 
 static SemaphoreHandle_t s_lock;
@@ -43,10 +42,25 @@ void status_read(status_t *status)
     }
 }
 
+/* The date turns at the next midnight of the user's zone: a moment of
+ * the clock, which stays where it is when the clock is set. */
+static void expect_next_day(void)
+{
+    time_t    now = time(NULL);
+    struct tm local;
+    localtime_r(&now, &local);
+    local.tm_mday += 1;
+    local.tm_hour = local.tm_min = local.tm_sec = 0;
+    local.tm_isdst = -1; /* whatever it is then */
+    deadlines_set_at(DEADLINE_DATE, 0, 0, (int64_t)mktime(&local) * MS_PER_SECOND);
+}
+
 void status_check(void)
 {
     status_t now;
     status_read(&now);
+    /* Whoever calls this may have set the clock or the zone. */
+    expect_next_day();
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool changed = memcmp(&now, &s_last_told, sizeof now) != 0;
     s_last_told = now;
@@ -57,20 +71,10 @@ void status_check(void)
     }
 }
 
-static void on_date_check(void *arg)
-{
-    (void)arg;
-    status_check();
-}
-
 void status_start(void)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
     status_read(&s_last_told);
-
-    esp_timer_handle_t timer;
-    esp_timer_create_args_t args = { .callback = on_date_check, .name = "status" };
-    ESP_ERROR_CHECK(esp_timer_create(&args, &timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(timer, DATE_CHECK_PERIOD_US));
+    expect_next_day();
 }

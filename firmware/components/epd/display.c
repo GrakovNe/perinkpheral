@@ -10,10 +10,10 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "freertos/task.h"
 #include "sdkconfig.h"
 
 #include "epd.h"
+#include "deadlines.h"
 #include "frame_box.h"
 
 _Static_assert(DISPLAY_WIDTH == EPD_W && DISPLAY_HEIGHT == EPD_H,
@@ -21,12 +21,10 @@ _Static_assert(DISPLAY_WIDTH == EPD_W && DISPLAY_HEIGHT == EPD_H,
 
 static const char *TAG = "display";
 
-#define KEEPALIVE_CHECK_MS (60 * 1000)
 /* How long the panel is left out of deep sleep after a partial refresh,
  * for the next one to come without a reset: a row of pictures, steps
  * through a menu. */
 #define PANEL_AWAKE_MS     1500
-#define PANEL_IS_ASLEEP    0
 #define WHITE_BYTE         0xFF
 
 static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
@@ -36,8 +34,6 @@ static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
 static bool              s_shown_is_on_panel;
 static refresh_policy_t  s_policy;
 static SemaphoreHandle_t s_lock;
-static TaskHandle_t      s_panel_task;
-static int64_t           s_sleep_due_ms = PANEL_IS_ASLEEP;
 
 static refresh_policy_cfg_t s_cfg;
 
@@ -68,6 +64,13 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
+/* With the lock held: the refresh that is due when nothing else was,
+ * counted from this one. */
+static void expect_keepalive(void)
+{
+    deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, (int64_t)s_cfg.keepalive_ms);
+}
+
 /* Asks the policy and drives the panel. REFRESH_NONE: the policy said
  * not now. Call with the lock held. */
 static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, esp_err_t *err)
@@ -83,16 +86,15 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     frame_box_t window = WHOLE_FRAME;
     if (kind == REFRESH_FULL) {
         *err = epd_show_full(frame, s_cfg.full_is_fast);
-        s_sleep_due_ms = PANEL_IS_ASLEEP;
+        deadlines_cancel(DEADLINE_PANEL_SLEEP, 0, 0);
     } else {
         window = window_for(frame);
         *err = epd_show_partial(frame, &window, true);
         if (*err == ESP_OK) {
-            s_sleep_due_ms = now_ms() + PANEL_AWAKE_MS;
-            xTaskNotifyGive(s_panel_task);
+            deadlines_set_in(DEADLINE_PANEL_SLEEP, 0, 0, PANEL_AWAKE_MS);
         } else {
             epd_sleep(); /* whatever went wrong, not left awake */
-            s_sleep_due_ms = PANEL_IS_ASLEEP;
+            deadlines_cancel(DEADLINE_PANEL_SLEEP, 0, 0);
         }
     }
     /* A full refresh leaves the controller's two frames the same. */
@@ -105,6 +107,7 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
      * otherwise come a refresh too early every time and slip later and
      * later. */
     refresh_policy_note(&s_policy, kind, why, started_ms);
+    expect_keepalive();
 
     const char *kind_name = kind == REFRESH_FULL ? "full" : "partial";
     long long took_ms = (long long)(finished_ms - started_ms);
@@ -120,42 +123,26 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     return kind;
 }
 
-/* What the panel needs when nobody draws: its deep sleep after the last
- * of the partial refreshes, and the refresh that is due when nothing else
- * was. */
-static void panel_task(void *arg)
+void display_keepalive(void)
 {
-    (void)arg;
-    int64_t keepalive_check_ms = now_ms() + KEEPALIVE_CHECK_MS;
-    for (;;) {
-        xSemaphoreTake(s_lock, portMAX_DELAY);
-        if (s_sleep_due_ms != PANEL_IS_ASLEEP && now_ms() >= s_sleep_due_ms) {
-            epd_sleep();
-            s_sleep_due_ms = PANEL_IS_ASLEEP;
-        }
-        if (now_ms() >= keepalive_check_ms) {
-            esp_err_t err = ESP_OK;
-            if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
-                s_shown_is_on_panel = err == ESP_OK;
-            }
-            keepalive_check_ms = now_ms() + KEEPALIVE_CHECK_MS;
-        }
-        int64_t next_ms = keepalive_check_ms;
-        if (s_sleep_due_ms != PANEL_IS_ASLEEP && s_sleep_due_ms < next_ms) {
-            next_ms = s_sleep_due_ms;
-        }
-        int64_t wait_ms = next_ms - now_ms();
-        xSemaphoreGive(s_lock);
-        /* Woken early by a refresh: its sleep is due sooner than the check. */
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait_ms > 0 ? wait_ms : 0) + 1);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    esp_err_t err = ESP_OK;
+    if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
+        s_shown_is_on_panel = err == ESP_OK;
+    } else {
+        /* Came early - the setting was changed since: at its time, then. */
+        deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0,
+                         refresh_policy_wait_ms(&s_policy, &s_cfg, REFRESH_FOR_KEEPALIVE,
+                                                now_ms()));
     }
+    xSemaphoreGive(s_lock);
 }
 
 void display_rest(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     epd_sleep();
-    s_sleep_due_ms = PANEL_IS_ASLEEP;
+    deadlines_cancel(DEADLINE_PANEL_SLEEP, 0, 0);
     xSemaphoreGive(s_lock);
 }
 
@@ -163,6 +150,10 @@ void display_set_policy(const refresh_policy_cfg_t *policy)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_cfg = *policy;
+    /* The hours may be fewer now: looked at when the old ones would have
+     * run out is too late. */
+    deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0,
+                     refresh_policy_wait_ms(&s_policy, &s_cfg, REFRESH_FOR_KEEPALIVE, now_ms()));
     xSemaphoreGive(s_lock);
 }
 
@@ -185,9 +176,7 @@ void display_start(const refresh_policy_cfg_t *policy)
         .busy_gpio = CONFIG_APP_EPD_BUSY_GPIO,
     };
     ESP_ERROR_CHECK(epd_init(&cfg));
-
-    BaseType_t ok = xTaskCreate(panel_task, "panel", 3072, NULL, 1, &s_panel_task);
-    configASSERT(ok == pdPASS);
+    expect_keepalive();
 }
 
 display_result_t display_show(const uint8_t *frame, refresh_reason_t why)

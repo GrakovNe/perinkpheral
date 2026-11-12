@@ -159,6 +159,7 @@ The host is layers, and each knows only the ones under it:
 - **Two frames.** The back buffer (`host.c`) is where frames are put together; the display service holds the front copy of what the panel shows. Drawing never touches the panel, an unchanged frame costs no refresh, and a scene cannot spoil the screen halfway.
 - **Layers are areas of one frame**, not buffers of their own: the header and the content do not overlap. A scene that is not full-screen gets a viewport under the header and cannot draw outside it.
 - **A scene never refreshes anything.** It reports that its picture changed and draws when asked; the window manager passes on why the frame changed (a switch, a press, data), and the display service decides what the panel does.
+- **One module keeps every deadline** (`components/deadlines`): the scene's timers, the applications' alarms, the panel's sleep and its daily refresh, the while after a press, Wi-Fi's retries, the day turning in the header, the device stopping. The table is pure (`deadline_table.c`); around it are one timer set for the nearest and the clock as the scale. A deadline that has come is news in the event queue, answered by the host loop; one that could not be told stays in the table.
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it.
 - **Development tools** (`APP_DEV_CONSOLE`, on by default, off for a release): the device is driven and looked at without hands on it. Over the network, `/api/dev` gives the frame the panel shows, takes presses, opens an application and takes a new build of one; `tools/devtool` is the command line for it, and `devtool.py run <app dir>` builds an application, uploads it and restarts the device into it in about ten seconds, with no reflashing. Over the cable, characters typed into the USB console do the same for a device with no network (`tools/devshot`). Whatever touches the frame or the scenes is handed to the host loop through the event queue.
@@ -338,7 +339,7 @@ An architecture review on 2026-11-12 found the structure behind most of the open
 - **Intents by subscription**: an application names in its manifest (`"intents"`) the kinds of news it wants, and gets them through `app_on_intent(type)`, loaded for it if it is not. To begin with: the time changed, the network is there again. A kind the host does not know fails the build in `tools/mkapp`.
 - `app_on_terminate()` is called before an instance is unloaded, whatever the reason - it left the screen, a delivery in the background is done, the device restarts or sleeps, the application is removed. `app_on_blur()` keeps its narrow meaning and comes first. State is saved in `app_on_terminate`.
 
-**Time.**
+**Time.** *(Built: `components/deadlines`, for everything but the polls, which the poller still counts by itself.)*
 - **One module owns every deadline** of the host and does nothing else: the polls, the alarms, the timers of the application on the screen, the panel's daily refresh, the while after a press, Wi-Fi's retries. Set a deadline, take it back, ask for the nearest; one that has come is an event in the queue.
 - **The scale is absolute time.** The RTC always has one - the user's, the network's or 1970 - and runs through sleep. Behind the API everything is a moment: "in 20 minutes" is turned into one when it is set.
 - When the clock is changed - by the network or by hand - deadlines that were set as "in so long" move with it, and those set as "at such a time" stay.
@@ -369,6 +370,7 @@ firmware/              the ESP-IDF project (build from this folder)
   components/
     appconf/           the host settings struct, defaults, validate (pure)
     board/             what is not on the header: the antenna switch
+    deadlines/         every deadline of the host: the table (pure) and the one timer behind it
     epd/               SSD1683 driver + display service + partial/full policy
     gfx/               primitives, the square font, Departure Mono bitmaps (fonts/) (pure)
     input/             buttons, debounce, short/long press
