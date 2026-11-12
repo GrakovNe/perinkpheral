@@ -1,0 +1,6 @@
+# A build for release: on top of sdkconfig.defaults.
+#   idf.py -B build-release -D SDKCONFIG=build-release/sdkconfig \
+#          -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
+# The development tools drive a device with nobody asked at it: not in a
+# firmware other people run.
+CONFIG_APP_DEV_CONSOLE=n

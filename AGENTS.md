@@ -113,6 +113,15 @@ last 4 KB of it; `l` in the development console prints the same.
 `firmware/CMakeLists.txt` takes the version from `APP_VERSION` when it
 is set.
 
+A build for release has no development tools in it (`sdkconfig.release`)
+and says the version alone:
+
+    APP_VERSION=0.1.0 idf.py -B build-release \
+        -D SDKCONFIG=build-release/sdkconfig \
+        -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
+
+`build-release/perinkpheral.bin` is the asset of the release on GitHub.
+
 ## Constraints
 
 Code:
