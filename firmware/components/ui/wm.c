@@ -226,6 +226,11 @@ void wm_open(wm_t *wm, scene_t *scene)
     open_over_current(wm, scene);
 }
 
+void wm_open_anew(wm_t *wm, scene_t *scene)
+{
+    open_from(wm, wm->home, scene);
+}
+
 void wm_back(wm_t *wm)
 {
     go_back(wm);

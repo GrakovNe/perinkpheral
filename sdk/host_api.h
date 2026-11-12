@@ -75,6 +75,17 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 #define BTN_PRESSED      2
 #define BTN_LONG_PRESSED 3
 
+/* BACK is the way out, and it is the host's unless the application takes
+ * it. A short press of BACK leaves an application that has no
+ * app_on_back(): the user is back where they came from - the menu, when
+ * they opened the application there - and the application writes nothing
+ * for it. One with pages of its own exports app_on_back() and gets the
+ * press there instead: it goes a page back, and from its first page calls
+ * request_exit(). Either way BTN_BACK_PRESSED never reaches
+ * app_on_button(); BACK going down and up does, and a long press of BACK
+ * is always the host's menu. */
+APP_EXPORT(app_on_back, void app_on_back(void));
+
 /* One number says both, and has a name:
  *
  *     void app_on_button(int32_t event)
@@ -82,7 +93,6 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
  *         switch (event) {
  *         case BTN_OK_PRESSED:        start();          break;
  *         case BTN_OK_LONG_PRESSED:   reset();          break;
- *         case BTN_BACK_PRESSED:      request_exit();   break;
  *         }
  *     }
  *
@@ -513,8 +523,8 @@ HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
 HOST_IMPORT(request_focus, void request_focus(void));
 
 /* The application is done: one step down the stack, as BACK does in the
- * host's own pages. It takes effect when app_on_button() or app_on_timer()
- * returns, and is ignored anywhere else. The host's layout has it on a
+ * host's own pages. It takes effect when app_on_button(), app_on_back() or
+ * app_on_timer() returns, and is ignored anywhere else. The host's layout has it on a
  * short press of button 4; a long press of button 4 leaves any
  * application without asking it. */
 HOST_IMPORT(request_exit, void request_exit(void));

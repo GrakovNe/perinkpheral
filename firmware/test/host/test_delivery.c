@@ -314,6 +314,14 @@ static void test_opened_while_taking_an_answer(void)
     /* it is the scene now: an answer for anybody else must not unload it */
     CHECK(state.in_background == NULL && wm.current == probe);
     CHECK(app_scene_app(probe) != NULL);
+
+    /* BACK leaves an application that does not take it itself: its down
+     * and up are the application's, the press is the way out */
+    wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN);
+    wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_UP);
+    CHECK(wm.current == probe);
+    wm_button(&wm, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &menu.scene && app_scene_app(probe) == NULL);
 }
 
 static void test_a_scene_that_is_not_an_application(void)

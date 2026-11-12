@@ -17,11 +17,14 @@
  *         }
  *     }
  *
+ *     void app_on_back(void) { ... app_date_button(&when, BTN_BACK_PRESSED) ... }
+ *
  *     void app_on_draw(void) { app_date_draw(&when); }
  *
  * The state is the application's: a struct it keeps and may read at any
  * time. The buttons are the host's layout - UP and DOWN change, OK goes
- * on, BACK goes back - and only short presses count.
+ * on, BACK goes back - and only short presses count. BACK comes to an
+ * application through app_on_back(): hand it on as BTN_BACK_PRESSED.
  */
 #pragma once
 

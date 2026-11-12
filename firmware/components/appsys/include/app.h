@@ -111,6 +111,11 @@ void app_blur(app_t *app);
 /* The instance is about to be unloaded, whatever the reason: its last word. */
 void app_terminate(app_t *app);
 void app_button(app_t *app, int button, int press); /* as in host_api.h */
+
+/* A short press of BACK belongs to an application that has app_on_back();
+ * one that has not is simply left. */
+bool app_handles_back(const app_t *app);
+void app_back(app_t *app);
 void app_timer(app_t *app, int id);
 void app_draw(app_t *app, gfx_t *surface);
 

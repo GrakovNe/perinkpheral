@@ -166,6 +166,17 @@ static scene_reaction_t app_scene_button(scene_t *scene, scene_button_t button,
                                       NULL };
         return reaction;
     }
+    if (button == SCENE_BUTTON_BACK && press == SCENE_PRESS_SHORT) {
+        /* BACK is the way out. An application with pages of its own says
+         * so by taking the press (app_on_back) and leaves from its first
+         * page itself; any other is left here, without being asked. */
+        if (!app_handles_back(self->app)) {
+            scene_reaction_t leaving = { SCENE_BACK, NULL };
+            return leaving;
+        }
+        app_back(self->app);
+        return reaction_of(self);
+    }
     static const int BTN_ACTION_FOR[] = {
         [SCENE_PRESS_DOWN] = BTN_KEYDOWN,
         [SCENE_PRESS_UP] = BTN_KEYUP,

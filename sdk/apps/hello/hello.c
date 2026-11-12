@@ -39,9 +39,6 @@ void app_on_terminate(void)
 void app_on_button(int32_t event)
 {
     switch (event) {
-    case BTN_BACK_PRESSED:
-        request_exit();
-        break;
     case BTN_UP_PRESSED:
     case BTN_OK_PRESSED:
     case BTN_DOWN_PRESSED:

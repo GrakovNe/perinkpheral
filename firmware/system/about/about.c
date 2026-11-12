@@ -28,7 +28,7 @@ static void draw_centered(int32_t top, int32_t font, const char *text)
 
 void app_on_button(int32_t event)
 {
-    if (event == BTN_BACK_PRESSED || event == BTN_OK_PRESSED) {
+    if (event == BTN_OK_PRESSED) {
         request_exit();
     }
 }

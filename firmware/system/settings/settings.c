@@ -668,9 +668,16 @@ void app_on_button(int32_t event)
     case BTN_OK_PRESSED:
         press_ok();
         break;
-    case BTN_BACK_PRESSED:
+    }
+}
+
+/* It has pages of its own: BACK is a page back, and out from the first. */
+void app_on_back(void)
+{
+    if (HERE.page == PAGE_CLOCK) {
+        press_on_clock(BTN_BACK_PRESSED);
+    } else {
         press_back();
-        break;
     }
 }
 

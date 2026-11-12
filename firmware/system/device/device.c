@@ -51,9 +51,6 @@ static bool is_text(const char *text, const char *expected)
 void app_on_button(int32_t event)
 {
     switch (event) {
-    case BTN_BACK_PRESSED:
-        request_exit();
-        break;
     case BTN_OK_PRESSED:
         /* Memory and uptime are as of the last draw: OK reads them again. */
         request_redraw(HOST_REDRAW_NORMAL);
