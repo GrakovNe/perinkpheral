@@ -14,6 +14,7 @@
 
 #include "app_code.h"
 #include "app_host.h"
+#include "app_kv.h"
 #include "app_scene.h"
 #include "app_store.h"
 #include "storage.h"
@@ -153,6 +154,18 @@ static void list_entries(void)
                 s_system_scenes[i] };
         }
     }
+}
+
+bool launcher_remove(const char *app_name, bool forgets)
+{
+    if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
+        return false;
+    }
+    app_code_forget(app_name);
+    if (forgets) {
+        app_kv_erase(app_name);
+    }
+    return true;
 }
 
 int launcher_read_installed(app_manifest_t *copy, int capacity)

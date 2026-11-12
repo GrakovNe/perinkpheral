@@ -22,8 +22,8 @@ extern "C" {
  *   POST /api/wifi    {"ssid": "...", "password": "..."}: store and restart
  *   POST /api/ota     a firmware image as the request body: install and restart
  *
- * config is the live settings; the server changes them only through
- * settings_save(). device_id as everywhere: four hex digits. */
+ * The server changes nothing itself: a handler asks the host loop
+ * (events_call()) and answers with what came of it. */
 void web_server_start(void);
 
 bool web_server_is_up(void);

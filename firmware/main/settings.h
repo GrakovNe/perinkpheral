@@ -12,7 +12,8 @@
 extern "C" {
 #endif
 
-/* The only module that touches NVS. */
+/* The only module that touches the host's own settings in NVS (an
+ * application's store is app_kv.c). */
 void settings_nvs_init(void);
 
 /* The host's settings have one owner, this module, and one place they are

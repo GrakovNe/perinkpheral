@@ -57,8 +57,6 @@ void poll_schedule_done(poll_schedule_t *schedule, const poll_entry_t *entry, in
 bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
                                 int64_t now_ms);
 
-/* An application's alarm: it asked to be called once, some time from now,
- * whether it is on the screen then or not. One for each application. */
 /* Every poll is due now: the network is back, and what was not asked while
  * it was away is asked at once. */
 void poll_schedule_hurry_all(poll_schedule_t *schedule, int64_t now_ms);

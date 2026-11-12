@@ -11,8 +11,8 @@
 extern "C" {
 #endif
 
-/* The host's one queue. Whatever happens - a press, later a timer or a
- * response from the network - is posted here from its own task and taken
+/* The host's one queue. Whatever happens - a press, a timer, a request of
+ * another task - is posted here from its own task and taken
  * off by the host loop one at a time, so nothing in the host runs
  * concurrently with anything else. */
 typedef enum {
@@ -21,7 +21,6 @@ typedef enum {
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
     EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
     EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
-    EVENT_APP_DELIVERY, /* an answer from the network for an application, see poller.h */
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
     EVENT_STOP,       /* the device is to stop: see host_stop_soon() */
@@ -47,7 +46,6 @@ typedef struct {
         uint8_t id;
     } timer;
     void *dev_request; /* a devtools request, see devtools.h */
-    void *delivery;    /* a poller_delivery_t */
     void *call;        /* of events_call() */
     int   stop;        /* a host_stop_t */
     int   intent;      /* a HOST_INTENT_* */
@@ -60,7 +58,6 @@ bool events_post(const event_t *event);
 
 void events_post_button(uint8_t index, event_press_t press);
 
-/* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
 /* The host loop owns the host's state: whoever else wants it changed asks
  * here. `run` is called in the host loop with `argument`, and this returns
  * when it has returned - at once when asked from the host loop itself.
@@ -79,6 +76,7 @@ bool events_post_intent(int intent);
 /* An application was installed or removed. Safe from any task. */
 bool events_post_apps_changed(void);
 
+/* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
 bool events_wait(event_t *event, uint32_t timeout_ms);
 
 /* Whether anything is in the queue now. */

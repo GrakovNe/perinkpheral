@@ -27,6 +27,9 @@
 #include "wifi.h"
 #include "wifi_qr.h"
 
+_Static_assert(SYS_REFRESH_FULL_NEVER == APPCONF_REFRESH_FULL_NEVER,
+               "an application says \"never\" with the number the settings keep");
+
 static const char *TAG = "system";
 
 int32_t app_system_info(int what, char *text, int32_t capacity)
@@ -235,10 +238,9 @@ int32_t app_system_app_remove(uint32_t id)
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    if (!app_store_remove(STORAGE_APPS_ROOT, app->name)) {
+    if (!launcher_remove(app->name, false)) {
         return HOST_ERR_FAILED;
     }
-    app_code_forget(app->name);
     ESP_LOGI(TAG, "\"%s\" removed", app->name);
     /* Not from inside the handler that asked: the list is read anew once
      * the application that asked has returned. */

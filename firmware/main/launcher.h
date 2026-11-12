@@ -43,6 +43,14 @@ scene_t *launcher_scene(const char *name);
 /* What the menu lists: applications by title, then the host's pages. */
 const menu_entry_t *launcher_entries(int *count);
 
+/* Takes an installed application off the device: its files and its code,
+ * and - `forgets` - what it stored, which otherwise waits for it to come
+ * back. False when the files could not be removed; nothing else is
+ * touched then. Only in the host loop, and the list is to be read anew
+ * after it (host_reload_apps(), or EVENT_APPS_CHANGED from inside an
+ * application's handler). */
+bool launcher_remove(const char *app_name, bool forgets);
+
 /* How many applications the launcher has room for. */
 #define LAUNCHER_INSTALLED_MAX (LAUNCHER_ENTRIES_MAX - 3)
 

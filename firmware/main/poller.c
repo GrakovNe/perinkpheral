@@ -22,6 +22,7 @@
 #include "events.h"
 #include "host_api.h"
 #include "json_pick.h"
+#include "host.h"
 #include "launcher.h"
 #include "poll_schedule.h"
 #include "storage.h"
@@ -70,28 +71,28 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
-void poller_hand_over(const char *app_name, const app_delivery_t *delivery)
+/* An answer for an application is the host loop's to give: asked of it,
+ * and waited for - the data is the poller's and stays where it is only
+ * that long. */
+typedef struct {
+    const char           *app_name;
+    const app_delivery_t *delivery;
+} handed_t;
+
+static void deliver_in_host_loop(void *argument)
 {
-    /* A semaphore of its own for every hand-over: the poller and the web
-     * server may both be waiting, each for its own. */
-    SemaphoreHandle_t handed_over = xSemaphoreCreateBinary();
-    if (handed_over == NULL) {
-        ESP_LOGW(TAG, "%s: no memory to hand anything over", app_name);
-        return;
-    }
-    poller_delivery_t handed = { .app_name = app_name, .delivery = *delivery,
-                                 .handed_over = handed_over };
-    event_t event = { .kind = EVENT_APP_DELIVERY, .delivery = &handed };
-    while (!events_post(&event)) {
-        vTaskDelay(pdMS_TO_TICKS(50)); /* the queue is full: the host is busy with the panel */
-    }
-    xSemaphoreTake(handed_over, portMAX_DELAY);
-    vSemaphoreDelete(handed_over);
+    const handed_t *handed = argument;
+    host_deliver(handed->app_name, handed->delivery);
 }
+
+#define QUEUE_FULL_RETRY_MS 50 /* the host loop is busy with the panel: not for long */
 
 static void hand_over(const char *app_name, const app_delivery_t *delivery)
 {
-    poller_hand_over(app_name, delivery);
+    handed_t handed = { .app_name = app_name, .delivery = delivery };
+    while (!events_call(deliver_in_host_loop, &handed)) {
+        vTaskDelay(pdMS_TO_TICKS(QUEUE_FULL_RETRY_MS));
+    }
 }
 
 static void hand_over_values(const char *app_name, int request, int http_status,
@@ -651,7 +652,7 @@ static bool ring_due_alarm(void)
         return false;
     }
     app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-    poller_hand_over(app_name, &alarm);
+    hand_over(app_name, &alarm);
     return true;
 }
 

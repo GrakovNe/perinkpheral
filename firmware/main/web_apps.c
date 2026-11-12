@@ -502,11 +502,7 @@ typedef struct {
 static void take_away(void *argument)
 {
     remove_command_t *command = argument;
-    command->is_done = app_store_remove(STORAGE_APPS_ROOT, command->app_name);
-    app_code_forget(command->app_name);
-    if (command->is_done && command->forgets) {
-        app_kv_erase(command->app_name);
-    }
+    command->is_done = launcher_remove(command->app_name, command->forgets);
     host_reload_apps();
 }
 
@@ -579,15 +575,18 @@ static esp_err_t handle_install(httpd_req_t *request)
             events_call(take_away, &undo);
         }
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
-        return send_message(request, "502 Bad Gateway", "error", problem);
+        /* Whose fault: the device's being busy, its storage's, or the
+         * source's, which sent something else than its index promised. */
+        const char *status = strcmp(problem, "Device busy.") == 0     ? "503 Service Unavailable"
+                             : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
+                                                                      : "502 Bad Gateway";
+        return send_message(request, status, "error", problem);
     }
     ESP_LOGI(TAG, "\"%s\" installed", app_name);
     return send_message(request, "200 OK", "ok", "Installed.");
 }
 
-/* The list of applications is read once, at start, and a scene of the
- * removed one may be on the screen: the device starts over without it.
- * What the application stored - its settings among it - stays unless the
+/* What the application stored - its settings among it - stays unless the
  * user asks otherwise: with five places for applications they come and
  * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)

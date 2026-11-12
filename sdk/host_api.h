@@ -144,8 +144,8 @@ APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, i
  * the manifest - a list of paths into a JSON answer, such as
  * "current.temperature_2m" or "daily.weather_code[0]" - is read by the
  * host, and the application gets this one call instead of the pieces:
- * `request` is the poll's number, `http_status` is 0 when the request
- * could not be made. Inside the handler data_value() gives the value of
+ * `request` is the poll's number, and `http_status` a HOST_FAILED_* when
+ * there is no answer. Inside the handler data_value() gives the value of
  * path number `index`, as text and not terminated: a number, true, false
  * and null as they were written, a string without its quotes. It answers
  * HOST_ERR_NOT_FOUND for a path the answer did not have and
@@ -393,7 +393,9 @@ APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
  * countdown - and does not care what the clock is set to; 0 takes the
  * alarm back. alarm_set_at() is "at this moment" - a time of day, in unix
  * seconds as time_now() counts them - and follows the clock when it is
- * set to another time.
+ * set to another time. Both return HOST_OK, HOST_ERR_ARGUMENT for a number
+ * or a time there cannot be, HOST_ERR_NO_SPACE when the device has no room
+ * for one more alarm.
  *
  * A restart of the device forgets them: what must survive that is a time
  * in the store, set again in app_init(). A new version of the application
@@ -464,8 +466,8 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 
 /* ---- the system API ----
  *
- * What the host's own applications are written with: About, and later the
- * device's page and its settings. Any application may have it - the device
+ * What the host's own applications are written with: Settings, Device,
+ * About. Any application may have it - the device
  * is its owner's - but has to ask: "system": true in its manifest, which
  * the page says aloud before it installs one. A module that imports any
  * of these without having asked is refused. */
@@ -522,7 +524,8 @@ HOST_SYSTEM_IMPORT(sys_number_get, int32_t sys_number_get(int32_t what, sys_numb
 /* Stored, and in effect at once. HOST_ERR_ARGUMENT for a value the setting does not take. */
 HOST_SYSTEM_IMPORT(sys_number_set, int32_t sys_number_set(int32_t what, int32_t value));
 
-/* A setting of the host that is text. */
+/* A setting of the host that is text, of at most SYS_TEXT_MAX bytes. */
+#define SYS_TEXT_MAX 63
 #define SYS_TEXT_TIME_ZONE 0 /* a POSIX TZ string; read it with sys_info() */
 HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *text, int32_t length));
 
@@ -536,6 +539,7 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
  * of which up to `capacity` are written. Removing one takes its files and
  * leaves what it stored; HOST_ERR_NOT_FOUND for an id that is nobody's
  * (any more). */
+#define SYS_APP_LIST_MAX 16 /* the most `capacity` may be */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));

@@ -48,7 +48,8 @@ static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
     (void)context;
     status_t status;
     status_read(&status);
-    /* The host's own: nothing on the left, the date on the right. */
+    /* Each side is the scene's if it gave one, and the host's own otherwise:
+     * nothing on the left, the date on the right. */
     screens_header_t header = {
         .wifi = status.wifi_connected,
         .left = scene->header_left,
@@ -344,12 +345,6 @@ void host_run(void)
             devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #endif
             break;
-        case EVENT_APP_DELIVERY: {
-            poller_delivery_t *handed = event.delivery;
-            host_deliver(handed->app_name, &handed->delivery);
-            xSemaphoreGive(handed->handed_over);
-            break;
-        }
         case EVENT_APPS_CHANGED:
             host_reload_apps();
             break;

@@ -38,7 +38,6 @@ static const char *TAG = "web";
 
 #define SETTINGS_BODY_MAX     512
 #define UPLOAD_CHUNK_BYTES    4096
-/* Long enough for the answer to reach the browser before the device goes. */
 #define VALIDATION_TEXT_MAX   128
 /* How long a sender may say nothing in the middle of a request. */
 #define RECEIVE_TIMEOUT_S     10
@@ -92,11 +91,22 @@ static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON 
     return err;
 }
 
-static esp_err_t send_error(httpd_req_t *request, const char *message)
+/* The page reads the message; the status says whose fault it was: the
+ * request's, the device's being busy, or its storage's. */
+#define STATUS_BAD_REQUEST "400 Bad Request"
+#define STATUS_BUSY        "503 Service Unavailable"
+#define STATUS_STORAGE     "500 Internal Server Error"
+
+static esp_err_t send_failure(httpd_req_t *request, const char *http_status, const char *message)
 {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "error", message);
-    return send_json(request, "400 Bad Request", json);
+    return send_json(request, http_status, json);
+}
+
+static esp_err_t send_error(httpd_req_t *request, const char *message)
+{
+    return send_failure(request, STATUS_BAD_REQUEST, message);
 }
 
 static esp_err_t send_ok(httpd_req_t *request, const char *message)
@@ -281,7 +291,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     bool is_asked = events_call(change_settings, &command);
     cJSON_Delete(json);
     if (!is_asked) {
-        return send_error(request, "Device busy.");
+        return send_failure(request, STATUS_BUSY, "Device busy.");
     }
     if (!command.fits) {
         return send_error(request, "Invalid value.");
@@ -290,7 +300,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
         return send_error(request, command.problem);
     }
     if (command.outcome == SETTINGS_NOT_STORED) {
-        return send_error(request, "Storage error.");
+        return send_failure(request, STATUS_STORAGE, "Storage error.");
     }
     if (restarts) {
         ESP_LOGW(TAG, "settings changed, restarting");
@@ -427,8 +437,6 @@ static esp_err_t handle_reset(httpd_req_t *request)
     return result;
 }
 
-/* The image is the request body:
- *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
 /* A release of the project: the device fetches the image itself - a page
  * in a browser cannot, the file being on another site - from where the
  * project's releases are and nowhere else. */
@@ -489,6 +497,8 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
     return result;
 }
 
+/* The image is the request body:
+ *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
 static esp_err_t handle_ota(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
@@ -501,7 +511,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
     uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
     if (error == NULL && chunk == NULL) {
         ota_upload_abort();
-        error = "not enough memory for the upload";
+        error = "Out of memory.";
     }
     size_t remaining = request->content_len;
     while (error == NULL && remaining > 0) {

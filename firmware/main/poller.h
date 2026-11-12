@@ -23,33 +23,27 @@ extern "C" {
  * Any other answer goes to the application as it comes, a kilobyte at a
  * time, while the connection is open: the host never holds it whole. */
 
-/* What the poller posts to the host loop (EVENT_APP_DELIVERY). It waits
- * until the host has handed it over: the data is the poller's and stays
- * where it is only that long. */
-typedef struct {
-    const char       *app_name;
-    app_delivery_t    delivery;
-    SemaphoreHandle_t handed_over;
-} poller_delivery_t;
-
 /* Reads the polls of the installed applications and starts the task.
  * After launcher_start(). */
 void poller_start(void);
 
-/* The installed applications are about to change: nothing of the poller
- * looks at them between these two. The second takes the new list and
- * schedules its polls; requests and alarms of the old one are dropped. */
 /* Whether the last time the network was needed it was not there; and the
- * network saying it is there again. For the header's icon. */
+ * network saying it is there again, which also makes every poll due. For
+ * the header's icon. */
 bool poller_last_use_failed(void);
 void poller_network_is_back(void);
 
+/* The installed applications are about to change: nothing of the poller
+ * looks at them between these two. The second takes the new list:
+ * what was scheduled, asked or set for an application that is still
+ * installed stays, what was for one that is gone goes, and the polls of a
+ * new one are scheduled. */
 void poller_hold(void);
-
-/* The pace of polls may be another now - the power profile changed: they
- * are scheduled anew. Requests and alarms waiting are dropped. */
-void poller_reschedule(void);
 void poller_release_reloaded(void);
+
+/* The power profile changed: the least distance between polls is another.
+ * Nothing else of the schedule is touched. */
+void poller_reschedule(void);
 
 /* The application's settings changed: fetch its polls again now, not
  * when their time comes. From any task. */
@@ -59,16 +53,19 @@ void poller_hurry(const char *app_name);
  * any task. */
 bool poller_poll_now(const char *app_name, int poll);
 
-/* Queues a request an application makes itself; the number its answer
- * will be delivered under, or a HOST_ERR_*. */
+/* Queues a request an application makes itself, to be answered under the
+ * tag it carries: HOST_OK or a HOST_ERR_*. */
 int32_t poller_request(const char *app_name, const app_request_t *request);
 
 /* Another pace for a poll than its manifest says, until the device
  * restarts. False when there is no such poll. */
 bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
 
-/* Calls the application once, `seconds` from now, on the screen or off it;
- * 0 takes the alarm back. Kept in memory: a restart forgets it. */
+/* The application's alarm numbered `alarm`: it is called once when the
+ * time comes, on the screen or off it. `when` is seconds from now, 0
+ * taking the alarm back, or - `is_a_time` - a moment in unix seconds.
+ * False when there is no room for one more. Kept in memory: a restart
+ * forgets it. */
 bool poller_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time);
 
 /* The wall clock was set `delta_ms` ahead: alarms for a time of day follow. */
@@ -83,10 +80,6 @@ void poller_clock_moved(int64_t delta_ms);
 typedef bool (*poller_take_fn)(void *context, const uint8_t *piece, size_t length);
 bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *context,
                   int *http_status);
-
-/* Gives something to the host loop for an application and waits until
- * the application has had it. From any task but the host's own. */
-void poller_hand_over(const char *app_name, const app_delivery_t *delivery);
 
 #ifdef __cplusplus
 }

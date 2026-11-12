@@ -19,14 +19,14 @@ extern "C" {
  *   POST /api/apps/settings?app=<name>   {"key": "value", ...}: stored, the
  *                                   application told, its polls fetched again
  *   POST /api/apps/remove?app=<name>     its files; what it stored stays for when
- *                                   it comes back, unless &forget=1. The device restarts
+ *                                   it comes back, unless &forget=1
  *   GET  /api/sources               the catalogs the device installs from
  *   POST /api/sources               {"sources": ["https://...", ...]}
  *   GET  /api/catalog?source=<n>    the index of source number n, passed on as it comes
  *   POST /api/apps/install?source=<n>&app=<name>   {"files": [...]} as the index
  *                                   lists them: downloaded, checked against their
- *                                   sizes and SHA-256, the manifest read; the
- *                                   device restarts
+ *                                   sizes and SHA-256, the manifest read, and put
+ *                                   in place by the host loop
  */
 void web_apps_register(httpd_handle_t server);
 

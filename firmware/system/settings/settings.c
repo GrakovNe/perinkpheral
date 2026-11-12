@@ -255,7 +255,7 @@ static bool clock_save(void)
 /* ---- the rows of a page ---- */
 
 /* The installed applications, as the host lists them now. */
-#define APPS_MAX 16
+#define APPS_MAX SYS_APP_LIST_MAX
 static uint32_t app_ids[APPS_MAX];
 
 static int32_t app_count(void)
@@ -346,7 +346,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
 {
     static const char *const ROOT[] = { "General", "Apps", "Display", "Wi-Fi", "Reset" };
     static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving" };
-    static const char *const WIFI[] = { "Network", "Address", "Status", "Forget network" };
+    static const char *const WIFI[] = { "Network", "IP address", "Status", "Forget network" };
     label[0] = '\0';
     value[0] = '\0';
     switch (page) {
@@ -368,7 +368,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
             copy_text(label, TEXT_MAX + 1, "Automatic");
             copy_text(value, TEXT_MAX + 1, is_automatic() ? "On" : "Off");
         } else {
-            copy_text(label, TEXT_MAX + 1, "Set date and time");
+            copy_text(label, TEXT_MAX + 1, "Set date & time");
         }
         break;
     case PAGE_ZONE:

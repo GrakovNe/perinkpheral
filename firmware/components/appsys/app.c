@@ -685,9 +685,11 @@ HOST_FUNCTION(host_alarm_set)
     m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int32_t, seconds);
     app_t *app = APP_OF(runtime);
-    bool set = id >= 0 && id < HOST_ALARM_COUNT && seconds >= 0 &&
-               app->services->alarm_set(app->name, id, seconds, false);
-    m3ApiReturn(set ? HOST_OK : HOST_ERR_ARGUMENT);
+    if (id < 0 || id >= HOST_ALARM_COUNT || seconds < 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->alarm_set(app->name, id, seconds, false) ? HOST_OK
+                                                                         : HOST_ERR_NO_SPACE);
 }
 
 HOST_FUNCTION(host_alarm_set_at)
@@ -696,9 +698,11 @@ HOST_FUNCTION(host_alarm_set_at)
     m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int64_t, unix_time);
     app_t *app = APP_OF(runtime);
-    bool set = id >= 0 && id < HOST_ALARM_COUNT && unix_time > 0 &&
-               app->services->alarm_set(app->name, id, unix_time, true);
-    m3ApiReturn(set ? HOST_OK : HOST_ERR_ARGUMENT);
+    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->alarm_set(app->name, id, unix_time, true) ? HOST_OK
+                                                                           : HOST_ERR_NO_SPACE);
 }
 
 HOST_FUNCTION(host_file_write)
@@ -799,8 +803,7 @@ HOST_FUNCTION(host_sys_info)
     m3ApiReturn(app->services->system_info(what, (char *)text, capacity));
 }
 
-#define SYSTEM_TEXT_MAX     63
-#define SYSTEM_APP_LIST_MAX 16
+
 
 HOST_FUNCTION(host_sys_number_get)
 {
@@ -840,10 +843,10 @@ HOST_FUNCTION(host_sys_text_set)
     m3ApiGetArg(int32_t, length);
     const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
     app_t *app = APP_OF(runtime);
-    if (text == NULL || length > SYSTEM_TEXT_MAX || app->services->system_text_set == NULL) {
+    if (text == NULL || length > SYS_TEXT_MAX || app->services->system_text_set == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    char terminated[SYSTEM_TEXT_MAX + 1];
+    char terminated[SYS_TEXT_MAX + 1];
     memcpy(terminated, text, (size_t)length);
     terminated[length] = '\0';
     m3ApiReturn(app->services->system_text_set(what, terminated));
@@ -867,7 +870,7 @@ HOST_FUNCTION(host_sys_app_list)
     m3ApiGetArg(int32_t, capacity);
     app_t *app = APP_OF(runtime);
     /* Checked before it is multiplied: a capacity cannot wrap round. */
-    if (capacity < 0 || capacity > SYSTEM_APP_LIST_MAX ||
+    if (capacity < 0 || capacity > SYS_APP_LIST_MAX ||
         app->services->system_app_list == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -876,7 +879,7 @@ HOST_FUNCTION(host_sys_app_list)
     if (ids == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    uint32_t listed[SYSTEM_APP_LIST_MAX];
+    uint32_t listed[SYS_APP_LIST_MAX];
     int32_t  count = app->services->system_app_list(listed, capacity);
     memcpy(ids, listed, (size_t)(count < capacity ? count : capacity) * sizeof(uint32_t));
     m3ApiReturn(count);

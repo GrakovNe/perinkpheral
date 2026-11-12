@@ -91,8 +91,7 @@ void app_main(void)
 
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    /* Kept: the system API derives names from it for as long as the device runs. */
-    static char device_id[5];
+    char device_id[5];
     appconf_device_id(mac, device_id);
 
     settings_start(device_id);

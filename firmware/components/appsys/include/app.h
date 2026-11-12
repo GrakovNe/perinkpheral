@@ -121,7 +121,7 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
 
 /* The values the host picked out of a JSON answer, as app_on_values() of
  * host_api.h takes them: `values[i]` is the text of path number i of the
- * poll, NULL when the answer had none. http_status 0: the request failed.
+ * poll, NULL when the answer had none. http_status below zero: the request failed, and it is a HOST_FAILED_*.
  * The values are read by the application only while the call runs. */
 void app_values(app_t *app, int request, int http_status, const char *const *values, int count);
 

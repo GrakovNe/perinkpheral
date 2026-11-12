@@ -76,7 +76,7 @@ void app_on_draw(void)
         read_info(SYS_INFO_NETWORK, value);
         draw_row(row++, "Wi-Fi", value);
     } else {
-        draw_row(row++, "Wi-Fi", is_text(value, SYS_WIFI_CONNECTING) ? "connecting" : "setup mode");
+        draw_row(row++, "Wi-Fi", is_text(value, SYS_WIFI_CONNECTING) ? "Connecting" : "Setup mode");
     }
     read_info(SYS_INFO_ADDRESS, value);
     draw_row(row++, "IP address", value);
