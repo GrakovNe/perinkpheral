@@ -67,12 +67,12 @@ test_frame_box: test_frame_box.c tinytest.h $(EPD)/frame_box.c $(EPD)/include/fr
 test_refresh_policy: test_refresh_policy.c tinytest.h $(EPD)/refresh_policy.c $(EPD)/include/refresh_policy.h
 	$(CC) $(CFLAGS) -I$(EPD)/include -o $@ test_refresh_policy.c $(EPD)/refresh_policy.c
 
-test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/include/wm.h $(UI)/include/scene.h $(GFX_DEPS)
-	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_wm.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c
+test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/notice.c $(UI)/include/wm.h $(UI)/include/scene.h $(GFX_DEPS)
+	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_wm.c $(UI)/wm.c $(UI)/notice.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c
 
 test_scenes: test_scenes.c tinytest.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
 	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
-		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR_SRCS)
+		$(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(UI)/notice.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR_SRCS)
 
 # The interpreter is upstream code: built once, without our warnings, and
 # limited to one page of memory exactly as on the device.
@@ -132,10 +132,10 @@ test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $
 		$(APPSYS)/poll_schedule.c -lm
 
 # mkdtemp and friends are POSIX, not C11.
-test_delivery: test_delivery.c tinytest.h build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(WASM3_OBJS) $(MANIFEST_SRCS)
+test_delivery: test_delivery.c tinytest.h build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(UI)/notice.c $(WASM3_OBJS) $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
-		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
+		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(UI)/notice.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
 
 test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -o $@ test_app_store.c \

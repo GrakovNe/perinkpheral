@@ -588,16 +588,9 @@ static bool is_question(page_t page)
     return page == PAGE_REMOVE_APP || page == PAGE_FORGET || page == PAGE_RESET;
 }
 
-/* The second answer of a question is the one that does it. */
-#define ANSWER_CANCEL 0
-#define ANSWER_DO     1
-
+/* OK on a question does it; BACK, as everywhere, goes back. */
 static void answer_question(page_t page)
 {
-    if (HERE.selected != ANSWER_DO) {
-        go_back();
-        return;
-    }
     switch (page) {
     case PAGE_REMOVE_APP:
         if (sys_app_remove(app_to_remove) == HOST_OK) {
@@ -629,8 +622,6 @@ static void press_up_or_down(int32_t by)
         edited_choice = choice;
     } else if (page == PAGE_ZONE) {
         HERE.selected = wrapped(HERE.selected + by, 0, CITY_COUNT - 1);
-    } else if (is_question(page)) {
-        HERE.selected = HERE.selected == ANSWER_CANCEL ? ANSWER_DO : ANSWER_CANCEL;
     } else if (is_list(page)) {
         HERE.selected = wrapped(HERE.selected + by, 0, row_count(page) - 1);
     } else {
@@ -809,19 +800,64 @@ static void draw_list(page_t page, int32_t selected)
     }
 }
 
-/* A question: what will happen, in up to three lines, and the two answers
- * as the last rows of the screen. */
-static void draw_question(const char *first, const char *second, const char *third,
-                          const char *action, int32_t selected)
+/* A question, drawn as the host draws its own (components/ui/notice.c):
+ * two lines of large text on the left, a large icon on the right, and
+ * along the bottom what the buttons do - OK from the left edge, BACK from
+ * the right. The numbers are the host's. */
+#define NOTICE_MARGIN         24
+#define NOTICE_ICON_CELL      9
+#define NOTICE_FOOTER_HEIGHT  44
+#define NOTICE_LINE_STEP      44
+#define NOTICE_TEXT_ICON_GAP  16
+#define NOTICE_KEY_PAD_X      6
+#define NOTICE_KEY_PAD_TOP    5
+#define NOTICE_KEY_PAD_BOTTOM 7
+#define NOTICE_KEY_LABEL_GAP  8
+
+static int32_t key_width(const char *key)
 {
-    const char *const lines[] = { first, second, third };
-    for (int32_t line = 0; line < 3; line++) {
-        draw_text(MARGIN, (line + 1) * LINE_HEIGHT, HOST_FONT_TEXT, lines[line]);
+    return text_width(HOST_FONT_TEXT, key) + 2 * NOTICE_KEY_PAD_X;
+}
+
+/* A button's name, white on black. */
+static void draw_key(int32_t left, int32_t baseline, const char *key)
+{
+    int32_t ascent = gfx_font_ascent(HOST_FONT_TEXT);
+    gfx_rect(left, baseline - ascent - NOTICE_KEY_PAD_TOP, key_width(key),
+             ascent + NOTICE_KEY_PAD_TOP + NOTICE_KEY_PAD_BOTTOM, HOST_RECT_FILLED);
+    gfx_color(HOST_PAPER);
+    draw_text(left + NOTICE_KEY_PAD_X, baseline, HOST_FONT_TEXT, key);
+    gfx_color(HOST_INK);
+}
+
+static void draw_question(const char *first, const char *second, int32_t icon, const char *action)
+{
+    int32_t body_height = gfx_height() - NOTICE_FOOTER_HEIGHT;
+    int32_t icon_size = HOST_ICON_CELLS * NOTICE_ICON_CELL;
+    int32_t icon_left = gfx_width() - NOTICE_MARGIN - icon_size;
+    gfx_icon(icon, icon_left, (body_height - icon_size) / 2, NOTICE_ICON_CELL);
+
+    int32_t room = icon_left - NOTICE_TEXT_ICON_GAP - NOTICE_MARGIN;
+    int32_t baseline =
+        body_height / 2 - NOTICE_LINE_STEP / 2 + gfx_font_cap_height(HOST_FONT_MEDIUM) / 2;
+    const char *const lines[] = { first, second };
+    for (int32_t line = 0; line < 2; line++, baseline += NOTICE_LINE_STEP) {
+        /* A title too long for the large letters is set in the ordinary ones. */
+        int32_t font = text_width(HOST_FONT_MEDIUM, lines[line]) <= room ? HOST_FONT_MEDIUM
+                                                                         : HOST_FONT_TEXT;
+        draw_text(NOTICE_MARGIN, baseline, font, lines[line]);
     }
-    int32_t visible = (gfx_height() - LIST_TOP_GAP) / ROW_HEIGHT;
-    char no_value[TEXT_MAX + 1] = "";
-    draw_row(visible - 2, "Cancel", no_value, selected == ANSWER_CANCEL);
-    draw_row(visible - 1, action, no_value, selected == ANSWER_DO);
+
+    gfx_rect(0, body_height, gfx_width(), 1, HOST_RECT_FILLED);
+    int32_t footer_baseline =
+        gfx_height() - NOTICE_FOOTER_HEIGHT / 2 + gfx_font_cap_height(HOST_FONT_TEXT) / 2;
+    draw_key(NOTICE_MARGIN, footer_baseline, "OK");
+    draw_text(NOTICE_MARGIN + key_width("OK") + NOTICE_KEY_LABEL_GAP, footer_baseline,
+              HOST_FONT_TEXT, action);
+    int32_t back_left = gfx_width() - NOTICE_MARGIN - key_width("BACK");
+    draw_key(back_left, footer_baseline, "BACK");
+    draw_text(back_left - NOTICE_KEY_LABEL_GAP - text_width(HOST_FONT_TEXT, "Cancel"),
+              footer_baseline, HOST_FONT_TEXT, "Cancel");
 }
 
 /* ---- setting a value: what UP and DOWN lead to is on the screen ---- */
@@ -963,17 +999,15 @@ void app_on_draw(void)
         draw_zone(HERE.selected);
         break;
     case PAGE_REMOVE_APP:
-        /* A title is a line of its own: the longest fills it. */
         app_text_add(&text, app_to_remove_title);
-        draw_question("Remove app?", line, "Settings are kept.", "Remove", HERE.selected);
+        app_text_add(&text, "?");
+        draw_question("Remove", line, HOST_ICON_TRASH, "Remove");
         break;
     case PAGE_FORGET:
-        draw_question("Forget network?", "The device restarts", "in setup mode.", "Forget",
-                      HERE.selected);
+        draw_question("Forget", "network?", HOST_ICON_NO_SIGNAL, "Forget");
         break;
     case PAGE_RESET:
-        draw_question("Factory reset?", "All settings and app", "data will be erased.", "Reset",
-                      HERE.selected);
+        draw_question("Factory", "reset?", HOST_ICON_WARNING, "Reset");
         break;
     case PAGE_NOTICE:
         draw_text(MARGIN, LINE_HEIGHT, HOST_FONT_TEXT, notice);

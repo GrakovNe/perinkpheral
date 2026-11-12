@@ -6,7 +6,7 @@
 
 #include <stddef.h>
 
-#include "screens.h"
+#include "notice.h"
 
 /* The device is busy with something that takes a while and must not be
  * interrupted: it says what, and the buttons do nothing. One picture - no
@@ -29,13 +29,13 @@ static scene_reaction_t working_button(scene_t *scene, scene_button_t button, sc
 static void working_draw(scene_t *scene, gfx_t *surface)
 {
     const working_scene_t *working = (const working_scene_t *)scene;
-    const screens_notice_t notice = {
+    const notice_t notice = {
         .first = working->first,
         .second = working->second,
-        .icon = SCREENS_NO_ICON,
+        .icon = NOTICE_NO_ICON,
         .is_working = true,
     };
-    screens_notice(surface, &notice);
+    notice_draw(surface, &notice);
 }
 
 static const scene_ops_t WORKING_OPS = {

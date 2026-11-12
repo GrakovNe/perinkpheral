@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 #include "gfx_icons.h"
-#include "screens.h"
+#include "notice.h"
 
 /* The partition of the applications cannot be read. Nothing is erased
  * behind the user's back: the device says so and asks. */
@@ -36,14 +36,14 @@ static scene_reaction_t storage_button(scene_t *scene, scene_button_t button, sc
 static void storage_draw(scene_t *scene, gfx_t *surface)
 {
     (void)scene;
-    const screens_notice_t notice = {
+    const notice_t notice = {
         .first = "Storage",
         .second = "error",
         .icon = GFX_ICON_WARNING,
         .ok = "Format",
         .back = "Skip",
     };
-    screens_notice(surface, &notice);
+    notice_draw(surface, &notice);
 }
 
 static const scene_ops_t STORAGE_OPS = {

@@ -21,6 +21,7 @@ SRCS = [
     os.path.join(ROOT, "tools", "preview", "preview.c"),
     os.path.join(FW, "components", "gfx", "gfx.c"),
     os.path.join(FW, "components", "gfx", "gfx_icons.c"),
+    os.path.join(FW, "components", "ui", "notice.c"),
     os.path.join(FW, "components", "gfx", "font_square.c"),
     os.path.join(FW, "components", "ui", "wm.c"),
     os.path.join(FW, "main", "screens.c"),

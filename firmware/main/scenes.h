@@ -53,7 +53,7 @@ typedef void (*scenes_answer_fn)(bool is_confirmed);
 
 /* A question from the network that only somebody at the device may
  * answer, on the whole screen: two lines ("Update", "firmware?"), an icon
- * beside them (a gfx_icon_id_t, or SCREENS_NO_ICON) and, along the bottom,
+ * beside them (a gfx_icon_id_t, or NOTICE_NO_ICON) and, along the bottom,
  * what the buttons do - OK is `action`, BACK is Cancel. `answer` is called
  * with the choice, and with false whenever the scene loses the screen: the
  * first call is the answer. The texts must outlive the scene's time on the

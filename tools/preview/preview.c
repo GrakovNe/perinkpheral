@@ -12,6 +12,7 @@
 
 #include "gfx.h"
 #include "gfx_icons.h"
+#include "notice.h"
 #include "screens.h"
 #include "wm.h"
 
@@ -99,31 +100,39 @@ int main(int argc, char **argv)
 
     /* The host's notices take the whole screen. */
     gfx_init(&g, fb, W, H);
-    const screens_notice_t asking = { "Update", "firmware?", GFX_ICON_UPDATE, "Update", "Cancel",
-                                      false };
+    const notice_t asking = { .first = "Update", .second = "firmware?", .icon = GFX_ICON_UPDATE,
+        .ok = "Update", .back = "Cancel" };
     memset(fb, 0xFF, sizeof fb);
-    screens_notice(&g, &asking);
+    notice_draw(&g, &asking);
     if (save(dir, "notice-question")) {
         return 1;
     }
-    const screens_notice_t joining = { "Join", "GrakovNe Home?", GFX_ICON_SIGNAL, "Join", "Cancel",
-                                       false };
+    const notice_t joining = { .first = "Join", .second = "GrakovNe Home?", .icon = GFX_ICON_SIGNAL,
+        .ok = "Join", .back = "Cancel" };
     memset(fb, 0xFF, sizeof fb);
-    screens_notice(&g, &joining);
+    notice_draw(&g, &joining);
     if (save(dir, "notice-join")) {
         return 1;
     }
-    const screens_notice_t failed = { "Storage", "error", GFX_ICON_WARNING, "Format", "Skip",
-                                      false };
+    const notice_t failed = { .first = "Storage", .second = "error", .icon = GFX_ICON_WARNING,
+        .ok = "Format", .back = "Skip" };
     memset(fb, 0xFF, sizeof fb);
-    screens_notice(&g, &failed);
+    notice_draw(&g, &failed);
     if (save(dir, "notice-error")) {
         return 1;
     }
-    const screens_notice_t working = { "Updating", "in progress", SCREENS_NO_ICON, NULL, NULL,
-                                       true };
+    const notice_t crashed = { .first = "Weather", .second = "crashed",
+                               .detail = "out of bounds memory access", .icon = GFX_ICON_WARNING,
+                               .back = "Close" };
     memset(fb, 0xFF, sizeof fb);
-    screens_notice(&g, &working);
+    notice_draw(&g, &crashed);
+    if (save(dir, "notice-crash")) {
+        return 1;
+    }
+    const notice_t working = { .first = "Updating", .second = "in progress", .icon = NOTICE_NO_ICON,
+        .is_working = true };
+    memset(fb, 0xFF, sizeof fb);
+    notice_draw(&g, &working);
     if (save(dir, "notice-progress")) {
         return 1;
     }

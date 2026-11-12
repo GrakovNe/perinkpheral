@@ -8,10 +8,9 @@
 #include <string.h>
 
 #include "app_store.h"
+#include "notice.h"
 #include "host_api.h"
 
-#define MESSAGE_MARGIN      16
-#define MESSAGE_LINE_HEIGHT 30
 
 typedef struct {
     scene_t               scene;
@@ -194,23 +193,25 @@ static scene_reaction_t app_scene_timer(scene_t *scene, int timer_id)
     return reaction_of(self);
 }
 
-static void draw_message(gfx_t *surface, const char *title, const char *first, const char *second)
+/* The application is not running: its title, what became of it, why, and
+ * the one thing there is to do. */
+static void draw_message(gfx_t *surface, const char *title, const char *what, const char *why)
 {
-    const gfx_font_t *font = gfx_font_system();
-    const char *lines[] = { title, first, second };
-    for (int line = 0; line < 3; line++) {
-        if (lines[line] != NULL) {
-            gfx_text_font(surface, MESSAGE_MARGIN, (line + 1) * MESSAGE_LINE_HEIGHT, font,
-                          lines[line], true);
-        }
-    }
+    const notice_t notice = {
+        .first = title,
+        .second = what,
+        .detail = why,
+        .icon = GFX_ICON_WARNING,
+        .back = "Close",
+    };
+    notice_draw(surface, &notice);
 }
 
 static void app_scene_draw(scene_t *scene, gfx_t *surface)
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (self->app == NULL) {
-        draw_message(surface, self->manifest.title, "Cannot start.", self->load_error);
+        draw_message(surface, self->manifest.title, "cannot start", self->load_error);
         return;
     }
     if (!app_has_stopped(self->app)) {
@@ -222,7 +223,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
     if (app_has_stopped(self->app)) {
         /* Over whatever it managed to draw before it stopped. */
         gfx_clear(surface, false);
-        draw_message(surface, self->manifest.title, "Crashed:", app_stop_reason(self->app));
+        draw_message(surface, self->manifest.title, "crashed", app_stop_reason(self->app));
     }
 }
 

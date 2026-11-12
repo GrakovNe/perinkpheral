@@ -6,7 +6,7 @@
 
 #include <stddef.h>
 
-#include "screens.h"
+#include "notice.h"
 
 /* Somebody on the network asked for something that cannot be taken back:
  * the device says what, and whoever stands at it answers - OK does it,
@@ -47,14 +47,14 @@ static void confirm_leave(scene_t *scene)
 static void confirm_draw(scene_t *scene, gfx_t *surface)
 {
     const confirm_scene_t *confirm = (const confirm_scene_t *)scene;
-    const screens_notice_t notice = {
+    const notice_t notice = {
         .first = confirm->first,
         .second = confirm->second,
         .icon = confirm->icon,
         .ok = confirm->action,
         .back = "Cancel",
     };
-    screens_notice(surface, &notice);
+    notice_draw(surface, &notice);
 }
 
 static const scene_ops_t CONFIRM_OPS = {
