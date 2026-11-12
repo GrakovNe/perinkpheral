@@ -48,7 +48,8 @@ extern "C" {
 
 /* How the device is powered, which is what it does when idle. */
 #define APPCONF_POWER_PLUGGED 0 /* the radio always on */
-#define APPCONF_POWER_SAVING  1 /* light sleep; the radio on for a poll and after a press */
+#define APPCONF_POWER_SAVING  1 /* always: light sleep; the radio on for a poll and after a press */
+#define APPCONF_POWER_AUTO    2 /* the same whenever no computer is on the USB cable */
 
 typedef struct {
     char device_name[APPCONF_NAME_MAX + 1];

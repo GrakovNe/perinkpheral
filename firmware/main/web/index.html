@@ -231,7 +231,12 @@
     <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
     <label class="check"><input id="refresh_fast" type="checkbox">Fast refresh</label>
     <label class="check"><input id="dither" type="checkbox">Dithering</label>
-    <label class="check"><input id="power_saving" type="checkbox">Power saving</label>
+    <label for="power_saving">Power saving</label>
+    <select id="power_saving">
+      <option value="1">Always</option>
+      <option value="2">Auto</option>
+      <option value="0">Disabled</option>
+    </select>
     <button>Save</button>
   </form>
 
@@ -1033,7 +1038,7 @@ async function loadSettings() {
   byId("font").value = settings.font;
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("time_auto").checked = settings.time_auto;
-  byId("power_saving").checked = settings.power_saving;
+  byId("power_saving").value = settings.power_saving;
   byId("ssid").value = settings.wifi_ssid;
   byId("hostname").value = settings.hostname;
 }
@@ -1058,7 +1063,7 @@ saveSettings("display", () => ({
   dither: byId("dither").checked,
   font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
-  power_saving: byId("power_saving").checked,
+  power_saving: Number(byId("power_saving").value),
 }));
 
 byId("tz-detect").addEventListener("click", () => { byId("tz").value = posixZone(); });

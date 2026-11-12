@@ -24,6 +24,7 @@ typedef enum {
     DEADLINE_SCENE_TIMER,     /* number: the timer of the scene on the screen */
     DEADLINE_ALARM,           /* owner: the application's id; number: its alarm */
     DEADLINE_AWAKE_WINDOW,    /* the while after a press is over */
+    DEADLINE_POWER_LOOK,      /* is a computer on the cable: the power profile follows it */
     DEADLINE_WIFI_RETRY,
     DEADLINE_STOP,            /* the device stops: see host_stop_soon() */
     DEADLINE_DATE,            /* the day in the header is another */

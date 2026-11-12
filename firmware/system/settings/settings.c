@@ -94,8 +94,9 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
 
 #define ROOT_ROWS 5
 
-#define POWER_SAVINGS 2
-static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Off", "On" };
+/* By the setting's value: never, always, and whenever no computer is on the cable. */
+#define POWER_SAVINGS 3
+static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Disabled", "Always", "Auto" };
 
 
 static const display_setting_t *edited; /* on PAGE_VALUE */

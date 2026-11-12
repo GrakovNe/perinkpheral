@@ -107,7 +107,7 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
     case SYS_NUMBER_POWER_SAVING:
         *value = settings.power_saving;
         *least = APPCONF_POWER_PLUGGED;
-        *most = APPCONF_POWER_SAVING;
+        *most = APPCONF_POWER_AUTO;
         return HOST_OK;
     case SYS_NUMBER_FONT:
         *value = settings.font;

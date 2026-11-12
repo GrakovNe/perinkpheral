@@ -591,6 +591,11 @@ static void answer_deadlines(void)
         case DEADLINE_AWAKE_WINDOW:
             power_awake_is_over();
             break;
+        case DEADLINE_POWER_LOOK:
+            if (power_look()) {
+                poller_reschedule(); /* the polls are another distance apart */
+            }
+            break;
         case DEADLINE_WIFI_RETRY:
             wifi_retry_is_due();
             break;

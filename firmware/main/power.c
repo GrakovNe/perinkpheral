@@ -5,6 +5,7 @@
 #include "power.h"
 
 #include "esp_log.h"
+#include "driver/usb_serial_jtag.h"
 #include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -83,31 +84,34 @@ static void stay_awake_for_user(void)
     deadlines_set_in(DEADLINE_AWAKE_WINDOW, 0, 0, POWER_AWAKE_AFTER_PRESS_MS);
 }
 
-void power_start(bool is_saving)
+/* How often the cable is looked at while that decides anything. */
+#define LOOK_EVERY_MS 5000
+
+static power_mode_t s_mode;
+
+static bool is_to_save(power_mode_t mode)
 {
-    s_lock = xSemaphoreCreateMutex();
-    configASSERT(s_lock != NULL);
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    s_is_saving = is_saving;
-    /* Powered up: whoever did it may want the page. */
-    stay_awake_for_user();
-    apply_radio();
-    xSemaphoreGive(s_lock);
-    apply_sleep();
-    tell_reachable();
-    ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "plugged");
+    return mode == POWER_ALWAYS || (mode == POWER_AUTO && !usb_serial_jtag_is_connected());
 }
 
-void power_set_saving(bool is_saving)
+static void look_again_later(void)
 {
-    if (s_lock == NULL) {
-        return;
+    if (s_mode == POWER_AUTO) {
+        deadlines_set_in(DEADLINE_POWER_LOOK, 0, 0, LOOK_EVERY_MS);
+    } else {
+        deadlines_cancel(DEADLINE_POWER_LOOK, 0, 0);
     }
+}
+
+/* The device saves or does not, as of now. True when that changed. */
+static bool set_saving(bool is_saving)
+{
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool changed = s_is_saving != is_saving;
     s_is_saving = is_saving;
     if (changed) {
-        /* Whoever changed it is here. */
+        /* Whoever changed it is here: the setting was saved, or the cable
+         * was plugged in or pulled out. */
         stay_awake_for_user();
         apply_radio();
     }
@@ -115,8 +119,46 @@ void power_set_saving(bool is_saving)
     if (changed) {
         apply_sleep();
         tell_reachable();
-        ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "plugged");
+        ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "not saving power");
     }
+    return changed;
+}
+
+void power_start(power_mode_t mode)
+{
+    s_lock = xSemaphoreCreateMutex();
+    configASSERT(s_lock != NULL);
+    s_mode = mode;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_is_saving = is_to_save(mode);
+    /* Powered up: whoever did it may want the page. */
+    stay_awake_for_user();
+    apply_radio();
+    xSemaphoreGive(s_lock);
+    apply_sleep();
+    tell_reachable();
+    look_again_later();
+    ESP_LOGI(TAG, "%s", s_is_saving ? "saving power" : "not saving power");
+}
+
+void power_set_mode(power_mode_t mode)
+{
+    if (s_lock == NULL) {
+        return;
+    }
+    s_mode = mode;
+    set_saving(is_to_save(mode));
+    look_again_later();
+}
+
+bool power_look(void)
+{
+    if (s_lock == NULL || s_mode != POWER_AUTO) {
+        return false;
+    }
+    bool changed = set_saving(is_to_save(POWER_AUTO));
+    look_again_later();
+    return changed;
 }
 
 bool power_is_saving(void)

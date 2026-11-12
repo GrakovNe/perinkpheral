@@ -31,11 +31,25 @@ extern "C" {
  * saving. Before power_start(). */
 void power_on_reachable(void (*changed)(bool is_reachable));
 
+/* What the user chose. Whether the device is saving now follows from it,
+ * and with POWER_AUTO from the cable too. */
+typedef enum {
+    POWER_NEVER,  /* plugged in: the radio always on */
+    POWER_ALWAYS, /* saving whatever it is plugged into */
+    POWER_AUTO,   /* saving unless a computer is on the USB cable - the one
+                     thing the board can tell: a charger looks like the battery */
+} power_mode_t;
+
 /* Once, after Wi-Fi has started. */
-void power_start(bool is_saving);
+void power_start(power_mode_t mode);
 
 /* The setting changed. From any task. */
-void power_set_saving(bool is_saving);
+void power_set_mode(power_mode_t mode);
+
+/* DEADLINE_POWER_LOOK has come: looks at the cable. True when the device
+ * began to save or stopped. In the host loop. */
+bool power_look(void);
+
 bool power_is_saving(void);
 
 /* Somebody needs the network until the matching release: counted. In the
