@@ -230,6 +230,7 @@ ui_list_visible() / ui_list_first(count, selected)   // the host's list: rows in
 ui_list_row(count, selected, index, label, value, icon)  // one row of it, with the scroll bar
 ui_notice(struct_ptr)                  // the host's notice on the whole surface: two lines, an icon, what OK and BACK do
 ui_text(x, y, style, str, len, max_width) / ui_title(str, len)   // text in the host's styles; the title of a page
+ui_text_width(style, str, len) / ui_text_height(style)           // to centre and to stack; HOST_UI_MARGIN is the host's 16 px
 ui_icon(x, y, icon, size)              // a host's icon at 22, 44 or 99 px
 ui_button(x, y, name, action, mirrored) / ui_actions(ok, back)   // a button and what it does; the row along the bottom
 ui_bar(x, y, w, value, max) / ui_frame(x, y, w, h, arrows)       // how much of how much; the frame around what is set
@@ -248,7 +249,7 @@ poll_now(n)                            // fetch poll n of the manifest now, not 
 poll_set_interval(n, seconds)          // another pace for it, until the device restarts
 alarm_set(id, seconds)                 // app_on_alarm(id) once, on the screen or off it; 0 takes it back; four an application
 alarm_set_at(id, unix_time)            // the same at a moment of the clock, and following the clock when it is set
-alarm_set_every(id, seconds)           // the same again and again, from a minute to a day, until set another way
+alarm_set_every(id, seconds, first_in) // the same again and again, from a minute to a day; the first in `first_in`
 header_status(side, icon, str_ptr, len) // an icon and a line that stay on a side of the header while the application is away
 file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
 file_read(name, name_len, offset, buf, cap) -> bytes read

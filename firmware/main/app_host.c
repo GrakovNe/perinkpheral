@@ -146,7 +146,7 @@ static uint32_t id_of(const char *app_name)
     return 0;
 }
 
-static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s)
+static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s, int32_t first_in_s)
 {
     uint32_t app_id = id_of(app_name);
     if (app_id == 0) {
@@ -160,11 +160,11 @@ static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s)
             }
         }
     }
-    int64_t every_ms = (int64_t)every_s * MS_PER_SECOND;
-    if (recurring == NULL || !deadlines_set_in(DEADLINE_ALARM, app_id, alarm, every_ms)) {
+    int64_t first_ms = (int64_t)first_in_s * MS_PER_SECOND;
+    if (recurring == NULL || !deadlines_set_in(DEADLINE_ALARM, app_id, alarm, first_ms)) {
         return false;
     }
-    *recurring = (recurring_t){ app_id, alarm, every_s, deadlines_now_ms() + every_ms };
+    *recurring = (recurring_t){ app_id, alarm, every_s, deadlines_now_ms() + first_ms };
     return true;
 }
 

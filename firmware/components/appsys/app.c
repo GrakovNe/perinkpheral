@@ -501,6 +501,31 @@ HOST_FUNCTION(host_ui_text)
     m3ApiReturn(kit_text(app->surface, x, y, (kit_style_t)style, text, max_width));
 }
 
+HOST_FUNCTION(host_ui_text_width)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, style);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+
+    char text[HOST_TEXT_MAX + 1];
+    if (style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
+        !copy_text(runtime, _mem, text_offset, length, text)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(gfx_text_font_width(kit_font((kit_style_t)style), text));
+}
+
+HOST_FUNCTION(host_ui_text_height)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, style);
+    if (style < HOST_UI_TEXT || style > HOST_UI_VALUE) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(gfx_font_height(kit_font((kit_style_t)style)));
+}
+
 HOST_FUNCTION(host_ui_title)
 {
     m3ApiReturnType(int32_t);
@@ -1172,13 +1197,19 @@ HOST_FUNCTION(host_alarm_set_every)
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int32_t, seconds);
+    m3ApiGetArg(int32_t, first_in);
     app_t *app = APP_OF(runtime);
     if (id < 0 || id >= HOST_ALARM_COUNT || seconds < HOST_ALARM_EVERY_MIN ||
-        seconds > HOST_ALARM_EVERY_MAX || app->services->alarm_set_every == NULL) {
+        seconds > HOST_ALARM_EVERY_MAX || first_in < 0 || first_in > HOST_ALARM_EVERY_MAX ||
+        app->services->alarm_set_every == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(app->services->alarm_set_every(app->name, id, seconds) ? HOST_OK
-                                                                       : HOST_ERR_NO_SPACE);
+    if (first_in == 0) {
+        first_in = seconds;
+    }
+    m3ApiReturn(app->services->alarm_set_every(app->name, id, seconds, first_in)
+                    ? HOST_OK
+                    : HOST_ERR_NO_SPACE);
 }
 
 HOST_FUNCTION(host_alarm_set_at)
@@ -1540,6 +1571,8 @@ static const struct {
     { "ui_list_row", "i(iii*i*ii)", host_ui_list_row },
     { "ui_notice", "i(*)", host_ui_notice },
     { "ui_text", "i(iii*ii)", host_ui_text },
+    { "ui_text_width", "i(i*i)", host_ui_text_width },
+    { "ui_text_height", "i(i)", host_ui_text_height },
     { "ui_title", "i(*i)", host_ui_title },
     { "ui_icon", "i(iiii)", host_ui_icon },
     { "ui_button", "i(ii*i*ii)", host_ui_button },
@@ -1564,7 +1597,7 @@ static const struct {
     { "poll_set_interval", "i(ii)", host_poll_set_interval },
     { "alarm_set", "i(ii)", host_alarm_set },
     { "alarm_set_at", "i(iI)", host_alarm_set_at },
-    { "alarm_set_every", "i(ii)", host_alarm_set_every },
+    { "alarm_set_every", "i(iii)", host_alarm_set_every },
     { "header_status", "i(ii*i)", host_header_status },
     { "file_write", "i(iiiii)", host_file_write },
     { "time_now", "I()", host_time_now },

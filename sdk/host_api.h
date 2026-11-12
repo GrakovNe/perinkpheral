@@ -447,6 +447,19 @@ HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
 HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const char *text,
                                      int32_t length, int32_t max_width));
 
+/* How wide the text would be in a style, and how tall a line of it is: to
+ * centre a value, to put one thing after another. The styles are the
+ * fonts the application has by number too - HOST_UI_TEXT is
+ * HOST_FONT_TEXT, HOST_UI_TITLE is HOST_FONT_MEDIUM, HOST_UI_CAPTION is
+ * HOST_FONT_SMALL and HOST_UI_VALUE is HOST_FONT_DISPLAY - so everything
+ * gfx_font_*() says of a font holds for its style. */
+HOST_IMPORT(ui_text_width, int32_t ui_text_width(int32_t style, const char *text,
+                                                 int32_t length));
+HOST_IMPORT(ui_text_height, int32_t ui_text_height(int32_t style));
+
+/* The host's own screens keep this far from the left and the right edge. */
+#define HOST_UI_MARGIN 16
+
 /* The title of a page at its usual place, a line under it. Returns the y
  * where the page's own content begins. */
 HOST_IMPORT(ui_title, int32_t ui_title(const char *text, int32_t length));
@@ -680,14 +693,17 @@ APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t id, int32_t seconds));
 HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
 
-/* The same alarm again and again: app_on_alarm(id) every `seconds`, the
- * first time that long from now, until alarm_set(id, 0) takes it back or
- * the alarm is set another way. For what has to be kept up while the
+/* The same alarm again and again: app_on_alarm(id) every `seconds`, until
+ * alarm_set(id, 0) takes it back or the alarm is set another way. The
+ * first comes `first_in` seconds from now - what is left of the minute in
+ * hand, for something that turns on the minute - and 0 is "a whole turn
+ * from now". For what has to be kept up while the
  * application is away - the minutes left, in the header (header_status).
  * From a minute to a day: every call loads the application for a moment. */
 #define HOST_ALARM_EVERY_MIN 60
 #define HOST_ALARM_EVERY_MAX 86400
-HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds));
+HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds,
+                                                     int32_t first_in));
 APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
 
 /* ---- Files ---- */
@@ -718,7 +734,16 @@ HOST_IMPORT(file_write, int32_t file_write(const char *name, int32_t name_length
 
 /* ---- Time ---- */
 
-/* Unix seconds; 0 while the device does not know the time. */
+/* Unix seconds; 0 while the device does not know the time.
+ *
+ * To time something - a countdown, a stopwatch, "last seen" - keep the
+ * moment it began as this number, in the store, and work out the rest
+ * whenever it is asked for: nothing is counted in ticks, and the
+ * application is not loaded most of the time anyway. The clock goes on
+ * through a restart of the device and through its sleep, though not
+ * through a loss of power. It is 0 only until the network or the user
+ * first sets it, and for that while time_uptime_ms() is what there is:
+ * it counts through sleep too, and starts from nothing at a restart. */
 HOST_IMPORT(time_now, int64_t time_now(void));
 
 /* Seconds to add to time_now() for the user's local time, daylight saving
