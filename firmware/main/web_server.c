@@ -377,6 +377,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "refresh_full_every", settings.refresh_full_every);
     cJSON_AddNumberToObject(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
     cJSON_AddBoolToObject(json, "dither", settings.dither != 0);
+    cJSON_AddBoolToObject(json, "refresh_fast", settings.refresh_fast != 0);
     cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
     cJSON_AddBoolToObject(json, "power_saving", settings.power_saving != 0);
     return send_json(request, "200 OK", json);
@@ -424,6 +425,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
         take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
         take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
         take_flag(json, "dither", &wanted->dither) &&
+        take_flag(json, "refresh_fast", &wanted->refresh_fast) &&
         take_flag(json, "time_auto", &wanted->time_auto) &&
         take_flag(json, "power_saving", &wanted->power_saving);
     wanted->refresh_min_data_s = (uint16_t)min_data_s;

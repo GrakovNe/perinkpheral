@@ -55,6 +55,7 @@ typedef struct {
     uint16_t refresh_min_button_ms; /* least pause before answering a press */
     uint8_t  refresh_full_every;    /* partial refreshes before a full one */
     uint8_t  refresh_keepalive_h;   /* hours without a refresh before one is forced */
+    uint8_t  refresh_fast;          /* 1: the shorter full refresh, with less of a blink */
     uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
     uint8_t  power_saving;          /* 1: the device runs from its battery; 0: it is plugged in */

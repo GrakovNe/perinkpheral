@@ -42,6 +42,7 @@ static const char *TAG = "settings";
 #define KEY_REFRESH_FULL   "rf_full"
 #define KEY_REFRESH_KEEP   "rf_keep"
 #define KEY_DITHER         "dither"
+#define KEY_REFRESH_FAST   "refresh_fast"
 #define KEY_TIME_AUTO      "time_auto"
 #define KEY_POWER_SAVING   "power_saving"
 
@@ -102,6 +103,7 @@ static void load(appconf_t *c, const char device_id[5])
     nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
     nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
     nvs_get_u8(h, KEY_DITHER, &c->dither);
+    nvs_get_u8(h, KEY_REFRESH_FAST, &c->refresh_fast);
     nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
     nvs_get_u8(h, KEY_POWER_SAVING, &c->power_saving);
     nvs_close(h);
@@ -140,6 +142,7 @@ static esp_err_t save(const appconf_t *c)
     PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
     PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
     PUT(nvs_set_u8(h, KEY_DITHER, c->dither));
+    PUT(nvs_set_u8(h, KEY_REFRESH_FAST, c->refresh_fast));
     PUT(nvs_set_u8(h, KEY_TIME_AUTO, c->time_auto));
     PUT(nvs_set_u8(h, KEY_POWER_SAVING, c->power_saving));
     PUT(nvs_commit(h));
@@ -230,6 +233,7 @@ refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
         .full_every = c->refresh_full_every == APPCONF_REFRESH_FULL_NEVER ? INT_MAX
                                                                          : c->refresh_full_every,
         .keepalive_ms = c->refresh_keepalive_h * 3600u * 1000u,
+        .full_is_fast = c->refresh_fast != 0,
     };
     return policy;
 }

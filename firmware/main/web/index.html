@@ -224,6 +224,7 @@
     <input id="refresh_min_data_s" type="number" min="10" max="3600" required>
     <label for="refresh_keepalive_h">Keep-alive refresh, h</label>
     <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
+    <label class="check"><input id="refresh_fast" type="checkbox">Fast refresh</label>
     <label class="check"><input id="dither" type="checkbox">Dithering</label>
     <label class="check"><input id="power_saving" type="checkbox">Power saving</label>
     <button>Save</button>
@@ -962,6 +963,7 @@ async function loadSettings() {
                                       textContent: "Every " + settings.refresh_full_every + " updates" }));
   fullEvery.value = settings.refresh_full_every;
   byId("dither").checked = settings.dither;
+  byId("refresh_fast").checked = settings.refresh_fast;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").checked = settings.power_saving;
   byId("ssid").value = settings.wifi_ssid;
@@ -986,6 +988,7 @@ saveSettings("display", () => ({
   refresh_min_data_s: Number(byId("refresh_min_data_s").value),
   refresh_keepalive_h: Number(byId("refresh_keepalive_h").value),
   dither: byId("dither").checked,
+  refresh_fast: byId("refresh_fast").checked,
   power_saving: byId("power_saving").checked,
 }));
 

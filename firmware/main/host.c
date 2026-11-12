@@ -228,6 +228,7 @@ static void stop(host_stop_t why)
         app_scene_end_background(delivery_state.in_background);
     }
     poller_hold(); /* and never let go: nothing more is asked */
+    display_rest();
     if (why == HOST_STOP_FACTORY_RESET) {
         reset_mark_factory();
     }

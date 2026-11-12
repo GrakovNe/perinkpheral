@@ -11,7 +11,8 @@
 #include "freertos/task.h"
 
 /* The sequences are those of waveshareteam/e-Paper, epd4in2_V2
- * (Init, Display_Base, Display_Partial, PartialDisplay), byte for byte. See
+ * (Init, Init_Fast, Display_Base, Display_Fast, Display_Partial,
+ * PartialDisplay), byte for byte. See
  * hardware/README.md for what happens when they are "improved". */
 
 static const char *TAG = "epd";
@@ -25,6 +26,10 @@ static epd_config_t        s_cfg;
 
 static spi_device_handle_t s_spi;
 static bool                s_ready;
+/* Out of deep sleep and set up for partial refreshes: the next one needs
+ * no reset. The controller turns the panel's voltages off by itself at
+ * the end of every refresh, awake or not. */
+static bool                s_is_awake;
 
 /* CS low, one byte, CS high: holding CS over a block of data makes the
  * refresh on this module never finish. */
@@ -122,15 +127,34 @@ static bool is_inside_frame(const frame_box_t *window)
            window->column + window->columns <= EPD_COLUMNS && window->row + window->rows <= EPD_H;
 }
 
-static esp_err_t finish(const char *what, int timeout_ms)
+static void deep_sleep(void)
+{
+    cmd(0x10); data(0x01); /* deep sleep mode 1, RAM kept */
+    vTaskDelay(pdMS_TO_TICKS(100));
+    s_is_awake = false;
+}
+
+static esp_err_t finish(const char *what, int timeout_ms, bool stays_awake)
 {
     bool released = wait_busy(what, timeout_ms);
     if (!released) {
         hw_reset();
+        deep_sleep();
+        return ESP_ERR_TIMEOUT;
     }
-    cmd(0x10); data(0x01); /* deep sleep mode 1, RAM kept */
-    vTaskDelay(pdMS_TO_TICKS(100));
-    return released ? ESP_OK : ESP_ERR_TIMEOUT;
+    if (stays_awake) {
+        s_is_awake = true;
+    } else {
+        deep_sleep();
+    }
+    return ESP_OK;
+}
+
+void epd_sleep(void)
+{
+    if (s_ready && s_is_awake) {
+        deep_sleep();
+    }
 }
 
 esp_err_t epd_init(const epd_config_t *cfg)
@@ -187,7 +211,7 @@ esp_err_t epd_init(const epd_config_t *cfg)
     return ESP_OK;
 }
 
-esp_err_t epd_show_full(const uint8_t *fb)
+esp_err_t epd_show_full(const uint8_t *fb, bool is_fast)
 {
     if (!s_ready) {
         return ESP_ERR_INVALID_STATE;
@@ -197,17 +221,25 @@ esp_err_t epd_show_full(const uint8_t *fb)
     wait_busy("sw reset", BUSY_INIT_MS);
     cmd(0x21); data(0x40); data(0x00); /* display update control */
     cmd(0x3C); data(0x05);             /* border waveform */
+    if (is_fast) {
+        /* Init_Fast, its 1.5 s: the waveform of a warmer panel, which is
+         * a shorter one. */
+        cmd(0x1A); data(0x6E);
+        cmd(0x22); data(0x91);
+        cmd(0x20);
+        wait_busy("fast waveform", BUSY_INIT_MS);
+    }
     set_window(&WHOLE_FRAME);
     wait_busy("init", BUSY_INIT_MS);
 
     write_ram(0x24, fb, &WHOLE_FRAME);
     write_ram(0x26, fb, &WHOLE_FRAME);
-    cmd(0x22); data(0xF7);
+    cmd(0x22); data(is_fast ? 0xC7 : 0xF7);
     cmd(0x20);
-    return finish("full refresh", BUSY_FULL_MS);
+    return finish("full refresh", BUSY_FULL_MS, false);
 }
 
-esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window)
+esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window, bool stays_awake)
 {
     if (!s_ready) {
         return ESP_ERR_INVALID_STATE;
@@ -215,7 +247,9 @@ esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window)
     if (!is_inside_frame(window)) {
         return ESP_ERR_INVALID_ARG;
     }
-    hw_reset();
+    if (!s_is_awake) {
+        hw_reset();
+    }
     cmd(0x3C); data(0x80);
     cmd(0x21); data(0x00); data(0x00);
     cmd(0x3C); data(0x80);
@@ -224,5 +258,5 @@ esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window)
     write_ram(0x24, fb, window);
     cmd(0x22); data(0xFF);
     cmd(0x20);
-    return finish("partial refresh", BUSY_PARTIAL_MS);
+    return finish("partial refresh", BUSY_PARTIAL_MS, stays_awake);
 }

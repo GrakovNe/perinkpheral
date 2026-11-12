@@ -203,6 +203,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
             APPCONF_REFRESH_FULL_EVERY_LEAST, APPCONF_REFRESH_FULL_EVERY_MOST,
             APPCONF_REFRESH_FULL_NEVER);
     }
+    if (c->refresh_fast > 1) {
+        BAD("Fast refresh must be 0 or 1.");
+    }
     if (c->dither > 1) {
         BAD("Dithering must be 0 or 1.");
     }

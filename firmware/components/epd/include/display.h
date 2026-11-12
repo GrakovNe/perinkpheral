@@ -37,6 +37,10 @@ typedef enum {
  * 1 = white. */
 display_result_t display_show(const uint8_t *frame, refresh_reason_t why);
 
+/* The panel into its deep sleep now, not a moment after the last refresh:
+ * before the device restarts or sleeps itself. */
+void display_rest(void);
+
 /* After DISPLAY_DEFERRED: how long until a frame offered for this reason
  * would be taken. */
 uint32_t display_wait_ms(refresh_reason_t why);

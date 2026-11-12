@@ -19,8 +19,9 @@ static int64_t least_gap_ms(const refresh_policy_cfg_t *cfg, refresh_reason_t wh
         return (int64_t)cfg->keepalive_ms;
     case REFRESH_FOR_BUTTON:
         return (int64_t)cfg->min_button_ms;
-    case REFRESH_FOR_REQUEST:
     case REFRESH_FOR_ROW:
+        return REFRESH_OF_ROW_MIN_MS;
+    case REFRESH_FOR_REQUEST:
     case REFRESH_FOR_CLEAN:
         return REFRESH_ON_REQUEST_MIN_MS;
     case REFRESH_FOR_SWITCH:

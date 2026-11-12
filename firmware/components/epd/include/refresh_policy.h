@@ -30,6 +30,8 @@ typedef enum {
 /* What an application may ask for is not rationed, but the panel is not
  * refreshed on request more often than this. */
 #define REFRESH_ON_REQUEST_MIN_MS 1000
+/* One of a row of pictures is shown as soon as the panel can. */
+#define REFRESH_OF_ROW_MIN_MS     0
 
 typedef enum {
     REFRESH_NONE,
@@ -42,6 +44,7 @@ typedef struct {
     uint32_t min_button_ms;
     int      full_every;   /* partial refreshes before a full one */
     uint32_t keepalive_ms;
+    bool     full_is_fast; /* the shorter full refresh; not the policy's to decide with */
 } refresh_policy_cfg_t;
 
 typedef struct {
