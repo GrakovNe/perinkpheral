@@ -283,8 +283,11 @@ static void test_a_press_in_the_middle_of_an_answer(void)
     deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
     CHECK(wm.suspended && state.in_background == probe);
     /* the user presses something: the scene is back to take it */
-    app_delivery_give_way(&state, &wm, 0);
+    app_abandoned_t abandoned;
+    app_delivery_give_way(&state, &wm, 0, &abandoned);
     CHECK(!wm.suspended && state.in_background == NULL && !state.is_mid_answer);
+    /* whoever asked is told whose answer was cut short */
+    CHECK(abandoned.owner == probe && abandoned.request == 1);
     CHECK(wm.current == &menu.scene && app_scene_app(probe) == NULL);
     /* the rest of that answer is nobody's: no new instance is loaded for it */
     deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
@@ -296,8 +299,8 @@ static void test_a_press_in_the_middle_of_an_answer(void)
     CHECK(wm.suspended && state.in_background == probe);
     /* with no answer being taken a press gives way to nothing */
     start_on(&menu.scene);
-    app_delivery_give_way(&state, &wm, 0);
-    CHECK(!wm.suspended && wm.current == &menu.scene);
+    app_delivery_give_way(&state, &wm, 0, &abandoned);
+    CHECK(!wm.suspended && wm.current == &menu.scene && abandoned.owner == NULL);
 }
 
 static void test_opened_while_taking_an_answer(void)

@@ -76,7 +76,7 @@ static void hand_over_piece(const char *app_name, int request, int http_status,
 
 /* The settings of an application are values in its own store; a poll's
  * {{key}} is one of them. */
-static bool setting_of(void *context, const char *key, char *value, size_t value_size)
+bool poller_net_setting_of(void *context, const char *key, char *value, size_t value_size)
 {
     const char *app_name = context;
     int32_t length = app_kv_get(app_name, key, value, (int32_t)value_size - 1);
@@ -121,7 +121,7 @@ static const esp_http_client_method_t METHODS[] = {
 static bool prepare(request_t *request, const char *app_name, int method,
                     esp_http_client_handle_t *client)
 {
-    if (!text_template_fill_url(request->poll.url, setting_of, (void *)app_name, request->url,
+    if (!text_template_fill_url(request->poll.url, poller_net_setting_of, (void *)app_name, request->url,
                                 sizeof request->url)) {
         return false;
     }
@@ -139,7 +139,7 @@ static bool prepare(request_t *request, const char *app_name, int method,
     }
     for (int i = 0; i < request->poll.header_count; i++) {
         const app_header_t *header = &request->poll.headers[i];
-        if (!text_template_fill(header->value, setting_of, (void *)app_name,
+        if (!text_template_fill(header->value, poller_net_setting_of, (void *)app_name,
                                 request->header_value, sizeof request->header_value)) {
             esp_http_client_cleanup(*client);
             *client = NULL;
@@ -296,7 +296,8 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
     if (!app_manifest_is_same_host(request->url, next_url)) {
         if (only_listed_hosts) {
             char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-            bool  allowed = manifest != NULL && app_manifest_allows_url(manifest, next_url);
+            bool  allowed = manifest != NULL && app_manifest_allows_url(manifest, next_url, poller_net_setting_of,
+                                                      (void *)app_name);
             free(manifest);
             if (!allowed) {
                 return REDIRECT_REFUSED;

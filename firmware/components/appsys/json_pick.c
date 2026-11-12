@@ -94,6 +94,50 @@ static void collect(json_pick_t *pick, char character)
     }
 }
 
+/* A whole character into the value, as UTF-8 - or none of it: a value is
+ * cut between characters, never inside one. A key takes ASCII only, and
+ * anything else in it as a '?', which no path is spelled with. */
+static void collect_character(json_pick_t *pick, uint32_t code_point)
+{
+    if (code_point <= ASCII_MAX) {
+        collect(pick, (char)code_point);
+        return;
+    }
+    if (pick->state == JSON_PICK_IN_KEY) {
+        collect(pick, NOT_ASCII);
+        return;
+    }
+    char encoded[4];
+    int  count;
+    if (code_point < 0x800) {
+        encoded[0] = (char)(0xC0 | code_point >> 6);
+        encoded[1] = (char)(0x80 | (code_point & 0x3F));
+        count = 2;
+    } else if (code_point < 0x10000) {
+        encoded[0] = (char)(0xE0 | code_point >> 12);
+        encoded[1] = (char)(0x80 | (code_point >> 6 & 0x3F));
+        encoded[2] = (char)(0x80 | (code_point & 0x3F));
+        count = 3;
+    } else {
+        encoded[0] = (char)(0xF0 | code_point >> 18);
+        encoded[1] = (char)(0x80 | (code_point >> 12 & 0x3F));
+        encoded[2] = (char)(0x80 | (code_point >> 6 & 0x3F));
+        encoded[3] = (char)(0x80 | (code_point & 0x3F));
+        count = 4;
+    }
+    if (pick->target == NO_TARGET) {
+        return;
+    }
+    if (pick->length + count > JSON_PICK_VALUE_MAX) {
+        pick->length = JSON_PICK_VALUE_MAX; /* full: nothing shorter slips in after it */
+        return;
+    }
+    for (int i = 0; i < count; i++) {
+        pick->values[pick->target][pick->length++] = encoded[i];
+    }
+    pick->values[pick->target][pick->length] = '\0';
+}
+
 static void value_ended(json_pick_t *pick)
 {
     if (pick->target != NO_TARGET) {
@@ -123,12 +167,19 @@ static void in_string(json_pick_t *pick, char character)
         }
         pick->unicode_value = pick->unicode_value << 4 | (uint32_t)digit;
         if (--pick->unicode_digits == 0 && collects) {
-            /* The second half of a surrogate pair adds nothing to the '?'
-             * its first half already left. */
-            bool is_low_surrogate = pick->unicode_value >= 0xDC00 && pick->unicode_value <= 0xDFFF;
-            if (!is_low_surrogate) {
-                collect(pick, pick->unicode_value <= ASCII_MAX ? (char)pick->unicode_value
-                                                               : NOT_ASCII);
+            uint32_t unit = pick->unicode_value;
+            /* A character beyond the first 65536 comes as two halves. */
+            if (unit >= 0xD800 && unit <= 0xDBFF) {
+                pick->high_half = unit;
+            } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+                if (pick->high_half != 0) {
+                    collect_character(pick, 0x10000 + ((pick->high_half - 0xD800) << 10) +
+                                                (unit - 0xDC00));
+                }
+                pick->high_half = 0;
+            } else {
+                pick->high_half = 0;
+                collect_character(pick, unit);
             }
         }
         return;
@@ -159,12 +210,30 @@ static void in_string(json_pick_t *pick, char character)
     if (!collects) {
         return;
     }
+    /* The text is UTF-8: a character of several bytes is put together and
+     * taken whole. Bytes that are not UTF-8 are passed over. */
     unsigned char byte = (unsigned char)character;
-    bool is_continuation = (byte & 0xC0) == 0x80;
     if (byte <= ASCII_MAX) {
+        pick->utf8_left = 0;
         collect(pick, character);
-    } else if (!is_continuation) {
-        collect(pick, NOT_ASCII); /* one for the whole character, not one per byte */
+    } else if ((byte & 0xC0) == 0x80) {
+        if (pick->utf8_left > 0) {
+            pick->utf8_value = pick->utf8_value << 6 | (byte & 0x3F);
+            if (--pick->utf8_left == 0) {
+                collect_character(pick, pick->utf8_value);
+            }
+        }
+    } else if ((byte & 0xE0) == 0xC0) {
+        pick->utf8_left = 1;
+        pick->utf8_value = byte & 0x1F;
+    } else if ((byte & 0xF0) == 0xE0) {
+        pick->utf8_left = 2;
+        pick->utf8_value = byte & 0x0F;
+    } else if ((byte & 0xF8) == 0xF0) {
+        pick->utf8_left = 3;
+        pick->utf8_value = byte & 0x07;
+    } else {
+        pick->utf8_left = 0;
     }
 }
 

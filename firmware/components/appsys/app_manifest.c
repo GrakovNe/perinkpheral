@@ -98,13 +98,35 @@ static bool read_pick(const cJSON *pick, app_poll_t *poll)
     return true;
 }
 
-static bool read_poll(const cJSON *poll, app_poll_t *parsed)
+static bool is_url_setting(const cJSON *settings, const char *key, size_t key_length);
+
+/* "{{key}}" and nothing else before `rest`: the key, when it is a setting
+ * of the "url" type - the server the user named. */
+static bool begins_with_a_server(const cJSON *settings, const char *text, const char **rest)
+{
+    if (!starts_with(text, "{{")) {
+        return false;
+    }
+    const char *key = text + 2;
+    const char *closing = strstr(key, "}}");
+    if (closing == NULL || !is_url_setting(settings, key, (size_t)(closing - key))) {
+        return false;
+    }
+    *rest = closing + 2;
+    return true;
+}
+
+/* A poll goes to a server the manifest names, or to the one the user
+ * named in a setting made for it. */
+static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *parsed)
 {
     if (!cJSON_IsObject(poll)) {
         return false;
     }
+    const char *after_server;
     if (!read_string(poll, "url", parsed->url, sizeof parsed->url) ||
-        !(starts_with(parsed->url, "http://") || starts_with(parsed->url, "https://"))) {
+        !(starts_with(parsed->url, "http://") || starts_with(parsed->url, "https://") ||
+          begins_with_a_server(settings, parsed->url, &after_server))) {
         return false;
     }
     const cJSON *every = cJSON_GetObjectItemCaseSensitive(poll, "every");
@@ -121,6 +143,7 @@ static const char *const SETTING_TYPES[] = {
     [APP_SETTING_TEXT] = "text",     [APP_SETTING_SECRET] = "secret",
     [APP_SETTING_NUMBER] = "number", [APP_SETTING_CHOICE] = "choice",
     [APP_SETTING_TOGGLE] = "toggle", [APP_SETTING_PLACE] = "place",
+    [APP_SETTING_URL] = "url",
 };
 #define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
 
@@ -186,6 +209,23 @@ static int setting_type(const cJSON *setting)
 }
 
 static bool fits_type(const cJSON *setting, int type, const char *value);
+static bool is_a_server(const char *value);
+
+static bool is_url_setting(const cJSON *settings, const char *key, size_t key_length)
+{
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, settings)
+    {
+        if (setting_type(setting) != APP_SETTING_URL) {
+            continue;
+        }
+        const char *its_key = cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring;
+        if (strlen(its_key) == key_length && memcmp(its_key, key, key_length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 static bool is_printable(const char *text);
 
 /* What the page shows while nothing is set; the application has to mean
@@ -280,6 +320,8 @@ static bool fits_type(const cJSON *setting, int type, const char *value)
         return is_number_text(value);
     case APP_SETTING_TOGGLE:
         return strcmp(value, "0") == 0 || strcmp(value, "1") == 0;
+    case APP_SETTING_URL:
+        return is_a_server(value);
     case APP_SETTING_CHOICE: {
         const cJSON *option;
         cJSON_ArrayForEach(option, cJSON_GetObjectItemCaseSensitive(setting, "options"))
@@ -331,7 +373,7 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
     return accepted;
 }
 
-static bool are_sound_hosts(const cJSON *hosts)
+static bool are_sound_hosts(const cJSON *hosts, const cJSON *settings)
 {
     if (hosts == NULL) {
         return true;
@@ -343,6 +385,12 @@ static bool are_sound_hosts(const cJSON *hosts)
     cJSON_ArrayForEach(host, hosts)
     {
         if (!is_text_of(host, 1, APP_HOST_MAX)) {
+            return false;
+        }
+        /* "{{server}}": wherever the user said the server is. */
+        const char *rest;
+        if (starts_with(host->valuestring, "{{") &&
+            !(begins_with_a_server(settings, host->valuestring, &rest) && rest[0] == '\0')) {
             return false;
         }
     }
@@ -434,7 +482,17 @@ bool app_manifest_is_same_host(const char *url, const char *other_url)
            (host.port == other.port || (is_scheme_port(host.port) && is_scheme_port(other.port)));
 }
 
-bool app_manifest_allows_url(const char *json, const char *url)
+/* A server and nothing more: "https://ha.example.org",
+ * "http://192.168.1.10:32400". No path, no query, nobody's name and
+ * password in front of the host. */
+static bool is_a_server(const char *value)
+{
+    host_t host;
+    return host_in_url(value, &host) && strpbrk(strstr(value, "://") + 3, "/?#") == NULL;
+}
+
+bool app_manifest_allows_url(const char *json, const char *url,
+                             app_manifest_value_fn value_of, void *context)
 {
     host_t host;
     if (!host_in_url(url, &host)) {
@@ -448,10 +506,29 @@ bool app_manifest_allows_url(const char *json, const char *url)
         if (!cJSON_IsString(listed)) {
             continue;
         }
+        host_t named;
+        char   server[APP_SETTING_VALUE_MAX + 1];
+        if (starts_with(listed->valuestring, "{{")) {
+            /* Wherever the user said the server is: the host of that setting,
+             * at the port it has there. */
+            char   key[APP_SETTING_KEY_MAX + 1];
+            size_t key_length = strlen(listed->valuestring) - 4; /* without the braces */
+            if (value_of == NULL || key_length > APP_SETTING_KEY_MAX) {
+                continue;
+            }
+            memcpy(key, listed->valuestring + 2, key_length);
+            key[key_length] = '\0';
+            if (value_of(context, key, server, sizeof server) && host_in_url(server, &named) &&
+                is_same_name(&named, &host) && named.port == host.port) {
+                allowed = true;
+                break;
+            }
+            continue;
+        }
         /* A name listed without a port is the name at its scheme's own. */
-        host_t named = host_of(listed->valuestring, strlen(listed->valuestring));
-        bool   is_same_port = named.port == NO_PORT ? is_scheme_port(host.port)
-                                                    : named.port == host.port;
+        named = host_of(listed->valuestring, strlen(listed->valuestring));
+        bool is_same_port = named.port == NO_PORT ? is_scheme_port(host.port)
+                                                  : named.port == host.port;
         if (is_same_name(&named, &host) && is_same_port) {
             allowed = true;
             break;
@@ -565,7 +642,8 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     if (!read_icon(cJSON_GetObjectItemCaseSensitive(root, "icon"), manifest)) {
         return APP_MANIFEST_BAD_FIELD;
     }
-    if (!are_sound_hosts(cJSON_GetObjectItemCaseSensitive(root, "hosts"))) {
+    if (!are_sound_hosts(cJSON_GetObjectItemCaseSensitive(root, "hosts"),
+                         cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
         return APP_MANIFEST_BAD_HOSTS;
     }
     if (!are_sound_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
@@ -593,7 +671,7 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     app_manifest_result_t result = APP_MANIFEST_OK;
     cJSON_ArrayForEach(poll, polls)
     {
-        if (!read_poll(poll, parsed)) {
+        if (!read_poll(poll, cJSON_GetObjectItemCaseSensitive(root, "settings"), parsed)) {
             result = APP_MANIFEST_BAD_POLL;
             break;
         }
@@ -626,7 +704,10 @@ app_manifest_result_t app_manifest_parse_poll(const char *json, int poll, app_po
     /* NULL for a number that is not there, and for no array at all. */
     const cJSON *wanted = poll >= 0 ? cJSON_GetArrayItem(polls, poll) : NULL;
     app_manifest_result_t result =
-        wanted != NULL && read_poll(wanted, parsed) ? APP_MANIFEST_OK : APP_MANIFEST_BAD_POLL;
+        wanted != NULL &&
+                read_poll(wanted, cJSON_GetObjectItemCaseSensitive(root, "settings"), parsed)
+            ? APP_MANIFEST_OK
+            : APP_MANIFEST_BAD_POLL;
     cJSON_Delete(root);
     return result;
 }
@@ -659,4 +740,37 @@ const char *app_manifest_result_text(app_manifest_result_t result)
                "an \"every\" of 10 seconds to a day";
     }
     return "?";
+}
+
+int app_manifest_setting_type(const char *json, const char *key)
+{
+    cJSON *root = cJSON_Parse(json);
+    int    found = -1;
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    {
+        int type = setting_type(setting);
+        if (type >= 0 &&
+            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring, key) == 0) {
+            found = type;
+            break;
+        }
+    }
+    cJSON_Delete(root);
+    return found;
+}
+
+int app_manifest_secret_keys(const char *json, char keys[][APP_SETTING_KEY_MAX + 1], int capacity)
+{
+    cJSON *root = cJSON_Parse(json);
+    int    count = 0;
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    {
+        if (setting_type(setting) == APP_SETTING_SECRET && count < capacity) {
+            strcpy(keys[count++], cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring);
+        }
+    }
+    cJSON_Delete(root);
+    return count;
 }

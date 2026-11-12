@@ -626,7 +626,7 @@ function settingField(app, setting) {
       input.append(make("option", { value: option, textContent: option || "-" }));
     input.value = value;
   } else {
-    input = make("input", { maxLength: 127, autocomplete: "off" });
+    input = make("input", { maxLength: 255, autocomplete: "off" });
     if (setting.type === "toggle") {
       input.type = "checkbox";
       input.checked = value === "1";
@@ -638,6 +638,11 @@ function settingField(app, setting) {
       input.placeholder = value ? "Unchanged" : "Not set";
     } else {
       input.inputMode = setting.type === "number" ? "decimal" : "text";
+      if (setting.type === "url") {
+        /* A server of the user's own, with no path after it. */
+        input.type = "url";
+        input.placeholder = "https://";
+      }
       input.value = value;
     }
   }

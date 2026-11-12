@@ -119,7 +119,12 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * host does not keep a whole response in memory. `request` is the poll's
  * number in the manifest. The first piece has HOST_DATA_FIRST and the
  * HTTP status, the last one HOST_DATA_LAST; a short answer is one piece
- * with both. HOST_DATA_FAILED comes alone, with no data: the request
+ * with both. An answer may also simply stop: the instance taking it off
+ * the screen is unloaded when somebody presses a button, with no last
+ * piece and no failure - app_on_terminate() is then the end of it, the
+ * next HOST_DATA_FIRST starts afresh, and a poll cut short this way is
+ * asked again in a minute. Nothing half-read is worth keeping.
+ * HOST_DATA_FAILED comes alone, with no data: the request
  * could not be made, or broke off, and `http_status` says which - a
  * HOST_FAILED_* below, where a status would be. The data is in the buffer the
  * application gave with app_data_buffer() and is only there until the
@@ -151,7 +156,7 @@ APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, i
  * and null as they were written, a string without its quotes. It answers
  * HOST_ERR_NOT_FOUND for a path the answer did not have and
  * HOST_ERR_NO_SPACE for a buffer that is too small; a value is at most
- * HOST_VALUE_MAX bytes. sdk/lib reads values as numbers and as text. */
+ * HOST_VALUE_MAX bytes, and one that was longer is cut between characters. sdk/lib reads values as numbers and as text. */
 #define HOST_VALUE_MAX 63
 APP_EXPORT(app_on_values, void app_on_values(int32_t request, int32_t http_status));
 HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t capacity));
@@ -182,15 +187,22 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 
-/* All Departure Mono, a pixel font drawn on an 11 px grid and shown at
- * whole multiples of it; every size has all of printable ASCII. A
- * character outside it is drawn as '?'. */
-#define HOST_FONT_TEXT    0 /* 22 px: the host's own text */
-#define HOST_FONT_MEDIUM  1 /* 33 px */
-#define HOST_FONT_LARGE   2 /* 44 px */
-#define HOST_FONT_DISPLAY 3 /* 66 px */
-#define HOST_FONT_HUGE    4 /* 110 px: five characters fill the width */
-#define HOST_FONT_SMALL   5 /* 11 px: secondary text beside something larger */
+/* Text is UTF-8, everywhere in this contract: what an application draws,
+ * measures and is handed. Every size has all of printable ASCII, and a
+ * character the device has no glyph for is drawn as '?' - an application
+ * passes text on as it came and does not cut it by bytes (gfx_text_fit).
+ *
+ * A font is a size, not a typeface: the typeface is the user's choice, in
+ * the device's settings - a monospaced one or one whose letters have their
+ * own widths - and the capitals of a size are about as tall in either.
+ * So nothing is laid out by counting characters: measure
+ * (gfx_text_width, gfx_font_height, gfx_font_ascent, gfx_font_cap_height). */
+#define HOST_FONT_TEXT    0 /* the host's own text: capitals about 15 px */
+#define HOST_FONT_MEDIUM  1 /* about 25 px */
+#define HOST_FONT_LARGE   2 /* about 30 px */
+#define HOST_FONT_DISPLAY 3 /* about 50 px */
+#define HOST_FONT_HUGE    4 /* about 80 px: five digits fill the width */
+#define HOST_FONT_SMALL   5 /* about 9 px: secondary text beside something larger */
 
 /* y is the top of the line, not the baseline. Text longer than
  * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
@@ -199,6 +211,14 @@ HOST_IMPORT(gfx_text, int32_t gfx_text(int32_t x, int32_t y, int32_t font, const
                                        int32_t length));
 HOST_IMPORT(gfx_text_width, int32_t gfx_text_width(int32_t font, const char *text,
                                                    int32_t length));
+
+/* The text as it fits `max_width` pixels: itself, or cut - between
+ * characters, never inside one - with "..." after it. Written into
+ * `fitted`, not terminated; returns its length, 0 when not even the dots
+ * fit. This is how the host cuts its own. */
+HOST_IMPORT(gfx_text_fit, int32_t gfx_text_fit(int32_t font, const char *text, int32_t length,
+                                               int32_t max_width, char *fitted,
+                                               int32_t capacity));
 
 /* A line of a font, top to bottom: the baseline is gfx_font_ascent()
  * under the top, capitals and digits stand gfx_font_cap_height() high on
@@ -350,6 +370,7 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * on every tick. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~': no spaces */
 #define HOST_KV_VALUE_MAX 1024
+#define HOST_KV_TOTAL_MAX 4096 /* all the values of one application together */
 
 /* Returns the length of the value, which is then in `value`. */
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,

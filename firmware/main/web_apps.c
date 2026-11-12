@@ -196,6 +196,40 @@ typedef struct {
     char         message[64];
 } app_settings_command_t;
 
+/* Whether the request puts another server where one was set. */
+static bool names_another_server(const char *manifest, const char *app_name, const cJSON *wanted)
+{
+    const cJSON *value;
+    cJSON_ArrayForEach(value, wanted)
+    {
+        if (app_manifest_setting_type(manifest, value->string) != APP_SETTING_URL) {
+            continue;
+        }
+        char stored[APP_SETTING_VALUE_MAX + 1];
+        stored_value(app_name, value->string, stored);
+        if (stored[0] != '\0' && strcmp(stored, value->valuestring) != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The token was given for the server that was there. Whoever points the
+ * application at another one - anybody on the network can - does not get
+ * the token sent to it: what is not given anew goes. */
+static void forget_secrets_not_given(const char *manifest, const char *app_name,
+                                     const cJSON *wanted)
+{
+    char keys[APP_SETTINGS_MAX][APP_SETTING_KEY_MAX + 1];
+    int  count = app_manifest_secret_keys(manifest, keys, APP_SETTINGS_MAX);
+    for (int i = 0; i < count; i++) {
+        const cJSON *given = cJSON_GetObjectItemCaseSensitive(wanted, keys[i]);
+        if (!cJSON_IsString(given) || given->valuestring[0] == '\0') {
+            app_kv_set(app_name, keys[i], "", 0);
+        }
+    }
+}
+
 static void change_app_settings(void *argument)
 {
     app_settings_command_t *command = argument;
@@ -210,6 +244,9 @@ static void change_app_settings(void *argument)
     } else {
         const cJSON *value;
         bool         stored = true;
+        if (names_another_server(manifest, command->app_name, command->wanted)) {
+            forget_secrets_not_given(manifest, command->app_name, command->wanted);
+        }
         cJSON_ArrayForEach(value, command->wanted)
         {
             /* An empty value takes the setting back: kv_set removes the key. */

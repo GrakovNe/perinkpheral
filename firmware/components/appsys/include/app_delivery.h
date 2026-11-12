@@ -60,6 +60,7 @@ typedef struct {
 typedef struct {
     scene_t *in_background; /* the owner loaded off the screen, between its first piece and its last */
     bool     is_mid_answer; /* pieces of an answer are still to come for it */
+    int      answer_request; /* the number that answer is delivered under */
     bool     has_given_focus;
     int64_t  last_focus_ms;
     /* Whose settings were saved last, and when: only ever compared. */
@@ -71,9 +72,16 @@ void app_delivery_init(app_delivery_state_t *state);
 
 /* The user pressed something while an application takes an answer off
  * the screen, piece by piece: it is unloaded and the scene comes back to
- * take the press. What is left of the answer is dropped. Nothing when no
- * answer is being taken. */
-void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms);
+ * take the press. What is left of the answer is dropped, and `abandoned`
+ * says whose answer that was, so that whoever asked can ask again; its
+ * `owner` is NULL when no answer was being taken. */
+typedef struct {
+    scene_t *owner;
+    int      request;
+} app_abandoned_t;
+
+void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
+                           app_abandoned_t *abandoned);
 
 /* `owner` is the scene of the application the answer is for. */
 void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,

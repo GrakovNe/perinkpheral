@@ -153,6 +153,7 @@ typedef enum {
     APP_SETTING_CHOICE, /* one of "options" */
     APP_SETTING_TOGGLE, /* "1" or "0" */
     APP_SETTING_PLACE,  /* the name of a place; see below */
+    APP_SETTING_URL,    /* a server of the user's own: "https://ha.example.org", no path */
 } app_setting_type_t;
 
 /* Whether `value` may be stored under `key`: the manifest has such a
@@ -163,12 +164,28 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
 
 /* Where an application may send requests of its own (http_request): the
  * manifest's "hosts", up to APP_HOSTS_MAX names, each as it stands in a
- * URL - "api.example.com", "192.168.1.10:32400". True when the URL is
- * http or https and its host is one of them. The polls of the manifest
- * are the author's own and are not held to the list. */
+ * URL - "api.example.com", "192.168.1.10:32400" - or "{{key}}" for the
+ * server the user named in the setting of the "url" type under that key,
+ * whose value `value_of` gives. True when the URL is http or https and its
+ * host is one of them. The polls of the manifest are the author's own and
+ * are not held to the list.
+ *
+ * A server of the user's own is how an application reaches what lives in
+ * somebody's home: a poll or a request may begin with "{{key}}" of such a
+ * setting ("{{server}}/api/states"), and only begin with it. */
 #define APP_HOSTS_MAX 4
 #define APP_HOST_MAX  63
-bool app_manifest_allows_url(const char *json, const char *url);
+typedef bool (*app_manifest_value_fn)(void *context, const char *key, char *value,
+                                      size_t value_size);
+bool app_manifest_allows_url(const char *json, const char *url,
+                             app_manifest_value_fn value_of, void *context);
+
+/* The type of the setting under `key`, an app_setting_type_t; -1 when the
+ * manifest has none. */
+int app_manifest_setting_type(const char *json, const char *key);
+
+/* The keys of the settings of the "secret" type; returns how many. */
+int app_manifest_secret_keys(const char *json, char keys[][16], int capacity);
 
 /* Whether two http or https URLs name the same host and port - a port
  * that is not written being the scheme's own, and http and https of one

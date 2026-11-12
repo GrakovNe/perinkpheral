@@ -216,6 +216,33 @@ HOST_FUNCTION(host_gfx_text_width)
     m3ApiReturn(gfx_text_font_width(font, terminated));
 }
 
+HOST_FUNCTION(host_gfx_text_fit)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, font_id);
+    m3ApiGetArg(uint32_t, text);
+    m3ApiGetArg(int32_t, length);
+    m3ApiGetArg(int32_t, max_width);
+    m3ApiGetArg(uint32_t, fitted_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    const gfx_font_t *font = font_by_id(font_id);
+    char terminated[HOST_TEXT_MAX + 1];
+    char *fitted = (char *)in_app_memory_to_fill(runtime, _mem, fitted_offset, capacity);
+    if (font == NULL || fitted == NULL || !is_drawable(max_width) ||
+        !copy_text(runtime, _mem, text, length, terminated)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    char cut[HOST_TEXT_MAX + 1];
+    gfx_text_fit(font, terminated, max_width, cut, sizeof cut);
+    int32_t cut_length = (int32_t)strlen(cut);
+    if (cut_length > capacity) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    memcpy(fitted, cut, (size_t)cut_length);
+    m3ApiReturn(cut_length);
+}
+
 HOST_FUNCTION(host_gfx_font_height)
 {
     m3ApiReturnType(int32_t);
@@ -1113,6 +1140,7 @@ static const struct {
     { "data_value", "i(iii)", host_data_value },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
+    { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },

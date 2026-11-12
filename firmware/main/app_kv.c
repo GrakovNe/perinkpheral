@@ -5,6 +5,7 @@
 #include "app_kv.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "esp_log.h"
 #include "nvs.h"
@@ -60,11 +61,42 @@ int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t c
     return result;
 }
 
+/* What the application keeps now, in bytes of its values, the one under
+ * `except_key` left out. */
+static size_t stored_bytes(nvs_handle_t store, const char *app_name, const char *except_key)
+{
+    char namespace[NVS_NS_NAME_MAX_SIZE];
+    snprintf(namespace, sizeof namespace, NAMESPACE_PREFIX "%s", app_name);
+    size_t total = 0;
+    nvs_iterator_t entry = NULL;
+    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, namespace, NVS_TYPE_BLOB, &entry);
+    while (err == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(entry, &info);
+        size_t length = 0;
+        if (strcmp(info.key, except_key) != 0 &&
+            nvs_get_blob(store, info.key, NULL, &length) == ESP_OK) {
+            total += length;
+        }
+        err = nvs_entry_next(&entry);
+    }
+    nvs_release_iterator(entry);
+    return total;
+}
+
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length)
 {
     nvs_handle_t store;
     esp_err_t err = open_store(app_name, NVS_READWRITE, &store);
     if (err == ESP_OK) {
+        /* The store is shared by every application there is and ever was:
+         * one of them does not get to fill it. */
+        if (value_length > 0 &&
+            stored_bytes(store, app_name, key) + (size_t)value_length > HOST_KV_TOTAL_MAX) {
+            nvs_close(store);
+            ESP_LOGW(TAG, "%s: \"%s\" is over what an application may keep", app_name, key);
+            return HOST_ERR_NO_SPACE;
+        }
         err = value_length > 0 ? nvs_set_blob(store, key, value, (size_t)value_length)
                                : nvs_erase_key(store, key);
         if (err == ESP_ERR_NVS_NOT_FOUND && value_length == 0) {

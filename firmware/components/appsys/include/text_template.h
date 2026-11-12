@@ -31,7 +31,9 @@ bool text_template_fill(const char *template_text, text_template_value_fn value_
 
 /* The same for a URL: every value is percent-encoded on its way in, so
  * that a setting with a space, an ampersand or a slash in it stays the
- * one value it was meant to be. */
+ * one value it was meant to be. But for a value the URL begins with: that
+ * is the server itself ("{{server}}/api/states"), a setting of the "url"
+ * type, and goes in as it is. */
 bool text_template_fill_url(const char *template_text, text_template_value_fn value_of,
                             void *context, char *filled, size_t filled_size);
 

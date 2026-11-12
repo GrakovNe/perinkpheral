@@ -57,7 +57,7 @@ static void test_picks_by_path(void)
         CHECK_STR(value(8), "Mitte");
         CHECK_STR(value(9), "52.52");
         CHECK_STR(value(10), "2026-11-11T12:00");
-        CHECK_STR(value(11), "?C"); /* the degree sign is not ASCII */
+        CHECK_STR(value(11), "\xC2\xB0" "C"); /* the degree sign, as UTF-8 */
     }
 }
 
@@ -101,9 +101,26 @@ static void test_strings(void)
                    5);
     CHECK_STR(value(0), "line break tab");
     CHECK_STR(value(1), "sl/ash \\ back");
-    CHECK_STR(value(2), "caf? A? ?!");
+    /* text is UTF-8 and stays UTF-8: as it came, and as \u spelled it - in
+     * two halves when it is beyond the first 65536 */
+    CHECK_STR(value(2), "caf\xC3\xA9 A\xC3\xA9 \xF0\x9F\x98\x80!");
     CHECK_STR(value(3), "");
     CHECK_STR(value(4), "{[,:]}"); /* punctuation inside a string is text */
+}
+
+static void test_a_value_is_cut_between_characters(void)
+{
+    /* 62 letters and a character of two bytes: the last byte would be the
+     * 64th, so the character is left out whole, and nothing after it slips
+     * into the room it leaves */
+    char json[200] = "{\"t\":\"";
+    for (int i = 0; i < 62; i++) {
+        strcat(json, "a");
+    }
+    strcat(json, "\xC3\xA9z\"}");
+    static const char *const PATHS[] = { "t" };
+    read_in_pieces(PATHS, 1, json, 7);
+    CHECK(strlen(value(0)) == 62 && value(0)[61] == 'a');
 }
 
 static void test_limits(void)
@@ -166,6 +183,7 @@ int main(void)
     test_what_has_no_value();
     test_documents_that_are_not_objects();
     test_strings();
+    test_a_value_is_cut_between_characters();
     test_limits();
     test_broken_documents();
     REPORT();

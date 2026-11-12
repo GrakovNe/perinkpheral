@@ -73,8 +73,12 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
         char key[TEXT_TEMPLATE_KEY_MAX + 1];
         memcpy(key, key_start, key_length);
         key[key_length] = '\0';
+        /* What a URL begins with is the server - "https://ha.example.org",
+         * a setting of the type that is one - and goes in as it is. Anywhere
+         * else a value is a part of a path or of a query, and is encoded. */
+        bool is_the_server = for_url && opening == template_text;
         if (!value_of(context, key, filled + used, filled_size - used) ||
-            (for_url && !encode_in_place(filled + used, filled_size - used))) {
+            (for_url && !is_the_server && !encode_in_place(filled + used, filled_size - used))) {
             return false;
         }
         used += strlen(filled + used);

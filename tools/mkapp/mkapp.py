@@ -48,7 +48,7 @@ SETTING_HELP_MAX = 95
 SETTING_OPTIONS_MAX = 8
 SETTING_OPTION_MAX = 23
 INTENTS = ("time_changed", "network_up")
-SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place")
+SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url")
 FILE_NAME_MAX = 23
 FILES_MAX_BYTES = 120 * 1024
 HEADER_NAME_MAX = 31
@@ -207,14 +207,25 @@ def unique_keys(pairs):
     return dict(pairs)
 
 
-def check_poll(path, number, poll):
+def names_a_server(text, servers):
+    """Whether the text begins with {{key}} of a setting of the "url" type: the server
+    the user named. Returns what follows it, or None."""
+    for key in servers:
+        if text.startswith("{{%s}}" % key):
+            return text[len(key) + 4:]
+    return None
+
+
+def check_poll(path, number, poll, servers):
     where = "%s: poll %d" % (path, number)
     if not isinstance(poll, dict):
         sys.exit("%s must be an object" % where)
     url = poll.get("url")
     if (not isinstance(url, str) or len(url.encode()) > URL_MAX
-            or not url.startswith(("http://", "https://"))):
-        sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes" % (where, URL_MAX))
+            or not (url.startswith(("http://", "https://"))
+                    or names_a_server(url, servers) is not None)):
+        sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes, or begin with "
+                 "{{key}} of a setting of the \"url\" type" % (where, URL_MAX))
     every = poll.get("every")
     if (isinstance(every, bool) or not isinstance(every, (int, float))
             or not POLL_EVERY_MIN_S <= every <= POLL_EVERY_MAX_S):
@@ -323,21 +334,25 @@ def check_manifest(app_dir):
                                     for row in icon)):
         sys.exit("%s: \"icon\" must be %d rows of %d characters, '#' for ink and '.' for paper"
                  % (path, ICON_CELLS, ICON_CELLS))
+    # The settings first: a host and a poll may name the server one of them holds.
+    check_settings(path, manifest.get("settings", []))
+    servers = [setting["key"] for setting in manifest.get("settings", [])
+               if setting["type"] == "url"]
     hosts = manifest.get("hosts", [])
     if (not isinstance(hosts, list) or len(hosts) > HOSTS_MAX
             or any(not isinstance(host, str) or not 0 < len(host.encode()) <= HOST_MAX
+                   or (host.startswith("{{") and names_a_server(host, servers) != "")
                    for host in hosts)):
-        sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes"
-                 % (path, HOSTS_MAX, HOST_MAX))
+        sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes, "
+                 "or {{key}} of a setting of the \"url\" type" % (path, HOSTS_MAX, HOST_MAX))
     intents = manifest.get("intents", [])
     if not isinstance(intents, list) or any(intent not in INTENTS for intent in intents):
         sys.exit("%s: \"intents\" must be a list of %s" % (path, ", ".join(INTENTS)))
-    check_settings(path, manifest.get("settings", []))
     polls = manifest.get("polls", [])
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:
         sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))
     for number, poll in enumerate(polls):
-        check_poll(path, number, poll)
+        check_poll(path, number, poll, servers)
     abi = manifest.get("abi")
     # True == 1 in Python, and the device wants a number.
     if isinstance(abi, bool) or abi != host_api_version():

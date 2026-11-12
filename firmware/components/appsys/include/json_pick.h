@@ -20,7 +20,9 @@ extern "C" {
  *
  * - and gets the values as text. A number, true, false and null come as
  * they are written; a string comes without its quotes, escapes resolved,
- * and anything outside ASCII as '?'. A path that leads to an object or an
+ * as UTF-8 - what the device has no glyph for is the drawing's to
+ * replace, not this one's to lose - and cut, when it is too long,
+ * between characters. A path that leads to an object or an
  * array, or nowhere, has no value. Pure, host-tested. */
 
 #define JSON_PICK_PATHS_MAX 16
@@ -53,6 +55,9 @@ typedef struct {
     bool     escaped;        /* the character before was a backslash */
     int      unicode_digits; /* of a \uXXXX still to come */
     uint32_t unicode_value;
+    uint32_t high_half;  /* of a character that \u spells in two halves; 0: none waiting */
+    int      utf8_left;  /* bytes still to come of a character of several */
+    uint32_t utf8_value;
     int      target;         /* which path the value being read is for, or -1 */
     size_t   length;         /* of the key or the value collected so far */
     bool     broken;

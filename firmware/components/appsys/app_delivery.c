@@ -62,9 +62,15 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     }
 }
 
-void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms)
+void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
+                           app_abandoned_t *abandoned)
 {
+    abandoned->owner = NULL;
     if (state->in_background != NULL) {
+        if (state->is_mid_answer) {
+            abandoned->owner = state->in_background;
+            abandoned->request = state->answer_request;
+        }
         end_background(state, wm, NULL, now_ms);
     }
 }
@@ -132,6 +138,7 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     }
     if (delivery->kind == APP_DELIVERY_PIECE) {
         state->is_mid_answer = !is_last(delivery);
+        state->answer_request = delivery->request;
     }
     /* Something else for it in the middle of an answer - its settings
      * changed, its alarm came - is taken by the instance that is taking

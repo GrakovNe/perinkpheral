@@ -406,8 +406,9 @@ void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char 
     size_t room = capacity > sizeof ELLIPSIS ? capacity - sizeof ELLIPSIS : 0;
     size_t kept = strlen(text) < room ? strlen(text) : room;
     for (; kept > 0; kept--) {
-        /* No space before the dots: "Saint...", not "Saint ...". */
-        if (text[kept - 1] == ' ') {
+        /* No space before the dots: "Saint...", not "Saint ...". And the
+         * cut is between characters: not inside one of several bytes. */
+        if (text[kept - 1] == ' ' || ((unsigned char)text[kept] & 0xC0) == 0x80) {
             continue;
         }
         snprintf(fitted, capacity, "%.*s%s", (int)kept, text, ELLIPSIS);

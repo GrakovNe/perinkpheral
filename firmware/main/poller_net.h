@@ -29,6 +29,10 @@ typedef struct {
 
 void poller_net_start(const poller_net_host_t *host);
 
+/* The value of a setting of the application named by `context`: what
+ * {{key}} stands for in its addresses and headers. */
+bool poller_net_setting_of(void *context, const char *key, char *value, size_t value_size);
+
 /* Poll number `poll_number` of the application's manifest. */
 void poller_net_poll(const char *app_name, int poll_number);
 

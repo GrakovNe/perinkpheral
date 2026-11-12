@@ -91,7 +91,8 @@ static bool settings_value(void *context, const char *key, char *value, size_t v
     const char *found = strcmp(key, "token") == 0    ? "s3cret"
                         : strcmp(key, "server") == 0 ? "10.0.0.2"
                         : strcmp(key, "empty") == 0  ? ""
-          : strcmp(key, "city") == 0   ? "New York&x=1/~a"
+                        : strcmp(key, "base") == 0   ? "http://10.0.0.2:8123"
+                        : strcmp(key, "city") == 0   ? "New York&x=1/~a"
                                                      : NULL;
     if (found == NULL || strlen(found) >= value_size) {
         return false;
@@ -119,6 +120,11 @@ static void test_template_for_a_url(void)
     char just_enough[36];
     CHECK(text_template_fill_url("http://a/?c={{city}}", settings_value, NULL, just_enough,
                                  sizeof just_enough));
+    /* a setting the URL begins with is the server itself: it goes in as it is */
+    char whole[64];
+    CHECK(text_template_fill_url("{{base}}/api?c={{base}}", settings_value, NULL, whole,
+                                 sizeof whole));
+    CHECK_STR(whole, "http://10.0.0.2:8123/api?c=http%3A%2F%2F10.0.0.2%3A8123");
     /* a header is not a URL: there the value goes in as it is */
     CHECK(text_template_fill("{{city}}", settings_value, NULL, filled, sizeof filled));
     CHECK_STR(filled, "New York&x=1/~a");

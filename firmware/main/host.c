@@ -83,7 +83,25 @@ static refresh_reason_t refresh_reason(wm_change_t change)
     }
 }
 
+/* The host loop's own, and nobody else's: what is on the screen and whose
+ * answer is being taken. Other tasks reach them through events_call(). */
+static wm_t                 wm;
 static app_delivery_state_t delivery_state;
+
+/* An application taking an answer off the screen, piece by piece, gives
+ * way to what the screen is needed for now. The rest of that answer is
+ * dropped; when it was a poll's, the poll is asked again in a while. */
+static void give_way_to_the_screen(void)
+{
+    app_abandoned_t abandoned;
+    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000, &abandoned);
+    if (abandoned.owner != NULL) {
+        const char *app_name = launcher_app_name(abandoned.owner);
+        if (app_name != NULL) {
+            poller_answer_was_abandoned(app_name, abandoned.request);
+        }
+    }
+}
 
 /* The scene whose picture the panel shows: what a person pressing a
  * button is looking at. Not the scene that has the screen while its first
@@ -142,7 +160,7 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
-    app_delivery_give_way(&delivery_state, wm, esp_timer_get_time() / 1000);
+    give_way_to_the_screen();
     /* The long press on BACK is the user's own way out of anything. */
     bool is_way_out = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
     if (!is_way_out && !is_press_for(wm->current, index, press)) {
@@ -243,9 +261,6 @@ static void remember_current_app(const wm_t *wm)
     }
 }
 
-/* The host loop's own, and nobody else's: what is on the screen and whose
- * answer is being taken. Other tasks reach them through events_call(). */
-static wm_t                 wm;
 static scene_t             *s_menu;
 
 /* An application's scene is about to be freed, the list of them being
@@ -401,7 +416,7 @@ static void on_confirm_answer(bool is_confirmed)
 static void put_question_away(void)
 {
     s_confirm.is_to_put_away = false;
-    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    give_way_to_the_screen();
     if (wm.current == s_confirm.scene) {
         wm_show(&wm, s_confirm.came_from != NULL ? s_confirm.came_from : s_menu);
     } else {
@@ -413,7 +428,7 @@ static void open_confirm(void *argument)
 {
     (void)argument;
     /* An application taking an answer off the screen gives way, as to a press. */
-    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    give_way_to_the_screen();
     if (wm.current != s_confirm.scene) {
         s_confirm.came_from = wm.current;
     }
@@ -465,7 +480,7 @@ static scene_t *s_before_working;  /* what had the screen; NULL: the menu */
 static void open_working(void *argument)
 {
     const char *const *lines = argument;
-    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    give_way_to_the_screen();
     /* The question that led here is put away first: it is not what the
      * screen goes back to. */
     if (s_confirm.is_to_put_away) {
@@ -486,7 +501,7 @@ static void close_working(void *argument)
     }
     /* One instance at a time: an application taking an answer off the
      * screen goes before the one that had the screen is loaded again. */
-    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000);
+    give_way_to_the_screen();
     if (wm.current == s_working) {
         wm_show(&wm, s_before_working != NULL ? s_before_working : s_menu);
     } else {

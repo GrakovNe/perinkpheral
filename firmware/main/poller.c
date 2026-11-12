@@ -26,6 +26,7 @@
 #include "power.h"
 #include "status.h"
 #include "storage.h"
+#include "text_template.h"
 #include "wifi.h"
 
 /* What ties the polls to the host: which are wanted (poll_schedule.c),
@@ -262,9 +263,17 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
     if (app == NO_APP) {
         return HOST_ERR_FAILED;
     }
-    /* Only where the manifest said the application would go. */
+    /* Only where the manifest said the application would go - and that is
+     * asked of the address as it will be, the user's own server put in. */
+    char url[APP_URL_MAX + 1];
+    if (!text_template_fill_url(asked->url, poller_net_setting_of, (void *)app_name, url,
+                                sizeof url)) {
+        return HOST_ERR_ARGUMENT;
+    }
     char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    bool  allowed = manifest != NULL && app_manifest_allows_url(manifest, asked->url);
+    bool  allowed = manifest != NULL &&
+                    app_manifest_allows_url(manifest, url, poller_net_setting_of,
+                                            (void *)app_name);
     free(manifest);
     if (!allowed) {
         ESP_LOGW(TAG, "%s: a request to a host its manifest does not list", app_name);
@@ -287,7 +296,7 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
         free_slot->order = s_next_order++;
         free_slot->queued_ms = uptime_ms();
         free_slot->method = asked->method;
-        strcpy(free_slot->url, asked->url);
+        strcpy(free_slot->url, url);
         memcpy(free_slot->headers, asked->headers, sizeof free_slot->headers);
         free_slot->header_count = asked->header_count;
         free_slot->body_length = asked->body_length;
@@ -394,6 +403,28 @@ bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *
 }
 
 /* ---- the polls ---- */
+
+#define ABANDONED_AGAIN_MS (60 * 1000)
+
+/* The poll whose answer the application was not there to take to its end:
+ * the one being fetched - there is one request at a time. With the lock. */
+static struct {
+    bool is_one;
+    int  app;
+    int  poll;
+} s_abandoned;
+
+void poller_answer_was_abandoned(const char *app_name, int request)
+{
+    if (s_lock == NULL || request >= HOST_REQUEST_FIRST) {
+        return; /* a request of the application's own is not the host's to repeat */
+    }
+    lock();
+    s_abandoned.app = id_of(app_name);
+    s_abandoned.poll = request;
+    s_abandoned.is_one = s_abandoned.app != NO_APP;
+    unlock();
+}
 
 void poller_poll_is_due(uint32_t app, int poll)
 {
@@ -509,6 +540,14 @@ static bool run_wanted_poll(void)
     lock();
     poll_schedule_answered(&s_schedule, app, poll);
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
+    if (s_abandoned.is_one && s_abandoned.app == app && s_abandoned.poll == poll) {
+        /* Its answer was cut short by somebody at the device: again when
+         * they are likely done, not a whole period later. */
+        s_abandoned.is_one = false;
+        if (pace_ms > ABANDONED_AGAIN_MS) {
+            pace_ms = ABANDONED_AGAIN_MS;
+        }
+    }
     unlock();
     if (pace_ms > 0) {
         deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, pace_ms);

@@ -190,16 +190,68 @@ static void test_settings(void)
     }
 }
 
+/* The user's own server, as the settings of the test hold it. */
+static const char *server_setting;
+
+static bool setting_value(void *context, const char *key, char *value, size_t value_size)
+{
+    (void)context;
+    if (strcmp(key, "server") != 0 || server_setting == NULL) {
+        return false;
+    }
+    snprintf(value, value_size, "%s", server_setting);
+    return true;
+}
+
+static void test_a_server_of_the_users_own(void)
+{
+    const char *manifest =
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+        "\"settings\":[{\"key\":\"server\",\"type\":\"url\",\"title\":\"Server\"},"
+        "{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"}],"
+        "\"polls\":[{\"url\":\"{{server}}/api/states\",\"every\":60}],"
+        "\"hosts\":[\"{{server}}\"]}";
+    CHECK(parse(manifest) == APP_MANIFEST_OK);
+    /* the setting takes a server and nothing more */
+    CHECK(app_manifest_accepts_setting(manifest, "server", "https://ha.example.org", NULL));
+    CHECK(app_manifest_accepts_setting(manifest, "server", "http://192.168.1.10:8123", NULL));
+    CHECK(app_manifest_accepts_setting(manifest, "server", "", NULL)); /* not set */
+    CHECK(!app_manifest_accepts_setting(manifest, "server", "ha.example.org", NULL));
+    CHECK(!app_manifest_accepts_setting(manifest, "server", "https://ha.example.org/api", NULL));
+    CHECK(!app_manifest_accepts_setting(manifest, "server", "https://me:pw@ha.example.org", NULL));
+    CHECK(!app_manifest_accepts_setting(manifest, "server", "ftp://ha.example.org", NULL));
+    /* requests of its own go where the user said the server is, and nowhere else */
+    server_setting = "http://192.168.1.10:8123";
+    CHECK(app_manifest_allows_url(manifest, "http://192.168.1.10:8123/api/services/light/on",
+                                  setting_value, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10:9000/api", setting_value, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.11:8123/api", setting_value, NULL));
+    server_setting = NULL; /* nothing set: nowhere to go */
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10:8123/api", setting_value, NULL));
+    CHECK(app_manifest_setting_type(manifest, "server") == APP_SETTING_URL);
+    CHECK(app_manifest_setting_type(manifest, "nothing") == -1);
+    char secrets[APP_SETTINGS_MAX][APP_SETTING_KEY_MAX + 1];
+    CHECK(app_manifest_secret_keys(manifest, secrets, APP_SETTINGS_MAX) == 1);
+    CHECK_STR(secrets[0], "token");
+
+    /* a poll or a host may begin with a setting only when it is a server's */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+                "\"settings\":[{\"key\":\"server\",\"type\":\"text\",\"title\":\"S\"}],"
+                "\"polls\":[{\"url\":\"{{server}}/x\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+                "\"polls\":[{\"url\":\"{{nobody}}/x\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
+}
+
 static void test_hosts(void)
 {
     const char *manifest = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[\"api.example.com\",\"192.168.1.10:32400\"]}";
     CHECK(parse(manifest) == APP_MANIFEST_OK);
-    CHECK(app_manifest_allows_url(manifest, "https://api.example.com/v1/x?y=1"));
-    CHECK(app_manifest_allows_url(manifest, "http://API.Example.com"));
-    CHECK(app_manifest_allows_url(manifest, "http://192.168.1.10:32400/status"));
+    CHECK(app_manifest_allows_url(manifest, "https://api.example.com/v1/x?y=1", NULL, NULL));
+    CHECK(app_manifest_allows_url(manifest, "http://API.Example.com", NULL, NULL));
+    CHECK(app_manifest_allows_url(manifest, "http://192.168.1.10:32400/status", NULL, NULL));
     /* another port is another host; so is a longer or a shorter name */
-    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10/status"));
-    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com.evil.net/"));
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10/status", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com.evil.net/", NULL, NULL));
     CHECK(app_manifest_is_same_host("http://Example.com/a", "https://example.COM/b?c"));
     CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com:8080/a"));
     CHECK(!app_manifest_is_same_host("http://example.com/a", "http://example.com.evil.net/a"));
@@ -210,18 +262,19 @@ static void test_hosts(void)
     CHECK(app_manifest_is_same_host("http://example.com/a", "http://example.com:80/b"));
     CHECK(app_manifest_is_same_host("http://example.com/a", "https://example.com:443/a"));
     CHECK(app_manifest_is_same_host("http://example.com:8080/a", "http://example.com:8080/b"));
-    CHECK(app_manifest_allows_url(manifest, "https://api.example.com:443/v1"));
-    CHECK(app_manifest_allows_url(manifest, "http://api.example.com:80/v1"));
-    CHECK(!app_manifest_allows_url(manifest, "http://api.example.com:8080/v1"));
-    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10:80/status"));
-    CHECK(!app_manifest_allows_url(manifest, "https://example.com/"));
-    CHECK(!app_manifest_allows_url(manifest, "https://evil.net/api.example.com"));
+    CHECK(app_manifest_allows_url(manifest, "https://api.example.com:443/v1", NULL, NULL));
+    CHECK(app_manifest_allows_url(manifest, "http://api.example.com:80/v1", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "http://api.example.com:8080/v1", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "http://192.168.1.10:80/status", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "https://example.com/", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "https://evil.net/api.example.com", NULL, NULL));
     /* what is before an @ is not the host */
-    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com@evil.net/"));
-    CHECK(!app_manifest_allows_url(manifest, "ftp://api.example.com/"));
-    CHECK(!app_manifest_allows_url(manifest, "https:///x") && !app_manifest_allows_url(manifest, ""));
+    CHECK(!app_manifest_allows_url(manifest, "https://api.example.com@evil.net/", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "ftp://api.example.com/", NULL, NULL));
+    CHECK(!app_manifest_allows_url(manifest, "https:///x", NULL, NULL) && !app_manifest_allows_url(manifest, "", NULL, NULL));
     /* no list: nowhere */
-    CHECK(!app_manifest_allows_url("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", "https://api.example.com/"));
+    CHECK(!app_manifest_allows_url("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", "https://api.example.com/",
+                                   NULL, NULL));
     static const char *const BAD[] = {
         "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":\"api.example.com\"}",
         "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[1]}",
@@ -244,5 +297,6 @@ int main(void)
     test_abi();
     test_settings();
     test_hosts();
+    test_a_server_of_the_users_own();
     REPORT();
 }
