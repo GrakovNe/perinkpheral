@@ -17,7 +17,7 @@ void app_delivery_init(app_delivery_state_t *state)
     state->settings_ms = 0;
 }
 
-static void call(app_t *app, const app_delivery_t *delivery)
+static void call_handler(app_t *app, const app_delivery_t *delivery)
 {
     if (delivery->kind == APP_DELIVERY_ALARM) {
         app_alarm(app, delivery->request);
@@ -31,6 +31,19 @@ static void call(app_t *app, const app_delivery_t *delivery)
     } else {
         app_data(app, delivery->request, delivery->data, delivery->length, delivery->flags,
                  delivery->http_status);
+    }
+}
+
+static void call(app_t *app, const app_delivery_t *delivery)
+{
+    bool is_an_answer = delivery->kind == APP_DELIVERY_PIECE ||
+                        delivery->kind == APP_DELIVERY_VALUES;
+    if (is_an_answer) {
+        app_answer_begins(app, delivery->response, delivery->http_status);
+    }
+    call_handler(app, delivery);
+    if (is_an_answer) {
+        app_answer_ends(app);
     }
 }
 

@@ -53,6 +53,10 @@ struct app {
     /* Set only while app_on_values() runs: what data_value() reads. */
     const char *const *values;
     int                value_count;
+    /* Set only while a handler of an answer runs: what data_response() says. */
+    bool                   is_in_answer;
+    const host_response_t *response;
+    int                    response_status;
     uint32_t    data_buffer_offset; /* where in its memory the application takes data */
     bool        has_data_buffer;
 
@@ -406,6 +410,30 @@ HOST_FUNCTION(host_data_value)
     m3ApiReturn((int32_t)length);
 }
 
+HOST_FUNCTION(host_data_response)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, response_offset);
+
+    app_t *app = APP_OF(runtime);
+    host_response_t *response = (host_response_t *)in_app_memory_to_fill(
+        runtime, _mem, response_offset, (int32_t)sizeof *response);
+    if (response == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (!app->is_in_answer) {
+        m3ApiReturn(HOST_ERR_NOT_FOUND);
+    }
+    if (app->response != NULL) {
+        memcpy(response, app->response, sizeof *response);
+    } else {
+        memset(response, 0, sizeof *response);
+        response->length = -1;
+    }
+    response->status = app->response_status;
+    m3ApiReturn(HOST_OK);
+}
+
 /* The largest code an application gets: 57 modules a side. Both buffers
  * of the generator are on the host's stack while it works. */
 #define QR_VERSION_MAX 10
@@ -741,7 +769,7 @@ HOST_FUNCTION(host_http_request)
     bool is_sound = url != NULL && headers != NULL && body != NULL && url_length >= 1 &&
                     url_length <= APP_URL_MAX && headers_length <= HOST_HTTP_HEADERS_MAX &&
                     body_length <= HOST_HTTP_BODY_MAX && method >= HOST_HTTP_GET &&
-                    method <= HOST_HTTP_DELETE && tag >= HOST_REQUEST_FIRST &&
+                    method <= HOST_HTTP_METHOD_LAST && tag >= HOST_REQUEST_FIRST &&
                     tag <= HOST_REQUEST_LAST && is_request_text(url, url_length, false) &&
                     is_request_text(headers, headers_length, true);
     /* Too large for the stack an application runs on. */
@@ -1138,6 +1166,7 @@ static const struct {
     { "gfx_bitmap", "i(iiii*)", host_gfx_bitmap },
     { "gfx_color", "i(i)", host_gfx_color },
     { "data_value", "i(iii)", host_data_value },
+    { "data_response", "i(i)", host_data_response },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
     { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
@@ -1488,6 +1517,19 @@ void app_draw(app_t *app, gfx_t *surface)
     surface->shade = GFX_SHADE_SOLID;
     app->surface = NULL;
     app->exit_requested = false;
+}
+
+void app_answer_begins(app_t *app, const host_response_t *response, int http_status)
+{
+    app->is_in_answer = true;
+    app->response = response;
+    app->response_status = http_status;
+}
+
+void app_answer_ends(app_t *app)
+{
+    app->is_in_answer = false;
+    app->response = NULL;
 }
 
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,

@@ -117,6 +117,14 @@ void app_draw(app_t *app, gfx_t *surface);
 /* A piece of the answer to a poll, as app_on_data() of host_api.h takes
  * it: at most HOST_DATA_CHUNK_MAX bytes, copied into the application's
  * own buffer. An application without the handler is left alone. */
+struct host_response; /* host_response_t of host_api.h */
+
+/* Around the handlers of an answer: what data_response() says meanwhile.
+ * `response` may be NULL - there was no answer - and `http_status` is
+ * then all that is known. */
+void app_answer_begins(app_t *app, const struct host_response *response, int http_status);
+void app_answer_ends(app_t *app);
+
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
               int http_status);
 

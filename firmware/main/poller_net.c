@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
@@ -57,20 +58,22 @@ static void note_network_use(bool worked)
 }
 
 static void hand_over_values(const char *app_name, int request, int http_status,
-                             const char *const *values, int count)
+                             const host_response_t *response, const char *const *values,
+                             int count)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = request,
-                                .http_status = http_status, .values = values,
-                                .value_count = count };
+                                .http_status = http_status, .response = response,
+                                .values = values, .value_count = count };
     hand_over(app_name, &delivery);
 }
 
 static void hand_over_piece(const char *app_name, int request, int http_status,
-                            const uint8_t *data, size_t length, int flags)
+                            const host_response_t *response, const uint8_t *data, size_t length,
+                            int flags)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = request,
-                                .http_status = http_status, .data = data, .length = length,
-                                .flags = flags };
+                                .http_status = http_status, .response = response,
+                                .data = data, .length = length, .flags = flags };
     hand_over(app_name, &delivery);
 }
 
@@ -92,6 +95,7 @@ typedef struct {
     app_poll_t poll;
     char       url[APP_URL_MAX + 1];
     char       header_value[APP_HEADER_VALUE_MAX + 1];
+    host_response_t response; /* what the headers of the answer said */
     const char *paths[JSON_PICK_PATHS_MAX];
     const char *values[JSON_PICK_PATHS_MAX];
     json_pick_t pick;
@@ -114,7 +118,50 @@ static const esp_http_client_method_t METHODS[] = {
     [HOST_HTTP_POST] = HTTP_METHOD_POST,
     [HOST_HTTP_PUT] = HTTP_METHOD_PUT,
     [HOST_HTTP_DELETE] = HTTP_METHOD_DELETE,
+    [HOST_HTTP_PATCH] = HTTP_METHOD_PATCH,
+    [HOST_HTTP_HEAD] = HTTP_METHOD_HEAD,
+    [HOST_HTTP_PROPFIND] = HTTP_METHOD_PROPFIND,
+    [HOST_HTTP_REPORT] = HTTP_METHOD_REPORT,
 };
+
+/* The headers an application may ask about, and where each goes. */
+static void note_header(host_response_t *response, const char *name, const char *value)
+{
+    const struct {
+        const char *name;
+        char       *text;
+        size_t      size;
+    } KEPT[] = {
+        { "Content-Type", response->content_type, sizeof response->content_type },
+        { "ETag", response->etag, sizeof response->etag },
+        { "Last-Modified", response->last_modified, sizeof response->last_modified },
+        { "Location", response->location, sizeof response->location },
+        { "Link", response->link, sizeof response->link },
+    };
+    for (size_t i = 0; i < sizeof KEPT / sizeof KEPT[0]; i++) {
+        if (strcasecmp(name, KEPT[i].name) == 0) {
+            strlcpy(KEPT[i].text, value, KEPT[i].size);
+            return;
+        }
+    }
+    if (strcasecmp(name, "Retry-After") == 0) {
+        /* Seconds; a date instead of them reads as 0, which is "none". */
+        long seconds = strtol(value, NULL, 10);
+        response->retry_after = seconds > 0 && seconds < INT32_MAX ? (int32_t)seconds : 0;
+    }
+}
+
+static esp_err_t on_http_event(esp_http_client_event_t *event)
+{
+    host_response_t *response = event->user_data;
+    if (event->event_id == HTTP_EVENT_ON_CONNECTED) {
+        /* A new answer begins: of the one that sent us here nothing is kept. */
+        memset(response, 0, sizeof *response);
+    } else if (event->event_id == HTTP_EVENT_ON_HEADER) {
+        note_header(response, event->header_key, event->header_value);
+    }
+    return ESP_OK;
+}
 
 /* The request of request->poll with the settings put in. False when a
  * setting it needs is not there yet. */
@@ -132,6 +179,8 @@ static bool prepare(request_t *request, const char *app_name, int method,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .user_agent = USER_AGENT,
         .buffer_size = HOST_DATA_CHUNK_MAX,
+        .event_handler = on_http_event,
+        .user_data = &request->response,
     };
     *client = esp_http_client_init(&config);
     if (*client == NULL) {
@@ -201,7 +250,8 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     for (int i = 0; i < path_count; i++) {
         request->values[i] = json_pick_value(&request->pick, i);
     }
-    hand_over_values(app_name, poll_number, http_status, request->values, path_count);
+    hand_over_values(app_name, poll_number, http_status, &request->response, request->values,
+                     path_count);
 }
 
 /* The answer as it comes. A piece is handed over once the next one is in
@@ -222,7 +272,8 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         if (next_length == 0) {
             flags |= HOST_DATA_LAST;
         }
-        hand_over_piece(app_name, poll_number, http_status, piece, (size_t)length, flags);
+        hand_over_piece(app_name, poll_number, http_status, &request->response, piece,
+                        (size_t)length, flags);
         if (flags & HOST_DATA_LAST) {
             return;
         }
@@ -232,7 +283,8 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         next = swapped;
         length = next_length;
     }
-    hand_over_piece(app_name, poll_number, HOST_FAILED_NO_ANSWER, NULL, 0, HOST_DATA_FAILED);
+    hand_over_piece(app_name, poll_number, HOST_FAILED_NO_ANSWER, NULL, NULL, 0,
+                    HOST_DATA_FAILED);
 }
 
 /* `why` is a HOST_FAILED_*, where the HTTP status would have been.
@@ -378,7 +430,14 @@ static void perform(request_t *request, const char *app_name, int number, int me
                      has_network ? HOST_FAILED_NO_ANSWER : HOST_FAILED_NO_NETWORK);
     } else {
         note_network_use(true);
-        if (wants_values) {
+            request->response.length = esp_http_client_is_chunked_response(client)
+                                       ? -1
+                                       : (int32_t)esp_http_client_get_content_length(client);
+        if (method == HOST_HTTP_HEAD) {
+            /* There is no body to wait for: the headers are the answer. */
+            hand_over_piece(app_name, number, http_status, &request->response, request->piece,
+                            0, HOST_DATA_FIRST | HOST_DATA_LAST);
+        } else if (wants_values) {
             fetch_values(request, client, app_name, number, http_status);
         } else {
             fetch_pieces(request, client, app_name, number, http_status);

@@ -10,6 +10,7 @@ APPSYS  := $(COMP)/appsys
 NET     := $(COMP)/net
 WASM3   := $(COMP)/wasm3/wasm3
 SDK     := ../../../sdk
+SDK_LIB := $(SDK)/lib
 MKAPP   := ../../../tools/mkapp/mkapp.py
 MAIN    := ../../main
 
@@ -98,7 +99,7 @@ build/probe_wasm.h: build/probe/app.wasm
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
 test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(WASM3_OBJS)
-	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) \
+	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
@@ -107,8 +108,8 @@ test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wi
 test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_dns.h $(QR_SRCS) $(QR)/include/wifi_qr.h
 	$(CC) $(CFLAGS) -I$(NET)/include $(QR_INCS) -o $@ test_setup.c $(NET)/captive_dns.c $(QR_SRCS)
 
-test_json_pick: test_json_pick.c tinytest.h $(APPSYS)/json_pick.c $(APPSYS)/include/json_pick.h
-	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_pick.c $(APPSYS)/json_pick.c
+test_json_pick: test_json_pick.c tinytest.h $(SDK_LIB)/json_pick.c $(SDK_LIB)/json_pick.h
+	$(CC) $(CFLAGS) -I$(APPSYS)/include -I$(SDK_LIB) -o $@ test_json_pick.c $(SDK_LIB)/json_pick.c
 
 test_catalog: test_catalog.c tinytest.h $(APPSYS)/catalog.c $(APPSYS)/include/catalog.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_catalog.c $(APPSYS)/catalog.c
@@ -121,7 +122,7 @@ test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 
 CJSON := $(IDF_PATH)/components/json/cJSON
 MANIFEST_SRCS := $(APPSYS)/app_manifest.c build/cJSON.o
-MANIFEST_FLAGS := -I$(APPSYS)/include -I$(CJSON) -I$(SDK)
+MANIFEST_FLAGS := -I$(APPSYS)/include -I$(CJSON) -I$(SDK) -I$(SDK_LIB)
 
 build/cJSON.o: $(CJSON)/cJSON.c
 	@mkdir -p build

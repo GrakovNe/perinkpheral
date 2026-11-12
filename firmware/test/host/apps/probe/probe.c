@@ -8,6 +8,7 @@
  */
 #include "app_values.h"
 #include "host_api.h"
+#include "json_pick.h"
 
 #define ROW_PRESSES        0  /* as many pixels as the buttons pressed add up to */
 #define ROW_TIMER          2  /* timer id + 1 pixels, once a timer fired */
@@ -152,11 +153,51 @@ void app_on_button(int32_t event)
     request_redraw(HOST_REDRAW_NORMAL);
 }
 
+enum { REQUEST_WITH_HEADERS = 3, REQUEST_OF_JSON = 4 };
+
+static bool same_bytes(const char *left, const char *right)
+{
+    while (*left != '\0' && *left == *right) {
+        left++;
+        right++;
+    }
+    return *left == *right;
+}
+
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
     if (flags & HOST_DATA_FAILED) {
         data_failed = request;
+        return;
+    }
+    if (request == REQUEST_WITH_HEADERS) {
+        /* asks for the screen when the answer is described as the test sent it */
+        host_response_t response;
+        if (data_response(&response) == HOST_OK && response.status == 304 &&
+            response.length == -1 && response.retry_after == 30 &&
+            same_bytes(response.etag, "\"v7\"") && response.link[0] == '\0') {
+            request_focus();
+        }
+        return;
+    }
+    if (request == REQUEST_OF_JSON) {
+        /* an answer in pieces, picked apart by the library */
+        static const char *const PATHS[] = { "items[1].name", "count" };
+        static json_pick_t pick;
+        if (flags & HOST_DATA_FIRST) {
+            json_pick_init(&pick, PATHS, 2);
+        }
+        json_pick_feed(&pick, (const char *)data, (size_t)length);
+        if (flags & HOST_DATA_LAST) {
+            json_pick_finish(&pick);
+            const char *name = json_pick_value(&pick, 0);
+            const char *count = json_pick_value(&pick, 1);
+            if (name != NULL && count != NULL && same_bytes(name, "second") &&
+                same_bytes(count, "2")) {
+                request_focus();
+            }
+        }
         return;
     }
     if (request != 1) {
@@ -391,7 +432,7 @@ void app_on_draw(void)
             HOST_ERR_ARGUMENT &&
         http_request(HOST_REQUEST_LAST + 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, 7, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_request(REQUEST_ACTION, HOST_HTTP_METHOD_LAST + 1, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
         http_request(REQUEST_ACTION, HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
         http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "",

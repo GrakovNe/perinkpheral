@@ -438,6 +438,22 @@ static void test_data(void)
     draw(app);
     CHECK(gfx_get(&surface, 0, ROW_DATA) && gfx_get(&surface, 2, ROW_DATA));
 
+    /* what the headers said is there for the handler to ask, and only then */
+    host_response_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };
+    app_answer_begins(app, &described, 304);
+    app_data(app, 3, response, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 304);
+    app_answer_ends(app);
+    CHECK(app_take_focus_request(app));
+    app_data(app, 3, response, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 304);
+    CHECK(!app_take_focus_request(app));
+
+    /* JSON that comes in pieces is picked apart by the application's library */
+    static const char JSON[] = "{\"count\":2,\"items\":[{\"name\":\"first\"},{\"name\":\"second\"}]}";
+    size_t half = sizeof JSON / 2;
+    app_data(app, 4, (const uint8_t *)JSON, half, HOST_DATA_FIRST, 200);
+    app_data(app, 4, (const uint8_t *)JSON + half, sizeof JSON - 1 - half, HOST_DATA_LAST, 0);
+    CHECK(app_take_focus_request(app));
+
     /* a piece larger than the buffer is not delivered, let alone written */
     static uint8_t too_large[HOST_DATA_CHUNK_MAX + 1];
     app_data(app, 1, too_large, sizeof too_large, HOST_DATA_FIRST | HOST_DATA_LAST, 200);

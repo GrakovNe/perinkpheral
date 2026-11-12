@@ -161,6 +161,22 @@ APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, i
 APP_EXPORT(app_on_values, void app_on_values(int32_t request, int32_t http_status));
 HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t capacity));
 
+/* What is known of the answer beside its data: asked for inside
+ * app_on_data() and app_on_values(), about the answer being handed over.
+ * It is the same for every piece of one answer. A header the server did
+ * not send is an empty text, one that was longer than its room is cut. */
+typedef struct host_response {
+    int32_t status;            /* the HTTP status, or a HOST_FAILED_* */
+    int32_t length;            /* Content-Length; -1 when the server did not say */
+    int32_t retry_after;       /* Retry-After in seconds; 0 when there was none, or it was a date */
+    char    content_type[48];  /* "application/json; charset=utf-8" */
+    char    etag[64];          /* to send back as If-None-Match */
+    char    last_modified[32]; /* to send back as If-Modified-Since */
+    char    location[128];     /* of a redirect that was not followed */
+    char    link[192];         /* where the next page is */
+} host_response_t;
+HOST_IMPORT(data_response, int32_t data_response(host_response_t *response));
+
 /* Where the host may put a piece of data: HOST_DATA_CHUNK_MAX bytes of the
  * application's memory. sdk/lib has one ready; an application does not
  * write this itself. */
@@ -407,6 +423,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  * The instance that gets the answer is not the one that asked - that one
  * was unloaded - and the tag is how it knows what the answer is to.
  *
+ * An answer that is JSON is picked apart with sdk/lib/json_pick.h: every
+ * piece is fed to a picker, and the values are read after the last one.
+ *
  * `headers` is lines of "Name: value" separated by '\n', at most four.
  * {{key}} in the URL and in a header value is replaced by the setting of
  * that name, as in a poll.
@@ -425,6 +444,11 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
 #define HOST_HTTP_DELETE 3
+#define HOST_HTTP_PATCH    4
+#define HOST_HTTP_HEAD     5 /* the answer is one piece of no data: ask data_response() */
+#define HOST_HTTP_PROPFIND 6 /* these two are what a calendar server (CalDAV) is asked with */
+#define HOST_HTTP_REPORT   7
+#define HOST_HTTP_METHOD_LAST HOST_HTTP_REPORT
 #define HOST_HTTP_HEADERS_MAX 1023
 #define HOST_HTTP_BODY_MAX    512
 #define HOST_HTTP_PENDING_MAX 2

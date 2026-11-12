@@ -29,6 +29,8 @@ extern "C" {
  * takes it from both. */
 #define APP_FOCUS_MIN_GAP_MS 30000
 
+struct host_response; /* host_response_t of host_api.h */
+
 typedef enum {
     APP_DELIVERY_PIECE,  /* a piece of an answer as it came: app_on_data() */
     APP_DELIVERY_VALUES, /* the values picked out of an answer: app_on_values() */
@@ -44,6 +46,8 @@ typedef struct {
     /* Not worth loading an application for: it is given only to one that
      * is on the screen. News that there is nothing new. */
     bool only_on_screen;
+    /* PIECE and VALUES: what else is known of the answer, or NULL */
+    const struct host_response *response;
     /* PIECE */
     const uint8_t *data;
     size_t         length;

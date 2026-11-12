@@ -13,8 +13,12 @@ extern "C" {
 #endif
 
 /* Picks a few values out of a JSON document as it streams by, so that
- * neither the host nor an application ever holds the document: the
- * application names the paths it wants in its manifest -
+ * neither the host nor an application ever holds the document. The host
+ * does it for a poll that names its paths in the manifest ("pick"); an
+ * application does it itself for an answer that comes in pieces - a
+ * request of its own - by feeding every piece of app_on_data() to a
+ * picker and reading the values after the last one. The same code either
+ * way. The paths are written -
  *
  *     current.temperature_2m     daily.weather_code[0]     items[2].title
  *

@@ -4,17 +4,19 @@
  */
 #include "json_pick.h"
 
-#include <stdio.h>
-#include <string.h>
 
 #define NO_TARGET     (-1)
 #define NOT_ASCII     '?'
 #define ASCII_MAX     0x7F
 #define UNICODE_DIGITS 4
+#define DECIMAL_BASE   10
+#define INDEX_DIGITS_MAX 10 /* of an int */
 
 void json_pick_init(json_pick_t *pick, const char *const *paths, int path_count)
 {
-    memset(pick, 0, sizeof *pick);
+    /* A struct assigned whole becomes a memset or a memcpy, which both the
+     * host and an application have. */
+    *pick = (json_pick_t){ 0 };
     pick->paths = paths;
     pick->path_count = path_count < JSON_PICK_PATHS_MAX ? path_count : JSON_PICK_PATHS_MAX;
     pick->target = NO_TARGET;
@@ -30,6 +32,32 @@ static json_pick_level_t *innermost(json_pick_t *pick)
     return &pick->levels[pick->depth - 1];
 }
 
+/* Adds the text to the path. False when it does not fit. */
+static bool add_text(char path[JSON_PICK_PATH_MAX + 1], size_t *length, const char *text)
+{
+    for (; *text != '\0'; text++) {
+        if (*length >= JSON_PICK_PATH_MAX) {
+            return false;
+        }
+        path[(*length)++] = *text;
+    }
+    path[*length] = '\0';
+    return true;
+}
+
+static bool add_index(char path[JSON_PICK_PATH_MAX + 1], size_t *length, int index)
+{
+    char digits[INDEX_DIGITS_MAX + 1];
+    int at = INDEX_DIGITS_MAX;
+    digits[at] = '\0';
+    do {
+        digits[--at] = (char)('0' + index % DECIMAL_BASE);
+        index /= DECIMAL_BASE;
+    } while (index > 0 && at > 0);
+    return add_text(path, length, "[") && add_text(path, length, digits + at) &&
+           add_text(path, length, "]");
+}
+
 /* Where the value about to be read sits, written the way a manifest
  * writes it. False when it does not fit: such a path matches nothing. */
 static bool current_path(const json_pick_t *pick, char path[JSON_PICK_PATH_MAX + 1])
@@ -38,21 +66,29 @@ static bool current_path(const json_pick_t *pick, char path[JSON_PICK_PATH_MAX +
     path[0] = '\0';
     for (int level = 0; level < pick->depth; level++) {
         const json_pick_level_t *at = &pick->levels[level];
-        int written;
+        bool fits;
         if (at->is_array) {
-            written = snprintf(path + length, JSON_PICK_PATH_MAX + 1 - length, "[%d]", at->index);
+            fits = add_index(path, &length, at->index);
         } else if (at->key[0] == '\0') {
             return false;
         } else {
-            written = snprintf(path + length, JSON_PICK_PATH_MAX + 1 - length, "%s%s",
-                               length > 0 ? "." : "", at->key);
+            fits = (length == 0 || add_text(path, &length, ".")) &&
+                   add_text(path, &length, at->key);
         }
-        if (written < 0 || (size_t)written > JSON_PICK_PATH_MAX - length) {
+        if (!fits) {
             return false;
         }
-        length += (size_t)written;
     }
     return true;
+}
+
+static bool is_same_text(const char *one, const char *other)
+{
+    while (*one != '\0' && *one == *other) {
+        one++;
+        other++;
+    }
+    return *one == *other;
 }
 
 /* A scalar starts here: is it one of the wanted ones? */
@@ -67,7 +103,7 @@ static void aim(json_pick_t *pick)
     for (int i = 0; i < pick->path_count; i++) {
         /* The first occurrence wins: a document that repeats a key does
          * not get to overwrite what was read. */
-        if (!pick->found[i] && strcmp(pick->paths[i], path) == 0) {
+        if (!pick->found[i] && is_same_text(pick->paths[i], path)) {
             pick->target = i;
             pick->values[i][0] = '\0';
             return;
