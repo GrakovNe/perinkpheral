@@ -237,6 +237,10 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "storage_ok", storage_is_mounted());
     cJSON_AddNumberToObject(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+    memory_counts_t memory;
+    memory_read(&memory);
+    cJSON_AddNumberToObject(json, "memory_refusals", memory.refusals);
+    cJSON_AddNumberToObject(json, "failed_allocations", memory.failed_allocations);
     return send_json(request, "200 OK", json);
 }
 
@@ -255,8 +259,38 @@ static int receive(httpd_req_t *request, char *buffer, size_t length)
     return 0;
 }
 
+static httpd_handle_t s_server;
+
+/* The heap is critically short: whoever is talking to the page is cut
+ * off, and what their requests held comes back. */
+#define CONNECTIONS_MAX 8
+
+static void close_connections(void)
+{
+    int    sockets[CONNECTIONS_MAX];
+    size_t count = CONNECTIONS_MAX;
+    if (s_server == NULL || httpd_get_client_list(s_server, &count, sockets) != ESP_OK) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        httpd_sess_trigger_close(s_server, sockets[i]);
+    }
+}
+
+bool web_server_has_memory(httpd_req_t *request, memory_need_t need)
+{
+    if (memory_has(need)) {
+        return true;
+    }
+    send_failure(request, STATUS_BUSY, "Not enough memory.");
+    return false;
+}
+
 static esp_err_t handle_log(httpd_req_t *request)
 {
+    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
+        return ESP_OK;
+    }
     char *log = malloc(LOG_CAPTURE_BYTES + 1);
     if (log == NULL) {
         return httpd_resp_send_500(request);
@@ -605,6 +639,9 @@ static esp_err_t handle_ota(httpd_req_t *request)
 
 esp_err_t web_server_take_firmware(httpd_req_t *request)
 {
+    if (!web_server_has_memory(request, MEMORY_FOR_AN_UPDATE)) {
+        return ESP_OK;
+    }
     const char *error = ota_upload_begin(request->content_len);
     uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
     if (error == NULL && chunk == NULL) {
@@ -680,6 +717,8 @@ void web_server_start(void)
         ESP_LOGE(TAG, "cannot start: %s", esp_err_to_name(err));
         return;
     }
+    s_server = server;
+    memory_on_pressure(close_connections);
     static const httpd_uri_t ROUTES[OWN_ROUTES] = {
         { .uri = "/", .method = HTTP_GET, .handler = handle_page },
         { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },

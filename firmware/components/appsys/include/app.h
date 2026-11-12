@@ -96,6 +96,8 @@ typedef struct app app_t;
 typedef enum {
     APP_OK,
     APP_ERR_NO_MEMORY,
+    APP_ERR_OTHER_API,  /* asks the host for a call this host does not have, or has
+                           otherwise: made for another version of the host */
     APP_ERR_BAD_MODULE, /* not wasm, more than one page of memory, or an import
                            the host API does not have */
 } app_load_result_t;

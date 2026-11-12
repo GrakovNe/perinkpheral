@@ -1725,21 +1725,22 @@ static const uint8_t *read_name(wasm_reader_t *reader, uint32_t *length)
 #define WASM_SECTION_IMPORT  2
 #define WASM_IMPORT_FUNCTION 0
 
-/* True when everything the module imports is a function of the host API.
+/* Whether everything the module imports is a function of the host API.
  * The interpreter would load a module that imports something else and
- * trap only when it is called; an application that does not keep to the
- * contract is refused before it runs at all. */
-static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size, bool with_system)
+ * fail only when it is called. APP_OK, or why not: APP_ERR_OTHER_API for a
+ * call of the host's own that this host does not have - a module made
+ * for another version of it - and APP_ERR_BAD_MODULE for anything else. */
+static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, bool with_system)
 {
     if (wasm_size < WASM_HEADER_BYTES) {
-        return false;
+        return APP_ERR_BAD_MODULE;
     }
     wasm_reader_t reader = { wasm + WASM_HEADER_BYTES, wasm + wasm_size, false };
     while (reader.next < reader.end) {
         uint8_t section = read_byte(&reader);
         uint32_t section_size = read_leb_u32(&reader);
         if (reader.failed || section_size > (size_t)(reader.end - reader.next)) {
-            return false;
+            return APP_ERR_BAD_MODULE;
         }
         if (section != WASM_SECTION_IMPORT) {
             reader.next += section_size;
@@ -1752,14 +1753,23 @@ static bool imports_only_host_api(const uint8_t *wasm, size_t wasm_size, bool wi
             const uint8_t *field_name = read_name(&reader, &field_length);
             uint8_t kind = read_byte(&reader);
             read_leb_u32(&reader); /* the function's type */
-            if (reader.failed || kind != WASM_IMPORT_FUNCTION ||
-                !is_offered(module_name, module_length, field_name, field_length, with_system)) {
-                return false;
+            if (reader.failed || kind != WASM_IMPORT_FUNCTION) {
+                return APP_ERR_BAD_MODULE;
             }
+            if (is_offered(module_name, module_length, field_name, field_length, with_system)) {
+                continue;
+            }
+            /* The system API without having asked for it is not a matter
+             * of versions; neither is another module's function. */
+            bool is_the_hosts = module_length == sizeof HOST_MODULE - 1 &&
+                                memcmp(module_name, HOST_MODULE, module_length) == 0;
+            bool is_system = is_offered(module_name, module_length, field_name, field_length,
+                                        true);
+            return is_the_hosts && !is_system ? APP_ERR_OTHER_API : APP_ERR_BAD_MODULE;
         }
-        return !reader.failed;
+        return reader.failed ? APP_ERR_BAD_MODULE : APP_OK;
     }
-    return true;
+    return APP_OK;
 }
 
 /* False when the module declares one of these with another signature. A
@@ -1833,7 +1843,7 @@ static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t was
         m3_FreeModule(module);
         return load_result == m3Err_mallocFailed ? APP_ERR_NO_MEMORY : APP_ERR_BAD_MODULE;
     }
-    return link_host_api(module) ? APP_OK : APP_ERR_BAD_MODULE;
+    return link_host_api(module) ? APP_OK : APP_ERR_OTHER_API;
 }
 
 /* Asks the application where it takes data. Without a sound answer it
@@ -1865,8 +1875,9 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
                            bool with_system, const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
-    if (!imports_only_host_api(wasm, wasm_size, with_system)) {
-        return APP_ERR_BAD_MODULE;
+    app_load_result_t imports = check_imports(wasm, wasm_size, with_system);
+    if (imports != APP_OK) {
+        return imports;
     }
     app_t *app = calloc(1, sizeof *app);
     if (app == NULL) {

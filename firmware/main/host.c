@@ -21,6 +21,7 @@
 #include "display.h"
 #include "events.h"
 #include "launcher.h"
+#include "memory.h"
 #include "ota.h"
 #include "poller.h"
 #include "reset.h"
@@ -590,6 +591,9 @@ static void answer_deadlines(void)
             break;
         case DEADLINE_AWAKE_WINDOW:
             power_awake_is_over();
+            break;
+        case DEADLINE_MEMORY_LOOK:
+            memory_look();
             break;
         case DEADLINE_POWER_LOOK:
             if (power_look()) {

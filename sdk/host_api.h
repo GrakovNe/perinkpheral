@@ -153,6 +153,13 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 #define HOST_FAILED_NO_ANSWER   (-2) /* it is, and the server did not answer, or not to the end */
 #define HOST_FAILED_NOT_READY   (-3) /* a {{setting}} the request needs is not set */
 #define HOST_FAILED_NOT_ALLOWED (-4) /* redirected to a host the manifest's "hosts" does not list */
+#define HOST_FAILED_TIMEOUT     (-5) /* the server was reached and did not answer in time */
+#define HOST_FAILED_NOT_TRUSTED (-6) /* https, and the server's certificate is not one the device
+                                        trusts: its own making, expired, or for another name */
+#define HOST_FAILED_TOO_LARGE   (-7) /* the answer is over HOST_ANSWER_MAX bytes */
+#define HOST_FAILED_NO_MEMORY   (-8) /* the device has no room for the request just now */
+/* The largest answer the host reads, picked apart or handed on in pieces. */
+#define HOST_ANSWER_MAX (256 * 1024)
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 
@@ -679,7 +686,8 @@ HOST_IMPORT(http_request,
 
 /* Another pace for poll number `poll` than the manifest says - the
  * server told when to come again. From 10 seconds to a day, counted from
- * now, until the device restarts. */
+ * now. It is the poll's pace from then on, through a restart too, until
+ * it is set again or the application is removed with what it stored. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
 
 /* ---- Intents ----

@@ -25,6 +25,7 @@ typedef enum {
     DEADLINE_ALARM,           /* owner: the application's id; number: its alarm */
     DEADLINE_AWAKE_WINDOW,    /* the while after a press is over */
     DEADLINE_POWER_LOOK,      /* is a computer on the cable: the power profile follows it */
+    DEADLINE_MEMORY_LOOK,     /* is the heap short: see memory.h */
     DEADLINE_WIFI_RETRY,
     DEADLINE_STOP,            /* the device stops: see host_stop_soon() */
     DEADLINE_DATE,            /* the day in the header is another */

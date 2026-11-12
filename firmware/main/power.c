@@ -19,6 +19,7 @@ static const char *TAG = "power";
 
 static SemaphoreHandle_t  s_lock;
 static bool               s_is_saving;
+static power_mode_t        s_mode; /* what the user chose; s_is_saving follows from it */
 static int                s_radio_holds;
 static bool               s_is_awake_for_user; /* the while after a press */
 
@@ -68,10 +69,35 @@ static void apply_sleep(void)
     }
 }
 
+/* The chip does not sleep at all for the while after a press when the
+ * cable decides the profile: a sleeping chip's USB is off, and a computer
+ * plugged in meanwhile would never be seen. Awake, it is - so "plugged it
+ * into the computer and pressed a button" is always noticed. */
+static esp_pm_lock_handle_t s_stay_up;
+static bool                 s_is_staying_up;
+
+/* With the lock held. */
+static void stay_up(bool wanted)
+{
+    if (s_stay_up == NULL) {
+        esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "cable", &s_stay_up);
+    }
+    if (s_stay_up == NULL || wanted == s_is_staying_up) {
+        return;
+    }
+    s_is_staying_up = wanted;
+    if (wanted) {
+        esp_pm_lock_acquire(s_stay_up);
+    } else {
+        esp_pm_lock_release(s_stay_up);
+    }
+}
+
 void power_awake_is_over(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_is_awake_for_user = false;
+    stay_up(false);
     apply_radio();
     xSemaphoreGive(s_lock);
     tell_reachable();
@@ -81,13 +107,13 @@ void power_awake_is_over(void)
 static void stay_awake_for_user(void)
 {
     s_is_awake_for_user = true;
+    stay_up(s_mode == POWER_AUTO);
     deadlines_set_in(DEADLINE_AWAKE_WINDOW, 0, 0, POWER_AWAKE_AFTER_PRESS_MS);
 }
 
 /* How often the cable is looked at while that decides anything. */
 #define LOOK_EVERY_MS 5000
 
-static power_mode_t s_mode;
 
 static bool is_to_save(power_mode_t mode)
 {

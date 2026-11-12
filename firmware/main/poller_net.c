@@ -4,6 +4,7 @@
  */
 #include "poller_net.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -30,7 +31,7 @@ static const char *TAG = "poller";
 
 #define REQUEST_TIMEOUT_MS  15000
 #define REQUEST_WITH_REDIRECTS_MS (2 * REQUEST_TIMEOUT_MS) /* the request and all it is sent on to */
-#define ANSWER_MAX_BYTES    (256 * 1024)
+#define ANSWER_MAX_BYTES    HOST_ANSWER_MAX
 #define USER_AGENT          "perinkpheral"
 #define HTTP_OK_FIRST       200
 #define HTTP_OK_LAST        299
@@ -245,7 +246,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     if (length < 0 || !is_whole) {
         /* Broke off, too long, or not JSON: what was read so far is not
          * an answer, and half of one must not pass for a whole one. */
-        http_status = HOST_FAILED_NO_ANSWER;
+        http_status = total > ANSWER_MAX_BYTES ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER;
     }
     for (int i = 0; i < path_count; i++) {
         request->values[i] = json_pick_value(&request->pick, i);
@@ -283,8 +284,9 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         next = swapped;
         length = next_length;
     }
-    hand_over_piece(app_name, poll_number, HOST_FAILED_NO_ANSWER, NULL, NULL, 0,
-                    HOST_DATA_FAILED);
+    hand_over_piece(app_name, poll_number,
+                    total > ANSWER_MAX_BYTES ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER, NULL,
+                    NULL, 0, HOST_DATA_FAILED);
 }
 
 /* `why` is a HOST_FAILED_*, where the HTTP status would have been.
@@ -363,6 +365,27 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
     return REDIRECT_FOLLOWED;
 }
 
+/* Why a request that got no answer got none, as an application is told. */
+static int why_no_answer(esp_http_client_handle_t client, esp_err_t err)
+{
+    if (!wifi_is_online()) {
+        return HOST_FAILED_NO_NETWORK;
+    }
+    int tls_error = 0, certificate_flags = 0;
+    esp_http_client_get_and_clear_last_tls_error(client, &tls_error, &certificate_flags);
+    /* The flags are what was wrong with the certificate the server showed;
+     * a handshake that failed without any is a server that does not speak
+     * what the device does, which is no answer. */
+    if (certificate_flags != 0) {
+        return HOST_FAILED_NOT_TRUSTED;
+    }
+    int socket_error = esp_http_client_get_errno(client);
+    if (err == ESP_ERR_TIMEOUT || socket_error == EAGAIN || socket_error == ETIMEDOUT) {
+        return HOST_FAILED_TIMEOUT;
+    }
+    return HOST_FAILED_NO_ANSWER;
+}
+
 /* Makes the request that request->poll describes and hands the answer
  * to the application under `number`. `only_listed_hosts`: a request of
  * the application's own, which a redirect must not take out of its
@@ -423,11 +446,10 @@ static void perform(request_t *request, const char *app_name, int number, int me
         ESP_LOGW(TAG, "%s/%d: redirected to a host its manifest does not list", app_name, number);
         tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_ALLOWED);
     } else if (err != ESP_OK || http_status <= 0) {
-        ESP_LOGW(TAG, "%s/%d: no answer: %s", app_name, number, esp_err_to_name(err));
-        bool has_network = wifi_is_online();
+        int why = why_no_answer(client, err);
+        ESP_LOGW(TAG, "%s/%d: no answer (%d): %s", app_name, number, why, esp_err_to_name(err));
         note_network_use(false);
-        tell_failure(app_name, number, wants_values,
-                     has_network ? HOST_FAILED_NO_ANSWER : HOST_FAILED_NO_NETWORK);
+        tell_failure(app_name, number, wants_values, why);
     } else {
         note_network_use(true);
             request->response.length = esp_http_client_is_chunked_response(client)
@@ -449,16 +471,19 @@ static void perform(request_t *request, const char *app_name, int number, int me
     esp_http_client_cleanup(client);
 }
 
-void poller_net_poll_without_network(const char *app_name, int poll_number)
+/* A poll that cannot be made now: the application on the screen is told
+ * why, and one that is not is left asleep - there is nothing new. */
+void poller_net_poll_not_made(const char *app_name, int poll_number, int why)
 {
     request_t *request = calloc(1, sizeof *request);
     if (request == NULL) {
         return;
     }
     if (load_poll(request, app_name, poll_number)) {
-        note_network_use(false);
-        tell_failure_to(app_name, poll_number, request->poll.pick_count > 0,
-                        HOST_FAILED_NO_NETWORK, true);
+        if (why == HOST_FAILED_NO_NETWORK) {
+            note_network_use(false);
+        }
+        tell_failure_to(app_name, poll_number, request->poll.pick_count > 0, why, true);
     }
     free(request);
 }

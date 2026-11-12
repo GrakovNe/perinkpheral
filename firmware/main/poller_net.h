@@ -36,10 +36,10 @@ bool poller_net_setting_of(void *context, const char *key, char *value, size_t v
 /* Poll number `poll_number` of the application's manifest. */
 void poller_net_poll(const char *app_name, int poll_number);
 
-/* The poll's time has come and there is no network: the application is
- * told if it is on the screen - it has something to show for it - and a
- * sleeping one is left asleep. */
-void poller_net_poll_without_network(const char *app_name, int poll_number);
+/* A poll that cannot be made now - `why` is a HOST_FAILED_*: no network,
+ * no memory. The application on the screen is told; one that is not is
+ * left asleep. */
+void poller_net_poll_not_made(const char *app_name, int poll_number, int why);
 
 /* A request of the application's own, answered under `number`. */
 typedef struct {

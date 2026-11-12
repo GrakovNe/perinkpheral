@@ -258,8 +258,56 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
     return err == ESP_OK ? result : storage_failed(app_name, key, err);
 }
 
+/* What the host itself keeps for an application, apart from the
+ * application's own values: the pace it asked for its polls. A namespace
+ * of its own, so that no key of the application's can be taken for it. */
+#define HOST_PREFIX "p."
+
+static esp_err_t open_host_store(const char *app_name, nvs_open_mode_t mode, nvs_handle_t *store)
+{
+    char namespace[NVS_NS_NAME_MAX_SIZE];
+    snprintf(namespace, sizeof namespace, HOST_PREFIX "%s", app_name);
+    return nvs_open_from_partition(PARTITION, namespace, mode, store);
+}
+
+static void pace_key(int poll, char key[NVS_KEY_NAME_MAX_SIZE])
+{
+    snprintf(key, NVS_KEY_NAME_MAX_SIZE, "pace%d", poll);
+}
+
+uint32_t app_kv_poll_pace(const char *app_name, int poll)
+{
+    nvs_handle_t store;
+    uint32_t     every_s = 0;
+    if (open_host_store(app_name, NVS_READONLY, &store) == ESP_OK) {
+        char key[NVS_KEY_NAME_MAX_SIZE];
+        pace_key(poll, key);
+        nvs_get_u32(store, key, &every_s);
+        nvs_close(store);
+    }
+    return every_s;
+}
+
+void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s)
+{
+    nvs_handle_t store;
+    if (open_host_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
+        return;
+    }
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    pace_key(poll, key);
+    if (nvs_set_u32(store, key, every_s) == ESP_OK) {
+        nvs_commit(store);
+    }
+    nvs_close(store);
+}
+
 void app_kv_erase(const char *app_name)
 {
+    char host_namespace[NVS_NS_NAME_MAX_SIZE];
+    snprintf(host_namespace, sizeof host_namespace, HOST_PREFIX "%s", app_name);
+    erase_namespace(PARTITION, host_namespace);
+
     nvs_handle_t store;
     if (open_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
         return;

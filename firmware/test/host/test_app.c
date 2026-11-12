@@ -530,7 +530,9 @@ static void test_bad_modules(void)
                                               0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x02, 0x0D,
                                               0x01, 0x04, 'h',  'o',  's',  't',  0x04, 'e',
                                               'v',  'i',  'l',  0x00, 0x00 };
-    CHECK(app_load("x", unknown_import, sizeof unknown_import, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    /* a call the host does not have: a module made for another version of it */
+    CHECK(app_load("x", unknown_import, sizeof unknown_import, false, &SERVICES, &app) ==
+          APP_ERR_OTHER_API);
 
     /* (module (type (func (param i32 i32 i32) (result i32)))
      *         (import "host" "sys_info" (func (type 0))))

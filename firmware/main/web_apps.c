@@ -140,6 +140,9 @@ static void add_settings(cJSON *app, const char *app_name)
 
 static esp_err_t handle_list(httpd_req_t *request)
 {
+    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
+        return ESP_OK;
+    }
     int                   count = read_installed();
     const app_manifest_t *installed = s_installed;
     cJSON                *apps = cJSON_CreateArray();
@@ -394,6 +397,9 @@ static bool pass_on(void *context, const uint8_t *piece, size_t length)
 
 static esp_err_t handle_catalog(httpd_req_t *request)
 {
+    if (!web_server_has_memory(request, MEMORY_FOR_A_SESSION)) {
+        return ESP_OK;
+    }
     char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
     if (!asked_source(request, source) ||
         !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
@@ -571,6 +577,9 @@ static bool is_sound_file_list(const cJSON *files)
 static esp_err_t handle_install(httpd_req_t *request)
 {
     if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    if (!web_server_has_memory(request, MEMORY_FOR_A_SESSION)) {
         return ESP_OK;
     }
     char query[QUERY_MAX], app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];

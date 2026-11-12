@@ -5,6 +5,8 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "mdns.h"
+
+#include "memory.h"
 #include "esp_mac.h"
 #include "esp_system.h"
 
@@ -172,6 +174,7 @@ void app_main(void)
     wifi_start(&wifi);
     s_name_lock = xSemaphoreCreateMutex();
     configASSERT(s_name_lock != NULL);
+    memory_start();
     power_on_reachable(announce_name);
     power_start((power_mode_t)cfg->power_saving);
     net_time_on_change(on_clock_moved);

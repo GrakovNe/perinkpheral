@@ -8,6 +8,8 @@
 
 #include "esp_http_server.h"
 
+#include "memory.h"
+
 #include "appconf.h"
 
 #ifdef __cplusplus
@@ -36,6 +38,10 @@ bool web_server_refuses_cross_site(httpd_req_t *request);
  * answered, and the device restarts into it. Nobody is asked: whoever
  * calls this has seen to that. */
 esp_err_t web_server_take_firmware(httpd_req_t *request);
+
+/* Whether there is room for an answer of this kind; when not, the request
+ * is answered "Not enough memory." and false comes back. */
+bool web_server_has_memory(httpd_req_t *request, memory_need_t need);
 
 #ifdef __cplusplus
 }

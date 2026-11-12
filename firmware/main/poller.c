@@ -15,11 +15,13 @@
 
 #include "app_manifest.h"
 #include "app_store.h"
+#include "app_kv.h"
 #include "deadlines.h"
 #include "events.h"
 #include "host.h"
 #include "host_api.h"
 #include "launcher.h"
+#include "memory.h"
 #include "poll_schedule.h"
 #include "poller_net.h"
 #include "power.h"
@@ -42,9 +44,7 @@ static const char *TAG = "poller";
 #define MEMORY_LOOK_AGAIN_MS 1000  /* no memory for a session just now */
 /* A TLS session takes about 45 KB while it is open; below this the
  * request waits for a better moment instead of taking the device down. */
-#define FREE_HEAP_NEEDED     (60 * 1024)
 /* And its largest buffer is one piece of 16 KB: the sum is not enough. */
-#define FREE_BLOCK_NEEDED    (17 * 1024)
 #define NO_APP               0 /* no application has this id */
 #define MS_PER_SECOND        1000
 
@@ -225,7 +225,9 @@ static pending_t s_pending[PENDING_MAX];
 static uint32_t  s_next_order;
 
 /* Makes the oldest request an application queued, if there is one. */
-static bool run_pending_request(void)
+/* Takes the request that has waited longest and makes it - or, with
+ * `why_not` a HOST_FAILED_*, answers it with that instead. */
+static bool run_pending_request(int why_not)
 {
     static pending_t taken; /* only this task makes requests; too large for its stack */
     char app_name[APP_NAME_MAX + 1]; /* its own: the list may change while the request runs */
@@ -250,7 +252,11 @@ static bool run_pending_request(void)
             .headers = taken.headers, .header_count = taken.header_count,
             .body = taken.body, .body_length = taken.body_length,
         };
-        poller_net_request(app_name, &ask);
+        if (why_not != 0) {
+            poller_net_tell_failure(app_name, ask.number, why_not);
+        } else {
+            poller_net_request(app_name, &ask);
+        }
     }
     return is_taken;
 }
@@ -450,10 +456,30 @@ void poller_network_is_back(void)
     wake();
 }
 
+/* A request waits for memory this many looks and is then told there is
+ * none: an answer, which waiting for ever is not. */
+#define MEMORY_LOOKS_MAX 6
+
+static int s_memory_looks;
+
 static bool has_memory_for_a_session(void)
 {
-    return esp_get_free_heap_size() >= FREE_HEAP_NEEDED &&
-           heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) >= FREE_BLOCK_NEEDED;
+    if (memory_has(MEMORY_FOR_A_SESSION)) {
+        s_memory_looks = 0;
+        return true;
+    }
+    s_memory_looks++;
+    return false;
+}
+
+/* Waited long enough: whatever was to be asked is answered "no memory". */
+static bool has_waited_for_memory_enough(void)
+{
+    if (s_memory_looks < MEMORY_LOOKS_MAX) {
+        return false;
+    }
+    s_memory_looks = 0;
+    return true;
 }
 
 /* Whether anything is waiting for the network now. */
@@ -517,9 +543,13 @@ static bool run_wanted_poll(void)
         return false;
     }
     bool has_network = wifi_is_online();
+    int  why_not = has_network ? 0 : HOST_FAILED_NO_NETWORK;
     if (has_network && !has_memory_for_a_session()) {
-        look_again_in(MEMORY_LOOK_AGAIN_MS);
-        return false;
+        if (!has_waited_for_memory_enough()) {
+            look_again_in(MEMORY_LOOK_AGAIN_MS);
+            return false;
+        }
+        why_not = HOST_FAILED_NO_MEMORY;
     }
     if (!has_network && s_is_holding_radio) {
         /* The radio is being brought up for this: woken when it is, and
@@ -528,10 +558,10 @@ static bool run_wanted_poll(void)
         return false;
     }
     if (is_installed) {
-        if (has_network) {
+        if (why_not == 0) {
             poller_net_poll(name, poll);
         } else {
-            poller_net_poll_without_network(name, poll);
+            poller_net_poll_not_made(name, poll, why_not);
         }
     }
     /* By id: if the application is gone meanwhile, so is its poll. */
@@ -566,7 +596,11 @@ static void poller_task(void *arg)
         bool has_network = wifi_is_online();
         if (has_network && has_pending_request()) {
             if (has_memory_for_a_session()) {
-                run_pending_request();
+                run_pending_request(0);
+                continue;
+            }
+            if (has_waited_for_memory_enough()) {
+                run_pending_request(HOST_FAILED_NO_MEMORY);
                 continue;
             }
             look_again_in(MEMORY_LOOK_AGAIN_MS);
@@ -612,12 +646,19 @@ static int schedule_installed(void)
     for (int i = 0; i < s_known_count; i++) {
         for (int poll = 0; poll < s_known[i].poll_count; poll++) {
             uint32_t first_in_ms;
-            /* A poll whose time was set before the chip slept deeply keeps
-             * it: the sleep was timed by it. */
-            if (!poll_schedule_has(&s_schedule, apps[i], poll) &&
-                poll_schedule_add(&s_schedule, apps[i], poll, s_known[i].poll_every_s[poll],
-                                  &first_in_ms) &&
-                !deadlines_has(DEADLINE_POLL, owners[i], poll)) {
+            if (poll_schedule_has(&s_schedule, apps[i], poll) ||
+                !poll_schedule_add(&s_schedule, apps[i], poll, s_known[i].poll_every_s[poll],
+                                   &first_in_ms)) {
+                continue;
+            }
+            /* The pace the application asked for before the restart, if it
+             * asked for one: the first fetch is at once all the same. */
+            uint32_t kept_s = app_kv_poll_pace(s_known[i].name, poll);
+            if (kept_s != 0) {
+                bool is_another;
+                poll_schedule_set_interval(&s_schedule, apps[i], poll, kept_s, &is_another);
+            }
+            if (!deadlines_has(DEADLINE_POLL, owners[i], poll)) {
                 deadlines_set_in(DEADLINE_POLL, owners[i], poll, first_in_ms);
             }
         }
@@ -709,8 +750,10 @@ bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
     unlock();
     if (found && is_another) {
-        /* Counted from now. */
+        /* Counted from now, and kept: a restart does not bring the
+         * manifest's pace back. */
         deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, pace_ms);
+        app_kv_set_poll_pace(app_name, poll, every_s);
     }
     return found;
 }

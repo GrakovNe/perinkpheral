@@ -28,6 +28,11 @@ int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t c
 /* value_length 0 removes the key. */
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length);
 
+/* The pace an application asked for one of its polls (poll_set_interval),
+ * kept for it through a restart; 0: none, the manifest's. */
+uint32_t app_kv_poll_pace(const char *app_name, int poll);
+void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
+
 /* Forgets everything the application stored: it is being removed. */
 void app_kv_erase(const char *app_name);
 

@@ -87,6 +87,11 @@ static bool load(app_scene_t *self)
     case APP_ERR_NO_MEMORY:
         self->load_error = "Out of memory.";
         break;
+    case APP_ERR_OTHER_API:
+        /* Made for a host that is not this one: after a firmware update,
+         * most likely. The catalog has the one that is. */
+        self->load_error = "Update the app.";
+        break;
     case APP_ERR_BAD_MODULE:
         self->load_error = "Invalid app.";
         break;
