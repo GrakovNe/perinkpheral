@@ -21,6 +21,30 @@ static bool               s_is_saving;
 static int                s_radio_holds;
 static bool               s_is_awake_for_user; /* the while after a press */
 
+/* Told whenever "somebody may want to find the device" changes: always
+ * while it is plugged, and for the while after a press while it saves.
+ * What only serves a person - the name on the network - runs then and
+ * not through every poll. */
+static void (*s_reachable_changed)(bool is_reachable);
+static bool s_was_reachable;
+static bool s_reachable_is_told;
+
+void power_on_reachable(void (*changed)(bool is_reachable))
+{
+    s_reachable_changed = changed;
+}
+
+/* Not with the lock held: whoever is told may take its time. */
+static void tell_reachable(void)
+{
+    bool is_reachable = !s_is_saving || s_is_awake_for_user;
+    if (s_reachable_changed != NULL && (!s_reachable_is_told || is_reachable != s_was_reachable)) {
+        s_reachable_is_told = true;
+        s_was_reachable = is_reachable;
+        s_reachable_changed(is_reachable);
+    }
+}
+
 /* With the lock held: the radio is on unless the device is saving and
  * nobody needs it. */
 static void apply_radio(void)
@@ -49,6 +73,7 @@ void power_awake_is_over(void)
     s_is_awake_for_user = false;
     apply_radio();
     xSemaphoreGive(s_lock);
+    tell_reachable();
 }
 
 /* With the lock held. */
@@ -69,6 +94,7 @@ void power_start(bool is_saving)
     apply_radio();
     xSemaphoreGive(s_lock);
     apply_sleep();
+    tell_reachable();
     ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "plugged");
 }
 
@@ -88,6 +114,7 @@ void power_set_saving(bool is_saving)
     xSemaphoreGive(s_lock);
     if (changed) {
         apply_sleep();
+        tell_reachable();
         ESP_LOGI(TAG, "%s", is_saving ? "saving power" : "plugged");
     }
 }
@@ -130,4 +157,5 @@ void power_note_press(void)
     stay_awake_for_user();
     apply_radio();
     xSemaphoreGive(s_lock);
+    tell_reachable();
 }

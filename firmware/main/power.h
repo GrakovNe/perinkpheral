@@ -25,6 +25,12 @@ extern "C" {
 /* After a press, and after power-up, the device stays reachable this long. */
 #define POWER_AWAKE_AFTER_PRESS_MS (2 * 60 * 1000)
 
+/* `changed` is called, from whichever task it happens in, when the device
+ * becomes one that a person may be looking for on the network, and when
+ * it stops being one: always while plugged, the while after a press while
+ * saving. Before power_start(). */
+void power_on_reachable(void (*changed)(bool is_reachable));
+
 /* Once, after Wi-Fi has started. */
 void power_start(bool is_saving);
 

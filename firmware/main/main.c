@@ -43,22 +43,40 @@ static const char *TAG = "main";
 
 /* The device answers to its name: <hostname>.local, and says it has a page.
  * Without this the name on the page and in the log is one nobody can open.
- * Not worth failing to start over: the address still works. */
-static void announce_name(const appconf_t *settings)
+ * Not worth failing to start over: the address still works.
+ *
+ * Only while somebody may be looking for it. The responder's own timer
+ * wakes the chip ten times a second for as long as it runs, radio or no
+ * radio, and a device on its battery cannot afford that between polls:
+ * there it runs for the while after a press, and not otherwise. */
+static SemaphoreHandle_t s_name_lock;
+static bool              s_name_is_announced;
+
+static void announce_name(bool is_wanted)
 {
-    esp_err_t err = mdns_init();
-    if (err == ESP_OK) {
-        err = mdns_hostname_set(settings->hostname);
+    xSemaphoreTake(s_name_lock, portMAX_DELAY);
+    if (is_wanted && !s_name_is_announced) {
+        static appconf_t settings; /* too large for a stack; under the lock */
+        settings_read(&settings);
+        esp_err_t err = mdns_init();
+        if (err == ESP_OK) {
+            err = mdns_hostname_set(settings.hostname);
+        }
+        if (err == ESP_OK) {
+            err = mdns_instance_name_set(settings.device_name);
+        }
+        if (err == ESP_OK) {
+            err = mdns_service_add(NULL, "_http", "_tcp", WEB_PORT, NULL, 0);
+        }
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "the name is not announced: %s", esp_err_to_name(err));
+        }
+        s_name_is_announced = true;
+    } else if (!is_wanted && s_name_is_announced) {
+        mdns_free();
+        s_name_is_announced = false;
     }
-    if (err == ESP_OK) {
-        err = mdns_instance_name_set(settings->device_name);
-    }
-    if (err == ESP_OK) {
-        err = mdns_service_add(NULL, "_http", "_tcp", WEB_PORT, NULL, 0);
-    }
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "the name is not announced: %s", esp_err_to_name(err));
-    }
+    xSemaphoreGive(s_name_lock);
 }
 
 /* The wall clock was set to another time, by the network or by hand.
@@ -152,8 +170,10 @@ void app_main(void)
     };
     status_start();
     wifi_start(&wifi);
+    s_name_lock = xSemaphoreCreateMutex();
+    configASSERT(s_name_lock != NULL);
+    power_on_reachable(announce_name);
     power_start(cfg->power_saving != APPCONF_POWER_PLUGGED);
-    announce_name(cfg);
     net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
     web_server_start();
