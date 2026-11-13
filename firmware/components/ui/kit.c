@@ -71,8 +71,7 @@ void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size)
 }
 
 #define KEY_PAD_X      6 /* around a button's name, inside its black */
-#define KEY_PAD_TOP    5
-#define KEY_PAD_BOTTOM 7
+#define KEY_PAD_Y      9 /* above its capitals and below them alike: the name stands in the middle */
 #define KEY_ACTION_GAP 8 /* from the name to what the button does */
 
 static int key_width(const char *name)
@@ -83,8 +82,9 @@ static int key_width(const char *name)
 static void draw_key(gfx_t *g, int left, int baseline, const char *name)
 {
     const gfx_font_t *font = kit_font(KIT_TEXT);
-    gfx_fill(g, left, baseline - gfx_font_ascent(font) - KEY_PAD_TOP, key_width(name),
-             gfx_font_ascent(font) + KEY_PAD_TOP + KEY_PAD_BOTTOM, true);
+    int capitals = gfx_font_cap_height(font);
+    gfx_fill(g, left, baseline - capitals - KEY_PAD_Y, key_width(name), capitals + 2 * KEY_PAD_Y,
+             true);
     gfx_text_font(g, left + KEY_PAD_X, baseline, font, name, false);
 }
 
