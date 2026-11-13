@@ -13,7 +13,6 @@
           @bottom-right { content: counter(page);
                           font: 7pt Helvetica, Arial, sans-serif; color: #141413;
                           border-top: .6pt solid #141413; padding-top: 2.2mm; vertical-align: top; } }
-  @page :first { margin: 0; @bottom-left { content: none; border: 0; } @bottom-right { content: none; border: 0; } }
   html { font: 9pt/1.45 Helvetica, Arial, sans-serif; color: var(--ink); }
   body { margin: 0; }
   /* The device's own font names things: a section, the guide itself. What is read is set in a
@@ -125,10 +124,10 @@
 <h1 class="part" id="part-1">Part I. Datasheet</h1>
 
 <h1 id="overview">1. Overview</h1>
-<p>perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. It shows information that is read at a glance: the time, the weather, the next meeting, the state of a home.</p>
-<p>The firmware is called the <i>host</i>. The host provides the menu and the settings. Everything else on the screen is an <i>application</i>. Applications are installed from a catalog without reflashing the device.</p>
-<p>An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>. The host runs it in an interpreter (wasm3).</p>
-<p>The host's own pages, Settings and About, are applications built with the same header.</p>
+<p>perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.</p>
+<p>The firmware is called the <i>host</i>. The menu and the settings are provided by the host. All other screens are provided by <i>applications</i>. Applications are installed from a catalog; the firmware is not reflashed.</p>
+<p>An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.</p>
+<p>The host's own pages, Settings and About, are built as applications with the same header.</p>
 
 <h2 id="overview-features">Features</h2>
 <div class="two">
@@ -151,9 +150,9 @@
 </div>
 
 <h2 id="overview-model">How an application runs</h2>
-<p>An application is a set of exported handlers with fixed names. The host calls a handler when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
-<p>A handler updates the application's state and requests a redraw. The host calls <code>app_on_draw()</code> when it needs a frame. The host decides when and how the panel is refreshed.</p>
-<p>One application is loaded at a time. The host unloads it when it leaves the screen. Persistent state is kept in the application's store; global variables live until the unload.</p>
+<p>An application is a set of exported handlers with fixed names. A handler is called by the host when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
+<p>The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by the host when a frame is needed. Refresh timing and method are decided by the host.</p>
+<p>One application is loaded at a time. An application is unloaded when it leaves the screen. Persistent state is kept in the application's store; global variables are kept until the unload.</p>
 
 <h1 id="characteristics">2. Characteristics</h1>
 
@@ -244,7 +243,7 @@
 </table>
 
 <h1 id="model">3. Execution model</h1>
-<p>The host loads an application to call a handler and can unload it after the call.</p>
+<p>An application is loaded for a handler call and can be unloaded after it.</p>
 
 <h2 id="model-life">Application lifecycle</h2>
 <table>
@@ -258,25 +257,25 @@
 
 <h2 id="model-rules">Handler guarantees</h2>
 <ul>
-  <li>Handlers run one at a time, each to completion. Locking is unnecessary.</li>
-  <li>A handler has 3 seconds. A handler that runs longer, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and the screen shows an error. The host keeps running.</li>
-  <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. A request takes effect after the handler returns.</li>
-  <li>The host calls <code>app_init()</code> before any other handler of an instance.</li>
-  <li>Button events arrive in order and are all delivered. Pending timers with the same number are merged into one. The pieces of one answer arrive in order, in consecutive calls.</li>
-  <li>Background delivery of an answer can be interrupted. If the user presses a button, the host unloads the instance and drops the remaining pieces. The application receives <code>app_on_terminate()</code> only. The host repeats the poll after one minute.</li>
+  <li>Handlers are run one at a time, each to completion. Locking is unnecessary.</li>
+  <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.</li>
+  <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.</li>
+  <li><code>app_init()</code> is called before any other handler of an instance.</li>
+  <li>Button events are delivered in order, without loss. Pending timers with the same number are merged. The pieces of one answer are delivered in order, in consecutive calls.</li>
+  <li>Background delivery of an answer can be interrupted. On a button press the instance is unloaded and the remaining pieces are dropped. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute.</li>
 </ul>
 
 <h2 id="model-state">State</h2>
-<p>Global variables live until the application is unloaded. Unloading happens every time the application leaves the screen and after every background call.</p>
-<p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call every instance receives. A value that must survive a power loss is saved immediately after it changes.</p>
+<p>Global variables are kept until the application is unloaded. Unloading occurs every time the application leaves the screen and after every background call.</p>
+<p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance. A value that must survive a power loss is saved immediately after it changes.</p>
 <p>Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
 
 <h2 id="model-screen">Navigation and refresh</h2>
-<p>Navigation is a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a question from the host or an application that requested the screen is placed on top of the current screen.</p>
-<p>A short press of BACK removes the top entry. A long press of BACK clears the stack and opens the menu.</p>
-<p>Only the top entry is loaded. An application lower in the stack is unloaded and restores its state when it returns to the top.</p>
-<p>The host controls the panel. It compares each new frame with the frame on the panel and sends only the changed area. It postpones a refresh that was not caused by a button press if the previous one was too recent.</p>
-<p>The panel always shows a complete frame. Refresh timing is decided by the host.</p>
+<p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.</p>
+<p>The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.</p>
+<p>Only the top entry is loaded. An application lower in the stack is unloaded; its state is restored when it returns to the top.</p>
+<p>The panel is controlled by the host. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.</p>
+<p>A complete frame is always shown. Refresh timing is decided by the host.</p>
 
 <h1 class="part" id="part-2">Part II. Development guide</h1>
 

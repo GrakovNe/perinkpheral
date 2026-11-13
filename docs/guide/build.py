@@ -10,7 +10,7 @@ into it - made of its headings - and prints it with a Chromium browser, twice:
 the first print tells on which page every heading landed.
 
 Needs a Chromium-based browser (the CHROME environment variable, or one found
-in the usual places) and pdftotext of poppler.
+in the usual places) and pdftotext and pdfunite of poppler.
 """
 import argparse
 import html
@@ -87,17 +87,36 @@ def main():
     source = re.sub(r"<table>\s*(<tr><th.*?</tr>)", r"<table><thead>\1</thead>", source, flags=re.S)
     # A section's number on a plate of its own: "4. A first application".
     source = re.sub(r'(<h1 id="[^"]+">)(\d+)\. ', r'\1<span class="plate">\2</span>', source)
-    # A marker inside every heading, for the first print to be searched for.
-    marked = re.sub(r'(<h[12][^>]*id="([^"]+)"[^>]*>)', r'\1<span class="mark">[[\2]]</span>', source)
+    # The cover is a sheet of its own, printed to its edges; a browser does not print one page of
+    # a document without margins and the rest with them. The two are joined afterwards.
+    cover_from = source.index('<div class="cover">')
+    cover_to = source.index("</div>", source.index('class="facts"')) + len("</div>")
+    cover_to = source.index("</div>", cover_to) + len("</div>")
+    body_from = source.index("<body>") + len("<body>")
+    cover = (source[:body_from] + "\n<style>@page { margin: 0; @bottom-left { content: none; border: 0; } "
+             "@bottom-right { content: none; border: 0; } }</style>\n" + source[cover_from:cover_to] +
+             "\n</body>\n</html>\n")
+    # The pages after the cover count from 2.
+    source = (source[:cover_from] + "<style>html { counter-reset: page 1; }</style>" + source[cover_to:])
     with tempfile.TemporaryDirectory() as scratch:
         page, first = os.path.join(scratch, "guide.html"), os.path.join(scratch, "first.pdf")
+        cover_pdf, body_pdf = os.path.join(scratch, "cover.pdf"), os.path.join(scratch, "body.pdf")
+        # A marker inside every heading, for the first print to be searched for.
+        marked = re.sub(r'(<h[12][^>]*id="([^"]+)"[^>]*>)', r'\1<span class="mark">[[\2]]</span>', source)
         with open(page, "w") as f:
             f.write(marked.replace("<!--CONTENTS-->", contents(found, {})))
         print_pdf(page, first)
-        pages = pages_of(first, found)
+        pages = {ident: number + 1 for ident, number in pages_of(first, found).items()}
         with open(page, "w") as f:
             f.write(source.replace("<!--CONTENTS-->", contents(found, pages)))
-        print_pdf(page, os.path.abspath(options.out))
+        print_pdf(page, body_pdf)
+        with open(page, "w") as f:
+            f.write(cover)
+        print_pdf(page, cover_pdf)
+        joined = subprocess.run(["pdfunite", cover_pdf, body_pdf, os.path.abspath(options.out)],
+                                capture_output=True, text=True)
+        if joined.returncode != 0:
+            sys.exit("pdfunite did not join the cover and the guide: " + joined.stderr[-300:])
     missing = [ident for _, ident, _ in found if ident not in pages]
     if missing:
         print("no page found for: " + ", ".join(missing))
