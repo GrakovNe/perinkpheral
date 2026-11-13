@@ -2,8 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * What the buttons do on the host's screens (ui_* in host_api.h), so that
- * an application writes only what the result is for:
+ * Button handling for the kit screens (ui_* in host_api.h):
  *
  *     static app_date_t when;
  *
@@ -21,10 +20,11 @@
  *
  *     void app_on_draw(void) { app_date_draw(&when); }
  *
- * The state is the application's: a struct it keeps and may read at any
- * time. The buttons are the host's layout - UP and DOWN change, OK goes
- * on, BACK goes back - and only short presses count. BACK comes to an
- * application through app_on_back(): hand it on as BTN_BACK_PRESSED.
+ * The application owns the state struct and can read it at any time.
+ * Button meanings follow the host: UP and DOWN change the value, OK
+ * confirms, BACK goes back. Only short presses are handled.
+ * BACK is delivered to an application through app_on_back(); pass it to
+ * these functions as BTN_BACK_PRESSED.
  */
 #pragma once
 
@@ -34,71 +34,75 @@
 #include "host_api.h"
 
 typedef enum {
-    APP_UI_IGNORED,   /* the press was not for this screen */
-    APP_UI_CHANGED,   /* the picture is another: ask for a redraw */
-    APP_UI_DONE,      /* OK on the last step: the value is the user's choice */
-    APP_UI_CANCELLED, /* BACK on the first step: nothing was chosen */
+    APP_UI_IGNORED,   /* the event is not handled by this screen */
+    APP_UI_CHANGED,   /* the state changed: request a redraw */
+    APP_UI_DONE,      /* OK on the last step: the value is confirmed */
+    APP_UI_CANCELLED, /* BACK on the first step: nothing was selected */
 } app_ui_result_t;
 
-/* ---- a list ---- */
+/* ---- List ---- */
 
-/* The list is the host's own description of it (host_list_t): how many
- * rows, which is chosen, where it stands on the surface. */
+/* List state: the host_list_t of the host API (row count, selected row,
+ * position on the surface). */
 typedef host_list_t app_list_t;
 
-/* With a row chosen, UP and DOWN move the choice, around the ends; OK is
- * APP_UI_DONE with `selected` the row. With none (`selected` -1: facts)
- * they move the list a row at a time and OK is nothing. BACK is
- * APP_UI_CANCELLED either way. */
+/* With a selection: UP and DOWN move the selection and wrap at the ends;
+ * OK returns APP_UI_DONE, `selected` is the row.
+ * Without a selection (`selected` = -1): UP and DOWN scroll by one row;
+ * OK is ignored.
+ * BACK returns APP_UI_CANCELLED in both cases. */
 app_ui_result_t app_list_button(app_list_t *list, int32_t event);
 
-/* In app_on_draw(), before the rows: the first row in sight. For a list
- * with nothing chosen it also brings `first` back inside the list, so
- * that a press past the end is not there to be undone. */
+/* Returns the first visible row. Call in app_on_draw() before drawing
+ * rows. For a list without a selection it also clamps `first` to the
+ * valid range. */
 int32_t app_list_first(app_list_t *list);
 
-/* ---- one of a row of values ---- */
+/* ---- Picker ---- */
 
 typedef struct {
     int32_t count;
     int32_t chosen;
-    bool    wraps; /* after the last comes the first: cities, not "never .. always" */
+    bool    wraps; /* the first value follows the last */
 } app_picker_t;
 
 app_ui_result_t app_picker_button(app_picker_t *picker, int32_t event);
 
-/* Draws it with `labels[i]` for value number i. */
+/* Draws the picker; `labels[i]` is the text of value i. */
 void app_picker_draw(const app_picker_t *picker, const char *const *labels);
 
-/* The same when the labels are worked out: the three in sight are given. */
+/* Draws the picker with the three visible texts given directly. */
 void app_picker_draw_texts(const app_picker_t *picker, const char *above, const char *chosen,
                            const char *below);
 
-/* The values in sight beside the chosen one, or -1 where the row ends. */
+/* Return the index of the value above or below the selected one, or -1
+ * at the end of the sequence. */
 int32_t app_picker_above(const app_picker_t *picker);
 int32_t app_picker_below(const app_picker_t *picker);
 
-/* ---- a time, a date, or both ---- */
+/* ---- Date and time ---- */
 
 typedef struct {
     int32_t year, month, day; /* month 1..12 */
     int32_t hour, minute;
     int32_t has;        /* HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE */
-    int32_t part;       /* the one being set: HOST_DATE_HOUR .. HOST_DATE_YEAR */
-    int32_t year_first; /* the years UP and DOWN go through */
+    int32_t part;       /* the part being set: HOST_DATE_HOUR .. HOST_DATE_YEAR */
+    int32_t year_first; /* range of years for UP and DOWN */
     int32_t year_last;
 } app_date_t;
 
-/* Starts at the first part, from the device's local time when it knows it. */
+/* Initializes the editor at its first part, with the local time of the
+ * device if it is known. */
 void app_date_start(app_date_t *date, int32_t has, int32_t year_first, int32_t year_last);
 
-/* UP is later and DOWN earlier, around the ends; OK is the next part and
- * APP_UI_DONE after the last; BACK is the part before and
- * APP_UI_CANCELLED from the first. */
+/* UP increases and DOWN decreases the part, wrapping at the ends.
+ * OK moves to the next part and returns APP_UI_DONE after the last one.
+ * BACK moves to the previous part and returns APP_UI_CANCELLED from the
+ * first one. */
 app_ui_result_t app_date_button(app_date_t *date, int32_t event);
 
 void app_date_draw(const app_date_t *date);
 
-/* The moment set, as seconds since 1970 of a clock that shows it - local
- * time; take time_zone_offset() off for UTC. */
+/* Returns the value as seconds since 1970 in local time. Subtract
+ * time_zone_offset() for UTC. */
 int64_t app_date_seconds(const app_date_t *date);

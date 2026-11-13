@@ -12,34 +12,34 @@
 extern "C" {
 #endif
 
-/* Picks a few values out of a JSON document as it streams by, so that
- * neither the host nor an application ever holds the document. The host
- * does it for a poll that names its paths in the manifest ("pick"); an
- * application does it itself for an answer that comes in pieces - a
- * request of its own - by feeding every piece of app_on_data() to a
- * picker and reading the values after the last one. The same code either
- * way. The paths are written -
+/* Streaming JSON value extractor. Extracts a fixed set of values from a
+ * JSON document without holding the document in memory.
+ *
+ * The host uses it for polls with "pick" in the manifest. An application
+ * uses it for a streamed answer: feed every piece from app_on_data(), then
+ * read the values after the last piece.
+ *
+ * Path syntax:
  *
  *     current.temperature_2m     daily.weather_code[0]     items[2].title
  *
- * - and gets the values as text. A number, true, false and null come as
- * they are written; a string comes without its quotes, escapes resolved,
- * as UTF-8 - what the device has no glyph for is the drawing's to
- * replace, not this one's to lose - and cut, when it is too long,
- * between characters. A path that leads to an object or an
- * array, or nowhere, has no value. Pure, host-tested. */
+ * Values are returned as text. Numbers, true, false and null are returned
+ * as written. Strings are returned without quotes, with escapes resolved,
+ * as UTF-8, cut between characters if too long. A path that points to an
+ * object, to an array or to nothing has no value.
+ * No dependencies; covered by host tests. */
 
 #define JSON_PICK_PATHS_MAX 16
 #define JSON_PICK_PATH_MAX  63
-#define JSON_PICK_VALUE_MAX 63 /* a longer value is cut */
-#define JSON_PICK_DEPTH_MAX 8  /* nothing is picked from deeper than this */
-#define JSON_PICK_KEY_MAX   31 /* a longer key matches nothing */
+#define JSON_PICK_VALUE_MAX 63 /* longer values are cut */
+#define JSON_PICK_DEPTH_MAX 8  /* deeper levels are not extracted */
+#define JSON_PICK_KEY_MAX   31 /* longer keys never match */
 
 typedef struct {
     bool is_array;
-    int  index;                      /* of the element being read, in an array */
-    bool expects_key;                /* in an object: the next string is a key */
-    char key[JSON_PICK_KEY_MAX + 1]; /* of the member being read; empty when too long */
+    int  index;                      /* array: index of the current element */
+    bool expects_key;                /* object: the next string is a key */
+    char key[JSON_PICK_KEY_MAX + 1]; /* key of the current member; empty if too long */
 } json_pick_level_t;
 
 typedef struct {
@@ -49,37 +49,38 @@ typedef struct {
     bool               found[JSON_PICK_PATHS_MAX];
 
     json_pick_level_t levels[JSON_PICK_DEPTH_MAX];
-    int               depth; /* may run past DEPTH_MAX: those levels are only counted */
+    int               depth; /* can exceed DEPTH_MAX: deeper levels are counted only */
     enum {
-        JSON_PICK_BETWEEN, /* outside any string or literal */
+        JSON_PICK_BETWEEN, /* outside strings and literals */
         JSON_PICK_IN_KEY,
         JSON_PICK_IN_STRING,
-        JSON_PICK_IN_LITERAL, /* a number, true, false, null */
+        JSON_PICK_IN_LITERAL, /* number, true, false, null */
     } state;
-    bool     escaped;        /* the character before was a backslash */
-    int      unicode_digits; /* of a \uXXXX still to come */
+    bool     escaped;        /* the previous character was a backslash */
+    int      unicode_digits; /* remaining digits of a \uXXXX escape */
     uint32_t unicode_value;
-    uint32_t high_half;  /* of a character that \u spells in two halves; 0: none waiting */
-    int      utf8_left;  /* bytes still to come of a character of several */
+    uint32_t high_half;  /* pending high surrogate of a \u pair; 0: none */
+    int      utf8_left;  /* remaining bytes of a multi-byte character */
     uint32_t utf8_value;
-    int      target;         /* which path the value being read is for, or -1 */
-    size_t   length;         /* of the key or the value collected so far */
+    int      target;         /* path index of the value being read, or -1 */
+    size_t   length;         /* length of the key or value collected so far */
     bool     broken;
 } json_pick_t;
 
-/* `paths` must stay where they are while the picker is used; more than
- * JSON_PICK_PATHS_MAX of them are ignored. */
+/* Initializes the extractor. `paths` must remain valid while it is used.
+ * Paths beyond JSON_PICK_PATHS_MAX are ignored. */
 void json_pick_init(json_pick_t *pick, const char *const *paths, int path_count);
 
-/* The next bytes of the document. False once it has turned out not to be
- * JSON; what was found before that stays. */
+/* Feeds the next bytes of the document. Returns false once the document
+ * is found to be invalid JSON; values extracted before that are kept. */
 bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);
 
-/* The end of the document: a number at the very end has no other way to
- * know it is complete. */
+/* Signals the end of the document. Required to complete a number at the
+ * very end of the input. */
 void json_pick_finish(json_pick_t *pick);
 
-/* The value of path number `index`, or NULL when the document had none. */
+/* Returns the value of path number `index`, or NULL if the document had
+ * none. */
 const char *json_pick_value(const json_pick_t *pick, int index);
 
 #ifdef __cplusplus
