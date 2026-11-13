@@ -69,6 +69,7 @@ struct app {
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
+    bool        told_not_drawing; /* once an instance: a mistake every beginner makes */
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
     bool        exit_requested;
     bool        focus_requested;
@@ -186,6 +187,20 @@ static bool is_drawable(int32_t coordinate)
     static const void *name(IM3Runtime runtime MAYBE_UNUSED, IM3ImportContext _ctx MAYBE_UNUSED, \
                             uint64_t *_sp MAYBE_UNUSED, void *_mem MAYBE_UNUSED)
 
+/* A drawing call from a handler draws nothing, and an application that
+ * ignores what it returns shows an empty screen with no word of why: the
+ * log says it, once an instance. */
+static int32_t not_drawing(app_t *app)
+{
+    static const char TOLD[] = "a drawing call outside app_on_draw() draws nothing: "
+                               "change the state and call request_redraw()";
+    if (!app->told_not_drawing && app->services != NULL && app->services->log != NULL) {
+        app->told_not_drawing = true;
+        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
+    }
+    return HOST_ERR_NOT_DRAWING;
+}
+
 HOST_FUNCTION(host_gfx_width)
 {
     m3ApiReturnType(int32_t);
@@ -213,7 +228,7 @@ HOST_FUNCTION(host_gfx_text)
     const gfx_font_t *font = font_by_id(font_id);
     char terminated[HOST_TEXT_MAX + 1];
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (font == NULL || !is_drawable(x) || !is_drawable(y) ||
         !copy_text(runtime, _mem, text, length, terminated)) {
@@ -303,7 +318,7 @@ HOST_FUNCTION(host_gfx_rect)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || !is_drawable(height)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -326,7 +341,7 @@ HOST_FUNCTION(host_gfx_line)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x0) || !is_drawable(y0) || !is_drawable(x1) || !is_drawable(y1)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -346,7 +361,7 @@ HOST_FUNCTION(host_gfx_bitmap)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     /* Bounded by the surface first, so that the size below cannot overflow. */
     if (!is_drawable(x) || !is_drawable(y) || width <= 0 || height <= 0 ||
@@ -379,7 +394,7 @@ HOST_FUNCTION(host_gfx_icon)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || cell < 1 || cell > HOST_ICON_CELL_MAX ||
         !gfx_icon(app->surface, (gfx_icon_id_t)icon, x, y, cell, true)) {
@@ -409,7 +424,7 @@ HOST_FUNCTION(host_gfx_picture)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     const uint8_t *picture = picture_of(runtime, _mem, picture_offset);
     if (picture == NULL || !is_drawable(x) || !is_drawable(y) || cell < 1 ||
@@ -453,7 +468,7 @@ HOST_FUNCTION(host_ui_list_visible)
     m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     list_t list;
     if (!read_list(runtime, _mem, list_offset, &list)) {
@@ -468,7 +483,7 @@ HOST_FUNCTION(host_ui_list_first)
     m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     list_t list;
     if (!read_list(runtime, _mem, list_offset, &list)) {
@@ -490,7 +505,7 @@ HOST_FUNCTION(host_ui_list_row)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     list_t list;
     char label[HOST_TEXT_MAX + 1];
@@ -531,7 +546,7 @@ HOST_FUNCTION(host_ui_notice)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     const uint8_t *given = in_app_memory(runtime, _mem, notice_offset, sizeof(host_notice_t));
     if (given == NULL) {
@@ -568,7 +583,7 @@ HOST_FUNCTION(host_ui_text_lines)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
@@ -591,7 +606,7 @@ HOST_FUNCTION(host_ui_text)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
@@ -635,7 +650,7 @@ HOST_FUNCTION(host_ui_title)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
     if (!copy_text(runtime, _mem, text_offset, length, text)) {
@@ -654,7 +669,7 @@ HOST_FUNCTION(host_ui_icon)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || !is_an_icon(icon) || size < HOST_UI_ICON_SMALL ||
         size > HOST_UI_ICON_LARGE) {
@@ -680,7 +695,7 @@ HOST_FUNCTION(host_ui_button)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char name[HOST_TEXT_MAX + 1];
     char action[HOST_TEXT_MAX + 1];
@@ -703,7 +718,7 @@ HOST_FUNCTION(host_ui_actions)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char ok[HOST_TEXT_MAX + 1];
     char back[HOST_TEXT_MAX + 1];
@@ -726,7 +741,7 @@ HOST_FUNCTION(host_ui_bar)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -762,7 +777,7 @@ HOST_FUNCTION(host_ui_value)
     m3ApiGetArg(int32_t, unit_length);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     m3ApiReturn(value_with_unit(runtime, _mem, app->surface, x, y, font_id, value, value_length,
                                 unit, unit_length));
@@ -806,7 +821,7 @@ HOST_FUNCTION(host_ui_reason)
     };
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (status >= 200 && status < 300) {
         m3ApiReturn(0); /* an answer came: what is wrong, if anything, is the application's to say */
@@ -837,7 +852,7 @@ HOST_FUNCTION(host_ui_frame)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width) || height < 1 ||
         !is_drawable(height)) {
@@ -855,7 +870,7 @@ HOST_FUNCTION(host_ui_picker)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     const uint8_t *given = in_app_memory(runtime, _mem, picker_offset, sizeof(host_picker_t));
     if (given == NULL) {
@@ -917,7 +932,7 @@ HOST_FUNCTION(host_ui_cell_fit)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     host_cell_t asked;
     kit_cell_t  cell;
@@ -935,7 +950,7 @@ HOST_FUNCTION(host_ui_cell)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     host_cell_t asked;
     kit_cell_t  cell;
@@ -955,7 +970,7 @@ HOST_FUNCTION(host_ui_date)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     const uint8_t *given = in_app_memory(runtime, _mem, date_offset, sizeof(host_date_t));
     if (given == NULL) {
@@ -990,7 +1005,7 @@ HOST_FUNCTION(host_gfx_color)
     m3ApiGetArg(int32_t, color);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     if (color < HOST_PAPER || color > HOST_INK) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -1072,7 +1087,7 @@ HOST_FUNCTION(host_gfx_qr)
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (cell > 0 && app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char terminated[HOST_QR_TEXT_MAX + 1];
     memcpy(terminated, text, (size_t)length);
@@ -1388,7 +1403,7 @@ HOST_FUNCTION(host_gfx_bitmap_file)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     char name[HOST_FILE_NAME_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || width <= 0 || height <= 0 ||
@@ -1965,7 +1980,7 @@ HOST_FUNCTION(host_sys_logo)
     }
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
     /* One stroke between the letters, as on the splash. */
     gfx_text_sq_ex(app->surface, x, y, LOGO_WORD, scale, true, scale);

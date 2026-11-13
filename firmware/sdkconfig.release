@@ -4,3 +4,8 @@
 # The development tools drive a device with nobody asked at it: not in a
 # firmware other people run.
 CONFIG_APP_DEV_CONSOLE=n
+# Words only a developer reads, and cannot use without the build beside them:
+# a failed assertion says where by its address, an error is its number.
+# 70 KB of the slot.
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
+CONFIG_ESP_ERR_TO_NAME_LOOKUP=n

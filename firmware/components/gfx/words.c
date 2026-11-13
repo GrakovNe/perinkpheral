@@ -41,7 +41,7 @@ static const char *const RUSSIAN[WORD_COUNT] = {
     [WORD_DISMISS] = "Закрыть", [WORD_CANCEL] = "Отмена", [WORD_CLOSE] = "Закрыть",
     [WORD_FORMAT] = "Очистить", [WORD_SKIP] = "Пропустить",
     [WORD_STORAGE] = "Ошибка", [WORD_STORAGE_ERROR] = "хранилища",
-    [WORD_UPDATING] = "Обновление", [WORD_UPDATING_IN_PROGRESS] = "идёт",
+    [WORD_UPDATING] = "Выполняется", [WORD_UPDATING_IN_PROGRESS] = "обновление",
     [WORD_CANNOT_START] = "не запускается", [WORD_CRASHED] = "аварийный сбой",
     [WORD_FILE_NOT_FOUND] = "Файл не найден.", [WORD_OUT_OF_MEMORY] = "Мало памяти.",
     [WORD_UPDATE_THE_APP] = "Нужно обновить.", [WORD_INVALID_APP] = "Неверный файл.",

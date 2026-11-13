@@ -54,8 +54,9 @@ static const char *TAG = "web";
 #define OWN_ROUTES            11
 #define SERVER_STACK_BYTES    6144
 
-extern const char index_html_start[] asm("_binary_index_html_start");
-extern const char index_html_end[] asm("_binary_index_html_end");
+/* The page, packed with gzip when the firmware was built. */
+extern const char index_html_start[] asm("_binary_index_html_gz_start");
+extern const char index_html_end[] asm("_binary_index_html_gz_end");
 
 static bool       s_is_up;
 
@@ -185,6 +186,7 @@ static esp_err_t send_ok(httpd_req_t *request, const char *message)
 static esp_err_t handle_page(httpd_req_t *request)
 {
     httpd_resp_set_type(request, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
     return httpd_resp_send(request, index_html_start, index_html_end - index_html_start);
 }
 

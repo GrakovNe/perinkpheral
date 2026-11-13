@@ -206,6 +206,10 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
  * new picture from the one it has already seen. */
 static uint32_t s_frames_shown;
 
+/* A wait shorter than this is the panel's own pace, not news. */
+#define TOLD_WAIT_FROM_MS 2000
+static bool s_told_of_the_wait;
+
 
 /* Puts the frame together and offers it to the display if anything
  * changed. Returns how long to wait before offering again, or
@@ -224,8 +228,15 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
      * application's picture least of all. */
     uint32_t too_soon_ms = display_wait_ms(reason);
     if (too_soon_ms > 0) {
+        /* Said once a frame: whoever writes an application takes a
+         * picture that waits its minute for one that never came. */
+        if (!s_told_of_the_wait && too_soon_ms > TOLD_WAIT_FROM_MS) {
+            s_told_of_the_wait = true;
+            ESP_LOGI(TAG, "a redraw waits %u s: the refresh policy", (unsigned)(too_soon_ms / 1000));
+        }
         return too_soon_ms;
     }
+    s_told_of_the_wait = false;
     wm_draw(wm, screen);
     switch (display_show(s_frame, reason)) {
     case DISPLAY_DEFERRED:
