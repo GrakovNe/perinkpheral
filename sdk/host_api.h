@@ -2,15 +2,14 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * perINKpheral host API: the one contract between the host firmware and
- * the wasm applications. Applications include this header and link the
- * imports; the host builds its import table from the same names.
+ * perINKpheral host API: the contract between the host firmware and wasm
+ * applications. Applications include this header and link the imports.
+ * The host builds its import table from the same names.
  *
- * The contract is still moving, and until the first release it is not
- * versioned either: it is simply changed, with no regard for applications
- * built before, and whoever changes it rebuilds the applications.
- * HOST_API_VERSION and the "abi" of a manifest are there for the day that
- * ends; until then the number stays where it is.
+ * The API is not frozen before the first release and is not versioned
+ * until then. A change requires rebuilding all applications.
+ * HOST_API_VERSION and the "abi" field of a manifest stay at 2 until the
+ * first release.
  */
 #pragma once
 
@@ -18,9 +17,9 @@
 
 #define HOST_API_VERSION 2
 
-/* The host firmware reads this header too, for the constants. It has
- * functions of its own under some of these names, so outside a wasm build
- * the declarations vanish. */
+/* The host firmware includes this header for its constants. Outside a
+ * wasm build the declarations expand to nothing, because the host defines
+ * functions with some of the same names. */
 #ifdef __wasm__
 #define HOST_IMPORT(name, ...) \
     __attribute__((import_module("host"), import_name(#name))) __VA_ARGS__
@@ -30,63 +29,61 @@
 #define APP_EXPORT(name, ...)
 #endif
 
-/* What an import returns when it does not return a value of its own. */
+/* Return codes of imports that return no value of their own. */
 #define HOST_OK               0
-#define HOST_ERR_NOT_DRAWING -1 /* a gfx_* call outside app_on_draw() */
-#define HOST_ERR_ARGUMENT    -2 /* a pointer outside the memory, an unknown font or timer */
-#define HOST_ERR_NOT_FOUND   -3 /* kv_get: nothing is stored under the key; time_local: no time yet */
-#define HOST_ERR_NO_SPACE    -4 /* kv_get: the value is larger than the buffer; kv_set: the storage is full */
-#define HOST_ERR_FAILED      -5 /* the storage itself failed; nothing was read or written */
+#define HOST_ERR_NOT_DRAWING -1 /* drawing call outside app_on_draw() */
+#define HOST_ERR_ARGUMENT    -2 /* pointer outside the application memory; unknown font or timer */
+#define HOST_ERR_NOT_FOUND   -3 /* kv_get: key not stored; time_local: time not set */
+#define HOST_ERR_NO_SPACE    -4 /* kv_get: value larger than the buffer; kv_set: store full */
+#define HOST_ERR_FAILED      -5 /* storage failure; nothing was read or written */
 
-/* ---- The application's side: exports, every one optional ---- */
+/* ---- Exports (all optional) ---- */
 
-/* Once, right after the module is loaded. The host unloads an application
- * whenever it leaves the screen, so state that must survive goes through
- * the kv_* calls, not into globals. */
+/* Called once, immediately after the module is loaded.
+ * The host unloads an application every time it leaves the screen. State
+ * that must persist is kept with kv_* calls, not in global variables. */
 APP_EXPORT(app_init, void app_init(void));
 
-/* The application got the screen / is about to lose it. */
+/* app_on_focus: the application has received the screen.
+ * app_on_blur: the application is about to lose the screen. */
 APP_EXPORT(app_on_focus, void app_on_focus(void));
 APP_EXPORT(app_on_blur, void app_on_blur(void));
 
-/* The last call an instance gets: it is about to be unloaded, whatever
- * the reason - it left the screen, an answer in the background is taken,
- * the device restarts or sleeps, the application is being removed. This is
- * where what must survive is put into the store; app_on_blur() comes
- * first when the application was on the screen, and is not called for one
- * that was not. */
+/* The last call of an instance, before it is unloaded for any reason:
+ * leaving the screen, end of a background delivery, device restart or
+ * sleep, removal of the application. Save persistent state here.
+ * app_on_blur() is called first if the application was on the screen. */
 APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 
-/* The four buttons, by what they do in the host's own screens; they sit
- * on the device in this order, and applications are encouraged to keep
- * the meaning. */
+/* Buttons, in their order on the device. The host uses these meanings on
+ * all of its screens. Applications should keep them. */
 #define BTN_UP   1
 #define BTN_OK   2
 #define BTN_DOWN 3
 #define BTN_BACK 4
 
-/* What a button did. A press arrives twice over. As it happens, for an
- * application that follows the finger: KEYDOWN, then KEYUP. And as what
- * it meant: PRESSED right after the key went up, or LONG_PRESSED while
- * it is still held - the release is then only a KEYUP. Most applications
- * handle PRESSED and LONG_PRESSED and ignore the other two. */
+/* Button actions. Each press produces two kinds of events:
+ *   raw:         KEYDOWN, then KEYUP;
+ *   interpreted: PRESSED when a short press ends, or LONG_PRESSED after
+ *                600 ms while the button is still held. A long press
+ *                produces no PRESSED; its release is a KEYUP only.
+ * Most applications handle PRESSED and LONG_PRESSED only. */
 #define BTN_KEYDOWN      0
 #define BTN_KEYUP        1
 #define BTN_PRESSED      2
 #define BTN_LONG_PRESSED 3
 
-/* BACK is the way out, and it is the host's unless the application takes
- * it. A short press of BACK leaves an application that has no
- * app_on_back(): the user is back where they came from - the menu, when
- * they opened the application there - and the application writes nothing
- * for it. One with pages of its own exports app_on_back() and gets the
- * press there instead: it goes a page back, and from its first page calls
- * request_exit(). Either way BTN_BACK_PRESSED never reaches
- * app_on_button(); BACK going down and up does, and a long press of BACK
- * is always the host's menu. */
+/* Short press of BACK.
+ * Without this export, a short press of BACK closes the application and
+ * returns the user to the previous screen.
+ * With this export, the press is delivered here. Typical handling: go one
+ * page back; on the first page call request_exit().
+ * BTN_BACK_PRESSED is never delivered to app_on_button(). BTN_BACK_KEYDOWN
+ * and BTN_BACK_KEYUP are. A long press of BACK always opens the host menu. */
 APP_EXPORT(app_on_back, void app_on_back(void));
 
-/* One number says both, and has a name:
+/* A button event combines a button and an action. Each combination has a
+ * constant:
  *
  *     void app_on_button(int32_t event)
  *     {
@@ -96,9 +93,9 @@ APP_EXPORT(app_on_back, void app_on_back(void));
  *         }
  *     }
  *
- * BTN_OF() and BTN_ACTION_OF() take an event apart for code that would
- * rather look at the two separately. BTN_BACK_LONG_PRESSED never arrives:
- * a long press on BACK opens the menu, whatever the application does. */
+ * BTN_OF() and BTN_ACTION_OF() split an event into its two parts.
+ * BTN_BACK_LONG_PRESSED is never delivered: a long press of BACK opens
+ * the host menu. */
 #define BTN_EVENT(button, action) ((button) << 2 | (action))
 #define BTN_OF(event)             ((event) >> 2)
 #define BTN_ACTION_OF(event)      ((event) & 3)
@@ -122,115 +119,122 @@ APP_EXPORT(app_on_back, void app_on_back(void));
 
 APP_EXPORT(app_on_button, void app_on_button(int32_t event));
 
-/* A timer set with timer_set() ran out. */
+/* A timer set with timer_set() has expired. */
 APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 
-/* The answer to one of the polls in the manifest, a piece at a time: the
- * host does not keep a whole response in memory. `request` is the poll's
- * number in the manifest. The first piece has HOST_DATA_FIRST and the
- * HTTP status, the last one HOST_DATA_LAST; a short answer is one piece
- * with both. An answer may also simply stop: the instance taking it off
- * the screen is unloaded when somebody presses a button, with no last
- * piece and no failure - app_on_terminate() is then the end of it, the
- * next HOST_DATA_FIRST starts afresh, and a poll cut short this way is
- * asked again in a minute. Nothing half-read is worth keeping.
- * HOST_DATA_FAILED comes alone, with no data: the request
- * could not be made, or broke off, and `http_status` says which - a
- * HOST_FAILED_* below, where a status would be. The data is in the buffer the
- * application gave with app_data_buffer() and is only there until the
- * handler returns.
+/* One piece of the answer to a poll or to http_request(). The host does
+ * not hold a complete response in memory.
  *
- * It is called whether the application is on the screen or not; off the
- * screen it is loaded for the delivery and unloaded after it, so what it
- * learns goes into the store, and request_focus() asks for the screen. */
+ * request:     poll number in the manifest, or the tag of http_request().
+ * data:        the piece, in the buffer returned by app_data_buffer().
+ *              Valid until the handler returns.
+ * flags:       HOST_DATA_FIRST on the first piece, HOST_DATA_LAST on the
+ *              last one. A short answer is one piece with both flags.
+ *              HOST_DATA_FAILED: single call without data; the request
+ *              was not made or was interrupted.
+ * http_status: HTTP status, delivered with the first piece. With
+ *              HOST_DATA_FAILED: a HOST_FAILED_* code.
+ *
+ * Delivery can stop without HOST_DATA_LAST and without HOST_DATA_FAILED:
+ * a background instance is unloaded when the user presses a button. Only
+ * app_on_terminate() is called then. The next HOST_DATA_FIRST starts a
+ * new answer. The host repeats an interrupted poll after one minute.
+ * Discard partially read data.
+ *
+ * Called on and off the screen. Off the screen the application is loaded
+ * for the delivery and unloaded after it. Save the result to the store.
+ * Call request_focus() to request the screen. */
 #define HOST_DATA_FIRST     1
 #define HOST_DATA_LAST      2
 #define HOST_DATA_FAILED    4
 #define HOST_DATA_CHUNK_MAX 1024
-/* Why there is no answer, where the HTTP status would be - in
- * app_on_data() with HOST_DATA_FAILED, and in app_on_values(). */
-#define HOST_FAILED_NO_NETWORK  (-1) /* the device is not on a network */
-#define HOST_FAILED_NO_ANSWER   (-2) /* it is, and the server did not answer, or not to the end */
-#define HOST_FAILED_NOT_READY   (-3) /* a {{setting}} the request needs is not set */
-#define HOST_FAILED_NOT_ALLOWED (-4) /* redirected to a host the manifest's "hosts" does not list */
-#define HOST_FAILED_TIMEOUT     (-5) /* the server was reached and did not answer in time */
-#define HOST_FAILED_NOT_TRUSTED (-6) /* https, and the server's certificate is not one the device
-                                        trusts: its own making, expired, or for another name */
-#define HOST_FAILED_TOO_LARGE   (-7) /* the answer is over HOST_ANSWER_MAX bytes, or
-                                        HOST_ANSWER_PIECES_MAX in pieces */
-#define HOST_FAILED_NO_MEMORY   (-8) /* the device has no room for the request just now */
-/* The largest answer the host reads to pick it apart, and the largest it
- * hands on in pieces: a calendar of some years is a megabyte or two. */
+/* Failure codes, delivered in place of the HTTP status: in app_on_data()
+ * with HOST_DATA_FAILED, and in app_on_values(). */
+#define HOST_FAILED_NO_NETWORK  (-1) /* no network connection */
+#define HOST_FAILED_NO_ANSWER   (-2) /* no answer from the server, or an incomplete answer */
+#define HOST_FAILED_NOT_READY   (-3) /* a {{setting}} used by the request is empty */
+#define HOST_FAILED_NOT_ALLOWED (-4) /* redirect to a host outside the manifest "hosts" list */
+#define HOST_FAILED_TIMEOUT     (-5) /* timeout after the server was reached */
+#define HOST_FAILED_NOT_TRUSTED (-6) /* HTTPS certificate not trusted: self-signed, expired,
+                                        or issued for another name */
+#define HOST_FAILED_TOO_LARGE   (-7) /* answer larger than HOST_ANSWER_MAX, or larger than
+                                        HOST_ANSWER_PIECES_MAX when streamed */
+#define HOST_FAILED_NO_MEMORY   (-8) /* insufficient device memory for the request */
+/* Maximum answer size: with value extraction ("pick"), and streamed. */
 #define HOST_ANSWER_MAX        (256 * 1024)
 #define HOST_ANSWER_PIECES_MAX (4 * 1024 * 1024)
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 
-/* The answer to a poll that names what it wants. A poll with "pick" in
- * the manifest - a list of paths into a JSON answer, such as
- * "current.temperature_2m" or "daily.weather_code[0]" - is read by the
- * host, and the application gets this one call instead of the pieces:
- * `request` is the poll's number, and `http_status` a HOST_FAILED_* when
- * there is no answer. Inside the handler data_value() gives the value of
- * path number `index`, as text and not terminated: a number, true, false
- * and null as they were written, a string without its quotes. It answers
- * HOST_ERR_NOT_FOUND for a path the answer did not have and
- * HOST_ERR_NO_SPACE for a buffer that is too small; a value is at most
- * HOST_VALUE_MAX bytes, and one that was longer is cut between characters. sdk/lib reads values as numbers and as text. */
+/* The answer to a poll with "pick" in the manifest. "pick" is a list of
+ * JSON paths, for example "current.temperature_2m" or
+ * "daily.weather_code[0]". The host reads the answer and extracts the
+ * values. The application receives this single call instead of pieces.
+ *
+ * request:     poll number in the manifest.
+ * http_status: HTTP status, or a HOST_FAILED_* code.
+ *
+ * data_value() is valid inside the handler. It copies the value of path
+ * number `index` as text without a terminator and returns its length.
+ * Numbers, true, false and null are copied as written; strings are copied
+ * without quotes. A value is at most HOST_VALUE_MAX bytes; a longer one
+ * is cut between characters.
+ * Returns HOST_ERR_NOT_FOUND if the answer does not contain the path,
+ * HOST_ERR_NO_SPACE if the buffer is too small.
+ * sdk/lib/app_values.h converts values to numbers and text. */
 #define HOST_VALUE_MAX 63
 APP_EXPORT(app_on_values, void app_on_values(int32_t request, int32_t http_status));
 HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t capacity));
 
-/* What is known of the answer beside its data: asked for inside
- * app_on_data() and app_on_values(), about the answer being handed over.
- * It is the same for every piece of one answer. A header the server did
- * not send is an empty text, one that was longer than its room is cut. */
+/* Response metadata. Valid inside app_on_data() and app_on_values(), for
+ * the answer being delivered. The same for every piece of one answer.
+ * A header that the server did not send is an empty string. A header
+ * longer than its field is cut. */
 typedef struct host_response {
-    int32_t status;            /* the HTTP status, or a HOST_FAILED_* */
-    int32_t length;            /* Content-Length; -1 when the server did not say */
-    int32_t retry_after;       /* Retry-After in seconds; 0 when there was none, or it was a date */
+    int32_t status;            /* HTTP status, or a HOST_FAILED_* code */
+    int32_t length;            /* Content-Length; -1 if absent */
+    int32_t retry_after;       /* Retry-After in seconds; 0 if absent or given as a date */
     char    content_type[48];  /* "application/json; charset=utf-8" */
-    char    etag[64];          /* to send back as If-None-Match */
-    char    last_modified[32]; /* to send back as If-Modified-Since */
-    char    location[128];     /* of a redirect that was not followed */
-    char    link[192];         /* where the next page is */
+    char    etag[64];          /* for If-None-Match */
+    char    last_modified[32]; /* for If-Modified-Since */
+    char    location[128];     /* target of a redirect that was not followed */
+    char    link[192];         /* Link header: address of the next page */
 } host_response_t;
 HOST_IMPORT(data_response, int32_t data_response(host_response_t *response));
 
-/* Where the host may put a piece of data: HOST_DATA_CHUNK_MAX bytes of the
- * application's memory. sdk/lib has one ready; an application does not
- * write this itself. */
+/* Returns the buffer for one piece of data: HOST_DATA_CHUNK_MAX bytes of
+ * application memory. Provided by sdk/lib; applications do not define it. */
 APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
 
-/* ---- Strings in the user's language ----
+/* ---- Localized strings ----
  *
- * What an application says, it says in the language the device is set to.
- * The translations are the developer's: a folder `strings` beside the
- * manifest, a file a language - en.json, ru.json - each an object of the
- * same keys:
+ * Application text is displayed in the language of the device.
+ * Translations are provided by the developer in the `strings` folder next
+ * to the manifest: one file per language (en.json, ru.json), each an
+ * object with the same keys:
  *
  *     { "no_events": "No events", "starts_in": "In {0} min" }
  *
- * tools/mkapp makes of them strings.h for the code - STR_NO_EVENTS,
- * STR_STARTS_IN, and app_string(id), the text itself - with English
- * built into the module, and a table for every other language beside it.
- * When the application is loaded the host puts the table of the device's
- * language where the English one was; app_string() costs nothing after
- * that. A language the application has no table for is English. The
- * build fails on a language the system does not know (sdk/languages.json),
- * on a translation that lacks a key or has one too many, and on a letter
- * the language's glyphs do not have.
+ * tools/mkapp generates strings.h: the constants STR_NO_EVENTS,
+ * STR_STARTS_IN and the function app_string(id). English is compiled into
+ * the module. Every other language is written as a table file.
+ * When the application is loaded, the host copies the table of the device
+ * language over the English table. A language without a table is shown
+ * in English.
+ * The build fails if a language is not listed in sdk/languages.json, if a
+ * translation has a missing or an extra key, or if a string contains a
+ * character that the glyph packs of the language do not cover.
  *
- * The table, as the host and mkapp agree on it: 16 bits of how many bytes
- * the buffer has, 16 bits of how many strings, an offset of 16 bits for
- * each from the table's start, and the strings, terminated. */
+ * Table format: 16 bits buffer size in bytes, 16 bits string count, one
+ * 16-bit offset from the table start per string, then the strings,
+ * null-terminated. */
 APP_EXPORT(app_strings_buffer, uint8_t *app_strings_buffer(void));
 
-/* A string with something put into it: "{0}", "{1}" in `pattern` are
- * replaced by the arguments of those numbers - in whatever order the
- * language wants them. An argument is a text, or with `text` NULL a
- * number. Writes at most `capacity` bytes, cut between characters, no
- * terminator; returns the length. */
+/* Replaces "{0}", "{1}" ... in `pattern` with the arguments of those
+ * numbers. Arguments can appear in any order.
+ * An argument is a text; if `text` is NULL, it is a number.
+ * Writes at most `capacity` bytes without a terminator, cut between
+ * characters. Returns the length. */
 typedef struct host_text_argument {
     int32_t     number;
     const char *text;
@@ -241,101 +245,97 @@ HOST_IMPORT(text_fill, int32_t text_fill(const char *pattern, int32_t pattern_le
                                          const host_text_argument_t *arguments, int32_t count,
                                          char *text, int32_t capacity));
 
-/* The user changed the application's settings on the device's web page.
- * The settings are declared in the manifest; each is text in the store
- * under its key, read with kv_get(). Called on the screen and off it,
- * like the data handlers. */
+/* The user has saved the application settings on the device web page.
+ * Settings are declared in the manifest. Each value is stored as text
+ * under the key of the setting and is read with kv_get().
+ * Called on and off the screen, like the data handlers. */
 APP_EXPORT(app_on_settings, void app_on_settings(void));
 
-/* Paint the whole picture from the application's state. The surface
- * arrives white; gfx_* calls work only in here. The host calls it when
- * the frame is needed, which is after request_redraw() and whenever the
- * host itself has to put the frame together again. Whether the panel is
- * then refreshed, and how, is the host's business: it compares frames. */
+/* Draws the complete frame from the application state. The surface is
+ * white on entry. Drawing calls work only inside this handler.
+ * Called after request_redraw() and whenever the host rebuilds the frame.
+ * The host compares frames and decides whether and how to refresh the
+ * panel. */
 APP_EXPORT(app_on_draw, void app_on_draw(void));
 
-/* ---- Drawing, inside app_on_draw() only ---- */
+/* ---- Drawing (inside app_on_draw() only) ---- */
 
-/* The surface is 400 x 300 for a full-screen application and 400 x 260
- * under the host's header otherwise; 0,0 is its top left corner. Ink is
- * black. Anything drawn outside the surface is cut off. */
+/* Surface size: 400 x 300 for a full-screen application, 400 x 260 below
+ * the host header otherwise. The origin is the top left corner. The
+ * default colour is black. Drawing is clipped to the surface. */
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 
-/* Text is UTF-8, everywhere in this contract: what an application draws,
- * measures and is handed. Every size has all of printable ASCII. A letter
- * beyond it is drawn with its own glyph when the user has added the pack
- * that has it (Latin with marks, Cyrillic, Greek), is spelled in Latin
- * letters when there is a spelling ("Moskva", "Strasse"), and is '?'
- * otherwise - so an application passes text on as it came, measures it
- * instead of counting, and never cuts it by bytes (gfx_text_fit). The
- * degree sign ("\xC2\xB0") is drawn in every size, pack or no pack.
+/* Text.
  *
- * A font is a size, not a typeface: the typeface is the user's choice, in
- * the device's settings - Departure Mono, monospaced, or Jersey, whose
- * letters have their own widths - and the capitals of a size are about as
- * tall in either. So nothing is laid out by counting characters: measure
- * (gfx_text_width, gfx_font_height, gfx_font_ascent, gfx_font_cap_height).
+ * All text in this API is UTF-8. Every font size contains printable ASCII.
+ * Any other character is drawn with the first available option:
+ *   1. its glyph, if the user has installed the glyph pack (Latin with
+ *      diacritics, Cyrillic, Greek);
+ *   2. an ASCII transliteration ("Moskva", "Strasse");
+ *   3. '?'.
+ * The degree sign ("\xC2\xB0") is built into every size.
+ * Pass text unchanged, measure it, and cut it with gfx_text_fit(), not by
+ * bytes.
  *
- * The sizes, as capitals / the whole line in pixels, Departure Mono and
- * then Jersey; a line of the surface's 400 pixels holds about so many
- * characters:
- *                       capitals   line       characters
+ * A font constant selects a size. The typeface is a user setting:
+ * Departure Mono (monospaced) or Jersey (proportional). Character widths
+ * differ, so layout must use measured widths: gfx_text_width(),
+ * gfx_font_height(), gfx_font_ascent(), gfx_font_cap_height().
+ *
+ * Sizes in pixels, Departure Mono / Jersey:
+ *                       capitals   line       characters per 400 px
  *   HOST_FONT_SMALL      8 / 10    15 / 21    57 / 50
  *   HOST_FONT_TEXT      16 / 15    30 / 28    28 / 33
  *   HOST_FONT_MEDIUM    24 / 25    45 / 43    19 / 21
  *   HOST_FONT_LARGE     32 / 30    60 / 56    14 / 16
  *   HOST_FONT_DISPLAY   48 / 50    90 / 86     9 / 10
  *   HOST_FONT_HUGE      80 / 80   150 / 140    5 / 6   */
-#define HOST_FONT_TEXT    0 /* the host's own text */
+#define HOST_FONT_TEXT    0 /* body text; the host's own text */
 #define HOST_FONT_MEDIUM  1
 #define HOST_FONT_LARGE   2
 #define HOST_FONT_DISPLAY 3
 #define HOST_FONT_HUGE    4 /* five digits fill the width */
-#define HOST_FONT_SMALL   5 /* secondary text beside something larger */
-/* A number that changes where it stands - a clock, a countdown - should
- * not shift what is beside it, and in a typeface whose digits are of
- * their own widths it does. Add HOST_FONT_TABULAR to the font and every
- * digit takes the room of the widest one:
+#define HOST_FONT_SMALL   5 /* units and captions */
+/* Tabular digits: every digit has the width of the widest one. Use for
+ * numbers that change in place, such as a clock or a countdown:
  *
  *     gfx_text(x, y, HOST_FONT_HUGE | HOST_FONT_TABULAR, "12:07", 5);
  *
- * gfx_text_width() takes the same, and must be asked the same way. What
- * is not a digit keeps its own width. */
+ * Every call that takes a font accepts the flag. Pass the same flag when
+ * measuring. Characters other than digits keep their own width. */
 #define HOST_FONT_TABULAR 0x100
 
-/* y is the top of the line, not the baseline. Text longer than
- * HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
+/* Draws text. `y` is the top of the line, not the baseline. Text longer
+ * than HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
 #define HOST_TEXT_MAX 127
 HOST_IMPORT(gfx_text, int32_t gfx_text(int32_t x, int32_t y, int32_t font, const char *text,
                                        int32_t length));
 HOST_IMPORT(gfx_text_width, int32_t gfx_text_width(int32_t font, const char *text,
                                                    int32_t length));
 
-/* The text as it fits `max_width` pixels: itself, or cut - between
- * characters, never inside one - with "..." after it. Written into
- * `fitted`, not terminated; returns its length, 0 when not even the dots
- * fit. This is how the host cuts its own. */
+/* Shortens `text` to `max_width` pixels. A text that does not fit is cut
+ * between characters and "..." is appended. Writes the result to `fitted`
+ * without a terminator. Returns its length; 0 if "..." alone does not fit. */
 HOST_IMPORT(gfx_text_fit, int32_t gfx_text_fit(int32_t font, const char *text, int32_t length,
                                                int32_t max_width, char *fitted,
                                                int32_t capacity));
 
-/* A line of a font, top to bottom: the baseline is gfx_font_ascent()
- * under the top, capitals and digits stand gfx_font_cap_height() high on
- * it, and gfx_font_height() is the whole line with the room for
- * descenders. To put the top of the digits at `top`, draw the text at
+/* Font metrics, measured from the top of the line:
+ *   gfx_font_height()      line height, including descenders;
+ *   gfx_font_ascent()      distance to the baseline;
+ *   gfx_font_cap_height()  height of capitals and digits above the baseline.
+ * To place the top of the digits at `top`, draw the text at
  * top - (gfx_font_ascent() - gfx_font_cap_height()). */
 HOST_IMPORT(gfx_font_height, int32_t gfx_font_height(int32_t font));
 HOST_IMPORT(gfx_font_ascent, int32_t gfx_font_ascent(int32_t font));
 HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
 
-/* What the calls below draw with, until the next gfx_color(): how dark,
- * from HOST_PAPER to HOST_INK. Every draw starts in ink; paper is for
- * text on a filled bar, a hole in a shape. Anything in between is a
- * grey the panel does not have and the host makes by dithering: that
- * many of every sixteen pixels are inked, in a fixed 4 x 4 pattern. A
- * grey is for areas - a fill, a wide bar; thin lines and small text come
- * out broken. */
+/* Sets the colour for the following calls: HOST_PAPER (0) to HOST_INK
+ * (16). The colour is HOST_INK at the start of every app_on_draw().
+ * Intermediate values are greys produced by dithering: N of every 16
+ * pixels are inked, in a fixed 4 x 4 pattern. Use greys for filled areas
+ * only; thin lines and small text become unreadable. */
 #define HOST_PAPER 0
 #define HOST_INK   16
 HOST_IMPORT(gfx_color, int32_t gfx_color(int32_t color));
@@ -346,106 +346,107 @@ HOST_IMPORT(gfx_rect, int32_t gfx_rect(int32_t x, int32_t y, int32_t width, int3
                                        int32_t fill));
 HOST_IMPORT(gfx_line, int32_t gfx_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1));
 
-/* bits: row after row, the most significant bit is the left pixel, every
- * row padded to a whole byte. A set bit is drawn in the current colour, a
- * clear one leaves what is there. */
+/* Draws a bitmap. `bits`: rows from top to bottom, the most significant
+ * bit is the left pixel, each row padded to a whole byte. Set bits are
+ * drawn in the current colour; clear bits are transparent. */
 HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, int32_t height,
                                            const uint8_t *bits));
 
-/* ---- The scene ---- */
+/* ---- Screen ---- */
 
-/* The picture is out of date: call app_on_draw(). How soon the panel
- * shows it follows from where this was called: from app_on_button() at
- * once, the user is looking; from app_on_timer() and app_on_data() by the
- * user's e-paper policy, which may be a minute.
+/* Requests a redraw: the host calls app_on_draw().
  *
- * HOST_REDRAW_SOON: show it now although nobody pressed anything - a
- * countdown that ran out. HOST_REDRAW_CLEAN: a full refresh, which blinks
- * for two or three seconds and leaves no trace of the old picture - for a
- * new image. The host keeps these two a second apart.
+ * When the panel shows the frame depends on the calling handler:
+ *   app_on_button(), app_on_back():  immediately;
+ *   app_on_timer(), app_on_data(), app_on_alarm(), app_on_intent(),
+ *   app_on_settings():               when the refresh policy of the user
+ *                                    allows, by default once a minute.
  *
- * HOST_REDRAW_NO_BLINK: one picture of a row - show it as soon as the
- * panel can, and never as the full refresh the host makes after every few
- * partial ones. The panel takes about half a second a picture and
- * app_on_draw() its own time on top: three pictures in two seconds at
- * best. Nothing queues up: a timer that runs out while the panel is busy
- * fires once, when it is free, so a timer shorter than the panel runs at
- * the panel's pace. A row that keeps time picks its picture by
- * time_uptime_ms() in app_on_draw() and skips what it missed. The traces
- * of the earlier pictures pile up for as long as the application keeps
- * asking: end the row with HOST_REDRAW_CLEAN, or they stay until the
- * user's own setting calls for a full refresh or the application leaves
- * the screen.
+ * Flags:
+ *   HOST_REDRAW_NORMAL    Default. Use after a button press and for data
+ *                         that can wait.
+ *   HOST_REDRAW_SOON      Show immediately without a button press. Use
+ *                         for data the user is waiting for.
+ *   HOST_REDRAW_CLEAN     Full refresh: 2 - 3 s, one flash, removes
+ *                         ghosting. Use for an image that must be clean.
+ *   HOST_REDRAW_NO_BLINK  One frame of a sequence: show as soon as the
+ *                         panel is ready, never as the periodic full
+ *                         refresh. Use for list navigation and for values
+ *                         that change every second.
  *
- * None of this is rationed: every refresh costs the battery and wears
- * the panel, and how much of both to spend is the application's call.
+ * SOON and CLEAN refreshes are at least one second apart.
  *
- * Which to ask for: HOST_REDRAW_NORMAL for anything a press led to and
- * for data that can wait its turn; HOST_REDRAW_NO_BLINK while the user
- * steps through something - a list, a value - and for a number that
- * turns every second; HOST_REDRAW_SOON for data worth showing now;
- * HOST_REDRAW_CLEAN for a picture that must have no trace of the last.
+ * Frame sequences (NO_BLINK). A partial refresh takes about 0.5 s plus
+ * the time of app_on_draw(); the maximum rate is about three frames in
+ * two seconds. Timer events do not queue: a timer that expires while the
+ * panel is busy fires once when the panel is ready. To keep time, select
+ * the frame by time_uptime_ms() in app_on_draw(). Ghosting accumulates
+ * during a sequence. End a sequence with HOST_REDRAW_CLEAN; otherwise
+ * ghosting stays until the next full refresh or until the application
+ * leaves the screen.
  *
- * From app_on_alarm(), app_on_intent() and app_on_settings() a redraw is
- * shown as one from app_on_data() is; from app_on_back(), as one from
- * app_on_button(). */
+ * The host does not limit redraw requests. Every refresh uses battery
+ * energy and wears the panel. */
 #define HOST_REDRAW_NORMAL   0
 #define HOST_REDRAW_SOON     1
 #define HOST_REDRAW_CLEAN    2
 #define HOST_REDRAW_NO_BLINK 4
 HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
-/* The host's header above an application that is not full-screen has two
- * texts: nothing on the left, beside the connection icon, and the date on
- * the right. An application may put its own there - a place, a title - in
- * the host's font and size; one that does not fit is cut with "...", and
- * the two never run into each other. A length of 0 gives a side back to
- * the host; a text of one space leaves it empty. It is not a drawing call: from any
- * handler, whenever the text changes; it is forgotten when the application leaves the screen. */
+/* Sets application text in the host header. The header is shown above an
+ * application that is not full-screen. Host defaults: left side empty
+ * (next to the connection icon), right side the date.
+ * The text is drawn in the host font and size. A text that does not fit
+ * is cut with "...". The two sides never overlap.
+ * Length 0 returns the side to the host. A text of one space leaves the
+ * side empty.
+ * Not a drawing call: callable from any handler. The text is cleared when
+ * the application leaves the screen. */
 #define HOST_HEADER_LEFT     0
 #define HOST_HEADER_RIGHT    1
 #define HOST_HEADER_TEXT_MAX 63
 HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
 
-/* An icon and a short line that stay in the header when the application
- * is not on the screen: something is going on that the user set going and
- * wants to keep in sight - a countdown, a track playing. The header reads
- * icon text ... text icon: on HOST_HEADER_LEFT the icon stands in place of
- * the host's own with the line after it, on HOST_HEADER_RIGHT the line
- * stands in place of the date with the icon after it. They are there above
- * every screen that has a header, whoever is on it. A side is the
- * application's that set it last. A length of 0 with HOST_ICON_NONE gives
- * the side back - only one's own: when another application has taken it
- * since, nothing changes. Removing the application gives it back too, and
- * so does a restart. Changing it shows on the panel as data does. It may
- * be set from any handler, on the screen or off it. */
+/* Sets a status in the host header: an icon and a short text shown above
+ * every screen with a header while the application is off the screen.
+ * Use for an activity the user started, such as a countdown.
+ * Layout: icon text ... text icon. On HOST_HEADER_LEFT the icon replaces
+ * the host icon and the text follows it. On HOST_HEADER_RIGHT the text
+ * replaces the date and the icon follows it.
+ * A side belongs to the application that set it last. Length 0 with
+ * HOST_ICON_NONE releases the side, if this application still owns it.
+ * The side is also released when the application is removed and when the
+ * device restarts.
+ * Callable from any handler, on and off the screen. A change is shown as
+ * a data-driven redraw. */
 #define HOST_STATUS_TEXT_MAX 31
 HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, const char *text,
                                                  int32_t length));
 
-/* A QR code of `text`, its top left corner at x, y, each of its modules
- * `cell` pixels square; the white a reader wants around it - four modules -
- * is the application's to leave. Returns how many modules a side has, and
- * with a cell of 0 only that, anywhere: for placing the code before it is
- * drawn. HOST_ERR_NO_SPACE for a text too long for the largest code, 57
- * modules a side. */
+/* Draws a QR code of `text`. (x, y) is the top left corner; `cell` is the
+ * module size in pixels. The quiet zone of four modules is not drawn; the
+ * application leaves it.
+ * Returns the number of modules per side. With cell 0 nothing is drawn
+ * and the call is valid in any handler.
+ * Returns HOST_ERR_NO_SPACE if the text does not fit the largest code
+ * (57 modules per side). */
 #define HOST_QR_TEXT_MAX 200
 HOST_IMPORT(gfx_qr, int32_t gfx_qr(int32_t x, int32_t y, int32_t cell, const char *text,
                                    int32_t length));
 
-/* The same picture read by the host from one of the application's files,
- * `offset` bytes into it - a file may hold several. A whole frame is
- * 15 KB: more than an application wants to hold, and here it holds none
- * of it. HOST_ERR_NOT_FOUND when there is no such file or it ends before
- * the picture does. */
+/* Draws a bitmap that the host reads from an application file, starting
+ * at `offset`. The format is that of gfx_bitmap(). A file can hold
+ * several bitmaps. The bitmap does not use application memory.
+ * Returns HOST_ERR_NOT_FOUND if the file does not exist or ends before
+ * the bitmap does. */
 HOST_IMPORT(gfx_bitmap_file,
             int32_t gfx_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height,
                                     const char *name, int32_t name_length, int32_t offset));
 
-/* An icon of the host's own set, in the current colour: eleven cells
- * square with its top left corner at (x, y), a cell `cell` pixels - 2 is
- * the size that stands beside the host's text, HOST_ICON_CELL_MAX the
- * largest. HOST_ERR_ARGUMENT for an icon there is none of. */
+/* Draws a built-in icon in the current colour. An icon is 11 x 11 cells;
+ * (x, y) is its top left corner; `cell` is the cell size in pixels, 1 to
+ * HOST_ICON_CELL_MAX. Cell size 2 matches the host text size.
+ * Returns HOST_ERR_ARGUMENT for an unknown icon. */
 #define HOST_ICON_SIGNAL     0
 #define HOST_ICON_NO_SIGNAL  1
 #define HOST_ICON_UP         2
@@ -470,28 +471,29 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_CELL_MAX   16
 HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
 
-/* A picture of the application's own, as tools/mkpicture makes one from
- * an image or from rows of '#' and '.': a byte of how many cells wide, a
- * byte of how many tall, then the cells a bit each - 1 takes the colour,
- * the leftmost in the high bit, a row padded to a byte. `cell` is how many
- * pixels a cell is drawn, 1 to HOST_ICON_CELL_MAX: one drawing serves
- * several sizes, and costs an eighth of what its rows as text would.
- * tools/mkapp makes pictures.h of an application's `pictures` folder. */
+/* Draws an application picture, as generated by tools/mkpicture from an
+ * image or from text rows of '#' and '.'.
+ * Format: one byte width in cells, one byte height in cells, then one bit
+ * per cell; 1 is drawn in the current colour, the leftmost cell is the
+ * high bit, each row is padded to a whole byte.
+ * `cell` is the cell size in pixels, 1 to HOST_ICON_CELL_MAX.
+ * tools/mkapp generates pictures.h from the `pictures` folder of an
+ * application. */
 HOST_IMPORT(gfx_picture,
             int32_t gfx_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t cell));
 
-/* ---- The host's own look ----
+/* ---- Kit: host interface parts ----
  *
- * What the host draws for itself, drawn for an application by the host:
- * the same code that draws the menu and the host's questions, so an
- * application that uses it looks the part and stays so when the host's
- * look changes. Inside app_on_draw(), like all drawing. */
+ * The ui_* calls draw the parts that the host screens are built from. The
+ * drawing code is in the host and is the same code that draws the menu
+ * and the host questions. Valid inside app_on_draw() only. */
 
-/* A list the user moves through with UP and DOWN: a row a line of text,
- * the chosen one white on a black bar, a scroll bar when there are more
- * rows than fit, the chosen row kept in the middle. The application keeps
- * the list - how many rows, which is chosen, where it stands - and calls
- * ui_list_row() for the rows in sight:
+/* List.
+ *
+ * One row per line. The selected row is inverted. A scroll bar is drawn
+ * when the rows do not fit. The selected row is kept in the middle.
+ * The application keeps the list state and calls ui_list_row() for the
+ * visible rows:
  *
  *     static host_list_t list = { .count = 12 };
  *
@@ -500,28 +502,29 @@ HOST_IMPORT(gfx_picture,
  *         ui_list_row(&list, i, label, label_length, value, value_length, HOST_ICON_NONE);
  *     }
  *
- * A list has the whole width of the surface and, of its height, what is
- * from `top` for `height` pixels (0: down to the bottom): a ui_title()
- * may stand over it - its return value is the list's `top` - and a
- * ui_actions() row under it, HOST_UI_ACTIONS_HEIGHT less of the height.
+ * A list takes the full width of the surface, and `height` pixels from
+ * `top` (0: to the bottom). ui_title() returns a suitable `top`. For a
+ * ui_actions() row below the list, reduce the height by
+ * HOST_UI_ACTIONS_HEIGHT.
  *
- * `selected` -1 is a list nobody chooses from - facts, a row a line: UP
- * and DOWN then move the list itself, and `first` is the row at its top.
- * sdk/lib/app_ui.h has what the buttons do for both kinds.
+ * selected = -1: a list without a selection. UP and DOWN scroll it;
+ * `first` is the top row. sdk/lib/app_ui.h handles the buttons for both
+ * kinds.
  *
- * In a row, `value` stands at the right edge; a length of 0 is none. The
- * two never meet: when they are too wide together a value of up to half
- * the row - a time, a state - stays whole and the label is cut with "...",
- * and a longer value has what the label leaves, never less than the half. `icon` is a HOST_ICON_* at the right
- * edge, or HOST_ICON_NONE: HOST_ICON_CHECK marks the one of several that
- * is set. A row out of sight draws nothing. */
+ * Row layout: `value` is right-aligned; length 0 omits it. Label and
+ * value never overlap. If both do not fit, a value up to half the row
+ * width is kept whole and the label is cut with "..."; a longer value
+ * gets the space the label leaves, at least half the row.
+ * `icon` is a HOST_ICON_* drawn at the right edge, or HOST_ICON_NONE.
+ * HOST_ICON_CHECK marks the active option. Rows outside the visible range
+ * are not drawn. */
 #define HOST_ICON_NONE (-1)
 typedef struct host_list {
     int32_t count;
     int32_t selected; /* or -1 */
     int32_t top;
     int32_t height;   /* 0: to the bottom of the surface */
-    int32_t first;    /* with nothing selected: the row scrolled to the top */
+    int32_t first;    /* without a selection: the top row */
 } host_list_t;
 HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(const host_list_t *list));
 HOST_IMPORT(ui_list_first, int32_t ui_list_first(const host_list_t *list));
@@ -530,60 +533,59 @@ HOST_IMPORT(ui_list_row,
                                 int32_t label_length, const char *value, int32_t value_length,
                                 int32_t icon));
 
-/* A notice on the whole surface, the way the host asks and tells: two
- * lines of large text on the left, a large icon on the right, and along
- * the bottom what the buttons do - "<ok> OK" from the left edge,
- * "BACK <back>" from the right - or, for `is_working`, three strokes that
- * stand for work going on. Every text is terminated; an empty one is not
- * drawn. It is drawn over the surface as it is - which arrives white -
- * and with nothing along the bottom it has the whole height. A question that cannot be taken back should not take a press
- * made before it was on the screen: the host's own wait until it is. */
+/* Notice: a full-surface message in the style of the host.
+ *
+ * Layout: two lines of large text on the left, a large icon on the right,
+ * button labels at the bottom ("<ok> OK" at the left, "BACK <back>" at the
+ * right). With `is_working`, three strokes replace the button labels.
+ * All texts are null-terminated. Empty texts are not drawn. Without
+ * button labels the notice takes the full height.
+ * A destructive question must ignore presses made before it was shown on
+ * the panel. */
 typedef struct host_notice {
-    char    first[64];  /* the texts are UTF-8: a field holds half as many letters */
-    char    second[64]; /* of an alphabet that is not the Latin one */
-    char    detail[96]; /* a line of ordinary text under them */
-    char    ok[32];     /* what OK does: "Remove" */
-    char    back[32];   /* what BACK does: "Cancel" */
-    int32_t icon;       /* a HOST_ICON_*, or HOST_ICON_NONE */
+    char    first[64];  /* UTF-8: a field holds half as many two-byte characters */
+    char    second[64];
+    char    detail[96]; /* one line of body text below the large lines */
+    char    ok[32];     /* OK action: "Remove" */
+    char    back[32];   /* BACK action: "Cancel" */
+    int32_t icon;       /* HOST_ICON_*, or HOST_ICON_NONE */
     int32_t is_working;
 } host_notice_t;
 HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
 
-/* The same notice as something to tell the user wherever they have gone:
- * "Time is up", a meeting that begins. From any handler - an alarm's, off
- * the screen, is what it is for. The host shows it under its header over
- * whatever has the screen, keeps it until OK or BACK dismisses it, and
- * gives the screen back; the application is not loaded for any of that
- * and learns nothing of it, so it keeps no "is showing" of its own.
- * `first`, `second`, `detail` and `icon` are used; `first` must not be
- * empty. Several wait their turn; a restart forgets them. HOST_OK,
- * HOST_ERR_ARGUMENT, or HOST_ERR_NO_SPACE when too many wait. */
+/* Queues a notification. The host shows the notice below its header,
+ * over the current screen, until the user presses OK or BACK, and then
+ * restores the previous screen.
+ * Callable from any handler, typically app_on_alarm() off the screen.
+ * The application is not loaded while the notification is shown and is
+ * not told when it is dismissed.
+ * Fields used: first (required), second, detail, icon.
+ * Several notifications queue. A restart clears the queue.
+ * Returns HOST_OK, HOST_ERR_ARGUMENT, or HOST_ERR_NO_SPACE if the queue
+ * is full. */
 HOST_IMPORT(notify, int32_t notify(const host_notice_t *notice));
 
-/* The parts the host's screens are put together from, for an application
- * to put its own together the same way. Nobody has to: gfx_* draws
- * anything. sdk/lib/app_ui.h adds what the buttons do to the screens that
- * set a value, so that an application writes neither.
- *
- * Text in one of the host's styles, `y` the top of the line, cut with
- * "..." at `max_width` pixels (0: not cut). Returns the width drawn. */
-#define HOST_UI_TEXT    0 /* what is read */
-#define HOST_UI_TITLE   1 /* what a page is about */
-#define HOST_UI_CAPTION 2 /* what stands beside something larger */
-#define HOST_UI_VALUE   3 /* the one number the screen is for */
+/* Text in a host style. `y` is the top of the line. The text is cut with
+ * "..." at `max_width` pixels (0: no limit). Returns the width drawn.
+ * Using the kit is optional; gfx_* calls can draw anything.
+ * sdk/lib/app_ui.h implements button handling for the list, the picker
+ * and the date editor. */
+#define HOST_UI_TEXT    0 /* body text */
+#define HOST_UI_TITLE   1 /* page title */
+#define HOST_UI_CAPTION 2 /* caption next to a larger element */
+#define HOST_UI_VALUE   3 /* the main value of a screen */
 HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const char *text,
                                      int32_t length, int32_t max_width));
 
-/* How wide the text would be in a style, and how tall a line of it is: to
- * centre a value, to put one thing after another. The styles are the
- * fonts the application has by number too - HOST_UI_TEXT is
- * HOST_FONT_TEXT, HOST_UI_TITLE is HOST_FONT_MEDIUM, HOST_UI_CAPTION is
- * HOST_FONT_SMALL and HOST_UI_VALUE is HOST_FONT_DISPLAY - so everything
- * gfx_font_*() says of a font holds for its style. */
-/* The same over several lines: broken at its spaces to fit `width`, at most
- * `max_lines` of them (1..HOST_UI_LINES_MAX), the last cut with "..." when
- * there is more. A line is ui_text_height() of the style. Returns the lines
- * drawn. */
+/* ui_text_lines: text wrapped at spaces to `width`, at most `max_lines`
+ * lines (1..HOST_UI_LINES_MAX). The last line is cut with "..." if text
+ * remains. Line height is ui_text_height() of the style. Returns the
+ * number of lines drawn.
+ *
+ * ui_text_width, ui_text_height: text width and line height of a style.
+ * Styles map to fonts: HOST_UI_TEXT = HOST_FONT_TEXT, HOST_UI_TITLE =
+ * HOST_FONT_MEDIUM, HOST_UI_CAPTION = HOST_FONT_SMALL, HOST_UI_VALUE =
+ * HOST_FONT_DISPLAY. The gfx_font_*() metrics of the font apply. */
 #define HOST_UI_LINES_MAX 8
 HOST_IMPORT(ui_text_lines, int32_t ui_text_lines(int32_t x, int32_t y, int32_t style,
                                                  const char *text, int32_t length, int32_t width,
@@ -592,46 +594,44 @@ HOST_IMPORT(ui_text_width, int32_t ui_text_width(int32_t style, const char *text
                                                  int32_t length));
 HOST_IMPORT(ui_text_height, int32_t ui_text_height(int32_t style));
 
-/* The host's own screens keep this far from the left and the right edge. */
+/* Standard left and right margin of the host screens. */
 #define HOST_UI_MARGIN 16
 
-/* The title of a page at its usual place, a line under it. Returns the y
- * where the page's own content begins. */
+/* Page title at the standard position, with a rule below it. Returns the
+ * y of the content area. */
 HOST_IMPORT(ui_title, int32_t ui_title(const char *text, int32_t length));
 
-/* One of the host's icons in one of its sizes. */
-#define HOST_UI_ICON_SMALL  0 /* 22 px: beside text */
+/* Built-in icon at a standard size. */
+#define HOST_UI_ICON_SMALL  0 /* 22 px: next to text */
 #define HOST_UI_ICON_MEDIUM 1 /* 44 px */
-#define HOST_UI_ICON_LARGE  2 /* 99 px: what a notice is about */
+#define HOST_UI_ICON_LARGE  2 /* 99 px: notice icon */
 HOST_IMPORT(ui_icon, int32_t ui_icon(int32_t x, int32_t y, int32_t icon, int32_t size));
 
-/* A button of the device and what it does: its name ("UP") white on
- * black and the action beside it - after the name, or, `mirrored`, before
- * it. `x` is the left edge of the whole either way, `y` the top of the
- * text's line. Returns the width; it cannot be asked for without drawing,
- * so what stands against a right edge is the row of ui_actions(). */
+/* One button label: the button name ("UP") white on black, and the action
+ * text after it, or before it if `mirrored`. `x` is the left edge of the
+ * whole label; `y` is the top of the text line. Returns the width. The
+ * width cannot be measured without drawing; use ui_actions() for
+ * right-aligned labels. */
 HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
                                          int32_t name_length, const char *action,
                                          int32_t action_length, int32_t mirrored));
 
-/* The row along the bottom, HOST_UI_ACTIONS_HEIGHT pixels of the surface:
- * what OK does from the left edge, what BACK does from the right. A
- * length of 0: that button does nothing here, and the other stands alone
- * in the middle. */
+/* Button row at the bottom of the surface, HOST_UI_ACTIONS_HEIGHT pixels
+ * high: the OK action at the left, the BACK action at the right. Length 0
+ * omits a button. A single button is centred. */
 #define HOST_UI_ACTIONS_HEIGHT 44
 HOST_IMPORT(ui_actions, int32_t ui_actions(const char *ok, int32_t ok_length, const char *back,
                                            int32_t back_length));
 
-/* How much of how much: a frame, filled from the left. It changes when
- * the data does; it is not a thing that moves. */
+/* Bar: a frame filled from the left in proportion `value` / `maximum`. */
 HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t value,
                                    int32_t maximum));
 
-/* A value and, after it on its baseline, what it is a value of: "18 km/h",
- * "763 ppm", "25 min". The unit's size follows the value's - the small
- * print beside text, the text's size beside large digits. `y` is the top
- * of the value's line; `font` is a HOST_FONT_*, with HOST_FONT_TABULAR if
- * wanted. A unit of length 0 is none. Both return the width of the two. */
+/* A value followed by its unit on the same baseline: "18 km/h",
+ * "763 ppm", "25 min". The unit size is derived from the value size.
+ * `y` is the top of the value line. `font` is a HOST_FONT_*, optionally
+ * with HOST_FONT_TABULAR. Unit length 0 omits the unit.
+ * Both calls return the total width. */
 HOST_IMPORT(ui_value, int32_t ui_value(int32_t x, int32_t y, int32_t font, const char *value,
                                        int32_t value_length, const char *unit,
                                        int32_t unit_length));
@@ -639,44 +639,50 @@ HOST_IMPORT(ui_value_width, int32_t ui_value_width(int32_t font, const char *val
                                                    int32_t value_length, const char *unit,
                                                    int32_t unit_length));
 
-/* Why there is nothing to show, said the way every application says it:
- * `status` is what the last answer came to - 0 for none yet, a
- * HOST_FAILED_*, an HTTP status - and the host draws its notice for it on
- * the whole surface: "Loading", "Not set up", "No network", "Access
- * denied", "No answer" with the code. Returns 1 when it drew, and 0,
- * drawing nothing, for an answer that came (2xx): what is missing then is
- * the application's own to say. */
+/* Draws the standard notice for a request status on the whole surface.
+ *
+ * status:  0 if no request was made yet, a HOST_FAILED_* code, or an HTTP
+ *          status.
+ * Notices: 0 "Loading"; HOST_FAILED_* one per code ("Not set up",
+ *          "No network", "No answer" ...); 401, 403 "Access denied";
+ *          404 "Not found"; any other non-2xx status "No answer" with
+ *          the code.
+ * Returns 1 if a notice was drawn. Returns 0 and draws nothing for a 2xx
+ * status; the application reports missing data itself. */
 HOST_IMPORT(ui_reason, int32_t ui_reason(int32_t status));
 
-/* The frame around what UP and DOWN change, with an arrow over it and
- * under it for each way there is to go. */
+/* Frame around the value that UP and DOWN change, with an arrow above
+ * and below for each available direction. */
 #define HOST_UI_ARROW_UP   1
 #define HOST_UI_ARROW_DOWN 2
 HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int32_t height,
                                        int32_t arrows));
 
-/* One thing worth a glance in a box of any size: its name across the top,
- * and under it a picture and the value side by side. The value is as large
- * as fits; a cell that is the whole surface has everything a size larger,
- * its picture HOST_UI_CELL_PICTURE_LARGE pixels square and any other
- * cell's HOST_UI_CELL_PICTURE_SMALL. `picture` is a picture as gfx_picture
- * takes it, or 0. Cells that stand together should be of one size:
- * ui_cell_fit() says the size a cell would have - 1 the largest - and the
- * largest number among them goes into every `size`; 0 is "what fits". */
+/* Cell: a name at the top, and below it a picture and a value side by
+ * side, in a box of any size. The value is drawn at the largest size
+ * that fits.
+ * Picture size: HOST_UI_CELL_PICTURE_LARGE pixels in a cell that covers
+ * the whole surface, HOST_UI_CELL_PICTURE_SMALL otherwise.
+ * `picture` is a picture in gfx_picture() format, or 0.
+ * Cells shown together should use one size: ui_cell_fit() returns the
+ * size class that fits a cell (1 is the largest); set `size` of every
+ * cell to the largest returned number. size 0 selects the size
+ * automatically. */
 #define HOST_UI_CELL_PICTURE_LARGE 88
 #define HOST_UI_CELL_PICTURE_SMALL 44
 typedef struct host_cell {
     int32_t x, y, width, height;
-    char    name[48];  /* empty: none */
+    char    name[48];  /* empty: no name */
     char    value[48];
     int32_t size;
 } host_cell_t;
 HOST_IMPORT(ui_cell_fit, int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture));
 HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture));
 
-/* One of a row of values, on the whole surface: the chosen one framed in
- * the middle, what UP leads to over it and what DOWN leads to under it.
- * An empty text: the row ends there. The row of buttons is drawn too. */
+/* Picker: one value of a sequence, on the whole surface. The selected
+ * value is framed in the middle; the previous value is above it, the next
+ * one below. An empty text marks the end of the sequence. The button row
+ * is included. */
 typedef struct host_picker {
     char above[64];
     char chosen[64];
@@ -686,8 +692,8 @@ typedef struct host_picker {
 } host_picker_t;
 HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
 
-/* A time, a date or both, on the whole surface, the part being set in a
- * frame. */
+/* Date and time editor on the whole surface. The part being set is
+ * framed. */
 #define HOST_DATE_HAS_TIME 1
 #define HOST_DATE_HAS_DATE 2
 #define HOST_DATE_HOUR     0
@@ -695,7 +701,7 @@ HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
 #define HOST_DATE_DAY      2
 #define HOST_DATE_MONTH    3
 #define HOST_DATE_YEAR     4
-#define HOST_DATE_NONE     5 /* nothing is being set: only shown */
+#define HOST_DATE_NONE     5 /* display only: no part is being set */
 typedef struct host_date {
     int32_t year, month, day; /* month 1..12 */
     int32_t hour, minute;
@@ -706,113 +712,105 @@ typedef struct host_date {
 } host_date_t;
 HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
 
-/* ---- Moving about ----
+/* ---- Navigation ----
  *
- * What is on the screen is the top of a stack, with the menu under it all.
- * Whatever takes the screen - a question the host asks, an application
- * whose alarm came - goes on top, and when it is done what was under it
- * is there again. A long press of button 4 is the beginning again: the
- * stack is emptied and the menu shows. An application
- * can count on that and on this much more:
- *   - it is unloaded while something covers it, and loaded again when it
- *     is back: app_on_blur() and app_on_terminate() before, app_init() and
- *     app_on_focus() after. What it wants to come back to goes into its
- *     store;
- *   - request_exit() is one step down: to what the application was opened
- *     over, the menu if nothing;
- *   - an application that got the screen with request_focus() is on top
- *     of what the user was looking at, and returns them there when it
- *     exits. */
+ * Navigation is a stack with the menu at the bottom. A host question or
+ * an application that took the screen is placed on top; when it closes,
+ * the entry below it returns. A long press of BACK clears the stack and
+ * opens the menu.
+ *   - An application covered by another entry is unloaded and loaded
+ *     again when it returns: app_on_blur() and app_on_terminate() before,
+ *     app_init() and app_on_focus() after. Keep the state to restore in
+ *     the store.
+ *   - request_exit() goes one step down the stack: to the entry the
+ *     application was opened over, or to the menu.
+ *   - An application that took the screen with request_focus() is placed
+ *     over the current screen and returns the user to it on exit. */
 
-/* From app_on_data() and app_on_alarm() off the screen: what arrived is
- * worth showing now. The host decides; on the screen it means nothing. */
+/* Requests the screen from a background handler (app_on_data(),
+ * app_on_alarm() off the screen). The host decides whether to grant it.
+ * Ignored on the screen. */
 HOST_IMPORT(request_focus, void request_focus(void));
 
-/* The application is done: one step down the stack, as BACK does in the
- * host's own pages. It takes effect when app_on_button(), app_on_back() or
- * app_on_timer() returns, and is ignored anywhere else. The host's layout has it on a
- * short press of button 4; a long press of button 4 leaves any
- * application without asking it. */
+/* Closes the application: one step down the stack. Takes effect when
+ * app_on_button(), app_on_back() or app_on_timer() returns; ignored in
+ * other handlers. A long press of BACK closes any application without
+ * calling it. */
 HOST_IMPORT(request_exit, void request_exit(void));
 
-/* One shot after `milliseconds`, then app_on_timer(id); 0 cancels. Setting
- * a running timer restarts it. id: 0..HOST_TIMER_COUNT-1. Timers stop
- * when the application leaves the screen. */
+/* One-shot timer: app_on_timer(id) after `milliseconds`. 0 cancels.
+ * Setting a running timer restarts it. id: 0..HOST_TIMER_COUNT-1.
+ * Timers stop when the application leaves the screen. */
 #define HOST_TIMER_COUNT 4
 HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
 
-/* ---- Storage ---- */
+/* ---- Store ---- */
 
-/* A few small values that outlive the application: it is unloaded every
- * time it leaves the screen, and this is where its state waits. Every
- * application has a store of its own. Writing wears the flash, so save
- * when something worth keeping changed - in app_on_terminate(), say - not
- * on every tick. */
-#define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~': no spaces */
+/* Key-value store for small persistent values. Each application has a
+ * private store. Writing wears the flash memory: write when data has
+ * changed, for example in app_on_terminate(), not on every timer tick. */
+#define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~' */
 #define HOST_KV_VALUE_MAX 1024
-#define HOST_KV_TOTAL_MAX 4096 /* all the values of one application together */
+#define HOST_KV_TOTAL_MAX 4096 /* all values of one application */
 
-/* Returns the length of the value, which is then in `value`. */
+/* Reads a value into `value`. Returns its length. */
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,
                                    int32_t capacity));
 
-/* A length of 0 removes the key. */
+/* Writes a value. Length 0 deletes the key. */
 HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const void *value,
                                    int32_t length));
 
-/* ---- The network ---- */
+/* ---- Network ---- */
 
-/* There is no asking whether the network is there: an application asks
- * for what it wants, and "there is no network" is one of the answers
- * (HOST_FAILED_NO_NETWORK). The radio may well be off between requests. */
+/* Network availability is reported in the answer: a request made without
+ * a network fails with HOST_FAILED_NO_NETWORK. The radio can be off
+ * between requests. */
 
-/* Fetch poll number `poll` of the manifest now instead of when it is due
- * - the user pressed "refresh". The answer arrives the usual way. The
- * host makes one request at a time and not more than one a second, so
- * asking again before the answer changes nothing. */
+/* Runs poll number `poll` of the manifest immediately. The answer is
+ * delivered as usual. The host performs one request at a time, at most
+ * one per second; a repeated call before the answer has no effect. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
-/* A request the application makes itself: an action on a button, a
- * second step after an answer. Only to the hosts the manifest lists
- * under "hosts". The host makes one request at a time for the whole
- * device and keeps at most HOST_HTTP_PENDING_MAX waiting, of all the
- * applications together - HOST_ERR_NO_SPACE when they are taken, to be
- * asked again later; the answer comes through app_on_data() in pieces, under
- * `tag` - whether the application is on the screen by then or not. The
- * tag is the application's own name for the request, a number from
- * HOST_REQUEST_FIRST to HOST_REQUEST_LAST, so that it cannot be taken for
- * a poll:
+/* Queues a request from code.
  *
- *     enum { REQUEST_TOKEN = HOST_REQUEST_FIRST, REQUEST_EVENTS };
+ * Destination: only hosts listed under "hosts" in the manifest.
+ * Queue:       the host performs one request at a time for the whole
+ *              device and keeps at most HOST_HTTP_PENDING_MAX waiting,
+ *              for all applications together.
+ * Answer:      delivered through app_on_data() in pieces, with `tag` as
+ *              the request number, on or off the screen. The instance
+ *              that receives the answer is not the one that made the
+ *              request.
+ * tag:         a number chosen by the application, HOST_REQUEST_FIRST to
+ *              HOST_REQUEST_LAST, distinct from poll numbers:
  *
- * The instance that gets the answer is not the one that asked - that one
- * was unloaded - and the tag is how it knows what the answer is to.
+ *                  enum { REQUEST_TOKEN = HOST_REQUEST_FIRST, REQUEST_EVENTS };
  *
- * An answer that is JSON is picked apart with sdk/lib/json_pick.h: every
- * piece is fed to a picker, and the values are read after the last one.
+ * headers:     lines "Name: value" separated by '\n', at most four.
+ * {{key}}      in the URL and in header values is replaced by the setting
+ *              with that key, as in a poll.
  *
- * `headers` is lines of "Name: value" separated by '\n', at most four.
- * {{key}} in the URL and in a header value is replaced by the setting of
- * that name, as in a poll.
+ * Redirects: a GET is followed up to three times; the application
+ * receives the last answer only. A redirect to a host outside "hosts"
+ * fails with HOST_FAILED_NOT_ALLOWED. Request headers are not sent to
+ * another host. A request with any other method is sent once; its 3xx
+ * status is delivered as the answer. Polls are followed the same way,
+ * to any host.
  *
- * A GET that is answered with a redirect is asked again where it points,
- * up to three times, and the application sees only the last answer. A
- * redirect out of the manifest's "hosts" fails with
- * HOST_FAILED_NOT_ALLOWED, and the headers given here do not travel to
- * another host. A request with any other method is not sent twice: its
- * 3xx status is the answer. Polls are followed the same way, to any host.
+ * A JSON answer can be parsed with sdk/lib/json_pick.h: feed every piece,
+ * read the values after the last one.
  *
- * Returns HOST_OK, HOST_ERR_ARGUMENT for a URL
- * outside the manifest's hosts or anything malformed, HOST_ERR_NO_SPACE
- * when too many are waiting already. */
+ * Returns HOST_OK; HOST_ERR_ARGUMENT for a URL outside the manifest hosts
+ * or malformed arguments; HOST_ERR_NO_SPACE if the queue is full. */
 #define HOST_HTTP_GET    0
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
 #define HOST_HTTP_DELETE 3
 #define HOST_HTTP_PATCH    4
-#define HOST_HTTP_HEAD     5 /* the answer is one piece of no data: ask data_response() */
-#define HOST_HTTP_PROPFIND 6 /* these two are what a calendar server (CalDAV) is asked with */
-#define HOST_HTTP_REPORT   7
+#define HOST_HTTP_HEAD     5 /* the answer is one piece without data; use data_response() */
+#define HOST_HTTP_PROPFIND 6 /* CalDAV */
+#define HOST_HTTP_REPORT   7 /* CalDAV */
 #define HOST_HTTP_METHOD_LAST HOST_HTTP_REPORT
 #define HOST_HTTP_HEADERS_MAX 1023
 #define HOST_HTTP_BODY_MAX    512
@@ -824,72 +822,71 @@ HOST_IMPORT(http_request,
                                  const char *headers, int32_t headers_length,
                                  const void *body, int32_t body_length));
 
-/* Another pace for poll number `poll` than the manifest says - the
- * server told when to come again. From 10 seconds to a day, counted from
- * now. It is the poll's pace from then on, through a restart too, until
- * it is set again or the application is removed with what it stored. */
+/* Sets the interval of poll number `poll`, overriding the manifest:
+ * 10 seconds to 1 day, counted from now. The interval persists across
+ * restarts until it is set again or the application is removed together
+ * with its store. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
 
 /* ---- Intents ----
  *
- * News of the device an application may want although it is not on the
- * screen. It names the kinds in its manifest -
+ * Device events delivered to an application on or off the screen. The
+ * manifest lists the events to receive:
  *
  *     "intents": ["time_changed", "network_up", "started"]
  *
- * - and gets each through app_on_intent(), loaded for the call if it is
- * not loaded, like an answer from the network. An application that named
- * none is never woken for one.
+ * Each event is delivered through app_on_intent(). An application that is
+ * not loaded is loaded for the call. An application without "intents"
+ * receives none.
  *
- * What a handler may count on. app_init() has run before it, as before
- * any handler. The instance is the one on the screen when the application
- * is there, and one loaded for this call and unloaded after it otherwise.
- * HOST_INTENT_STARTED comes once the device is up and has shown its first
- * screen: an application the device reopened after the restart may have
- * been drawn before it, so what app_init() works out must make sense
- * without it. HOST_INTENT_TIME_CHANGED comes too when the device learns
- * the time for the first time, and inside the handler time_now() is the
- * new time already; corrections of a few seconds are not told. */
-#define HOST_INTENT_TIME_CHANGED 1 /* the clock or the time zone was set to another: what
-                                      was worked out from the time is to be worked out again */
-#define HOST_INTENT_NETWORK_UP   2 /* the device is on its network again */
-#define HOST_INTENT_STARTED      3 /* the device was powered up or restarted: what a restart
-                                      forgets - alarms, a poll's own pace, requests under way -
-                                      is set up again from the store. Nobody has to open the
-                                      application for it */
+ * app_init() is called before the handler, as before any handler. The
+ * instance is the one on the screen if the application is there;
+ * otherwise it is loaded for the call and unloaded after it.
+ *
+ * HOST_INTENT_STARTED is delivered after the device has started and shown
+ * its first screen. An application reopened after the restart can be
+ * drawn before the intent arrives; app_init() must not depend on it.
+ * HOST_INTENT_TIME_CHANGED is also delivered when the device obtains the
+ * time for the first time. time_now() already returns the new time inside
+ * the handler. Corrections of a few seconds are not reported. */
+#define HOST_INTENT_TIME_CHANGED 1 /* the clock or the time zone was changed: recompute
+                                      values derived from the time */
+#define HOST_INTENT_NETWORK_UP   2 /* the device is connected to its network again */
+#define HOST_INTENT_STARTED      3 /* the device was powered up or restarted: restore from
+                                      the store what a restart clears - alarms, poll
+                                      intervals set from code, pending requests */
 APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 
 /* ---- Alarms ---- */
 
-/* Call app_on_alarm(id) once, when the time comes, whether the application
- * is on the screen then or not; off the screen it is loaded for the call
- * and may ask for the screen with request_focus(). An application has
- * HOST_ALARM_COUNT alarms, numbered from 0; setting one again moves it.
- * timer_set() is for the application on the screen; this is for what must
- * happen wherever the user has gone.
+/* An alarm calls app_on_alarm(id) once at its time, on or off the screen.
+ * Off the screen the application is loaded for the call and can request
+ * the screen with request_focus(). An application has HOST_ALARM_COUNT
+ * alarms, numbered from 0. Setting an alarm again moves it.
+ * timer_set() works only on the screen; alarms work everywhere.
  *
- * There are two ways to say when. alarm_set() is "in so many seconds" - a
- * countdown, a second at the least - and does not care what the clock is
- * set to; 0 takes the alarm back. alarm_set_at() is "at this moment" - a time of day, in unix
- * seconds as time_now() counts them - and follows the clock when it is
- * set to another time. Both return HOST_OK, HOST_ERR_ARGUMENT for a number
- * or a time there cannot be, HOST_ERR_NO_SPACE when the device has no room
- * for one more alarm.
+ * alarm_set():    relative, `seconds` from now, at least 1. Independent
+ *                 of clock changes. 0 cancels the alarm.
+ * alarm_set_at(): absolute, at `unix_time` as counted by time_now().
+ *                 Follows clock changes.
+ * Both return HOST_OK; HOST_ERR_ARGUMENT for an invalid number or time;
+ * HOST_ERR_NO_SPACE if the device cannot hold another alarm.
  *
- * A restart of the device forgets them: what must survive that is a time
- * in the store, set again in app_init(). A new version of the application
- * does not get the alarms of the old one. */
+ * A device restart clears all alarms. To survive a restart, keep the time
+ * in the store and set the alarm again in the "started" intent. A new
+ * version of an application does not inherit the alarms of the old one. */
 #define HOST_ALARM_COUNT 4
 HOST_IMPORT(alarm_set, int32_t alarm_set(int32_t id, int32_t seconds));
 HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
 
-/* The same alarm again and again: app_on_alarm(id) every `seconds`, until
- * alarm_set(id, 0) takes it back or the alarm is set another way. The
- * first comes `first_in` seconds from now - what is left of the minute in
- * hand, for something that turns on the minute - and 0 is "a whole turn
- * from now". For what has to be kept up while the
- * application is away - the minutes left, in the header (header_status).
- * From a minute to a day: every call loads the application for a moment. */
+/* Repeating alarm: app_on_alarm(id) every `seconds`, until alarm_set(id, 0)
+ * cancels it or the alarm is set another way. The first call comes
+ * `first_in` seconds from now; 0 means one full period. To align with the
+ * minute, pass the seconds left in the current minute.
+ * Period: HOST_ALARM_EVERY_MIN to HOST_ALARM_EVERY_MAX seconds. Every
+ * call loads the application.
+ * Typical use: keeping a header_status() text current while the
+ * application is off the screen. */
 #define HOST_ALARM_EVERY_MIN 60
 #define HOST_ALARM_EVERY_MAX 86400
 HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds,
@@ -898,52 +895,53 @@ APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
 
 /* ---- Files ---- */
 
-/* What does not fit a kv value: a picture, a table, a video. An
- * application reads the files that came in its package - everything in
- * its `files` folder when it was built - and the ones it wrote itself:
- * a picture that arrived in pieces, a cache. All of them together may
- * take HOST_FILES_MAX bytes as they lie on the device, where a file is
- * whole blocks of 4 KB: sixteen blocks, in one file or in several. Every
- * installed application has that much, whatever the others take. Writing wears the flash like kv_set() does. The name is 1-23 of a-z, 0-9,
- * '.', '-' and '_', not starting with a dot. */
+/* Files hold data that does not fit in a store value: a picture, a table,
+ * a cache. An application can read the files of its package (the `files`
+ * folder at build time) and the files it has written.
+ * Limit: HOST_FILES_MAX bytes for all files of one application, counted
+ * as stored on the device: every file takes whole 4 KB blocks, 16 blocks
+ * in total. The limit is guaranteed for every installed application.
+ * Writing wears the flash memory, like kv_set().
+ * File name: 1-23 characters of a-z, 0-9, '.', '-' and '_'; the first
+ * character is not a dot. */
 #define HOST_FILE_NAME_MAX 23
 #define HOST_FILES_MAX     (64 * 1024)
 
-/* The length of the file, or HOST_ERR_NOT_FOUND. */
+/* Returns the file size, or HOST_ERR_NOT_FOUND. */
 HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length));
 
-/* Up to `capacity` bytes from `offset` on; returns how many, which is
- * fewer at the end of the file and 0 past it. */
+/* Reads up to `capacity` bytes starting at `offset`. Returns the number
+ * of bytes read: fewer at the end of the file, 0 past it. */
 HOST_IMPORT(file_read, int32_t file_read(const char *name, int32_t name_length, int32_t offset,
                                          void *bytes, int32_t capacity));
 
-/* Writes `length` bytes at `offset`, which is inside the file or right at
- * its end: a file grows piece by piece, and a piece may be written over.
- * A length of 0 at offset 0 removes the file. HOST_ERR_NO_SPACE when the
- * application's files would take more than HOST_FILES_MAX. */
+/* Writes `length` bytes at `offset`. The offset must be inside the file
+ * or at its end: a file is extended piece by piece, and existing data can
+ * be overwritten. Length 0 at offset 0 deletes the file.
+ * Returns HOST_ERR_NO_SPACE if the files of the application would exceed
+ * HOST_FILES_MAX. */
 HOST_IMPORT(file_write, int32_t file_write(const char *name, int32_t name_length, int32_t offset,
                                            const void *bytes, int32_t length));
 
 /* ---- Time ---- */
 
-/* Unix seconds; 0 while the device does not know the time.
+/* Returns Unix time in seconds; 0 while the device does not know the time.
  *
- * To time something - a countdown, a stopwatch, "last seen" - keep the
- * moment it began as this number, in the store, and work out the rest
- * whenever it is asked for: nothing is counted in ticks, and the
- * application is not loaded most of the time anyway. The clock goes on
- * through a restart of the device and through its sleep, though not
- * through a loss of power. It is 0 only until the network or the user
- * first sets it, and for that while time_uptime_ms() is what there is:
- * it counts through sleep too, and starts from nothing at a restart. */
+ * To measure time (a countdown, a stopwatch), keep the start time in the
+ * store and compute the rest on demand. The application is not loaded
+ * most of the time and cannot count ticks.
+ * The clock runs through device restarts and sleep, but not through a
+ * power loss. It is 0 until the network or the user sets it for the first
+ * time. Until then use time_uptime_ms(), which also runs through sleep
+ * and starts from 0 at every restart. */
 HOST_IMPORT(time_now, int64_t time_now(void));
 
-/* Seconds to add to time_now() for the user's local time, daylight saving
- * included; 0 while the time is not known. */
+/* Returns the offset of local time from UTC in seconds, daylight saving
+ * included; 0 while the time is unknown. */
 HOST_IMPORT(time_zone_offset, int32_t time_zone_offset(void));
 
-/* The user's local time taken apart, so that no application carries a
- * calendar of its own. HOST_ERR_NOT_FOUND while the time is not known. */
+/* Fills the current local date and time. Returns HOST_ERR_NOT_FOUND while
+ * the time is unknown. */
 typedef struct {
     int32_t year;    /* 2026 */
     int32_t month;   /* 1..12 */
@@ -955,22 +953,21 @@ typedef struct {
 } host_local_time_t;
 HOST_IMPORT(time_local, int32_t time_local(host_local_time_t *now));
 
-/* The same for any moment (unix seconds), by the user's zone as its clocks
- * stand at that moment - after the next change to summer time too. For a
- * calendar: what day an event is, what the clock will say. Events that
- * carry a zone of their own are whoever prepares the feed's to convert. */
+/* Converts a moment (Unix seconds) to local date and time, using the zone
+ * offset in effect at that moment, daylight saving included.
+ * Events with their own time zone must be converted before they reach the
+ * application. */
 HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_time_t *parts));
 
-/* A moment in words, in the user's zone, so that no application carries
- * the names of days and months: writes up to `capacity` bytes, with no
- * terminator, and returns the length.
+/* Formats a moment as text in the device language and local time. Writes
+ * up to `capacity` bytes without a terminator. Returns the length.
  *   HOST_TIME_CLOCK      "15:04"
  *   HOST_TIME_DATE       "Fri 13 Nov"
  *   HOST_TIME_WEEKDAY    "Friday"
  *   HOST_TIME_LONG_DATE  "13 November"
- *   HOST_TIME_NEAR       as near as it is: "15:04" today, "Tmrw 15:04",
+ *   HOST_TIME_NEAR       relative: "15:04" today, "Tmrw 15:04",
  *                        "Sat 15:04" within a week, "21 Nov" beyond
- *   HOST_TIME_NEAR_DAY   the same for a whole day: "Today", "Tmrw", "Sat", "21 Nov" */
+ *   HOST_TIME_NEAR_DAY   relative, date only: "Today", "Tmrw", "Sat", "21 Nov" */
 #define HOST_TIME_CLOCK     0
 #define HOST_TIME_DATE      1
 #define HOST_TIME_WEEKDAY   2
@@ -980,19 +977,18 @@ HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_t
 HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char *text,
                                          int32_t capacity));
 
-/* And back: the moment at which the user's clock and calendar show this -
- * "07:30 tomorrow" for alarm_set_at(). The weekday is not looked at, and
- * a day or an hour past the end of its month or day counts on into the
- * next: day 32 of January is the first of February. */
+/* Converts a local date and time to Unix time, for example for
+ * alarm_set_at(). The weekday field is ignored. Out-of-range values carry
+ * over: day 32 of January is 1 February. */
 HOST_IMPORT(time_from_local, int64_t time_from_local(const host_local_time_t *parts));
 
-/* Milliseconds since the device started; always available. */
+/* Returns milliseconds since the device started. Always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));
 
-/* A number that is another after every restart of the device, and never
- * 0. A moment of time_uptime_ms() kept in the store means something only
- * in the run it was taken in: keep this number beside it, and a moment
- * whose number is not this one is of a run that is over. */
+/* Returns an identifier of the current boot: different after every
+ * restart, never 0. A stored time_uptime_ms() value is valid only within
+ * the boot it was taken in. Store this identifier with it and discard the
+ * value when the identifier differs. */
 HOST_IMPORT(time_boot_id, uint32_t time_boot_id(void));
 
 /* ---- Log ---- */
@@ -1001,18 +997,18 @@ HOST_IMPORT(time_boot_id, uint32_t time_boot_id(void));
 #define HOST_LOG_WARN  2
 #define HOST_LOG_INFO  3
 #define HOST_LOG_DEBUG 4
-/* One line: what is longer is cut, and a character that is not printable
- * ASCII - a line break among them - is logged as "?". */
+/* Writes one line to the device log. A longer text is cut. Characters
+ * other than printable ASCII, including line breaks, are logged as "?". */
 #define HOST_LOG_TEXT_MAX 200
 HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length));
 
-/* ---- the system API ----
+/* ---- System API ----
  *
- * What the host's own applications are written with: Settings, Device,
- * About. Any application may have it - the device
- * is its owner's - but has to ask: "system": true in its manifest, which
- * the page says aloud before it installs one. A module that imports any
- * of these without having asked is refused. */
+ * The sys_* calls are used by the host's own applications (Settings,
+ * About). Any application can use them if its manifest contains
+ * "system": true. The device web page warns the user before installing
+ * such an application. A module that imports a sys_* call without this
+ * declaration is rejected. */
 #ifdef __wasm__
 #define HOST_SYSTEM_IMPORT(name, ...) \
     __attribute__((import_module("host"), import_name(#name))) __VA_ARGS__
@@ -1020,49 +1016,49 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define HOST_SYSTEM_IMPORT(name, ...)
 #endif
 
-/* What the device knows about itself, as text: the length, HOST_ERR_NO_SPACE
- * when it does not fit, 0 for what is not known now (no address while it
- * is off the network). */
-#define SYS_INFO_VERSION 0 /* of the firmware, as it was built */
+/* Device information as text. Returns the length; HOST_ERR_NO_SPACE if
+ * the buffer is too small; 0 if the value is currently unknown (for
+ * example, no address while the device is off the network). */
+#define SYS_INFO_VERSION 0 /* firmware version of the build */
 #define SYS_INFO_NAME    1 /* "Perinkpheral-C7B0" */
-#define SYS_INFO_NETWORK 2 /* the Wi-Fi network it is set up for */
-#define SYS_INFO_ADDRESS 3 /* where its page is: its address on the network, or on its own
-                              access point while it is not there */
+#define SYS_INFO_NETWORK 2 /* configured Wi-Fi network */
+#define SYS_INFO_ADDRESS 3 /* address of the web page: on the network, or on the setup
+                              access point */
 #define SYS_INFO_WIFI    4 /* one of SYS_WIFI_* */
-#define SYS_INFO_SLOT    5 /* the firmware slot it runs from: "ota_0" */
-#define SYS_INFO_FREE_MEMORY 6 /* of the host, in KB, as digits */
-#define SYS_INFO_TIME_ZONE   7 /* as a POSIX TZ string: "MSK-3" */
-#define SYS_INFO_JOIN_CODE   8 /* what a QR code says to join a phone to the device's own
-                                  access point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
+#define SYS_INFO_SLOT    5 /* running firmware slot: "ota_0" */
+#define SYS_INFO_FREE_MEMORY 6 /* free host memory in KB, as digits */
+#define SYS_INFO_TIME_ZONE   7 /* POSIX TZ string: "MSK-3" */
+#define SYS_INFO_JOIN_CODE   8 /* QR code text that joins a phone to the setup access
+                                  point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
-#define SYS_WIFI_SETUP      "setup" /* waiting on its own access point to be told a network */
+#define SYS_WIFI_SETUP      "setup" /* waiting for network settings on the setup access point */
 HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t capacity));
 
-/* The mark, "perINKpheraL" in its square font, its top left corner at
- * x, y: `scale` 1 to 5, and 5 is the splash's, 357 px wide. Drawn inside
- * app_on_draw(); how large it is can be asked anywhere. */
+/* Draws the wordmark "perINKpheraL" in the square font. (x, y) is the top
+ * left corner. `scale`: 1 to SYS_LOGO_SCALE_MAX; scale 5 is 357 px wide.
+ * sys_logo() is a drawing call. The width and height calls are valid in
+ * any handler. */
 #define SYS_LOGO_SCALE_MAX 5
 HOST_SYSTEM_IMPORT(sys_logo, int32_t sys_logo(int32_t x, int32_t y, int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 
-/* A setting of the host that is a number, with the range it may be in. */
-#define SYS_NUMBER_TIME_AUTOMATIC      0 /* 1: the clock is set from the network; 0: by hand */
-#define SYS_NUMBER_REFRESH_FULL_EVERY  1 /* quick refreshes before a full one; 0: always full.
-                                            SYS_REFRESH_FULL_NEVER is taken too, outside the range */
-#define SYS_NUMBER_REFRESH_MIN_SECONDS 2 /* the least between refreshes nobody asked for */
-#define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* without a refresh before one is forced */
-#define SYS_NUMBER_POWER_SAVING        4 /* 0: never; 1: always - the device sleeps when nothing
-                                            runs and its radio is on only for a poll and for a
-                                            while after a press; 2: the same whenever no
-                                            computer is on its USB cable */
-#define SYS_NUMBER_REFRESH_FAST        5 /* 1: the shorter full refresh, with less of a blink */
-#define SYS_NUMBER_FONT                6 /* the typeface everything is set in: 0 Departure Mono,
-                                            1 Jersey */
-#define SYS_NUMBER_MENU_IDLE_MINUTES    7 /* the menu left alone so long gives the screen to the
-                                            default application */
-#define SYS_NUMBER_HEADER_CLOCK         8 /* 1: the header shows the time where the date stands */
+/* Numeric host settings. sys_number_get() returns the value and its range. */
+#define SYS_NUMBER_TIME_AUTOMATIC      0 /* 1: time from the network; 0: set manually */
+#define SYS_NUMBER_REFRESH_FULL_EVERY  1 /* partial refreshes before a full one; 0: always full.
+                                            SYS_REFRESH_FULL_NEVER is also accepted */
+#define SYS_NUMBER_REFRESH_MIN_SECONDS 2 /* minimum interval between refreshes without a press */
+#define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* maximum time without a refresh */
+#define SYS_NUMBER_POWER_SAVING        4 /* 0: off; 1: on - the device sleeps when idle, the
+                                            radio is on for polls and for a period after a
+                                            press; 2: on unless a computer is connected to
+                                            the USB port */
+#define SYS_NUMBER_REFRESH_FAST        5 /* 1: fast full refresh */
+#define SYS_NUMBER_FONT                6 /* typeface: 0 Departure Mono, 1 Jersey */
+#define SYS_NUMBER_MENU_IDLE_MINUTES    7 /* idle time in the menu before the default
+                                            application opens */
+#define SYS_NUMBER_HEADER_CLOCK         8 /* 1: the header shows the time instead of the date */
 #define SYS_REFRESH_FULL_NEVER         255
 typedef struct {
     int32_t value;
@@ -1070,38 +1066,43 @@ typedef struct {
     int32_t most;
 } sys_number_t;
 HOST_SYSTEM_IMPORT(sys_number_get, int32_t sys_number_get(int32_t what, sys_number_t *number));
-/* Stored, and in effect at once. HOST_ERR_ARGUMENT for a value the setting does not take. */
+/* Stores the value and applies it immediately. Returns HOST_ERR_ARGUMENT
+ * for a value outside the range. */
 HOST_SYSTEM_IMPORT(sys_number_set, int32_t sys_number_set(int32_t what, int32_t value));
 
-/* A setting of the host that is text, of at most SYS_TEXT_MAX bytes. */
+/* Text host settings, at most SYS_TEXT_MAX bytes. */
 #define SYS_TEXT_MAX 63
-#define SYS_TEXT_TIME_ZONE 0 /* a POSIX TZ string; read it with sys_info() */
+#define SYS_TEXT_TIME_ZONE 0 /* POSIX TZ string; read with sys_info() */
 HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *text, int32_t length));
 
-/* The clock by hand, in unix seconds. HOST_ERR_FAILED while it is set from
- * the network. */
+/* Sets the clock, in Unix seconds. Returns HOST_ERR_FAILED while the time
+ * source is the network. */
 HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 
-/* The installed applications. Each has an id the host gave it - of its
- * code and its manifest, so that another version is another id - and the
- * list is their ids, in the order the menu has them: how many there are,
- * of which up to `capacity` are written. Removing one takes its files and
- * leaves what it stored; HOST_ERR_NOT_FOUND for an id that is nobody's
- * (any more). */
-#define SYS_APP_LIST_MAX 16 /* the most `capacity` may be */
+/* Installed applications.
+ * An application id is derived from its code and its manifest; another
+ * version has another id.
+ * sys_app_list():   writes up to `capacity` ids in menu order. Returns
+ *                   the number of installed applications.
+ * sys_app_title():  writes the title. Returns its length.
+ * sys_app_remove(): removes the files of the application and keeps its
+ *                   store.
+ * All return HOST_ERR_NOT_FOUND for an id that is not installed. */
+#define SYS_APP_LIST_MAX 16 /* maximum `capacity` */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 
-/* The default application: what the device shows by itself - after a
- * restart, when the menu is left alone, and by BACK in the menu. Its id,
- * or 0 when there is none; 0 given takes the choice back. It is kept by
- * name, so a new version of the application is still the choice. */
+/* Default application: opened after a restart, after the menu idle time,
+ * and by BACK in the menu.
+ * sys_app_default() returns its id, or 0 if none is set.
+ * sys_app_set_default(0) clears the setting. The setting is stored by
+ * application name and survives an update of the application. */
 HOST_SYSTEM_IMPORT(sys_app_default, uint32_t sys_app_default(void));
 HOST_SYSTEM_IMPORT(sys_app_set_default, int32_t sys_app_set_default(uint32_t id));
 
-/* What cannot be taken back; the device restarts after each. */
+/* Irreversible actions. The device restarts after each. */
 #define SYS_DO_RESTART        0
-#define SYS_DO_FORGET_NETWORK 1 /* the device comes back with its setup access point */
-#define SYS_DO_FACTORY_RESET  2 /* the settings and what the applications stored are erased */
+#define SYS_DO_FORGET_NETWORK 1 /* the device starts with its setup access point */
+#define SYS_DO_FACTORY_RESET  2 /* erases the settings and all application stores */
 HOST_SYSTEM_IMPORT(sys_do, int32_t sys_do(int32_t action));
