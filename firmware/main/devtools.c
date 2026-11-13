@@ -124,6 +124,7 @@ void devtools_serve(void *opaque, wm_t *wm, uint32_t frames_shown, bool frame_pe
         scene_t *scene = launcher_scene(request->app_name);
         request->done = scene != NULL;
         if (scene != NULL) {
+            host_give_way(); /* an answer being taken off the screen ends first */
             wm_open_anew(wm, scene); /* as if chosen in the menu */
         }
     }

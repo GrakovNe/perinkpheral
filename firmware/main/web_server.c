@@ -237,6 +237,9 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
     cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
     cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
+    /* Why the device started this time: a number of esp_reset_reason_t - 1 power, 3 a restart
+     * asked for, 4 a fault, 5-7 a watchdog, 9 the supply sagged. */
+    cJSON_AddNumberToObject(json, "reset_reason", esp_reset_reason());
     /* Of the application area, the most the application loaded now has had. */
     cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
     cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);

@@ -242,6 +242,21 @@ static bool is_text_of(const cJSON *item, size_t min_length, size_t max_length)
            strlen(item->valuestring) <= max_length;
 }
 
+/* A text a person reads: so many characters at most, and no more bytes
+ * than letters of two bytes would take. */
+static bool is_words_of(const cJSON *item, size_t min_characters, size_t max_characters)
+{
+    if (!cJSON_IsString(item)) {
+        return false;
+    }
+    size_t characters = 0;
+    for (const char *at = item->valuestring; *at != '\0'; at++) {
+        characters += ((unsigned char)*at & 0xC0) != 0x80;
+    }
+    return characters >= min_characters && characters <= max_characters &&
+           strlen(item->valuestring) <= max_characters * MANIFEST_TEXT_BYTES_PER_CHARACTER;
+}
+
 /* A kv key: what kv_get and kv_set take. */
 static bool is_setting_key(const cJSON *key)
 {
@@ -263,9 +278,9 @@ static int setting_type(const cJSON *setting)
     const cJSON *help = cJSON_GetObjectItemCaseSensitive(setting, "help");
     if (!cJSON_IsObject(setting) || !cJSON_IsString(type) ||
         !is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "key")) ||
-        !is_text_of(cJSON_GetObjectItemCaseSensitive(setting, "title"), 1,
-                    APP_SETTING_TITLE_MAX) ||
-        (help != NULL && !is_text_of(help, 0, APP_SETTING_HELP_MAX))) {
+        !is_words_of(cJSON_GetObjectItemCaseSensitive(setting, "title"), 1,
+                     APP_SETTING_TITLE_MAX) ||
+        (help != NULL && !is_words_of(help, 0, APP_SETTING_HELP_MAX))) {
         return -1;
     }
     for (int known = 0; known < SETTING_TYPE_COUNT; known++) {
@@ -288,7 +303,7 @@ static int setting_type(const cJSON *setting)
         const cJSON *option;
         cJSON_ArrayForEach(option, options)
         {
-            if (!is_text_of(option, 1, APP_SETTING_OPTION_MAX)) {
+            if (!is_words_of(option, 1, APP_SETTING_OPTION_MAX)) {
                 return -1;
             }
         }
@@ -745,7 +760,8 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         !app_manifest_is_valid_name(manifest->name)) {
         return APP_MANIFEST_BAD_NAME;
     }
-    if (!read_string(root, "title", manifest->title, sizeof manifest->title) ||
+    if (!is_words_of(cJSON_GetObjectItemCaseSensitive(root, "title"), 0, APP_TITLE_MAX) ||
+        !read_string(root, "title", manifest->title, sizeof manifest->title) ||
         manifest->title[0] == '\0') {
         return APP_MANIFEST_BAD_TITLE;
     }

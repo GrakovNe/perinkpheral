@@ -33,6 +33,11 @@ void host_stop_soon(host_stop_t why);
  * on the screen is drawn anew. In the host loop. */
 void host_redraw(void);
 
+/* Ends an answer an application is taking off the screen, before the
+ * screen is given to somebody: there is room for one application. In the
+ * host loop. */
+void host_give_way(void);
+
 /* What an application keeps on a side of the header (0 left, 1 right)
  * while it is away: an icon of the host's set (or -1) and a line. Both
  * empty: the side is free again. In the host loop. */

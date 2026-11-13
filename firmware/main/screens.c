@@ -24,7 +24,7 @@
 #define HEADER_BASELINE    30
 #define HEADER_ICON_GAP    12 /* from the icon to the text beside it */
 #define HEADER_TEXTS_GAP   14 /* the least between the two texts: a character */
-#define HEADER_TEXT_BUFFER 48
+#define HEADER_TEXT_BUFFER 96
 
 /* An icon beside the header's text, placed by its ink and not by its
  * canvas: the ink begins (or, `from_right`, ends) at `edge` and is as much

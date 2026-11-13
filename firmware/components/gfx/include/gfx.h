@@ -209,6 +209,11 @@ static inline int gfx_font_height(const gfx_font_t *font)
 /* How far capitals and digits rise above the baseline. */
 int gfx_font_cap_height(const gfx_font_t *font);
 
+/* Text is UTF-8, and a limit in bytes must not fall inside a character:
+ * the most of `text` that is at most `max_bytes` long and ends between
+ * characters. */
+size_t gfx_text_cut(const char *text, size_t max_bytes);
+
 #ifdef __cplusplus
 }
 #endif

@@ -283,6 +283,13 @@ def host_api_version():
     return int(found.group(1))
 
 
+def is_words(text, least, most):
+    """A text a person reads: so many characters, and no more bytes than letters of
+    two bytes would take - the device's rule (app_manifest.c)."""
+    return (isinstance(text, str) and least <= len(text) <= most
+            and len(text.encode()) <= most * LIMITS["TEXT_BYTES_PER_CHARACTER"])
+
+
 def unique_keys(pairs):
     """For json.load: the device reads the first of two equal keys, Python the last."""
     keys = [key for key, _ in pairs]
@@ -368,21 +375,21 @@ def check_settings(path, settings):
         if key in keys:
             sys.exit("%s: the key \"%s\" is used twice" % (where, key))
         keys.add(key)
-        if not isinstance(title, str) or not 0 < len(title.encode()) <= SETTING_TITLE_MAX:
-            sys.exit("%s: \"title\" must be 1-%d bytes" % (where, SETTING_TITLE_MAX))
+        if not is_words(title, 1, SETTING_TITLE_MAX):
+            sys.exit("%s: \"title\" must be 1-%d characters" % (where, SETTING_TITLE_MAX))
         if kind not in SETTING_TYPES:
             sys.exit("%s: \"type\" must be one of %s" % (where, ", ".join(SETTING_TYPES)))
         help_text = setting.get("help", "")
-        if not isinstance(help_text, str) or len(help_text.encode()) > SETTING_HELP_MAX:
-            sys.exit("%s: \"help\" must be a string of at most %d bytes" % (where, SETTING_HELP_MAX))
+        if not is_words(help_text, 0, SETTING_HELP_MAX):
+            sys.exit("%s: \"help\" must be a string of at most %d characters" % (where, SETTING_HELP_MAX))
         options = setting.get("options")
         if kind != "choice":
             if options is not None:
                 sys.exit("%s: only a choice has \"options\"" % where)
         elif (not isinstance(options, list) or not 0 < len(options) <= SETTING_OPTIONS_MAX
               or any(not isinstance(option, str)
-                     or not 0 < len(option.encode()) <= SETTING_OPTION_MAX for option in options)):
-            sys.exit("%s: \"options\" must be 1-%d strings of 1-%d bytes"
+                     or not is_words(option, 1, SETTING_OPTION_MAX) for option in options)):
+            sys.exit("%s: \"options\" must be 1-%d strings of 1-%d characters"
                      % (where, SETTING_OPTIONS_MAX, SETTING_OPTION_MAX))
     for number, setting in enumerate(settings):
         default, kind = setting.get("default"), setting["type"]
@@ -421,8 +428,8 @@ def check_manifest(app_dir):
     if name != os.path.basename(os.path.normpath(app_dir)):
         sys.exit("%s: \"name\" must be the name of the application's folder" % path)
     title = manifest.get("title")
-    if not isinstance(title, str) or not 0 < len(title.encode()) <= TITLE_MAX:
-        sys.exit("%s: \"title\" must be 1-%d bytes" % (path, TITLE_MAX))
+    if not is_words(title, 1, TITLE_MAX):
+        sys.exit("%s: \"title\" must be 1-%d characters" % (path, TITLE_MAX))
     version = manifest.get("version", "")
     if not isinstance(version, str) or len(version.encode()) > VERSION_MAX:
         sys.exit("%s: \"version\" must be a string of at most %d bytes" % (path, VERSION_MAX))

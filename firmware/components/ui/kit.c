@@ -9,7 +9,7 @@
 
 #include "gfx_icons.h"
 
-#define TEXT_BUFFER 64
+#define TEXT_BUFFER 128 /* a line of the largest text an application may give */
 
 /* ---- primitives ---- */
 

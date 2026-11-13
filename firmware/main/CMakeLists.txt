@@ -44,6 +44,15 @@ if(CONFIG_APP_BUNDLE_APPS)
     # CONFIGURE_DEPENDS: a new application or source file is picked up by
     # the next build without anyone remembering to reconfigure.
     file(GLOB app_dirs CONFIGURE_DEPENDS "${repo_dir}/sdk/apps/*")
+    # What an earlier build packed and sdk/apps has no more must not be
+    # packed again: an application that moved out would be flashed for ever.
+    file(GLOB packed_dirs "${apps_image_dir}/*")
+    foreach(packed_dir ${packed_dirs})
+        get_filename_component(packed_name "${packed_dir}" NAME)
+        if(NOT EXISTS "${repo_dir}/sdk/apps/${packed_name}")
+            file(REMOVE_RECURSE "${packed_dir}")
+        endif()
+    endforeach()
     file(GLOB sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
                                             "${repo_dir}/tools/mkapp/mkapp.py")
     foreach(app_dir ${app_dirs})

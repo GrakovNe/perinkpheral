@@ -156,7 +156,11 @@ static bool copy_text(IM3Runtime runtime, void *memory, uint32_t offset, int32_t
         return false;
     }
     if (length > HOST_TEXT_MAX) {
+        /* Cut between characters, not inside one of several bytes. */
         length = HOST_TEXT_MAX;
+        while (length > 0 && (text[length] & 0xC0) == 0x80) {
+            length--;
+        }
     }
     memcpy(terminated, text, (size_t)length);
     terminated[length] = '\0';
@@ -507,7 +511,15 @@ HOST_FUNCTION(host_ui_list_row)
  * the application left in its last byte. */
 static const char *notice_text(char *text, size_t size)
 {
-    text[size - 1] = '\0';
+    /* A text that fills its field to the last byte may end inside a
+     * character: it ends before it. */
+    if (memchr(text, '\0', size) == NULL) {
+        size_t length = size - 1;
+        while (length > 0 && ((unsigned char)text[length] & 0xC0) == 0x80) {
+            length--;
+        }
+        text[length] = '\0';
+    }
     return text[0] != '\0' ? text : NULL;
 }
 

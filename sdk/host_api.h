@@ -353,7 +353,7 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
  * application leaves the screen. */
 #define HOST_HEADER_LEFT     0
 #define HOST_HEADER_RIGHT    1
-#define HOST_HEADER_TEXT_MAX 31
+#define HOST_HEADER_TEXT_MAX 63
 HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
 
 /* An icon and a short line that stay in the header when the application
@@ -368,7 +368,7 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
  * since, nothing changes. Removing the application gives it back too, and
  * so does a restart. Changing it shows on the panel as data does. It may
  * be set from any handler, on the screen or off it. */
-#define HOST_STATUS_TEXT_MAX 15
+#define HOST_STATUS_TEXT_MAX 31
 HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, const char *text,
                                                  int32_t length));
 
@@ -486,11 +486,11 @@ HOST_IMPORT(ui_list_row,
  * and with nothing along the bottom it has the whole height. A question that cannot be taken back should not take a press
  * made before it was on the screen: the host's own wait until it is. */
 typedef struct host_notice {
-    char    first[32];
-    char    second[32];
-    char    detail[48]; /* a line of ordinary text under them */
-    char    ok[16];     /* what OK does: "Remove" */
-    char    back[16];   /* what BACK does: "Cancel" */
+    char    first[64];  /* the texts are UTF-8: a field holds half as many letters */
+    char    second[64]; /* of an alphabet that is not the Latin one */
+    char    detail[96]; /* a line of ordinary text under them */
+    char    ok[32];     /* what OK does: "Remove" */
+    char    back[32];   /* what BACK does: "Cancel" */
     int32_t icon;       /* a HOST_ICON_*, or HOST_ICON_NONE */
     int32_t is_working;
 } host_notice_t;
@@ -605,8 +605,8 @@ HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int3
 #define HOST_UI_CELL_PICTURE_SMALL 44
 typedef struct host_cell {
     int32_t x, y, width, height;
-    char    name[24];  /* empty: none */
-    char    value[24];
+    char    name[48];  /* empty: none */
+    char    value[48];
     int32_t size;
 } host_cell_t;
 HOST_IMPORT(ui_cell_fit, int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture));
@@ -616,11 +616,11 @@ HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *pic
  * the middle, what UP leads to over it and what DOWN leads to under it.
  * An empty text: the row ends there. The row of buttons is drawn too. */
 typedef struct host_picker {
-    char above[32];
-    char chosen[32];
-    char below[32];
-    char ok[16];
-    char back[16];
+    char above[64];
+    char chosen[64];
+    char below[64];
+    char ok[32];
+    char back[32];
 } host_picker_t;
 HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
 
@@ -639,8 +639,8 @@ typedef struct host_date {
     int32_t hour, minute;
     int32_t has;              /* HOST_DATE_HAS_* */
     int32_t selected;         /* HOST_DATE_HOUR .. HOST_DATE_NONE */
-    char    ok[16];
-    char    back[16];
+    char    ok[32];
+    char    back[32];
 } host_date_t;
 HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
 

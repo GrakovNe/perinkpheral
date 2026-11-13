@@ -54,7 +54,8 @@ extern "C" {
 
 typedef struct {
     char name[APP_NAME_MAX + 1];       /* a-z, 0-9, '-' and '_' */
-    char title[APP_TITLE_MAX + 1];     /* what the menu shows */
+    /* What the menu shows: APP_TITLE_MAX characters, UTF-8. */
+    char title[APP_TITLE_MAX * MANIFEST_TEXT_BYTES_PER_CHARACTER + 1];
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */

@@ -663,11 +663,29 @@ int gfx_text_tabular_width(const gfx_font_t *font, const char *utf8)
     return draw_text(NULL, 0, 0, font, utf8, true, digit_cell(font));
 }
 
+size_t gfx_text_cut(const char *text, size_t max_bytes)
+{
+    size_t length = strlen(text);
+    if (length <= max_bytes) {
+        return length;
+    }
+    length = max_bytes;
+    while (length > 0 && ((unsigned char)text[length] & 0xC0) == 0x80) {
+        length--;
+    }
+    return length;
+}
+
 void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
                   size_t capacity)
 {
     static const char ELLIPSIS[] = "...";
-    snprintf(fitted, capacity, "%s", text);
+    if (capacity == 0) {
+        return;
+    }
+    size_t whole = gfx_text_cut(text, capacity - 1);
+    memcpy(fitted, text, whole);
+    fitted[whole] = '\0';
     if (gfx_text_font_width(font, fitted) <= max_width) {
         return;
     }

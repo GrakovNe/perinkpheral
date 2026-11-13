@@ -21,7 +21,7 @@
 #define NOTICE_STROKES         3
 #define NOTICE_STROKE_GAP      24
 #define NOTICE_STROKE_HEIGHT   6
-#define NOTICE_TEXT_BUFFER     48
+#define NOTICE_TEXT_BUFFER     128
 #define NOTICE_DETAIL_BUFFER   48
 #define NOTICE_DETAIL_STEP     34 /* from the second line's baseline to the detail's */
 

@@ -377,6 +377,19 @@ static void test_glyph_pack(void)
     CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
 }
 
+/* A limit in bytes never falls inside a character. */
+static void test_text_cut(void)
+{
+    const char *moscow = "\xD0\x9C\xD0\xBE\xD1\x81\xD0\xBA\xD0\xB2\xD0\xB0"; /* six letters, twelve bytes */
+    CHECK(gfx_text_cut(moscow, 12) == 12 && gfx_text_cut(moscow, 100) == 12);
+    CHECK(gfx_text_cut(moscow, 11) == 10 && gfx_text_cut(moscow, 10) == 10);
+    CHECK(gfx_text_cut(moscow, 1) == 0 && gfx_text_cut("abc", 2) == 2 && gfx_text_cut("", 5) == 0);
+    /* a buffer too small for the whole text holds whole characters of it */
+    char small[8];
+    gfx_text_fit(gfx_font_system(), moscow, 10000, small, sizeof small);
+    CHECK_STR(small, "\xD0\x9C\xD0\xBE\xD1\x81");
+}
+
 static void test_text_fit(void)
 {
     const gfx_font_t *font = gfx_font_system();
@@ -435,6 +448,7 @@ int main(void)
     test_picture();
     test_degree_sign();
     test_in_latin();
+    test_text_cut();
     test_glyph_pack();
     test_text_fit();
     test_clear_and_pixel();

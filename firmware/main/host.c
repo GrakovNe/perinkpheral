@@ -128,6 +128,14 @@ static void give_way_to_the_screen(void)
     }
 }
 
+/* For whoever changes what is on the screen from outside the host's own
+ * handlers - the development tools: an application taking an answer off
+ * the screen is loaded where the next one would be, and has to go first. */
+void host_give_way(void)
+{
+    give_way_to_the_screen();
+}
+
 /* The scene whose picture the panel shows: what a person pressing a
  * button is looking at. Not the scene that has the screen while its first
  * frame is still being put on the panel. */
@@ -462,8 +470,8 @@ static void open_confirm(void *argument)
  * What applications asked to be told to the user. One is on the screen,
  * the rest wait their turn; a restart forgets them. */
 #define NOTICES_MAX      4
-#define NOTICE_LINE_MAX  31
-#define NOTICE_DETAIL_MAX 47
+#define NOTICE_LINE_MAX  63
+#define NOTICE_DETAIL_MAX 95
 typedef struct {
     char first[NOTICE_LINE_MAX + 1], second[NOTICE_LINE_MAX + 1], detail[NOTICE_DETAIL_MAX + 1];
     int  icon;
@@ -752,6 +760,8 @@ static void leave_the_idle_menu(void)
     s_menu_is_watched = false;
     scene_t *chosen = default_scene();
     if (wm.current == s_menu && chosen != NULL) {
+        /* An application may be taking an answer off the screen just now. */
+        give_way_to_the_screen();
         wm_open_anew(&wm, chosen);
     }
 }

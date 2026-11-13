@@ -12,6 +12,9 @@
 /* The name is the application's folder, its key in the catalog and, after
  * a prefix, the namespace of its store - which is what limits it. */
 #define MANIFEST_NAME_MAX    13
+/* Texts a person reads are counted in characters; in bytes they may be twice
+ * that - every letter of Europe's alphabets is two bytes of UTF-8 at most. */
+#define MANIFEST_TEXT_BYTES_PER_CHARACTER 2
 #define MANIFEST_TITLE_MAX   23
 #define MANIFEST_VERSION_MAX 15
 

@@ -261,6 +261,18 @@ static void test_a_server_of_the_users_own(void)
                 "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"C\"}],"
                 "\"polls\":[{\"url\":\"{{feed}}/more\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 
+    /* a title is counted in characters: twenty-three of any European alphabet */
+    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
+                "\xD0\xB0\xD1\x80\xD1\x8C \xD0\xB8 \xD0\xBD\xD0\xB0\xD0\xBF\xD0\xBE\xD0\xBC\xD0\xB8\xD0\xBD\xD0\xB0"
+                "\xD0\xBD\xD0\xB8\xD1\x8F\"}") == APP_MANIFEST_OK); /* "Календарь и напоминания": 23 */
+    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
+                "\xD0\xB0\xD1\x80\xD1\x8C \xD0\xB8 \xD0\xBD\xD0\xB0\xD0\xBF\xD0\xBE\xD0\xBC\xD0\xB8\xD0\xBD\xD0\xB0"
+                "\xD0\xBD\xD0\xB8\xD1\x8F!\"}") != APP_MANIFEST_OK); /* 24 */
+    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"123456789012345678901234\"}") != APP_MANIFEST_OK);
+    /* and not in characters of three bytes each: those would not fit */
+    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD"
+                "\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\"}") != APP_MANIFEST_OK);
+
     /* a poll's pace may be the user's choice in a setting */
     CHECK(app_manifest_pace_seconds("15 min") == 900 && app_manifest_pace_seconds("1 h") == 3600);
     CHECK(app_manifest_pace_seconds("3 hours") == 10800 && app_manifest_pace_seconds("30 s") == 30);

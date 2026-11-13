@@ -53,6 +53,10 @@ PACKS = {
     "greek": span(0x0386, 0x03CE),
 }
 
+# Letters a face has under another code: the Kazakh schwa is the shape of the
+# Latin one, which Departure Mono has drawn.
+SAME_AS = {0x04D8: 0x018F, 0x04D9: 0x0259}
+
 MAGIC, VERSION, NAME_MAX = 0x594C4750, 1, 11
 
 
@@ -62,6 +66,8 @@ def face_part(number, font_file, px, code_points):
     glyphs, bits, missing, drawn = [], bytearray(), [], {}
     for cp in sorted(set(code_points)):
         rendered = fontgen.render(face, cp)
+        if rendered is None and cp in SAME_AS:
+            rendered = fontgen.render(face, SAME_AS[cp])
         if rendered is None:
             missing.append(cp)
             continue
