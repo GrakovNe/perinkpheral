@@ -4,68 +4,102 @@
 <meta charset="utf-8">
 <title>perINKpheral: application platform datasheet and development guide</title>
 <style>
+  @font-face { font-family: "Departure Mono"; src: url("{{ROOT}}/assets/fonts/DepartureMono-Regular.otf"); }
+  :root { --ink: #141413; --paper: #E9E7E1; --paper-light: #F4F3F0; --rule: #C9C6BD; --grey: #6B6963; }
   @page { size: A4; margin: 22mm 21mm 24mm 21mm;
-          @bottom-left  { content: "perINKpheral - application platform datasheet and development guide";
-                          font: 7pt Helvetica, Arial, sans-serif; color: #666;
-                          border-top: .5pt solid #bbb; padding-top: 2mm; vertical-align: top; }
-          @bottom-right { content: "page " counter(page);
-                          font: 7pt Helvetica, Arial, sans-serif; color: #666;
-                          border-top: .5pt solid #bbb; padding-top: 2mm; vertical-align: top; } }
-  @page :first { @bottom-left { content: none; border: 0; } @bottom-right { content: none; border: 0; } }
-  html { font: 9pt/1.42 Helvetica, Arial, sans-serif; color: #111; }
+          @bottom-left  { content: "perINKpheral / application guide";
+                          font: 6.5pt "Departure Mono", monospace; color: #6B6963; letter-spacing: .04em;
+                          border-top: .6pt solid #141413; padding-top: 2.2mm; vertical-align: top; }
+          @bottom-right { content: counter(page);
+                          font: 6.5pt "Departure Mono", monospace; color: #141413;
+                          border-top: .6pt solid #141413; padding-top: 2.2mm; vertical-align: top; } }
+  @page :first { margin: 0; @bottom-left { content: none; border: 0; } @bottom-right { content: none; border: 0; } }
+  html { font: 9pt/1.45 Helvetica, Arial, sans-serif; color: var(--ink); }
   body { margin: 0; }
-  h1 { font-size: 19pt; font-weight: 400; letter-spacing: .02em; margin: 9mm 0 2.5mm; break-after: avoid; }
-  h2 { font-size: 13pt; font-weight: 400; letter-spacing: .02em; margin: 6mm 0 1.6mm; break-after: avoid; }
+  .mono, code, pre, td.c, th, h1, h2, figcaption, a.toc1, .plate, .cover .facts { font-family: "Departure Mono", "Courier New", monospace; }
+
+  /* The cover: the panel's own paper, the mark, the word. */
+  .cover { box-sizing: border-box; width: 210mm; height: 297mm; background: var(--paper);
+           padding: 26mm 21mm 20mm; break-after: page; position: relative; }
+  .cover .sign { width: 34mm; display: block; }
+  .cover .word { width: 132mm; display: block; margin-top: 30mm; }
+  .cover .what { font: 22pt/1.2 "Departure Mono", monospace; margin: 9mm 0 0; letter-spacing: -.01em; }
+  .cover .pitch { font-size: 12.5pt; line-height: 1.5; max-width: 118mm; margin: 10mm 0 0; }
+  .cover .steps { font: 8.5pt/1.9 "Departure Mono", monospace; margin: 8mm 0 0; padding: 0; list-style: none; }
+  .cover .steps b { background: var(--ink); color: var(--paper); font-weight: 400; padding: .7mm 1.6mm; margin-right: 2.2mm; }
+  .cover .hero { position: absolute; right: 21mm; bottom: 46mm; width: 74mm; border: .8pt solid var(--ink);
+                 image-rendering: pixelated; display: block; }
+  .cover .facts { position: absolute; left: 21mm; right: 21mm; bottom: 20mm; font-size: 7pt; line-height: 1.7;
+                  color: var(--grey); border-top: .6pt solid var(--ink); padding-top: 3mm; }
+
+  h1 { font-size: 16.5pt; font-weight: 400; line-height: 1.25; margin: 10mm 0 3mm; break-after: avoid; }
+  h2 { font-size: 11pt; font-weight: 400; margin: 6.5mm 0 1.8mm; break-after: avoid; }
   h3 { font-size: 9.6pt; font-weight: 700; margin: 4mm 0 1mm; break-after: avoid; }
-  h1.part { font-size: 22pt; margin-top: 0; break-before: page; }
+  /* A section's number stands on a plate, as a button's name does on the panel. */
+  .plate { background: var(--ink); color: #fff; padding: .2mm 2.2mm .5mm; margin-right: 3mm; font-size: 13pt;
+           position: relative; top: -.4mm; }
+  /* A part opens inside the mark: two corners of an empty frame. */
+  h1.part { font-size: 27pt; margin: 0 0 12mm; padding: 14mm 12mm; break-before: page; position: relative; }
+  h1.part::before, h1.part::after, pre::before, pre::after, .note::before, .note::after {
+      content: ""; position: absolute; border: 0 solid var(--ink); }
+  h1.part::before { top: 0; right: 0; width: 26mm; height: 15mm; border-width: 2.6mm 2.6mm 0 0; }
+  h1.part::after  { bottom: 0; left: 0; width: 26mm; height: 15mm; border-width: 0 0 2.6mm 2.6mm; }
+  h1#contents { margin-top: 0; }
+
   p { margin: 0 0 2.2mm; orphans: 3; widows: 3; }
   ul, ol { margin: 0 0 2.4mm; padding-left: 4.4mm; }
   li { margin-bottom: 1.2mm; }
-  code, pre, td.c, .mono { font-family: "Courier New", Courier, monospace; }
-  code { font-size: 8.2pt; }
-  pre { font-size: 7.4pt; line-height: 1.32; margin: 1.5mm 0 3mm; white-space: pre; break-inside: avoid; }
-  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 3.5mm; font-size: 8pt; line-height: 1.34; }
-  th { background: #000; color: #fff; text-align: left; font-weight: 400; letter-spacing: .03em;
-       padding: 1.3mm 1.8mm; border: .5pt solid #000; }
-  td { padding: 1.3mm 1.8mm; border: .5pt solid #c4c4c4; vertical-align: top; }
-  tr:nth-child(even) td { background: #f6f6f6; }
+  code { font-size: 7.6pt; background: var(--paper-light); padding: 0 .6mm; }
+  pre { font-size: 6.6pt; line-height: 1.42; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre;
+        background: var(--paper-light); break-inside: avoid; position: relative; }
+  pre::before, .note::before { top: 0; right: 0; width: 5mm; height: 5mm; border-width: .8pt .8pt 0 0; }
+  pre::after, .note::after   { bottom: 0; left: 0; width: 5mm; height: 5mm; border-width: 0 0 .8pt .8pt; }
+  pre code, td code, th code { background: none; padding: 0; font-size: inherit; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 3.8mm; font-size: 8pt; line-height: 1.36; }
+  th { background: var(--ink); color: #fff; text-align: left; font-weight: 400; font-size: 7pt; letter-spacing: .02em;
+       padding: 1.5mm 1.8mm; }
+  td { padding: 1.4mm 1.8mm; border-bottom: .5pt solid var(--rule); vertical-align: top; }
+  tr:nth-child(odd) td { background: var(--paper-light); }
   tr { break-inside: avoid; }
-  td.c { font-size: 7.2pt; }
+  td.c { font-size: 6.6pt; line-height: 1.5; }
   td.n { white-space: nowrap; }
-  .cover { padding-top: 34mm; break-after: page; }
-  .cover h1 { font-size: 27pt; margin: 0; line-height: 1.3; }
-  .cover p { font-size: 12pt; line-height: 1.5; color: #555; margin: 7mm 0 0; max-width: 150mm; }
-  .cover .small { font-size: 9.5pt; margin-top: 16mm; }
-  .cover table { margin-top: 12mm; width: 120mm; font-size: 8.5pt; }
-  .note { border-left: 2.2pt solid #000; padding: .6mm 0 .6mm 3mm; margin: 2mm 0 3.2mm; }
+  .note { padding: 2.4mm 3.4mm; margin: 2mm 0 3.2mm; position: relative; background: var(--paper-light); }
   .rule { margin: 0 0 2.6mm; }
-  .rule b { display: block; }
+  .rule b { display: block; font: 400 8.2pt "Departure Mono", monospace; }
   a.toc { display: flex; align-items: baseline; color: inherit; text-decoration: none; }
-  a.toc1 { font-size: 10pt; margin-top: 2.6mm; letter-spacing: .02em; }
-  a.toc2 { font-size: 8.4pt; margin: 1.1mm 0 0 5mm; }
-  a.toc i { flex: 1; border-bottom: 1.1pt dotted #555; margin: 0 1.5mm; position: relative; top: -1.1mm; }
+  a.toc1 { font-size: 8.6pt; margin-top: 2.8mm; }
+  a.toc2 { font-size: 8.2pt; margin: 1.1mm 0 0 5mm; }
+  a.toc i { flex: 1; border-bottom: .9pt dotted var(--grey); margin: 0 1.5mm; position: relative; top: -1.1mm; }
+  a.toc b { font: 400 7.6pt "Departure Mono", monospace; }
   .mark { font-size: 1pt; color: #fff; letter-spacing: 0; }
   .two { columns: 2; column-gap: 8mm; }
   .two > * { break-inside: avoid; }
+
+  /* The panel, as the host's own drawing code renders it. */
+  .screens { display: flex; gap: 5mm; margin: 2.5mm 0 4mm; break-inside: avoid; }
+  figure { margin: 0; flex: 1; }
+  figure img { width: 100%; display: block; border: .7pt solid var(--ink); image-rendering: pixelated; }
+  figcaption { font-size: 6.4pt; color: var(--grey); margin-top: 1.4mm; letter-spacing: .02em; }
 </style>
 </head>
 <body>
 
 <div class="cover">
-  <h1>perINKpheral</h1>
-  <h1>Application platform</h1>
-  <p>Datasheet and development guide for applications of the perINKpheral desk display:
-     what the platform gives an application, what it holds it to, and how to write one that
-     belongs on an e-paper panel.</p>
-  <p class="small">Part I is the datasheet: the numbers and the model. Part II is the guide: how
-     to build an application, with recommendations. Part III is the reference: every call of
-     the host API (ABI 2) and of the SDK library.</p>
-  <table>
-    <tr><td class="n">Document</td><td>revision 1, 2026-11-13</td></tr>
-    <tr><td class="n">Describes</td><td>host API of <code>sdk/host_api.h</code> as of 2026-11-13, <code>abi</code> 2</td></tr>
-    <tr><td class="n">Status</td><td>preliminary: the host API is not frozen before the first release</td></tr>
-    <tr><td class="n">Source</td><td>github.com/GrakovNe/perinkpheral · MIT</td></tr>
-  </table>
+  <img class="sign" src="{{ROOT}}/assets/mark/mark.svg" alt="">
+  <img class="word" src="{{ROOT}}/assets/mark/wordmark.svg" alt="perINKpheral">
+  <p class="what">Application guide</p>
+  <p class="pitch">Write an application for a screen that sits on a desk and is read at a glance:
+     the weather, the next meeting, a number that matters. Plain C, one header, ten seconds
+     from a saved file to the panel.</p>
+  <ul class="steps">
+    <li><b>1</b>the datasheet: what the platform gives and what it holds you to</li>
+    <li><b>2</b>the guide: a first application, then everything it can do</li>
+    <li><b>3</b>the reference: every call of the host and of the SDK</li>
+  </ul>
+  <img class="hero" src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt="">
+  <div class="facts">revision 2, 2026-11-14 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+     is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Contents</h1>
@@ -81,7 +115,7 @@ the device shows: everything the user sees beyond the menu and the settings is a
 <i>application</i>, installed from a catalog without reflashing.</p>
 <p>An application is a WebAssembly module and a manifest. It is written in C against one header,
 <code>sdk/host_api.h</code>, and run by an interpreter (wasm3) inside the host. The host's own
-pages - Settings, Device, About - are applications written with the same header.</p>
+pages - Settings and About - are applications written with the same header.</p>
 
 <h2 id="overview-features">Features</h2>
 <div class="two">
@@ -170,7 +204,7 @@ so whatever must be remembered lives in its store, not in its variables.</p>
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>made by the host; an application has no sockets</td></tr>
   <tr><td>HTTPS trust</td><td class="n">browsers' roots</td><td>a server with a certificate of its own making is refused; plain <code>http</code> works in a home network</td></tr>
-  <tr><td>Where an application may ask</td><td class="n">4 hosts</td><td>named in the manifest, or the server the user gave in a setting</td></tr>
+  <tr><td>Where its own requests may go</td><td class="n">4 hosts</td><td>named in the manifest, or the server the user gave in a setting. A poll is not held to them: it goes where its <code>url</code> says</td></tr>
   <tr><td>Polls in a manifest</td><td class="n">4</td><td>each every 10 s to 1 day; on battery not closer than 300 s</td></tr>
   <tr><td>Requests at once</td><td class="n">1</td><td>of the whole device; 2 more may wait</td></tr>
   <tr><td>A request's headers / body</td><td class="n">1023 / 512 bytes</td><td>up to 4 header lines</td></tr>
@@ -394,7 +428,7 @@ include, checks everything against the limits and writes the package: <code>app.
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: the host's header is above, the surface is 400 x 260</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>in the menu, on the page, in a catalog. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>what the host fetches on a schedule (below)</td></tr>
-  <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>where <code>http_request()</code> may go: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting</td></tr>
+  <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>where <code>http_request()</code> may go: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Only for requests of the code's own: an application that has polls alone needs none</td></tr>
   <tr><td class="c">settings</td><td>up to 8</td><td>the form on the device's page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>device events the application is loaded for; an unknown one fails the build</td></tr>
   <tr><td class="c">system</td><td>true / false (default)</td><td>asks for the <code>sys_*</code> calls; the page tells the user before installing</td></tr>
@@ -405,8 +439,8 @@ include, checks everything against the limits and writes the package: <code>app.
 <h2 id="package-polls">Polls</h2>
 <table>
   <tr><th style="width:13%">Field</th><th style="width:30%">Rule</th><th>Meaning</th></tr>
-  <tr><td class="c">url</td><td>up to 511 bytes; <code>http</code> or <code>https</code>, or beginning with <code>{{key}}</code> of a <code>url</code> setting, or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> anywhere in it is replaced by the stored setting, encoded for a URL. A poll that needs a setting which is not set fails with <code>HOST_FAILED_NOT_READY</code></td></tr>
-  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>with a setting, its value is the pace as a person writes it - "15 min", "1 h", "30 s" - and the user's choice takes effect with no code</td></tr>
+  <tr><td class="c">url</td><td>up to 511 bytes; <code>http</code> or <code>https</code>, or beginning with <code>{{key}}</code> of a <code>url</code> setting, or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting, anywhere in it, is replaced by the stored value encoded for a URL: every character but letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>a slash too</b>. A setting is therefore one part of a path, never two: <code>owner/name</code> is two settings, <code>/repos/{{owner}}/{{name}}</code>. Only the <code>url</code> setting a URL begins with and the <code>link</code> that is the whole of it go in as they are. A poll that needs a setting which is not set fails with <code>HOST_FAILED_NOT_READY</code> - a header's too, so a token in a header makes the token required</td></tr>
+  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>with a setting, its value is the pace as a person writes it - a number and a unit, of which the first letter is read: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"); a bare number is seconds. The user's choice takes effect with no code</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> works in values: this is how a token travels</td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td><code>current.temperature_2m</code>, <code>daily.code[0]</code>: the host reads the JSON and hands over the values. Without it the answer arrives in pieces</td></tr>
 </table>
@@ -423,7 +457,7 @@ store. The code reads it with <code>kv_get()</code>. A change arrives as
   <tr><td class="c">number</td><td>a number</td><td>digits, an optional sign and decimal point</td></tr>
   <tr><td class="c">choice</td><td>one of up to 8 <code>options</code></td><td>the option itself, 1 - 23 characters. A translation gives options labels; the stored value does not change</td></tr>
   <tr><td class="c">toggle</td><td>a checkbox</td><td><code>"1"</code> or <code>"0"</code>; nothing while never touched</td></tr>
-  <tr><td class="c">secret</td><td>a password field</td><td>the page can write it and never reads it back</td></tr>
+  <tr><td class="c">secret</td><td>a password field</td><td>the page can write it and never reads it back. The application's own code reads it with <code>kv_get()</code> like any setting</td></tr>
   <tr><td class="c">place</td><td>a place found by name</td><td>the name; the page fills the two <code>number</code> settings named as its <code>latitude</code> and <code>longitude</code></td></tr>
   <tr><td class="c">url</td><td>the user's own server</td><td>a scheme, a host and maybe a port, nothing after: <code>http://192.168.1.10:8123</code></td></tr>
   <tr><td class="c">link</td><td>a whole address the user was given</td><td><code>https://host/path?key</code>, up to 255 bytes; kept from the page like a secret. <code>webcal://</code> is taken as <code>https://</code></td></tr>
@@ -471,7 +505,7 @@ the users. Measure: <code>gfx_text_width()</code>, <code>gfx_font_height()</code
   <li>The <code>y</code> of <code>gfx_text()</code> is the top of the line, not the baseline. To put the
       top of the capitals at <code>top</code>, draw at <code>top - (ascent - cap_height)</code>.</li>
   <li>Add <code>HOST_FONT_TABULAR</code> to the font for digits that change in place - a clock, a
-      countdown: every digit then takes the room of the widest. Measure with the same flag.</li>
+      countdown: every digit then takes the room of the widest. Every call that takes a font takes the flag - the ones that measure too, and those must be asked the same way as the text is drawn.</li>
   <li><code>gfx_text_fit()</code> cuts a text to a width with "..." after it, between characters.
       Never cut text by bytes.</li>
 </ul>
@@ -495,6 +529,10 @@ are counted in characters, and a field holds half as many letters of two bytes a
 plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update.
 <code>gfx_icon()</code> draws one with a cell of any number of pixels; <code>ui_icon()</code> at
 the host's three sizes, 22, 44 and 99 px.</p>
+<div class="screens">
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>the host's icons at a cell of 2 and of 4 pixels; the last is the project's own mark</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt=""><figcaption>the kit's plain parts: title, text, caption, icons, value, button, bar, actions</figcaption></figure>
+</div>
 <p>An application's own drawings go into <code>pictures/</code> - a PNG, a PBM, or a text file of
 rows of <code>#</code> and <code>.</code>, which may hold several under names:</p>
 <pre>// pictures/things.txt                     #include "pictures.h"   /* made by mkapp */
@@ -503,6 +541,7 @@ drop:
 ....###....                                gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px, the same drawing */
 ...#####...
 ..#######..</pre>
+<p>The rules of the text form: a line <code>name:</code> begins a drawing, and what stands before the first such line is named after the file; the rows of a drawing are of one length, at most 255 cells a side. The name in the code is <code>PICTURE_</code> and the drawing's name in capitals, whatever is not a letter or a digit becoming <code>_</code>: <code>half-moon</code> is <code>PICTURE_HALF_MOON</code>. <code>mkpicture.py --show</code> prints what was understood.</p>
 <p>A picture is a bit a cell, an eighth of what its rows would take as text, and is drawn with a
 cell of 1 to 16 pixels, so one drawing serves several sizes. Draw on the grid the host's icons
 use - 11 cells, or 22 and 44 for finer work - and the application's pictures stand beside the
@@ -529,6 +568,16 @@ the host.</p>
   <tr><td class="c">ui_bar</td><td>how much of how much, filled from the left</td><td>a quantity. It changes with the data; it is not an animation</td></tr>
   <tr><td class="c">ui_title, ui_text, ui_text_lines, ui_icon</td><td>a page's title with its line; text in the host's four styles, on one line or broken over several; an icon at its three sizes</td><td>the plain parts of a page</td></tr>
 </table>
+<div class="screens">
+  <figure><img src="{{ROOT}}/docs/guide/screens/kit-list.png" alt=""><figcaption>ui_list_row: rows with values</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/screens/kit-picker.png" alt=""><figcaption>ui_picker: one of a row of values</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/screens/kit-date.png" alt=""><figcaption>ui_date: a part at a time</figcaption></figure>
+</div>
+<div class="screens">
+  <figure><img src="{{ROOT}}/docs/guide/screens/notice-question.png" alt=""><figcaption>ui_notice: a question</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/screens/kit-message.png" alt=""><figcaption>ui_notice: nothing to show, and why</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/screens/notice-progress.png" alt=""><figcaption>ui_notice with is_working</figcaption></figure>
+</div>
 <p>What the buttons do on a list, a picker and a date is in the SDK's library
 (<code>app_ui.h</code>): the application writes only what the result is for (section 7). The
 catalog's <code>kit</code> application shows every part on a page of its own, and its source is
@@ -714,9 +763,16 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td class="c">HOST_FAILED_NO_MEMORY (-8)</td><td>the device has no room for the request just now</td></tr>
 </table>
 <p>Keep the last status in the store and hand it to <code>ui_reason()</code> when there is nothing
-to show: it draws the host's notice for every one of these and for the HTTP statuses a user can
-do something about, and returns 0 for an answer that came, leaving the application to say what
-is missing then.</p>
+to show: it always answers, and says whether it drew:</p>
+<table>
+  <tr><th style="width:34%">Status</th><th style="width:46%">The notice</th><th>Returns</th></tr>
+  <tr><td class="c">0 - nothing was asked yet</td><td>Loading</td><td>1</td></tr>
+  <tr><td class="c">HOST_FAILED_*</td><td>Not set up, No network, No answer ... one for each</td><td>1</td></tr>
+  <tr><td class="c">401, 403</td><td>Access denied / Check the settings</td><td>1</td></tr>
+  <tr><td class="c">404</td><td>Not found / Check the address</td><td>1</td></tr>
+  <tr><td class="c">any other that is not 2xx</td><td>No answer / Code 500</td><td>1</td></tr>
+  <tr><td class="c">200 - 299</td><td>nothing is drawn: an answer came, and what is missing in it is the application's to say</td><td>0</td></tr>
+</table>
 
 <h1 id="background">10. Working while away</h1>
 <p>An application that is not on the screen is not running, and yet it can do everything that
@@ -783,7 +839,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
                            &amp;minutes, 1, line, sizeof line);          /* "In 10 min" */</pre>
 <ul>
   <li><code>en.json</code> is required and is built into the module: an application always speaks
-      English. Every other file must have exactly the same keys.</li>
+      English. Every other file must have exactly the same keys - and may have one more, <code>manifest</code>, which <code>en.json</code> never has (below).</li>
   <li>When an instance is loaded the host copies the table of the device's language over the
       English one in the application's memory. Reading a string then costs no code.</li>
   <li><code>{0}</code>, <code>{1}</code> in a string are filled by <code>text_fill()</code> with
@@ -968,7 +1024,7 @@ needed. A call with no value of its own returns <code>HOST_OK</code> or a negati
   <tr><td class="c">gfx_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>the same, read by the host from a file of the application's at an offset</td></tr>
   <tr><td class="c">gfx_qr(x, y, cell, text, length)</td><td>a QR code of up to 200 bytes; returns its modules a side, and with a cell of 0 only that</td></tr>
   <tr><td class="c">void request_redraw(flags)</td><td>the picture is out of date: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code></td></tr>
-  <tr><td class="c">header_text(side, text, length)</td><td>a line of the application's own in the host's header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. A length of 0 gives the side back</td></tr>
+  <tr><td class="c">header_text(side, text, length)</td><td>not a drawing call: from any handler, whenever the text changes. A line of the application's own in the host's header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. A length of 0 gives the side back</td></tr>
 </table>
 
 <h1 id="ref-kit">19. The kit</h1>
@@ -1050,18 +1106,57 @@ refused.</p>
 </table>
 
 <h1 id="ref-library">23. The SDK library</h1>
-<p>Linked into every application by <code>mkapp</code>; what is not used is not kept.</p>
-<table>
-  <tr><th style="width:44%">Header and calls</th><th>What it is for</th></tr>
-  <tr><td class="c">app_text.h: app_text_start(t, buffer, size), app_text_add(t, text), app_text_add_number(t, n), app_text_add_padded(t, n, digits), app_text_length(text)</td><td>building short strings without <code>printf</code>: always terminated, never past the buffer, cut between characters</td></tr>
-  <tr><td class="c">app_values.h: app_value_text(index, text, size), app_value_number(index, decimals, &amp;n), app_parse_number(text, decimals, &amp;n)</td><td>inside <code>app_on_values()</code>: a picked value as terminated text, or as an integer with so many decimals kept</td></tr>
-  <tr><td class="c">json_pick.h: json_pick_init(p, paths, count), json_pick_feed(p, bytes, length), json_pick_finish(p), json_pick_value(p, index)</td><td>the host's own picker, for answers that come in pieces: up to 16 paths, a value up to 63 bytes</td></tr>
-  <tr><td class="c">app_ui.h: app_list_button, app_list_first; app_picker_button, app_picker_draw; app_date_start, app_date_button, app_date_draw, app_date_seconds</td><td>what the buttons do on the kit's list, picker and date; each button call answers <code>APP_UI_CHANGED</code>, <code>_DONE</code>, <code>_CANCELLED</code> or <code>_IGNORED</code></td></tr>
-  <tr><td class="c">app_alloc.h: app_alloc(bytes), app_alloc_left(), app_alloc_mark(), app_alloc_release(mark)</td><td>an arena over what the page has left: pieces one after another, given back to a mark. <code>NULL</code> when there is no room</td></tr>
-  <tr><td class="c">strings.h (made by mkapp): STR_*, app_string(id)</td><td>the application's strings in the device's language</td></tr>
-  <tr><td class="c">pictures.h (made by mkapp): PICTURE_*</td><td>the drawings of <code>pictures/</code></td></tr>
-  <tr><td class="c">memcpy, memmove, memset, strlen</td><td>what the compiler calls by itself</td></tr>
-</table>
+<p>Linked into every application by <code>mkapp</code>; what is not used is not kept. The headers are in
+<code>sdk/lib</code>. <code>bool</code> is C's own, of <code>&lt;stdbool.h&gt;</code>; a text is terminated unless said otherwise.</p>
+<h2 id="lib-text">app_text.h: short strings without printf</h2>
+<pre>typedef struct { char *next; char *last; } app_text_t;      /* a local of the caller's, on the stack */
+
+void    app_text_start(app_text_t *text, char *buffer, int32_t buffer_size);
+void    app_text_add(app_text_t *text, const char *more);   /* what does not fit is dropped, between characters */
+void    app_text_add_number(app_text_t *text, int32_t value);               /* decimal, "-" when negative */
+void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);          /* 7, 2 -> "07" */
+int32_t app_text_length(const char *text);                  /* of any terminated text: app_string()'s too */</pre>
+<p>The buffer is always terminated and never overrun. There is nothing to finish: the text is in
+the buffer after every call.</p>
+<h2 id="lib-values">app_values.h: what the host picked</h2>
+<pre>bool app_value_text(int32_t index, char *text, int32_t text_size);        /* false: no such value, or no room */
+bool app_value_number(int32_t index, int32_t decimals, int32_t *number);  /* "-3.46", 1 -> -35; false: none */
+bool app_parse_number(const char *text, int32_t decimals, int32_t *number);    /* the same for a text in hand */</pre>
+<p>Only inside <code>app_on_values()</code>; <code>index</code> is the path's place in the manifest's <code>pick</code>.</p>
+<h2 id="lib-ui">app_ui.h: what the buttons do on the kit's screens</h2>
+<pre>typedef enum { APP_UI_IGNORED, APP_UI_CHANGED, APP_UI_DONE, APP_UI_CANCELLED } app_ui_result_t;
+
+typedef host_list_t app_list_t;        /* count, selected (-1: facts), top, height, first */
+app_ui_result_t app_list_button(app_list_t *list, int32_t event);    /* UP DOWN move; OK done; BACK cancelled */
+int32_t         app_list_first(app_list_t *list);                    /* in app_on_draw(), before the rows */
+
+typedef struct { int32_t count; int32_t chosen; bool wraps; } app_picker_t;
+app_ui_result_t app_picker_button(app_picker_t *picker, int32_t event);
+void            app_picker_draw(const app_picker_t *picker, const char *const *labels);
+
+typedef struct { int32_t year, month, day, hour, minute, has, part, year_first, year_last; } app_date_t;
+void            app_date_start(app_date_t *date, int32_t has, int32_t year_first, int32_t year_last);
+app_ui_result_t app_date_button(app_date_t *date, int32_t event);    /* OK the next part, done after the last */
+void            app_date_draw(const app_date_t *date);
+int64_t         app_date_seconds(const app_date_t *date);            /* local: take time_zone_offset() off */</pre>
+<p>An application that takes BACK on such a screen exports <code>app_on_back()</code> and passes
+<code>BTN_BACK_PRESSED</code> to the same call from there.</p>
+<h2 id="lib-alloc">app_alloc.h, json_pick.h, and what is generated</h2>
+<pre>void   *app_alloc(int32_t bytes);            /* NULL when so much is not left; not cleared */
+int32_t app_alloc_left(void);
+int32_t app_alloc_mark(void);                /* and app_alloc_release(mark) gives back all taken since */
+void    app_alloc_release(int32_t mark);
+
+void        json_pick_init(json_pick_t *pick, const char *const *paths, int path_count);    /* up to 16 */
+bool        json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);      /* a piece as it came */
+void        json_pick_finish(json_pick_t *pick);
+const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL: the answer had none */
+
+#include "strings.h"      /* made of strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
+#include "pictures.h"     /* made of pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
+<p><code>strings.h</code> and <code>pictures.h</code> are an application's own and come first: a system header of the
+same name is never taken for them. <code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are
+there for what the compiler calls by itself; there is no other C library.</p>
 
 <h1 id="ref-limits">24. Limits</h1>
 <table>

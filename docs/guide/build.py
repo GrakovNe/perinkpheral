@@ -80,6 +80,11 @@ def main():
     with open(os.path.join(HERE, "guide.html")) as f:
         source = f.read()
     found = headings(source)
+    # Where the fonts, the mark and the screens are: the page is printed from a scratch folder.
+    root = "file://" + os.path.abspath(os.path.join(HERE, "..", ".."))
+    source = source.replace("{{ROOT}}", root)
+    # A section's number on a plate of its own: "4. A first application".
+    source = re.sub(r'(<h1 id="[^"]+">)(\d+)\. ', r'\1<span class="plate">\2</span>', source)
     # A marker inside every heading, for the first print to be searched for.
     marked = re.sub(r'(<h[12][^>]*id="([^"]+)"[^>]*>)', r'\1<span class="mark">[[\2]]</span>', source)
     with tempfile.TemporaryDirectory() as scratch:
