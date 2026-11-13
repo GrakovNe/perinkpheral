@@ -41,7 +41,8 @@ Holds:
 Does not hold:
 - **It can send its own secrets to any host its manifest names, and nobody is shown that
   list.** It reads the token with `kv_get`; `hosts` is its own word; the page says
-  nothing about `hosts` before installing, and the catalog's index does not carry them.
+  nothing about `hosts` before installing, and the catalog's index does not carry them
+  (once it is installed, the Info button on its tile does).
   An application that asks for a Home Assistant token and lists `evil.example` beside
   `{{server}}` installs with one click. This is the largest hole there is.
 - It can ask for the screen every 30 seconds, write lines into the log that look like
@@ -131,9 +132,10 @@ not as a list of work.
 One attacker is real at this level, because it needs nobody near the house: **an
 application from somebody else's catalog**. Against it:
 
-1. **Show what an application reaches before installing it**: its hosts, in a line on the
-   page. Cheap, changes nothing in the contract, and it is the one thing that lets a user
-   tell an honest application from one that sends a token away.
+1. *(Built 2026-11-13, the owner's way.)* **What an application is, in words, for whoever
+   wants to look**: a button on its tile beside the gear opens its manifest as a person
+   reads it - where it connects, how often, what it keeps. Not before installing: an
+   application has to install in one click, or nobody will use the catalog.
 2. **Home Assistant: a secret of the device's own instead of the user's token.** It comes
    with the integration (item 2 of the plan) anyway.
 

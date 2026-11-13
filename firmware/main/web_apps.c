@@ -106,6 +106,14 @@ static void add_settings(cJSON *app, const char *app_name)
     cJSON *settings = cJSON_DetachItemFromObjectCaseSensitive(manifest, "settings");
     cJSON *icon = cJSON_DetachItemFromObjectCaseSensitive(manifest, "icon");
     cJSON *companion = cJSON_DetachItemFromObjectCaseSensitive(manifest, "companion");
+    /* What the application is and reaches, for the page to say in words. */
+    static const char *const FACTS[] = { "hosts", "polls", "intents", "system", "fullscreen" };
+    for (size_t i = 0; i < sizeof FACTS / sizeof FACTS[0]; i++) {
+        cJSON *fact = cJSON_DetachItemFromObjectCaseSensitive(manifest, FACTS[i]);
+        if (fact != NULL) {
+            cJSON_AddItemToObject(app, FACTS[i], fact);
+        }
+    }
     cJSON_Delete(manifest);
     if (companion != NULL) {
         cJSON_AddItemToObject(app, "companion", companion);

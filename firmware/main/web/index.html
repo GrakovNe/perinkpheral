@@ -97,7 +97,10 @@
   .offer small { color: var(--dim); }
   .offer button { margin: 0; }
   .picture { flex: none; }
-  .tile .icon { position: absolute; top: .5rem; right: .5rem; }
+  .tile .tools { position: absolute; top: .5rem; right: .5rem; display: flex; gap: .25rem; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: .4rem 1.25rem; margin: .75rem 0; }
+  .facts dt { color: var(--dim); }
+  .facts dd { margin: 0; overflow-wrap: anywhere; }
   .tile .picture { margin-bottom: .75rem; }
   .picture.none { border: 1px solid var(--line); }
   .tile b { display: block; }
@@ -333,6 +336,12 @@ DEALINGS IN THE SOFTWARE.</pre>
 
 <div class="toasts" id="toasts"></div>
 
+<dialog id="info-dialog">
+  <h2 id="info-dialog-title"></h2>
+  <dl class="facts" id="info-facts"></dl>
+  <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
+</dialog>
+
 <dialog id="app-dialog">
   <form id="app-settings">
     <h2 id="app-dialog-title"></h2>
@@ -358,6 +367,10 @@ const make = (tag, properties) => Object.assign(document.createElement(tag), pro
 const GEAR = ["....###....", ".##.###.##.", ".#########.", "..##...##..", "###.....###",
               "###.....###", "###.....###", "..##...##..", ".#########.", ".##.###.##.",
               "....###...."];
+
+const INFO = ["...#####...", "..#.....#..", ".#...#...#.", "#.........#", "#....#....#",
+              "#....#....#", "#....#....#", ".#...#...#.", "..#.....#..", "...#####...",
+              "..........."];
 
 /* An icon as the manifest writes it - rows of '#' and '.' - drawn cell by cell. */
 function pixels(rows, cell) {
@@ -488,7 +501,8 @@ function afterRestart() {
  * application open in it, and "#apps:catalogs" with the list of catalogs: a link can
  * lead straight to either. */
 function showSection() {
-  const [wanted, inside] = (location.hash.slice(1) || "apps").split(":");
+  const [wanted, ...rest] = (location.hash.slice(1) || "apps").split(":");
+  const inside = rest.join(":");
   openInside(inside);
   const name = byId(wanted) && byId(wanted).tagName === "SECTION" ? wanted : "apps";
   for (const section of document.querySelectorAll("section"))
@@ -509,9 +523,14 @@ function openInside(what) {
     wantedInside = null;
     return;
   }
-  /* An application's settings can open once the device has said what it holds. */
-  const app = installed.find(have => have.name === wantedInside);
-  if (app && app.settings.length) {
+  /* An application's settings can open once the device has said what it holds;
+   * "#apps:weather:info" is what the application is. */
+  const [name, page] = wantedInside.split(":");
+  const app = installed.find(have => have.name === name);
+  if (app && page === "info") {
+    openAppInfo(app);
+    wantedInside = null;
+  } else if (app && app.settings.length) {
     openAppSettings(app);
     wantedInside = null;
   }
@@ -748,12 +767,18 @@ function tile(have, offer) {
   box.append(picture(have.icon || (offer && offer.app.icon), 5),
              make("b", { textContent: have.title }), make("small", { textContent: have.version }),
              make("div", { className: "spring" }));
+  const tools = make("div", { className: "tools" });
   if (have.settings.length) {
     const gear = make("button", { className: "icon", title: "Settings" });
     gear.append(pixels(GEAR, 2));
     gear.addEventListener("click", () => openAppSettings(have));
-    box.append(gear);
+    tools.append(gear);
   }
+  const info = make("button", { className: "icon", title: "Info" });
+  info.append(pixels(INFO, 2));
+  info.addEventListener("click", () => openAppInfo(have));
+  tools.append(info);
+  box.append(tools);
   if (offer && offer.app.version !== have.version) {
     const update = make("button", { className: "action", textContent: "Update" });
     update.title = offer.app.version;
@@ -769,6 +794,49 @@ function tile(have, offer) {
   });
   box.append(remove);
   return box;
+}
+
+/* ---- what an application is, as its manifest says it ---- */
+
+const pace = seconds => seconds % 3600 === 0 ? seconds / 3600 + " h"
+                      : seconds % 60 === 0 ? seconds / 60 + " min" : seconds + " s";
+
+/* The host of an address; "{{server}}" is wherever the user said the server is. */
+function hostOf(app, address) {
+  const key = (address.match(/^\{\{(\w+)\}\}/) || [])[1];
+  const whole = key ? address.replace("{{" + key + "}}", app.values[key] || "") : address;
+  try {
+    return new URL(whole.includes("://") ? whole : "http://" + whole).host;
+  } catch (error) {
+    const setting = app.settings.find(have => have.key === key);
+    return setting ? setting.title + " (not set)" : address;
+  }
+}
+
+function appFacts(app) {
+  const hosts = [...new Set([...(app.hosts || []), ...(app.polls || []).map(poll => poll.url)]
+                            .map(address => hostOf(app, address)))];
+  const updates = (app.polls || []).map(poll => "Every " + pace(poll.every));
+  const stores = app.settings.map(setting => setting.title +
+                                             (setting.type === "secret" ? " (secret)" : ""));
+  return [
+    ["Name", app.name],
+    ["Version", app.version || "-"],
+    ["Connects to", hosts.join(", ") || "Nothing"],
+    ["Updates", [...new Set(updates)].join(", ") || "On request"],
+    ["Settings", stores.join(", ") || "None"],
+    ["Starts with device", (app.intents || []).includes("started") ? "Yes" : "No"],
+    ["System access", app.system ? "Yes" : "No"],
+    ["Screen", app.fullscreen ? "Full" : "With header"],
+    ...(app.companion ? [["Set up page", new URL(app.companion).host]] : []),
+  ];
+}
+
+function openAppInfo(app) {
+  show("info-dialog-title", app.title);
+  byId("info-facts").replaceChildren(...appFacts(app).flatMap(([name, value]) =>
+    [make("dt", { textContent: name }), make("dd", { textContent: value })]));
+  byId("info-dialog").showModal();
 }
 
 /* What the catalogs have and the device does not. */
