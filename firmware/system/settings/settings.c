@@ -215,6 +215,32 @@ static bool app_title_at(int32_t row, char title[TEXT_MAX + 1])
     return length >= 0;
 }
 
+/* The row of the default application among the installed ones; -1 for none. */
+static int32_t default_app_row(void)
+{
+    uint32_t chosen = sys_app_default();
+    int32_t  count = app_count();
+    for (int32_t row = 0; chosen != 0 && row < count; row++) {
+        if (app_ids[row] == chosen) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+/* The step after the one that is set, round the row of them. */
+static int32_t next_idle_minutes(void)
+{
+    static const int32_t STEPS[] = { 1, 5, 15, 30, 60 };
+    int32_t now = read_number(SYS_NUMBER_MENU_IDLE_MINUTES);
+    for (uint32_t i = 0; i < COUNT_OF(STEPS); i++) {
+        if (STEPS[i] > now) {
+            return STEPS[i];
+        }
+    }
+    return STEPS[0];
+}
+
 static void format_choice(const display_setting_t *setting, int32_t value, char text[TEXT_MAX + 1])
 {
     app_text_t out;
@@ -270,7 +296,7 @@ static int32_t row_count(page_t page)
     case PAGE_ROOT:
         return ROOT_ROWS;
     case PAGE_GENERAL:
-        return 3;
+        return 5;
     case PAGE_DATE_TIME:
         return is_automatic() ? 1 : 2; /* by hand only when not from the network */
     case PAGE_ZONE:
@@ -294,7 +320,8 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
                          char value[TEXT_MAX + 1])
 {
     static const char *const ROOT[ROOT_ROWS] = { "General", "Apps", "Display", "Wi-Fi", "Reset" };
-    static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving" };
+    static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving",
+                                           "Default app", "Idle timeout" };
     static const char *const WIFI[] = { "Network", "IP address", "Status", "Forget network" };
     label[0] = '\0';
     value[0] = '\0';
@@ -310,6 +337,16 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
                       POWER_SAVING_NAMES[read_number(SYS_NUMBER_POWER_SAVING) % POWER_SAVINGS]);
+        } else if (row == 3) {
+            int32_t chosen = default_app_row();
+            if (chosen < 0 || !app_title_at(chosen, value)) {
+                copy_text(value, TEXT_MAX + 1, "None");
+            }
+        } else if (row == 4) {
+            app_text_t out;
+            app_text_start(&out, value, TEXT_MAX + 1);
+            app_text_add_number(&out, read_number(SYS_NUMBER_MENU_IDLE_MINUTES));
+            app_text_add(&out, " min");
         }
         break;
     case PAGE_DATE_TIME:
@@ -479,10 +516,18 @@ static void activate(page_t page, int32_t row)
         } else if (row == 1) {
             int32_t city = current_city();
             open(PAGE_ZONE, city >= 0 ? city : 0);
-        } else {
+        } else if (row == 2) {
             /* On: the device runs from its battery. */
             sys_number_set(SYS_NUMBER_POWER_SAVING,
                            (read_number(SYS_NUMBER_POWER_SAVING) + 1) % POWER_SAVINGS);
+            show();
+        } else if (row == 3) {
+            /* None, then each application in the menu's order, then None again. */
+            int32_t next = default_app_row() + 1;
+            sys_app_set_default(next < app_count() ? app_ids[next] : 0);
+            show();
+        } else {
+            sys_number_set(SYS_NUMBER_MENU_IDLE_MINUTES, next_idle_minutes());
             show();
         }
         break;

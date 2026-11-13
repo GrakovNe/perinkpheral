@@ -34,6 +34,7 @@ typedef enum {
     DEADLINE_POLL,            /* owner: the application's id; number: its poll */
     DEADLINE_POLLER_LOOK,     /* the poller has something to look at again */
     DEADLINE_CONFIRM,         /* nobody answered the question on the screen */
+    DEADLINE_MENU_IDLE,       /* the menu was left alone: the default application's turn */
 } deadline_kind_t;
 
 /* `some_are_due` is called from the timer's task whenever a deadline has

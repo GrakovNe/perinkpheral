@@ -26,6 +26,9 @@ typedef struct {
 
 /* entries must outlive the scene. */
 scene_t *scene_menu(const menu_entry_t *entries, int count);
+/* What BACK in the menu leads to - the default application - or NULL for
+ * nothing. */
+void scene_menu_set_way_back(scene_t *way_back);
 
 /* A scene sets a timer through this; 0 ms cancels. */
 typedef void (*scenes_set_timer_fn)(int id, int32_t milliseconds);

@@ -148,6 +148,30 @@ static void test_validate_ntp_tz(void)
     CHECK(!appconf_validate(&c, err, sizeof err));
 }
 
+static void test_default_app(void)
+{
+    appconf_t c;
+    char err[128];
+    appconf_defaults(&c, ID);
+    CHECK(c.default_app[0] == '\0' && c.menu_idle_min == 5);
+    CHECK(appconf_validate(&c, err, sizeof err));
+
+    strcpy(c.default_app, "clock");
+    CHECK(appconf_validate(&c, err, sizeof err));
+    strcpy(c.default_app, "sys.settings"); /* a dot is in no installed name */
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    strcpy(c.default_app, "Clock");
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.default_app[0] = '\0';
+
+    c.menu_idle_min = 0;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.menu_idle_min = 61;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+    c.menu_idle_min = 60;
+    CHECK(appconf_validate(&c, err, sizeof err));
+}
+
 static void test_refresh_policy_settings(void)
 {
     appconf_t c;
@@ -196,6 +220,7 @@ static void test_refresh_policy_settings(void)
 int main(void)
 {
     test_refresh_policy_settings();
+    test_default_app();
     test_device_id();
     test_hostname();
     test_defaults();

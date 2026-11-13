@@ -901,6 +901,8 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 #define SYS_NUMBER_REFRESH_FAST        5 /* 1: the shorter full refresh, with less of a blink */
 #define SYS_NUMBER_FONT                6 /* the typeface everything is set in: 0 Departure Mono,
                                             1 Jersey */
+#define SYS_NUMBER_MENU_IDLE_MINUTES    7 /* the menu left alone so long gives the screen to the
+                                            default application */
 #define SYS_REFRESH_FULL_NEVER         255
 typedef struct {
     int32_t value;
@@ -930,6 +932,13 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
+
+/* The default application: what the device shows by itself - after a
+ * restart, when the menu is left alone, and by BACK in the menu. Its id,
+ * or 0 when there is none; 0 given takes the choice back. It is kept by
+ * name, so a new version of the application is still the choice. */
+HOST_SYSTEM_IMPORT(sys_app_default, uint32_t sys_app_default(void));
+HOST_SYSTEM_IMPORT(sys_app_set_default, int32_t sys_app_set_default(uint32_t id));
 
 /* What cannot be taken back; the device restarts after each. */
 #define SYS_DO_RESTART        0

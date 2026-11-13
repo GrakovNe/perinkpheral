@@ -48,6 +48,8 @@ static const char *TAG = "settings";
 #define KEY_REFRESH_FAST   "refresh_fast"
 #define KEY_TIME_AUTO      "time_auto"
 #define KEY_POWER_SAVING   "power_saving"
+#define KEY_DEFAULT_APP    "default_app"
+#define KEY_MENU_IDLE      "menu_idle"
 
 void settings_nvs_init(void)
 {
@@ -120,6 +122,8 @@ static void load(appconf_t *c, const char device_id[5])
          * to throw every setting away, the network's among them. */
         c->power_saving = APPCONF_POWER_SAVING;
     }
+    get_str(h, KEY_DEFAULT_APP, c->default_app, sizeof c->default_app);
+    nvs_get_u8(h, KEY_MENU_IDLE, &c->menu_idle_min);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -160,6 +164,8 @@ static esp_err_t save(const appconf_t *c)
     PUT(nvs_set_u8(h, KEY_REFRESH_FAST, c->refresh_fast));
     PUT(nvs_set_u8(h, KEY_TIME_AUTO, c->time_auto));
     PUT(nvs_set_u8(h, KEY_POWER_SAVING, c->power_saving));
+    PUT(nvs_set_str(h, KEY_DEFAULT_APP, c->default_app));
+    PUT(nvs_set_u8(h, KEY_MENU_IDLE, c->menu_idle_min));
     PUT(nvs_commit(h));
 #undef PUT
 

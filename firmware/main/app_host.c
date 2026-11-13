@@ -276,6 +276,8 @@ const app_services_t *app_host_services(void)
         .system_app_list = app_system_app_list,
         .system_app_title = app_system_app_title,
         .system_app_remove = app_system_app_remove,
+        .system_app_default = app_system_app_default,
+        .system_app_set_default = app_system_app_set_default,
         .system_do = app_system_do,
     };
     return &SERVICES;

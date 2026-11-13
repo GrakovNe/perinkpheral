@@ -104,6 +104,11 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
         *least = 0;
         *most = 1;
         return HOST_OK;
+    case SYS_NUMBER_MENU_IDLE_MINUTES:
+        *value = settings.menu_idle_min;
+        *least = APPCONF_MENU_IDLE_MIN_LEAST;
+        *most = APPCONF_MENU_IDLE_MIN_MOST;
+        return HOST_OK;
     case SYS_NUMBER_POWER_SAVING:
         *value = settings.power_saving;
         *least = APPCONF_POWER_PLUGGED;
@@ -169,6 +174,9 @@ int32_t app_system_number_set(int what, int32_t value)
         break;
     case SYS_NUMBER_POWER_SAVING:
         wanted.power_saving = (uint8_t)value;
+        break;
+    case SYS_NUMBER_MENU_IDLE_MINUTES:
+        wanted.menu_idle_min = (uint8_t)value;
         break;
     case SYS_NUMBER_FONT:
         wanted.font = (uint8_t)value;
@@ -262,6 +270,32 @@ int32_t app_system_app_remove(uint32_t id)
      * the application that asked has returned. */
     host_reload_apps_later();
     return HOST_OK;
+}
+
+uint32_t app_system_app_default(void)
+{
+    appconf_t settings;
+    settings_read(&settings);
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(installed[i].name, settings.default_app) == 0) {
+            return installed[i].id;
+        }
+    }
+    return 0;
+}
+
+int32_t app_system_app_set_default(uint32_t id)
+{
+    const app_manifest_t *app = id != 0 ? installed_with(id) : NULL;
+    if (id != 0 && app == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    appconf_t wanted;
+    settings_read(&wanted);
+    snprintf(wanted.default_app, sizeof wanted.default_app, "%s", app != NULL ? app->name : "");
+    return change(&wanted);
 }
 
 int32_t app_system_do(int action)

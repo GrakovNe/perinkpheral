@@ -88,6 +88,8 @@ typedef struct {
     int32_t (*system_app_list)(uint32_t *ids, int32_t capacity);
     int32_t (*system_app_title)(uint32_t id, char *text, int32_t capacity);
     int32_t (*system_app_remove)(uint32_t id);
+    uint32_t (*system_app_default)(void);
+    int32_t (*system_app_set_default)(uint32_t id);
     int32_t (*system_do)(int action);
 } app_services_t;
 

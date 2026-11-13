@@ -1525,6 +1525,25 @@ HOST_FUNCTION(host_sys_app_remove)
     m3ApiReturn(app->services->system_app_remove(index));
 }
 
+HOST_FUNCTION(host_sys_app_default)
+{
+    m3ApiReturnType(uint32_t);
+    app_t *app = APP_OF(runtime);
+    m3ApiReturn(app->services->system_app_default != NULL ? app->services->system_app_default()
+                                                          : 0);
+}
+
+HOST_FUNCTION(host_sys_app_set_default)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, id);
+    app_t *app = APP_OF(runtime);
+    if (app->services->system_app_set_default == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_app_set_default(id));
+}
+
 HOST_FUNCTION(host_sys_do)
 {
     m3ApiReturnType(int32_t);
@@ -1654,6 +1673,8 @@ static const struct {
     { "sys_app_list", "i(*i)", host_sys_app_list },
     { "sys_app_title", "i(i*i)", host_sys_app_title },
     { "sys_app_remove", "i(i)", host_sys_app_remove },
+    { "sys_app_default", "i()", host_sys_app_default },
+    { "sys_app_set_default", "i(i)", host_sys_app_set_default },
     { "sys_do", "i(i)", host_sys_do },
     { "sys_logo", "i(iii)", host_sys_logo },
     { "sys_logo_width", "i(i)", host_sys_logo_width },

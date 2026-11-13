@@ -128,12 +128,26 @@ void appconf_defaults(appconf_t *c, const char device_id[5])
     c->dither = 1;
     c->time_auto = 1;
     c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;
+    c->menu_idle_min = APPCONF_MENU_IDLE_MIN_DEFAULT;
     appconf_derive(c, device_id);
 }
 
 void appconf_derive(appconf_t *c, const char device_id[5])
 {
     appconf_hostname(c->device_name, device_id, c->hostname, sizeof c->hostname);
+}
+
+/* The characters an application's name is made of. */
+static bool is_app_name_or_empty(const char *name)
+{
+    for (; *name != '\0'; name++) {
+        bool is_of_a_name = (*name >= 'a' && *name <= 'z') || (*name >= '0' && *name <= '9') ||
+                            *name == '-' || *name == '_';
+        if (!is_of_a_name) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
@@ -217,6 +231,14 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     }
     if (c->power_saving > APPCONF_POWER_AUTO) {
         BAD("Power saving must be 0, 1 or 2.");
+    }
+    if (!str_fits(c->default_app, APPCONF_APP_NAME_MAX) || !is_app_name_or_empty(c->default_app)) {
+        BAD("Invalid default app.");
+    }
+    if (c->menu_idle_min < APPCONF_MENU_IDLE_MIN_LEAST ||
+        c->menu_idle_min > APPCONF_MENU_IDLE_MIN_MOST) {
+        BAD("Idle timeout must be %d-%d min.", APPCONF_MENU_IDLE_MIN_LEAST,
+            APPCONF_MENU_IDLE_MIN_MOST);
     }
     if (c->refresh_keepalive_h < APPCONF_REFRESH_KEEPALIVE_H_LEAST ||
         c->refresh_keepalive_h > APPCONF_REFRESH_KEEPALIVE_H_MOST) {

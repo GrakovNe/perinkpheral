@@ -478,6 +478,8 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "refresh_fast", settings.refresh_fast != 0);
     cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
     cJSON_AddNumberToObject(json, "power_saving", settings.power_saving);
+    cJSON_AddStringToObject(json, "default_app", settings.default_app);
+    cJSON_AddNumberToObject(json, "menu_idle_min", settings.menu_idle_min);
     return send_json(request, "200 OK", json);
 }
 
@@ -513,7 +515,7 @@ static bool take_flag(const cJSON *json, const char *field, uint8_t *value)
 
 static bool edit_settings(const cJSON *json, appconf_t *wanted)
 {
-    uint32_t power_saving = wanted->power_saving;
+    uint32_t power_saving = wanted->power_saving, menu_idle_min = wanted->menu_idle_min;
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
     uint32_t keepalive_h = wanted->refresh_keepalive_h;
     uint32_t font = wanted->font;
@@ -528,8 +530,11 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
         take_flag(json, "dither", &wanted->dither) &&
         take_flag(json, "refresh_fast", &wanted->refresh_fast) &&
         take_flag(json, "time_auto", &wanted->time_auto) &&
-        take_number(json, "power_saving", UINT8_MAX, &power_saving);
+        take_number(json, "power_saving", UINT8_MAX, &power_saving) &&
+        take_string(json, "default_app", wanted->default_app, sizeof wanted->default_app) &&
+        take_number(json, "menu_idle_min", UINT8_MAX, &menu_idle_min);
     wanted->power_saving = (uint8_t)power_saving;
+    wanted->menu_idle_min = (uint8_t)menu_idle_min;
     wanted->refresh_min_data_s = (uint16_t)min_data_s;
     wanted->refresh_full_every = (uint8_t)full_every;
     wanted->refresh_keepalive_h = (uint8_t)keepalive_h;

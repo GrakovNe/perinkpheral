@@ -13,6 +13,7 @@ typedef struct {
     const menu_entry_t *entries;
     int                 count;
     int                 selected;
+    scene_t            *way_back; /* what BACK leads to: the default application, or NULL */
 } menu_scene_t;
 
 /* Stepping through the rows is a row of pictures: none of them is a full
@@ -28,7 +29,10 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
         return reaction;
     }
     if (button == SCENE_BUTTON_BACK) {
-        reaction.kind = SCENE_BACK;
+        /* Nothing is under the menu: BACK is the default application when
+         * there is one, and nothing when there is not. */
+        reaction.kind = menu->way_back != NULL ? SCENE_OPEN : SCENE_BACK;
+        reaction.open = menu->way_back;
         return reaction;
     }
     if (menu->count == 0) {
@@ -68,13 +72,19 @@ static void menu_draw(scene_t *scene, gfx_t *surface)
 
 static const scene_ops_t MENU_OPS = { .button = menu_button, .draw = menu_draw };
 
+static menu_scene_t s_the_menu;
+
+void scene_menu_set_way_back(scene_t *way_back)
+{
+    s_the_menu.way_back = way_back;
+}
+
 scene_t *scene_menu(const menu_entry_t *entries, int count)
 {
-    static menu_scene_t menu;
-    menu.scene.ops = &MENU_OPS;
-    menu.scene.fullscreen = false;
-    menu.entries = entries;
-    menu.count = count;
-    menu.selected = 0;
-    return &menu.scene;
+    s_the_menu.scene.ops = &MENU_OPS;
+    s_the_menu.scene.fullscreen = false;
+    s_the_menu.entries = entries;
+    s_the_menu.count = count;
+    s_the_menu.selected = 0;
+    return &s_the_menu.scene;
 }

@@ -244,9 +244,18 @@ static void format_storage(void)
     host_stop_soon(HOST_STOP_RESTART);
 }
 
+/* The application the user chose to see when nothing else is asked for;
+ * NULL when none is chosen or the chosen one is not installed. */
+static scene_t *default_scene(void)
+{
+    appconf_t settings;
+    settings_read(&settings);
+    return settings.default_app[0] != '\0' ? launcher_app_scene(settings.default_app) : NULL;
+}
+
 /* Where the device goes after the splash at power-up: to be set up when
- * it has no network, else back to the application it showed last, else to
- * the menu. */
+ * it has no network, else to the default application, else back to the
+ * application it showed last, else to the menu. */
 static scene_t *scene_with_storage(scene_t *menu)
 {
     wifi_status_t wifi;
@@ -255,6 +264,10 @@ static scene_t *scene_with_storage(scene_t *menu)
         /* A firmware without the screen that says how leaves the user at the
          * menu: Device has the access point's address. */
         return launcher_setup() != NULL ? launcher_setup() : menu;
+    }
+    scene_t *chosen = default_scene();
+    if (chosen != NULL) {
+        return chosen;
     }
     char last_app[APP_NAME_MAX + 1];
     settings_load_last_app(last_app, sizeof last_app);
@@ -574,6 +587,8 @@ static void ring_alarm(uint32_t app_id, int alarm_number)
  * is set anew every time it fires. */
 #define DEADLINES_IN_A_ROW 8
 
+static void leave_the_idle_menu(void);
+
 static void answer_deadlines(void)
 {
     s_deadlines_are_told = false;
@@ -621,12 +636,48 @@ static void answer_deadlines(void)
         case DEADLINE_CONFIRM:
             close_unanswered_confirm();
             break;
+        case DEADLINE_MENU_IDLE:
+            leave_the_idle_menu();
+            break;
         case DEADLINE_STOP:
             stop(s_stop_reason);
             break;
         }
     }
     deadlines_look_again();
+}
+
+/* The menu left alone gives the screen to the default application. Only
+ * the menu: an application that took the screen - by an alarm, say - has
+ * something to tell and stays until the user closes it. */
+static bool s_menu_is_watched;
+
+static void watch_the_idle_menu(bool was_touched)
+{
+    scene_t *chosen = default_scene();
+    scene_menu_set_way_back(chosen);
+    if (wm.current != s_menu || chosen == NULL) {
+        if (s_menu_is_watched) {
+            deadlines_cancel(DEADLINE_MENU_IDLE, 0, 0);
+            s_menu_is_watched = false;
+        }
+        return;
+    }
+    if (!s_menu_is_watched || was_touched) {
+        appconf_t settings;
+        settings_read(&settings);
+        s_menu_is_watched =
+            deadlines_set_in(DEADLINE_MENU_IDLE, 0, 0, (int64_t)settings.menu_idle_min * 60 * 1000);
+    }
+}
+
+static void leave_the_idle_menu(void)
+{
+    s_menu_is_watched = false;
+    scene_t *chosen = default_scene();
+    if (wm.current == s_menu && chosen != NULL) {
+        wm_open_anew(&wm, chosen);
+    }
 }
 
 /* The alarms of applications that are no more go with them. */
@@ -795,5 +846,6 @@ void host_run(void)
         if (wm.current != scene_before) {
             remember_current_app(&wm);
         }
+        watch_the_idle_menu(event.kind == EVENT_BUTTON || wm.current != scene_before);
     }
 }

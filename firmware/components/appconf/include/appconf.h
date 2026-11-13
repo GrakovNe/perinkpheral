@@ -17,6 +17,7 @@ extern "C" {
 #define APPCONF_PASS_MAX   64
 #define APPCONF_HOST_MAX   64
 #define APPCONF_TZ_MAX     47
+#define APPCONF_APP_NAME_MAX 13 /* an application's name: MANIFEST_NAME_MAX */
 
 #define APPCONF_NTP_DEFAULT     "pool.ntp.org"
 #define APPCONF_TZ_DEFAULT      "UTC0"
@@ -40,6 +41,12 @@ extern "C" {
 #define APPCONF_REFRESH_KEEPALIVE_H_DEFAULT   24
 #define APPCONF_REFRESH_KEEPALIVE_H_LEAST     1
 #define APPCONF_REFRESH_KEEPALIVE_H_MOST      168
+
+/* The menu left alone for so many minutes gives the screen to the default
+ * application, when there is one. */
+#define APPCONF_MENU_IDLE_MIN_DEFAULT 5
+#define APPCONF_MENU_IDLE_MIN_LEAST   1
+#define APPCONF_MENU_IDLE_MIN_MOST    60
 
 /* Everything a user can set. Pure: no ESP-IDF, host-tested. The network
  * fields are here from day one so that NVS keys never have to move. */
@@ -69,6 +76,11 @@ typedef struct {
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
     uint8_t  power_saving;          /* an APPCONF_POWER_*: plugged in, from its battery, or
                                        from its battery and asleep between polls */
+
+    /* The application the device shows by itself: after a restart, when
+     * the menu is left alone, and by BACK in the menu. Empty: none. */
+    char    default_app[APPCONF_APP_NAME_MAX + 1];
+    uint8_t menu_idle_min;
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

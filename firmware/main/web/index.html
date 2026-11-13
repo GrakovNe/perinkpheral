@@ -194,6 +194,16 @@
     <input id="device_name" maxlength="32" autocomplete="off" required>
     <label for="hostname">Hostname</label>
     <input id="hostname" disabled>
+    <label for="default_app">Default app</label>
+    <select id="default_app"></select>
+    <label for="menu_idle_min">Idle timeout</label>
+    <select id="menu_idle_min">
+      <option value="1">1 min</option>
+      <option value="5">5 min</option>
+      <option value="15">15 min</option>
+      <option value="30">30 min</option>
+      <option value="60">1 h</option>
+    </select>
     <button>Save</button>
   </form>
 
@@ -798,6 +808,7 @@ function drawTiles() {
 async function loadApps() {
   installed = await ask("/api/apps");
   drawTiles();
+  drawDefaultApp();
   openInside(wantedInside);
 }
 
@@ -1039,8 +1050,23 @@ async function loadSettings() {
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").value = settings.power_saving;
+  byId("menu_idle_min").value = settings.menu_idle_min;
+  drawDefaultApp();
   byId("ssid").value = settings.wifi_ssid;
   byId("hostname").value = settings.hostname;
+}
+
+/* None, and every application there is; one that was removed stays in the
+ * list while it is the choice, so that saving the form does not change it. */
+function drawDefaultApp() {
+  const select = byId("default_app");
+  const chosen = settings.default_app || "";
+  const apps = installed.map(have => ({ value: have.name, textContent: have.title }));
+  if (chosen && !installed.some(have => have.name === chosen))
+    apps.push({ value: chosen, textContent: chosen });
+  select.replaceChildren(make("option", { value: "", textContent: "None" }),
+                         ...apps.map(app => make("option", app)));
+  select.value = chosen;
 }
 
 function saveSettings(formId, read) {
@@ -1053,7 +1079,9 @@ function saveSettings(formId, read) {
   });
 }
 
-saveSettings("general", () => ({ device_name: byId("device_name").value }));
+saveSettings("general", () => ({ device_name: byId("device_name").value,
+                                 default_app: byId("default_app").value,
+                                 menu_idle_min: Number(byId("menu_idle_min").value) }));
 saveSettings("time", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value,
                               time_auto: byId("time_auto").checked }));
 saveSettings("display", () => ({
