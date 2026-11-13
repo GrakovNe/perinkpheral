@@ -527,7 +527,7 @@ the host.</p>
   <tr><td class="c">ui_date</td><td>a time, a date or both, set a part at a time</td><td>any moment the user has to give</td></tr>
   <tr><td class="c">ui_frame</td><td>a frame with an arrow for each way UP and DOWN can go</td><td>marking the one value on a screen that the buttons change</td></tr>
   <tr><td class="c">ui_bar</td><td>how much of how much, filled from the left</td><td>a quantity. It changes with the data; it is not an animation</td></tr>
-  <tr><td class="c">ui_title, ui_text, ui_icon</td><td>a page's title with its line; text in the host's four styles; an icon at its three sizes</td><td>the plain parts of a page</td></tr>
+  <tr><td class="c">ui_title, ui_text, ui_text_lines, ui_icon</td><td>a page's title with its line; text in the host's four styles, on one line or broken over several; an icon at its three sizes</td><td>the plain parts of a page</td></tr>
 </table>
 <p>What the buttons do on a list, a picker and a date is in the SDK's library
 (<code>app_ui.h</code>): the application writes only what the result is for (section 7). The
@@ -975,13 +975,14 @@ needed. A call with no value of its own returns <code>HOST_OK</code> or a negati
 <table>
   <tr><th style="width:44%">Call</th><th>What it does</th></tr>
   <tr><td class="c">ui_text(x, y, style, text, length, max_width)</td><td>text in a style: <code>HOST_UI_TEXT</code>, <code>_TITLE</code>, <code>_CAPTION</code>, <code>_VALUE</code>; cut at <code>max_width</code> (0: not cut). Returns the width</td></tr>
+  <tr><td class="c">ui_text_lines(x, y, style, text, length, width, max_lines)</td><td>the same over several lines: broken at its spaces to fit <code>width</code>, at most <code>max_lines</code> (1 - 8), the last cut with "..." when there is more. Returns the lines drawn</td></tr>
   <tr><td class="c">ui_text_width(style, text, length), ui_text_height(style)</td><td>to centre and to stack</td></tr>
   <tr><td class="c">ui_title(text, length)</td><td>a page's title with its line; returns the <code>y</code> where the content begins</td></tr>
   <tr><td class="c">ui_icon(x, y, icon, size)</td><td>a host's icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>_MEDIUM</code> (44), <code>_LARGE</code> (99)</td></tr>
-  <tr><td class="c">ui_actions(ok, ok_length, back, back_length)</td><td>the row along the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). A length of 0: that button does nothing here</td></tr>
+  <tr><td class="c">ui_actions(ok, ok_length, back, back_length)</td><td>the row along the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). A length of 0: that button does nothing here, and the other stands alone in the middle</td></tr>
   <tr><td class="c">ui_button(x, y, name, name_length, action, action_length, mirrored)</td><td>one button's name on its plate with what it does beside it; returns the width</td></tr>
   <tr><td class="c">ui_list_visible(list), ui_list_first(list)</td><td>of a <code>host_list_t</code> - count, selected (or -1), top, height (0: to the bottom), first: the rows in sight, and the first of them</td></tr>
-  <tr><td class="c">ui_list_row(list, index, label, label_length, value, value_length, icon)</td><td>one row; a row out of sight draws nothing</td></tr>
+  <tr><td class="c">ui_list_row(list, index, label, label_length, value, value_length, icon)</td><td>one row; a row out of sight draws nothing. Label and value never meet: a value of up to half the row stays whole and the label is cut with "..."</td></tr>
   <tr><td class="c">ui_notice(notice)</td><td>a <code>host_notice_t</code> on the whole surface: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. Empty texts are not drawn</td></tr>
   <tr><td class="c">ui_reason(status)</td><td>the notice for a request's status. Returns 1 when it drew, 0 for an answer that came (2xx)</td></tr>
   <tr><td class="c">ui_value(x, y, font, value, value_length, unit, unit_length)</td><td>a value and its unit on the baseline; returns the width of both</td></tr>

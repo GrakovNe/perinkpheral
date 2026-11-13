@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "kit.h"
 #include "scenes.h"
 
 #include <stddef.h>
@@ -186,6 +187,12 @@ static void test_boot_splash(void)
     boot->ops->leave(boot);
     CHECK(picture_leaves == 1 && timer_set_ms == 0);
 
+    /* set aside and back - an application took an answer off the screen:
+     * it has lingered, and moves on without waiting six seconds anew */
+    boot->ops->enter(boot);
+    CHECK(timer_set_ms > 0 && timer_set_ms < 100);
+    boot->ops->leave(boot);
+
     /* a picture that cannot be shown: nothing is drawn, and it does not wait */
     picture_shown = false;
     boot->ops->enter(boot);
@@ -193,6 +200,23 @@ static void test_boot_splash(void)
     boot->ops->draw(boot, &surface);
     CHECK(picture_draws == 1);
     boot->ops->leave(boot);
+}
+
+/* Text over several lines: broken at spaces, no more lines than asked for. */
+static void test_text_lines(void)
+{
+    static uint8_t frame[400 * 300 / 8];
+    gfx_t g;
+    gfx_init(&g, frame, 400, 300);
+    int word = gfx_text_font_width(gfx_font_system(), "word");
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "word", 400, 4) == 1);
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "word word word", word + 4, 4) == 3);
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "word word word", word * 2 + 40, 4) == 2);
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "word word word", word + 4, 2) == 2);
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "", 400, 4) == 0);
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "   ", 400, 4) == 0);
+    /* a word wider than the line is a line of its own, cut */
+    CHECK(kit_text_lines(&g, 0, 0, KIT_TEXT, "wordwordwordword word", word + 4, 4) == 2);
 }
 
 static int answers, confirmations;
@@ -269,6 +293,7 @@ int main(void)
     test_working();
     test_storage_error();
     test_boot_splash();
+    test_text_lines();
     test_menu_moves_and_wraps();
     test_menu_back_and_long();
     test_empty_menu();

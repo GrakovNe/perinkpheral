@@ -509,8 +509,10 @@ HOST_IMPORT(gfx_picture,
  * and DOWN then move the list itself, and `first` is the row at its top.
  * sdk/lib/app_ui.h has what the buttons do for both kinds.
  *
- * In a row, `value` stands at the right edge, cut to what the label
- * leaves; a length of 0 is none. `icon` is a HOST_ICON_* at the right
+ * In a row, `value` stands at the right edge; a length of 0 is none. The
+ * two never meet: when they are too wide together a value of up to half
+ * the row - a time, a state - stays whole and the label is cut with "...",
+ * and a longer value has what the label leaves, never less than the half. `icon` is a HOST_ICON_* at the right
  * edge, or HOST_ICON_NONE: HOST_ICON_CHECK marks the one of several that
  * is set. A row out of sight draws nothing. */
 #define HOST_ICON_NONE (-1)
@@ -578,6 +580,14 @@ HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const 
  * HOST_FONT_TEXT, HOST_UI_TITLE is HOST_FONT_MEDIUM, HOST_UI_CAPTION is
  * HOST_FONT_SMALL and HOST_UI_VALUE is HOST_FONT_DISPLAY - so everything
  * gfx_font_*() says of a font holds for its style. */
+/* The same over several lines: broken at its spaces to fit `width`, at most
+ * `max_lines` of them (1..HOST_UI_LINES_MAX), the last cut with "..." when
+ * there is more. A line is ui_text_height() of the style. Returns the lines
+ * drawn. */
+#define HOST_UI_LINES_MAX 8
+HOST_IMPORT(ui_text_lines, int32_t ui_text_lines(int32_t x, int32_t y, int32_t style,
+                                                 const char *text, int32_t length, int32_t width,
+                                                 int32_t max_lines));
 HOST_IMPORT(ui_text_width, int32_t ui_text_width(int32_t style, const char *text,
                                                  int32_t length));
 HOST_IMPORT(ui_text_height, int32_t ui_text_height(int32_t style));
@@ -606,7 +616,8 @@ HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
 
 /* The row along the bottom, HOST_UI_ACTIONS_HEIGHT pixels of the surface:
  * what OK does from the left edge, what BACK does from the right. A
- * length of 0: that button does nothing here. */
+ * length of 0: that button does nothing here, and the other stands alone
+ * in the middle. */
 #define HOST_UI_ACTIONS_HEIGHT 44
 HOST_IMPORT(ui_actions, int32_t ui_actions(const char *ok, int32_t ok_length, const char *back,
                                            int32_t back_length));

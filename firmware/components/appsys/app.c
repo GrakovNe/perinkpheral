@@ -555,6 +555,30 @@ HOST_FUNCTION(host_ui_notice)
     m3ApiReturn(HOST_OK);
 }
 
+HOST_FUNCTION(host_ui_text_lines)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, style);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, length);
+    m3ApiGetArg(int32_t, width);
+    m3ApiGetArg(int32_t, max_lines);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    char text[HOST_TEXT_MAX + 1];
+    if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
+        width <= 0 || !is_drawable(width) || max_lines < 1 || max_lines > HOST_UI_LINES_MAX ||
+        !copy_text(runtime, _mem, text_offset, length, text)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(kit_text_lines(app->surface, x, y, (kit_style_t)style, text, width, max_lines));
+}
+
 HOST_FUNCTION(host_ui_text)
 {
     m3ApiReturnType(int32_t);
@@ -1996,6 +2020,7 @@ static const struct {
     { "ui_list_row", "i(*i*i*ii)", host_ui_list_row },
     { "ui_notice", "i(*)", host_ui_notice },
     { "ui_text", "i(iii*ii)", host_ui_text },
+    { "ui_text_lines", "i(iii*iii)", host_ui_text_lines },
     { "ui_text_width", "i(i*i)", host_ui_text_width },
     { "ui_text_height", "i(i)", host_ui_text_height },
     { "ui_title", "i(*i)", host_ui_title },

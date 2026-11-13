@@ -19,6 +19,7 @@
 #define PICTURE_GAP  12 /* between a picture and the label */
 #define VALUE_GAP    14 /* the least between a label and its value */
 #define VALUE_MAX    63
+#define LABEL_MAX    127
 
 static int height_of(const gfx_t *g, const list_t *list)
 {
@@ -92,8 +93,6 @@ void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *ro
         draw_picture(g, MARGIN, baseline - (LIST_PICTURE_CELLS - 2) * CELL, row->picture,
                      !is_selected);
     }
-    int label_right = label_left + gfx_text_font(g, label_left, baseline, font, row->label,
-                                                 !is_selected);
     int value_right = right - MARGIN;
     if (row->icon != LIST_NO_ICON) {
         int icon_left = value_right - GFX_ICON_CELLS * CELL;
@@ -101,10 +100,29 @@ void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *ro
                  CELL, !is_selected);
         value_right = icon_left - VALUE_GAP;
     }
-    if (row->value != NULL && row->value[0] != '\0') {
+    /* Neither runs into the other. When the two are too wide together the
+     * value is whole while it takes no more than half the row - a time, a
+     * state - and the label is cut; a value longer than that has what the
+     * label leaves, and never less than the half. */
+    bool has_value = row->value != NULL && row->value[0] != '\0';
+    int  room = value_right - label_left - (has_value ? VALUE_GAP : 0);
+    int  value_room = 0;
+    if (has_value) {
+        int value_width = gfx_text_font_width(font, row->value);
+        int label_width = gfx_text_font_width(font, row->label);
+        value_room = value_width;
+        if (label_width + value_width > room) {
+            int left_by_label = room - label_width;
+            value_room = value_width <= room / 2 ? value_width
+                       : left_by_label > room / 2 ? left_by_label : room / 2;
+        }
+    }
+    char label[LABEL_MAX + 1];
+    gfx_text_fit(font, row->label, room - value_room, label, sizeof label);
+    gfx_text_font(g, label_left, baseline, font, label, !is_selected);
+    if (has_value) {
         char fitted[VALUE_MAX + 1];
-        gfx_text_fit(font, row->value, value_right - label_right - VALUE_GAP, fitted,
-                     sizeof fitted);
+        gfx_text_fit(font, row->value, value_room, fitted, sizeof fitted);
         gfx_text_font(g, value_right - gfx_text_font_width(font, fitted), baseline, font, fitted,
                       !is_selected);
     }

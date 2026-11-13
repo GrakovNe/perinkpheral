@@ -38,6 +38,12 @@ const gfx_font_t *kit_font(kit_style_t style);
  * (0: not cut). Returns the width drawn. */
 int kit_text(gfx_t *g, int left, int top, kit_style_t style, const char *text, int max_width);
 
+/* The text over as many lines as it takes and no more than `max_lines`,
+ * broken at its spaces, the last one cut with "..." when there is more.
+ * A word wider than the width is cut. Returns the lines drawn. */
+int kit_text_lines(gfx_t *g, int left, int top, kit_style_t style, const char *text, int width,
+                   int max_lines);
+
 /* The same in the middle of the surface's width. */
 void kit_text_centered(gfx_t *g, int top, kit_style_t style, const char *text);
 

@@ -36,6 +36,68 @@ int kit_text(gfx_t *g, int left, int top, kit_style_t style, const char *text, i
     return gfx_text_font(g, left, top + gfx_font_ascent(font), font, text, true);
 }
 
+/* How much of the text - whole words while it has spaces - fits the width:
+ * the bytes of the line, and where the next one begins. */
+static int line_of(const gfx_font_t *font, const char *text, int width, int *next)
+{
+    char line[TEXT_BUFFER];
+    int  end = 0, fits = 0, after = 0;
+    for (;;) {
+        /* to the end of the next word */
+        while (text[end] != '\0' && text[end] != ' ' && end < TEXT_BUFFER - 1) {
+            end++;
+        }
+        for (int i = 0; i < end; i++) {
+            line[i] = text[i];
+        }
+        line[end] = '\0';
+        if (gfx_text_font_width(font, line) > width && fits > 0) {
+            break;
+        }
+        fits = end;
+        after = end;
+        while (text[after] == ' ') {
+            after++;
+        }
+        if (text[after] == '\0' || end >= TEXT_BUFFER - 1 ||
+            gfx_text_font_width(font, line) > width) {
+            break;
+        }
+        end = after;
+    }
+    *next = after;
+    return fits;
+}
+
+int kit_text_lines(gfx_t *g, int left, int top, kit_style_t style, const char *text, int width,
+                   int max_lines)
+{
+    const gfx_font_t *font = kit_font(style);
+    int lines = 0;
+    while (*text == ' ') {
+        text++;
+    }
+    while (*text != '\0' && lines < max_lines) {
+        int  next = 0;
+        int  length = line_of(font, text, width, &next);
+        bool is_last = lines == max_lines - 1 && text[next] != '\0';
+        char line[TEXT_BUFFER];
+        /* The last line there is room for takes what is left and is cut. */
+        const char *from = text;
+        int         bytes = is_last ? TEXT_BUFFER - 1 : length;
+        int         at = 0;
+        while (at < bytes && from[at] != '\0') {
+            line[at] = from[at];
+            at++;
+        }
+        line[at] = '\0';
+        kit_text(g, left, top + lines * gfx_font_height(font), style, line, width);
+        lines++;
+        text += next;
+    }
+    return lines;
+}
+
 void kit_text_centered(gfx_t *g, int top, kit_style_t style, const char *text)
 {
     kit_text(g, (g->w - gfx_text_font_width(kit_font(style), text)) / 2, top, style, text, 0);
@@ -131,12 +193,15 @@ void kit_actions(gfx_t *g, const char *ok, const char *back)
     }
     gfx_fill(g, 0, g->h - KIT_ACTIONS_HEIGHT, g->w, 1, true);
     int baseline = g->h - KIT_ACTIONS_HEIGHT / 2 + gfx_font_cap_height(kit_font(KIT_TEXT)) / 2;
+    /* A button alone stands in the middle: there is no other to balance. */
     if (ok != NULL) {
-        kit_button(g, ACTIONS_MARGIN, baseline, "OK", ok, true);
+        int left = back != NULL ? ACTIONS_MARGIN : (g->w - kit_button_width("OK", ok)) / 2;
+        kit_button(g, left, baseline, "OK", ok, true);
     }
     if (back != NULL) {
-        kit_button(g, g->w - ACTIONS_MARGIN - kit_button_width("BACK", back), baseline, "BACK",
-                   back, false);
+        int width = kit_button_width("BACK", back);
+        int left = ok != NULL ? g->w - ACTIONS_MARGIN - width : (g->w - width) / 2;
+        kit_button(g, left, baseline, "BACK", back, false);
     }
 }
 
