@@ -1,3 +1,5 @@
+<img src="assets/mark/mark-on-paper.svg" width="96" alt="The perINKpheral mark: two corners of an empty frame">
+
 # perINKpheral
 
 A desk e-paper companion: a 4.2" e-ink panel, four buttons and an
