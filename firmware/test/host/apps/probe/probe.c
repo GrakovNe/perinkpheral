@@ -39,6 +39,7 @@
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
+#define FAKE_BOOT_ID        0xB007B007u
 #define FAKE_ZONE_OFFSET    3600
 #define OFF_THE_SURFACE     300
 #define HUGE                2000000000
@@ -332,7 +333,7 @@ void app_on_draw(void)
     if (gfx_font_height(HOST_FONT_TEXT) > 0 && gfx_font_height(UNKNOWN_FONT) == HOST_ERR_ARGUMENT) {
         mark(2, ROW_MEASURES);
     }
-    if (time_uptime_ms() == FAKE_UPTIME_MS) {
+    if (time_uptime_ms() == FAKE_UPTIME_MS && time_boot_id() == FAKE_BOOT_ID) {
         mark(4, ROW_MEASURES);
     }
     if (time_now() == 0 && time_zone_offset() == FAKE_ZONE_OFFSET) {

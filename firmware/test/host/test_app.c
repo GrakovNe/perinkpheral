@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "host_api.h"
+#include "every_call_wasm.h"
 #include "probe_wasm.h"
 #include "tinytest.h"
 
@@ -233,12 +234,15 @@ static int32_t fake_file_write(const char *app_name, const char *file, int32_t o
     return HOST_OK;
 }
 
+#define FAKE_BOOT_ID 0xB007B007u
+static uint32_t fake_boot_id(void) { return FAKE_BOOT_ID; }
 static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
     .unix_time = fake_unix_time,
     .time_zone_offset = fake_time_zone_offset,
     .time_zone_offset_at = fake_time_zone_offset_at,
     .uptime_ms = fake_uptime_ms,
+    .boot_id = fake_boot_id,
     .log = record_log,
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
@@ -544,6 +548,11 @@ static void test_bad_modules(void)
                                              'n',  'f',  'o',  0x00, 0x00 };
     CHECK(app_load("x", system_import, sizeof system_import, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
     CHECK(app_load("x", system_import, sizeof system_import, true, &SERVICES, &app) == APP_OK);
+    app_unload(app);
+
+    /* A module that imports every call of host_api.h, each as the header
+     * declares it: the host's table has them all, with those signatures. */
+    CHECK(app_load("x", every_call_wasm, sizeof every_call_wasm, true, &SERVICES, &app) == APP_OK);
     app_unload(app);
 
     /* a name the host has, asked of another module */

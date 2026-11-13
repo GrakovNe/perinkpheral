@@ -39,6 +39,7 @@ typedef struct {
     int32_t (*time_zone_offset)(void); /* seconds east of UTC, 0 while unknown */
     int32_t (*time_zone_offset_at)(int64_t unix_time); /* the same at any moment */
     int64_t (*uptime_ms)(void);
+    uint32_t (*boot_id)(void); /* another after every restart, never 0 */
     void (*log)(int level, const char *text, int length);
     /* A one-shot for the application on the screen; 0 ms cancels it. */
     void (*timer_set)(int id, int32_t milliseconds);

@@ -5,6 +5,7 @@
 #include "app_host.h"
 
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 
 #include "app_kv.h"
@@ -29,6 +30,16 @@ _Static_assert(HOST_TIMER_COUNT == TIMERS_COUNT, "an application gets every time
 static int64_t uptime_ms(void)
 {
     return esp_timer_get_time() / 1000;
+}
+
+/* Drawn once a run. */
+static uint32_t boot_id(void)
+{
+    static uint32_t id;
+    while (id == 0) {
+        id = esp_random();
+    }
+    return id;
 }
 
 static void log_from_app(int level, const char *text, int length)
@@ -254,6 +265,7 @@ const app_services_t *app_host_services(void)
         .time_zone_offset = net_time_zone_offset,
         .time_zone_offset_at = net_time_zone_offset_at,
         .uptime_ms = uptime_ms,
+        .boot_id = boot_id,
         .log = log_from_app,
         .timer_set = timers_set,
         .kv_get = app_kv_get,

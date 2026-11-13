@@ -839,6 +839,12 @@ HOST_IMPORT(time_from_local, int64_t time_from_local(const host_local_time_t *pa
 /* Milliseconds since the device started; always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));
 
+/* A number that is another after every restart of the device, and never
+ * 0. A moment of time_uptime_ms() kept in the store means something only
+ * in the run it was taken in: keep this number beside it, and a moment
+ * whose number is not this one is of a run that is over. */
+HOST_IMPORT(time_boot_id, uint32_t time_boot_id(void));
+
 /* ---- Log ---- */
 
 #define HOST_LOG_ERROR 1

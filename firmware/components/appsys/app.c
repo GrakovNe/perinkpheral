@@ -1388,6 +1388,13 @@ HOST_FUNCTION(host_time_uptime_ms)
     m3ApiReturn(APP_OF(runtime)->services->uptime_ms());
 }
 
+HOST_FUNCTION(host_time_boot_id)
+{
+    m3ApiReturnType(uint32_t);
+    const app_services_t *services = APP_OF(runtime)->services;
+    m3ApiReturn(services->boot_id != NULL ? services->boot_id() : 0);
+}
+
 HOST_FUNCTION(host_log)
 {
     m3ApiGetArg(int32_t, level);
@@ -1655,6 +1662,7 @@ static const struct {
     { "time_local_at", "i(Ii)", host_time_local_at },
     { "time_from_local", "I(i)", host_time_from_local },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
+    { "time_boot_id", "i()", host_time_boot_id },
     { "log", "v(i*i)", host_log },
 };
 #define HOST_API_COUNT (sizeof HOST_API / sizeof HOST_API[0])

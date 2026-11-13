@@ -277,6 +277,7 @@ time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
 time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
 time_uptime_ms() -> ms since start
+time_boot_id() -> a number that is another after every restart, never 0: kept beside a stored uptime
 log(level, str, len)
 ```
 **The host's icons** (`components/gfx/gfx_icons.c`, `HOST_ICON_*`): signal and no signal, the four arrows, check, cross, plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update - twenty, each drawn as text in the source on eleven cells square, in the manner of the font. The header, the host's questions and Settings draw theirs from the same set. `tools/preview` renders the sheet.

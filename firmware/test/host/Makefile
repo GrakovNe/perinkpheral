@@ -98,7 +98,16 @@ build/probe_wasm.h: build/probe/app.wasm
 	(echo "static const unsigned char probe_wasm[] = {"; xxd -i < $<; \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
-test_app: test_app.c tinytest.h build/probe_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(WASM3_OBJS)
+build/src/every-call/every_call.c: gen_every_call.py $(SDK)/host_api.h
+	python3 gen_every_call.py $(SDK)/host_api.h build/src/every-call
+
+build/every_call/app.wasm: build/src/every-call/every_call.c $(MKAPP)
+	$(MKAPP) build/src/every-call --out build/every_call
+
+build/every_call_wasm.h: build/every_call/app.wasm
+	(echo "static const unsigned char every_call_wasm[] = {"; xxd -i < $<; echo "};") > $@
+
+test_app: test_app.c tinytest.h build/probe_wasm.h build/every_call_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
