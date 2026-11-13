@@ -121,34 +121,30 @@ application's settings and what is set, without secrets, and hands back values t
 then saves. It could hand back a `server` of its own and wait for the token to follow: the
 same trick as above, played on a user who trusts the form.
 
-## What to do, in the order of what it buys
+## The level, and what follows from it
 
-1. **Show what an application reaches, before installing and on an update**: its hosts,
-   whether they are in the home network, whether it asks for secrets. The index carries
-   them; the page says them in a sentence ("Sends data to: evil.example"); an update that
-   adds a host is asked about. Without this the sandbox guards the device and not the
-   user's token.
-2. **Tie a secret to where it may go.** A `secret` setting names the hosts it may be sent
-   to (by default the `url` setting beside it) and the host substitutes it only into
-   requests for those; the application gets it from `kv_get` as "set" and not as bytes.
-   Then a token cannot leave even to a host the manifest lists. Costs the applications
-   that build a request body from a secret by hand - none does today.
-3. **A question on the screen for what moves secrets**: a change of a `url` setting, a new
-   catalog. They are rare, and they are what turns "can change settings" into "can take
-   the token".
-4. **Home Assistant: a secret of the device's own instead of the user's token** (the
-   integration, item 2 of the plan). What is stolen then opens one address.
-5. **The access point**: a password on it, shown on the panel as the QR code already is;
-   or at least nothing but the Wi-Fi form served while it is up.
-6. **A release build without the development tools**, and the device on the desk running
-   one whenever nobody is developing on it.
-7. Later, and larger: a password for the page; HTTPS on the page (a certificate nobody
-   will trust); signatures for a catalog; encrypted flash. Each was looked at and left:
-   the first two fight the "no accounts, set up from a phone" of the vision, the last
-   two are for a product and not for a thing one builds.
+The owner's word (2026-11-13): this is a display on a desk at home. Nobody jams a Wi-Fi
+network or sits in the house's network to take a token from it, and the device is not
+defended against that. What is written above stays as a description of how things are,
+not as a list of work.
+
+One attacker is real at this level, because it needs nobody near the house: **an
+application from somebody else's catalog**. Against it:
+
+1. **Show what an application reaches before installing it**: its hosts, in a line on the
+   page. Cheap, changes nothing in the contract, and it is the one thing that lets a user
+   tell an honest application from one that sends a token away.
+2. **Home Assistant: a secret of the device's own instead of the user's token.** It comes
+   with the integration (item 2 of the plan) anyway.
+
+Accepted and not to be built: a password or a question for settings and catalogs, a
+password on the access point, a secret an application cannot read, HTTPS on the page,
+signatures, encrypted flash. The development tools stay in the build while the project is
+being developed; a release is built without them.
 
 ## Decided, so that it is not argued again
 
-No backend, no accounts, no telemetry. No signatures for applications before there is
+No backend, no accounts, no telemetry. The level above: a thing at home, not a product
+to be defended against its own network. No signatures for applications before there is
 somebody to sign. The page open to the home network for what can be taken back. The
 battery's and the device's physical safety are the builder's.
