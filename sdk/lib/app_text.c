@@ -4,6 +4,8 @@
  */
 #include "app_text.h"
 
+#include <stdbool.h>
+
 #define INT32_MAX_DIGITS 10
 
 void app_text_start(app_text_t *text, char *buffer, int32_t buffer_size)
@@ -23,8 +25,23 @@ static void add_char(app_text_t *text, char character)
 
 void app_text_add(app_text_t *text, const char *more)
 {
-    while (*more != '\0') {
+    int32_t added = 0;
+    while (*more != '\0' && text->next < text->last) {
         add_char(text, *more++);
+        added++;
+    }
+    /* The text is UTF-8: what did not fit must not end inside a character -
+     * the bytes of the one cut in two go, back to its first. */
+    if (((unsigned char)*more & 0xC0) == 0x80) {
+        while (added > 0) {
+            bool is_first_byte = ((unsigned char)text->next[-1] & 0xC0) != 0x80;
+            text->next--;
+            added--;
+            if (is_first_byte) {
+                break;
+            }
+        }
+        *text->next = '\0';
     }
 }
 
