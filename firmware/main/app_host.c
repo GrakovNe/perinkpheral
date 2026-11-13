@@ -78,6 +78,10 @@ static int32_t kv_set(const char *app_name, const char *key, const void *value, 
 
 static int32_t file_size(const char *app_name, const char *file)
 {
+    size_t embedded_size;
+    if (launcher_system_file(app_name, file, &embedded_size) != NULL) {
+        return (int32_t)embedded_size;
+    }
     long size = app_store_file_size(STORAGE_APPS_ROOT, app_name, file);
     return size >= 0 ? (int32_t)size : HOST_ERR_NOT_FOUND;
 }
@@ -85,6 +89,19 @@ static int32_t file_size(const char *app_name, const char *file)
 static int32_t file_read(const char *app_name, const char *file, int32_t offset, void *bytes,
                          int32_t capacity)
 {
+    size_t         embedded_size;
+    const uint8_t *embedded = launcher_system_file(app_name, file, &embedded_size);
+    if (embedded != NULL) {
+        if (offset < 0 || (size_t)offset > embedded_size) {
+            return 0;
+        }
+        size_t count = embedded_size - (size_t)offset;
+        if (count > (size_t)capacity) {
+            count = (size_t)capacity;
+        }
+        memcpy(bytes, embedded + offset, count);
+        return (int32_t)count;
+    }
     long count = app_store_read_file(STORAGE_APPS_ROOT, app_name, file, offset, bytes,
                                      (size_t)capacity);
     return count >= 0 ? (int32_t)count : HOST_ERR_NOT_FOUND;

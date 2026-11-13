@@ -7,7 +7,9 @@
 #include "driver/gpio.h"
 #include "esp_attr.h"
 #include "esp_log.h"
+#include "esp_private/system_internal.h"
 #include "esp_sleep.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -52,12 +54,54 @@ static void set_press_interrupts(bool enabled)
     }
 }
 
+/* ---- the way out of a device that has stopped answering ----
+ *
+ * The first and the last button held together for ten seconds restart
+ * the device, whatever its tasks are doing: the press is an interrupt, the
+ * ten seconds are counted by a timer whose callback runs in an interrupt
+ * too, and neither waits for the host loop, the buttons' own task or the
+ * scheduler. (Interrupts turned off for good are the interrupt watchdog's
+ * to end, which the system has always had.) Nothing on the screen offers
+ * it: it is for when the screen cannot. Settings has Restart for when it
+ * can. */
+#define RESCUE_FIRST_BUTTON 0
+#define RESCUE_LAST_BUTTON  (BUTTONS_COUNT - 1)
+#define RESCUE_LOOK_US      (200 * 1000)
+#define RESCUE_HOLD_LOOKS   50 /* ten seconds */
+
+static esp_timer_handle_t s_rescue_timer;
+static int                s_rescue_looks;
+
+static void IRAM_ATTR rescue_look(void *arg)
+{
+    (void)arg;
+    bool both_down = gpio_get_level(s_gpio[RESCUE_FIRST_BUTTON]) == 0 &&
+                     gpio_get_level(s_gpio[RESCUE_LAST_BUTTON]) == 0;
+    s_rescue_looks = both_down ? s_rescue_looks + 1 : 0;
+    if (s_rescue_looks >= RESCUE_HOLD_LOOKS) {
+        esp_restart_noos();
+    }
+    bool all_up = true;
+    for (int i = 0; i < BUTTONS_COUNT; i++) {
+        all_up = all_up && gpio_get_level(s_gpio[i]) != 0;
+    }
+    if (all_up) {
+        /* Nothing to count until the next press, which is an interrupt
+         * again - armed here too, in case the task that arms it is the
+         * one that hangs. */
+        esp_timer_stop(s_rescue_timer);
+        set_press_interrupts(true);
+    }
+}
+
 /* A level, not an edge: it is there for as long as the button is down, so
  * it is turned off until the buttons are up again. */
 static void IRAM_ATTR on_button_down(void *arg)
 {
     (void)arg;
     set_press_interrupts(false);
+    /* Already running is as good as started. */
+    esp_timer_start_periodic(s_rescue_timer, RESCUE_LOOK_US);
     BaseType_t woke_higher = pdFALSE;
     xSemaphoreGiveFromISR(s_pressed, &woke_higher);
     portYIELD_FROM_ISR(woke_higher);
@@ -111,6 +155,12 @@ void buttons_start(buttons_sink_fn sink)
     ESP_ERROR_CHECK(gpio_config(&in));
     s_pressed = xSemaphoreCreateBinary();
     configASSERT(s_pressed != NULL);
+    const esp_timer_create_args_t rescue = {
+        .callback = rescue_look,
+        .dispatch_method = ESP_TIMER_ISR,
+        .name = "rescue",
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&rescue, &s_rescue_timer));
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
     for (int i = 0; i < BUTTONS_COUNT; i++) {
         ESP_ERROR_CHECK(gpio_set_intr_type(s_gpio[i], GPIO_INTR_LOW_LEVEL));

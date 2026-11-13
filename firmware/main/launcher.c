@@ -49,7 +49,13 @@ static int          s_entry_count;
                                                            "_wasm_start");                  \
     extern const uint8_t system_##name##_wasm_end[] asm("_binary_system_" #name "_wasm_end"); \
     extern const char system_##name##_manifest_start[] asm("_binary_system_" #name          \
-                                                             "_manifest_start")
+                                                             "_manifest_start");            \
+    extern const uint8_t system_##name##_strings_ru_start[] asm("_binary_system_" #name    \
+                                                                 "_strings_ru_start");      \
+    extern const uint8_t system_##name##_strings_ru_end[] asm("_binary_system_" #name      \
+                                                               "_strings_ru_end");          \
+    extern const char system_##name##_manifest_ru_start[] asm("_binary_system_" #name      \
+                                                               "_manifest_ru_start")
 SYSTEM_APP(setup);
 SYSTEM_APP(settings);
 SYSTEM_APP(device);
@@ -61,6 +67,8 @@ enum { SYSTEM_SETTINGS, SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_IN_MENU, SYSTEM_SETU
 
 static app_manifest_t s_system[SYSTEM_APP_COUNT];
 static scene_t       *s_system_scenes[SYSTEM_APP_COUNT];
+
+static void take_translated_title(app_manifest_t *manifest);
 
 /* NULL when the manifest it was built with is not one this host reads:
  * a mistake of the build, said in the log. */
@@ -76,6 +84,7 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
     memmove(manifest->name + strlen(SYSTEM_NAME_PREFIX), manifest->name,
             strlen(manifest->name) + 1);
     memcpy(manifest->name, SYSTEM_NAME_PREFIX, strlen(SYSTEM_NAME_PREFIX));
+    take_translated_title(manifest);
     return app_scene_create_built_in(manifest, wasm, wasm_size, app_host_services());
 }
 
@@ -128,8 +137,16 @@ static void take_translated_title(app_manifest_t *manifest)
     if (strcmp(settings.language, "en") == 0) {
         return;
     }
-    char  *text = app_store_read_translation(STORAGE_APPS_ROOT, manifest->name, settings.language);
-    cJSON *translation = text != NULL ? cJSON_Parse(text) : NULL;
+    char   file[sizeof "manifest." + APPCONF_LANGUAGE_MAX];
+    size_t size;
+    snprintf(file, sizeof file, "manifest.%s", settings.language);
+    const uint8_t *embedded = launcher_system_file(manifest->name, file, &size);
+    char  *text = embedded == NULL ? app_store_read_translation(STORAGE_APPS_ROOT, manifest->name,
+                                                                settings.language)
+                                   : NULL;
+    cJSON *translation = embedded != NULL ? cJSON_Parse((const char *)embedded)
+                         : text != NULL   ? cJSON_Parse(text)
+                                          : NULL;
     free(text);
     const cJSON *title = cJSON_GetObjectItemCaseSensitive(translation, "title");
     if (cJSON_IsString(title) && title->valuestring[0] != '\0' &&
@@ -228,6 +245,38 @@ void launcher_reload(launcher_drop_fn drop, void *context)
     read_installed();
     s_installed_version++;
     list_entries();
+}
+
+/* A system application's words in another language, which lie in the
+ * firmware beside it: its table of strings ("strings.ru") or what of its
+ * manifest a person reads ("manifest.ru"). NULL: it has none. */
+const uint8_t *launcher_system_file(const char *app_name, const char *file, size_t *size)
+{
+#define WORDS_OF(name)                                                              \
+    {                                                                               \
+        SYSTEM_NAME_PREFIX #name, system_##name##_strings_ru_start,                 \
+            system_##name##_strings_ru_end, system_##name##_manifest_ru_start       \
+    }
+    static const struct {
+        const char    *name;
+        const uint8_t *strings, *strings_end;
+        const char    *manifest;
+    } WORDS[] = { WORDS_OF(setup), WORDS_OF(settings), WORDS_OF(device), WORDS_OF(about) };
+#undef WORDS_OF
+    for (size_t i = 0; i < sizeof WORDS / sizeof WORDS[0]; i++) {
+        if (strcmp(WORDS[i].name, app_name) != 0) {
+            continue;
+        }
+        if (strcmp(file, "strings.ru") == 0) {
+            *size = (size_t)(WORDS[i].strings_end - WORDS[i].strings);
+            return WORDS[i].strings;
+        }
+        if (strcmp(file, "manifest.ru") == 0) {
+            *size = strlen(WORDS[i].manifest);
+            return (const uint8_t *)WORDS[i].manifest;
+        }
+    }
+    return NULL;
 }
 
 void launcher_start(void)

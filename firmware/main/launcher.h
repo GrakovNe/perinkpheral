@@ -21,6 +21,10 @@ extern "C" {
 /* Reads the store and builds the scenes; once, at start. */
 void launcher_start(void);
 
+/* A file of a system application - its words in another language, which
+ * are part of the firmware - or NULL. */
+const uint8_t *launcher_system_file(const char *app_name, const char *file, size_t *size);
+
 /* The store changed: the scenes of the installed applications are made
  * anew. `drop` is called for every old one before it is freed, for whoever
  * holds its pointer; the system applications stay as they are. Only in

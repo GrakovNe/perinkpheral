@@ -10,6 +10,7 @@
 
 #include "app_text.h"
 #include "host_api.h"
+#include "strings.h" /* made of the `strings` folder by tools/mkapp */
 
 #define MARGIN            16
 #define ROW_HEIGHT        34 /* from one baseline to the next; the first is one row down */
@@ -64,38 +65,39 @@ void app_on_draw(void)
     int32_t row = 0;
 
     read_info(SYS_INFO_NAME, value);
-    draw_row(row++, "Name", value);
+    draw_row(row++, app_string(STR_NAME), value);
 
     /* On its network, or still looking for it, or waiting to be told one:
      * then it is found on its own access point, at the address below. */
     read_info(SYS_INFO_WIFI, value);
     if (is_text(value, SYS_WIFI_ONLINE)) {
         read_info(SYS_INFO_NETWORK, value);
-        draw_row(row++, "Wi-Fi", value);
+        draw_row(row++, app_string(STR_WIFI), value);
     } else {
-        draw_row(row++, "Wi-Fi", is_text(value, SYS_WIFI_CONNECTING) ? "Connecting" : "Setup mode");
+        draw_row(row++, app_string(STR_WIFI),
+                 app_string(is_text(value, SYS_WIFI_CONNECTING) ? STR_CONNECTING : STR_SETUP_MODE));
     }
     read_info(SYS_INFO_ADDRESS, value);
-    draw_row(row++, "IP address", value);
+    draw_row(row++, app_string(STR_IP_ADDRESS), value);
 
     read_info(SYS_INFO_VERSION, value);
-    draw_row(row++, "Firmware", value);
+    draw_row(row++, app_string(STR_FIRMWARE), value);
     read_info(SYS_INFO_SLOT, value);
-    draw_row(row++, "Slot", value);
+    draw_row(row++, app_string(STR_SLOT), value);
 
     app_text_t text;
     read_info(SYS_INFO_FREE_MEMORY, value);
     app_text_start(&text, value + app_text_length(value), sizeof value - app_text_length(value));
-    app_text_add(&text, " KB");
-    draw_row(row++, "Free memory", value);
+    app_text_add(&text, app_string(STR_UNIT_KB));
+    draw_row(row++, app_string(STR_FREE_MEMORY), value);
 
     int32_t minutes = (int32_t)(time_uptime_ms() / MS_PER_MINUTE);
     app_text_start(&text, value, sizeof value);
     if (minutes >= MINUTES_PER_HOUR) {
         app_text_add_number(&text, minutes / MINUTES_PER_HOUR);
-        app_text_add(&text, " h ");
+        app_text_add(&text, app_string(STR_UNIT_H));
     }
     app_text_add_number(&text, minutes % MINUTES_PER_HOUR);
-    app_text_add(&text, " min");
-    draw_row(row++, "Uptime", value);
+    app_text_add(&text, app_string(STR_UNIT_MIN));
+    draw_row(row++, app_string(STR_UPTIME), value);
 }

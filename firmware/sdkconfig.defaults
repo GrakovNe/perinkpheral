@@ -77,3 +77,7 @@ CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
 CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y
 # Nothing on the device speaks IPv6, and no source of data needs it.
 CONFIG_LWIP_IPV6=n
+
+# The way out of a device that has stopped answering counts its ten seconds
+# in an interrupt (components/input/buttons.c).
+CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD=y

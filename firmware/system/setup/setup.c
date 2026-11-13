@@ -9,6 +9,7 @@
  */
 #include "app_text.h"
 #include "host_api.h"
+#include "strings.h" /* made of the `strings` folder by tools/mkapp */
 
 #define TEXT_MAX       95
 #define TOP_GAP        8
@@ -61,7 +62,7 @@ void app_on_draw(void)
     }
 
     read_info(SYS_INFO_NAME, value);
-    draw_line(0, "Join ", value);
+    draw_line(0, app_string(STR_JOIN), value);
     read_info(SYS_INFO_ADDRESS, value);
-    draw_line(1, "Open ", value);
+    draw_line(1, app_string(STR_OPEN), value);
 }

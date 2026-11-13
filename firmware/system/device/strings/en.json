@@ -1,0 +1,14 @@
+{
+  "name": "Name",
+  "wifi": "Wi-Fi",
+  "connecting": "Connecting",
+  "setup_mode": "Setup mode",
+  "ip_address": "IP address",
+  "firmware": "Firmware",
+  "slot": "Slot",
+  "unit_kb": " KB",
+  "free_memory": "Free memory",
+  "unit_h": " h ",
+  "unit_min": " min",
+  "uptime": "Uptime"
+}

@@ -198,3 +198,9 @@ Board and system:
   the air. Only `main/ota.c` calls `esp_ota_*`. A new image is confirmed
   by the probation task, never at boot: confirming early would keep an
   image that cannot be reached to replace it.
+
+## A device that does not answer
+
+Hold buttons 1 and 4 (UP and BACK) together for ten seconds: the device restarts, whatever
+its tasks are doing. It is counted in interrupts (`components/input/buttons.c`). When the
+screen still answers, Settings has Restart.

@@ -18,6 +18,7 @@
 #include "app_ui.h"
 #include "cities.h"
 #include "host_api.h"
+#include "strings.h" /* made of the `strings` folder by tools/mkapp */
 
 /* ---- where the user is ---- */
 
@@ -33,6 +34,7 @@ typedef enum {
     PAGE_VALUE,      /* one of a few values of a display setting */
     PAGE_WIFI,
     PAGE_FORGET,     /* "are you sure" */
+    PAGE_RESTART,    /* "are you sure" */
     PAGE_RESET,      /* "are you sure" */
     PAGE_NOTICE,     /* what came of it: "Restarting." */
 } page_t;
@@ -65,7 +67,7 @@ static app_date_t clock; /* on PAGE_CLOCK */
 /* A display setting and the values the buttons step through: any value can
  * be set from the web page, these are the ones worth having here. */
 typedef struct {
-    const char    *label;
+    int32_t        label; /* a STR_* */
     int32_t        what; /* SYS_NUMBER_* */
     const int32_t *choices;
     int32_t        choice_count;
@@ -82,22 +84,22 @@ static const int32_t FONT_CHOICES[] = { 0, 1 };
 static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
 
 static const display_setting_t DISPLAY_SETTINGS[] = {
-    { "Font", SYS_NUMBER_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
-    { "Full refresh", SYS_NUMBER_REFRESH_FULL_EVERY, FULL_EVERY_CHOICES,
+    { STR_FONT, SYS_NUMBER_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
+    { STR_FULL_REFRESH, SYS_NUMBER_REFRESH_FULL_EVERY, FULL_EVERY_CHOICES,
       COUNT_OF(FULL_EVERY_CHOICES) },
-    { "Refresh interval", SYS_NUMBER_REFRESH_MIN_SECONDS, MIN_SECONDS_CHOICES,
+    { STR_REFRESH_INTERVAL, SYS_NUMBER_REFRESH_MIN_SECONDS, MIN_SECONDS_CHOICES,
       COUNT_OF(MIN_SECONDS_CHOICES) },
-    { "Forced refresh", SYS_NUMBER_REFRESH_FORCE_HOURS, FORCE_HOURS_CHOICES,
+    { STR_FORCED_REFRESH, SYS_NUMBER_REFRESH_FORCE_HOURS, FORCE_HOURS_CHOICES,
       COUNT_OF(FORCE_HOURS_CHOICES) },
-    { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
-    { "Clock in header", SYS_NUMBER_HEADER_CLOCK, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
+    { STR_FAST_REFRESH, SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
+    { STR_CLOCK_IN_HEADER, SYS_NUMBER_HEADER_CLOCK, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
-#define ROOT_ROWS 5
+#define ROOT_ROWS 6
 
 /* By the setting's value: never, always, and whenever no computer is on the cable. */
 #define POWER_SAVINGS 3
-static const char *const POWER_SAVING_NAMES[POWER_SAVINGS] = { "Disabled", "Always", "Auto" };
+static const int32_t POWER_SAVING_NAMES[POWER_SAVINGS] = { STR_DISABLED, STR_ALWAYS, STR_AUTO };
 
 
 static const display_setting_t *edited; /* on PAGE_VALUE */
@@ -249,17 +251,17 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
     switch (setting->what) {
     case SYS_NUMBER_REFRESH_FULL_EVERY:
         if (value == 0) {
-            app_text_add(&out, "Always");
+            app_text_add(&out, app_string(STR_ALWAYS));
         } else if (value == SYS_REFRESH_FULL_NEVER) {
-            app_text_add(&out, "Never");
+            app_text_add(&out, app_string(STR_NEVER));
         } else {
-            app_text_add(&out, "Every ");
+            app_text_add(&out, app_string(STR_EVERY));
             app_text_add_number(&out, value);
         }
         break;
     case SYS_NUMBER_REFRESH_FAST:
     case SYS_NUMBER_HEADER_CLOCK:
-        app_text_add(&out, value != 0 ? "On" : "Off");
+        app_text_add(&out, app_string(value != 0 ? STR_ON : STR_OFF));
         break;
     case SYS_NUMBER_FONT:
         app_text_add(&out, FONT_NAMES[value % 2]);
@@ -267,15 +269,15 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
     case SYS_NUMBER_REFRESH_MIN_SECONDS:
         if (value >= SECONDS_PER_MINUTE && value % SECONDS_PER_MINUTE == 0) {
             app_text_add_number(&out, value / SECONDS_PER_MINUTE);
-            app_text_add(&out, " min");
+            app_text_add(&out, app_string(STR_UNIT_MIN));
         } else {
             app_text_add_number(&out, value);
-            app_text_add(&out, " s");
+            app_text_add(&out, app_string(STR_UNIT_S));
         }
         break;
     default:
         app_text_add_number(&out, value);
-        app_text_add(&out, " h");
+        app_text_add(&out, app_string(STR_UNIT_H));
         break;
     }
 }
@@ -321,42 +323,43 @@ static int32_t row_count(page_t page)
 static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
                          char value[TEXT_MAX + 1])
 {
-    static const char *const ROOT[ROOT_ROWS] = { "General", "Apps", "Display", "Wi-Fi", "Reset" };
-    static const char *const GENERAL[] = { "Date & time", "Time zone", "Power saving",
-                                           "Default app", "Idle timeout" };
-    static const char *const WIFI[] = { "Network", "IP address", "Status", "Forget network" };
+    static const int32_t ROOT[ROOT_ROWS] = { STR_GENERAL, STR_APPS, STR_DISPLAY,
+                                             STR_WIFI,    STR_RESTART, STR_RESET };
+    static const int32_t GENERAL[] = { STR_DATE_TIME, STR_TIME_ZONE, STR_POWER_SAVING,
+                                       STR_DEFAULT_APP, STR_IDLE_TIMEOUT };
+    static const int32_t WIFI[] = { STR_NETWORK, STR_IP_ADDRESS, STR_STATUS, STR_FORGET_NETWORK };
     label[0] = '\0';
     value[0] = '\0';
     switch (page) {
     case PAGE_ROOT:
-        copy_text(label, TEXT_MAX + 1, ROOT[row]);
+        copy_text(label, TEXT_MAX + 1, app_string(ROOT[row]));
         break;
     case PAGE_GENERAL:
-        copy_text(label, TEXT_MAX + 1, GENERAL[row]);
+        copy_text(label, TEXT_MAX + 1, app_string(GENERAL[row]));
         if (row == 1) {
             int32_t city = current_city();
-            copy_text(value, TEXT_MAX + 1, city >= 0 ? CITIES[city].name : "Custom");
+            copy_text(value, TEXT_MAX + 1, city >= 0 ? CITIES[city].name : app_string(STR_CUSTOM));
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
-                      POWER_SAVING_NAMES[read_number(SYS_NUMBER_POWER_SAVING) % POWER_SAVINGS]);
+                      app_string(POWER_SAVING_NAMES[read_number(SYS_NUMBER_POWER_SAVING) % POWER_SAVINGS]));
         } else if (row == 3) {
             int32_t chosen = default_app_row();
             if (chosen < 0 || !app_title_at(chosen, value)) {
-                copy_text(value, TEXT_MAX + 1, "None");
+                copy_text(value, TEXT_MAX + 1, app_string(STR_NONE));
             }
         } else if (row == 4) {
             app_text_t out;
             app_text_start(&out, value, TEXT_MAX + 1);
             app_text_add_number(&out, read_number(SYS_NUMBER_MENU_IDLE_MINUTES));
-            app_text_add(&out, " min");
+            app_text_add(&out, app_string(STR_UNIT_MIN));
         }
         break;
     case PAGE_DATE_TIME:
         if (row == 0) {
-            copy_text(label, TEXT_MAX + 1, "Automatic");
-            copy_text(value, TEXT_MAX + 1, is_automatic() ? "On" : "Off");
+            copy_text(label, TEXT_MAX + 1, app_string(STR_AUTOMATIC));
+            copy_text(value, TEXT_MAX + 1, app_string(is_automatic() ? STR_ON : STR_OFF));
         } else {
-            copy_text(label, TEXT_MAX + 1, "Set date & time");
+            copy_text(label, TEXT_MAX + 1, app_string(STR_SET_DATE_TIME));
         }
         break;
     case PAGE_ZONE:
@@ -364,29 +367,29 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         break;
     case PAGE_APPS: {
         if (!app_title_at(row, label)) {
-            copy_text(label, TEXT_MAX + 1, "No apps");
+            copy_text(label, TEXT_MAX + 1, app_string(STR_NO_APPS));
         }
         break;
     }
     case PAGE_DISPLAY:
-        copy_text(label, TEXT_MAX + 1, DISPLAY_SETTINGS[row].label);
+        copy_text(label, TEXT_MAX + 1, app_string(DISPLAY_SETTINGS[row].label));
         format_choice(&DISPLAY_SETTINGS[row], read_number(DISPLAY_SETTINGS[row].what), value);
         break;
     case PAGE_WIFI:
-        copy_text(label, TEXT_MAX + 1, WIFI[row]);
+        copy_text(label, TEXT_MAX + 1, app_string(WIFI[row]));
         if (row == 0) {
             read_info(SYS_INFO_NETWORK, value);
             if (value[0] == '\0') {
-                copy_text(value, TEXT_MAX + 1, "Not set");
+                copy_text(value, TEXT_MAX + 1, app_string(STR_NOT_SET));
             }
         } else if (row == 1) {
             read_info(SYS_INFO_ADDRESS, value);
         } else if (row == 2) {
             read_info(SYS_INFO_WIFI, value);
             copy_text(value, TEXT_MAX + 1,
-                      is_same(value, SYS_WIFI_ONLINE)       ? "Online"
-                      : is_same(value, SYS_WIFI_CONNECTING) ? "Connecting"
-                                                            : "Setup mode");
+                      app_string(is_same(value, SYS_WIFI_ONLINE)       ? STR_ONLINE
+                                 : is_same(value, SYS_WIFI_CONNECTING) ? STR_CONNECTING
+                                                                       : STR_SETUP_MODE));
         }
         break;
     default:
@@ -398,26 +401,28 @@ static const char *page_title(page_t page)
 {
     switch (page) {
     case PAGE_GENERAL:
-        return "General";
+        return app_string(STR_GENERAL);
     case PAGE_DATE_TIME:
     case PAGE_CLOCK:
-        return "Date & time";
+        return app_string(STR_DATE_TIME);
     case PAGE_ZONE:
-        return "Time zone";
+        return app_string(STR_TIME_ZONE);
     case PAGE_APPS:
     case PAGE_REMOVE_APP:
-        return "Apps";
+        return app_string(STR_APPS);
     case PAGE_DISPLAY:
-        return "Display";
+        return app_string(STR_DISPLAY);
     case PAGE_VALUE:
-        return edited->label;
+        return app_string(edited->label);
     case PAGE_WIFI:
     case PAGE_FORGET:
-        return "Wi-Fi";
+        return app_string(STR_WIFI);
+    case PAGE_RESTART:
+        return app_string(STR_RESTART);
     case PAGE_RESET:
-        return "Reset";
+        return app_string(STR_RESET);
     default:
-        return "Settings";
+        return app_string(STR_SETTINGS);
     }
 }
 
@@ -477,9 +482,9 @@ static void tell(const char *text, bool is_final)
 static void tell_result(int32_t result)
 {
     if (result == HOST_OK) {
-        tell("Restarting.", true);
+        tell(app_string(STR_RESTARTING), true);
     } else {
-        tell(result == HOST_ERR_FAILED ? "Storage error." : "Failed.", false);
+        tell(app_string(result == HOST_ERR_FAILED ? STR_STORAGE_ERROR : STR_FAILED), false);
     }
 }
 
@@ -507,8 +512,8 @@ static void activate(page_t page, int32_t row)
 {
     switch (page) {
     case PAGE_ROOT: {
-        static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS, PAGE_DISPLAY,
-                                                    PAGE_WIFI, PAGE_RESET };
+        static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS,    PAGE_DISPLAY,
+                                                    PAGE_WIFI,    PAGE_RESTART, PAGE_RESET };
         open(SECTIONS[row], 0);
         break;
     }
@@ -554,7 +559,7 @@ static void activate(page_t page, int32_t row)
                    app_text_length(CITIES[row].name));
             go_back();
         } else {
-            tell("Failed.", false);
+            tell(app_string(STR_FAILED), false);
         }
         break;
     case PAGE_APPS: {
@@ -586,7 +591,8 @@ static bool is_list(page_t page)
 
 static bool is_question(page_t page)
 {
-    return page == PAGE_REMOVE_APP || page == PAGE_FORGET || page == PAGE_RESET;
+    return page == PAGE_REMOVE_APP || page == PAGE_FORGET || page == PAGE_RESTART ||
+           page == PAGE_RESET;
 }
 
 /* OK on a question does it; BACK, as everywhere, goes back. */
@@ -597,11 +603,14 @@ static void answer_question(page_t page)
         if (sys_app_remove(app_to_remove) == HOST_OK) {
             go_back(); /* to the list, which the host reads anew */
         } else {
-            tell("Storage error.", false);
+            tell(app_string(STR_STORAGE_ERROR), false);
         }
         break;
     case PAGE_FORGET:
         tell_result(sys_do(SYS_DO_FORGET_NETWORK));
+        break;
+    case PAGE_RESTART:
+        tell_result(sys_do(SYS_DO_RESTART));
         break;
     default:
         tell_result(sys_do(SYS_DO_FACTORY_RESET));
@@ -638,7 +647,7 @@ static void press_ok(void)
         if (sys_number_set(edited->what, edited->choices[edited_choice.chosen]) == HOST_OK) {
             go_back();
         } else {
-            tell("Failed.", false);
+            tell(app_string(STR_FAILED), false);
         }
     } else if (is_question(page)) {
         answer_question(page);
@@ -679,7 +688,7 @@ static void press_on_clock(int32_t event)
         if (clock_save()) {
             go_back();
         } else {
-            tell("Failed.", false);
+            tell(app_string(STR_FAILED), false);
         }
         break;
     case APP_UI_CANCELLED:
@@ -757,7 +766,7 @@ static void draw_question(const char *first, const char *second, int32_t icon, c
     copy_text(question.first, sizeof question.first, first);
     copy_text(question.second, sizeof question.second, second);
     copy_text(question.ok, sizeof question.ok, action);
-    copy_text(question.back, sizeof question.back, "Cancel");
+    copy_text(question.back, sizeof question.back, app_string(STR_CANCEL));
     ui_notice(&question);
 }
 
@@ -805,13 +814,19 @@ void app_on_draw(void)
     case PAGE_REMOVE_APP:
         app_text_add(&text, app_to_remove_title);
         app_text_add(&text, "?");
-        draw_question("Remove", line, HOST_ICON_TRASH, "Remove");
+        draw_question(app_string(STR_REMOVE), line, HOST_ICON_TRASH, app_string(STR_REMOVE));
         break;
     case PAGE_FORGET:
-        draw_question("Forget", "network?", HOST_ICON_NO_SIGNAL, "Forget");
+        draw_question(app_string(STR_FORGET), app_string(STR_FORGET_WHAT), HOST_ICON_NO_SIGNAL,
+                      app_string(STR_FORGET));
         break;
     case PAGE_RESET:
-        draw_question("Factory", "reset?", HOST_ICON_WARNING, "Reset");
+        draw_question(app_string(STR_FACTORY), app_string(STR_FACTORY_WHAT), HOST_ICON_WARNING,
+                      app_string(STR_RESET_ACTION));
+        break;
+    case PAGE_RESTART:
+        draw_question(app_string(STR_RESTART), app_string(STR_RESTART_WHAT), HOST_ICON_UPDATE,
+                      app_string(STR_RESTART));
         break;
     case PAGE_NOTICE:
         draw_text(MARGIN, LINE_HEIGHT, HOST_FONT_TEXT, notice);
