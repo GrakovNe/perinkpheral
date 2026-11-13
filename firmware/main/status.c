@@ -4,6 +4,8 @@
  */
 #include "status.h"
 
+#include <stdio.h>
+
 #include <string.h>
 #include <time.h>
 
@@ -12,6 +14,7 @@
 
 #include "deadlines.h"
 #include "events.h"
+#include "words.h"
 #include "settings.h"
 #include "net_time.h"
 #include "poller.h"
@@ -49,8 +52,14 @@ void status_read(status_t *status)
         time_t now = (time_t)net_time_now();
         struct tm local;
         localtime_r(&now, &local);
-        strftime(status->date, sizeof status->date, shows_clock() ? CLOCK_FORMAT : DATE_FORMAT,
-                 &local);
+        if (shows_clock()) {
+            strftime(status->date, sizeof status->date, CLOCK_FORMAT, &local);
+        } else {
+            /* "Fri 13 Nov", in the device's language. */
+            snprintf(status->date, sizeof status->date, "%s %d %s",
+                     word((word_t)(WORD_SUN + local.tm_wday)), local.tm_mday,
+                     word((word_t)(WORD_JAN + local.tm_mon)));
+        }
     }
 }
 

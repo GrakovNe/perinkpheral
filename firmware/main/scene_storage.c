@@ -8,6 +8,7 @@
 
 #include "gfx_icons.h"
 #include "notice.h"
+#include "words.h"
 
 /* The partition of the applications cannot be read. Nothing is erased
  * behind the user's back: the device says so and asks. */
@@ -37,11 +38,11 @@ static void storage_draw(scene_t *scene, gfx_t *surface)
 {
     (void)scene;
     const notice_t notice = {
-        .first = "Storage",
-        .second = "error",
+        .first = word(WORD_STORAGE),
+        .second = word(WORD_STORAGE_ERROR),
         .icon = GFX_ICON_WARNING,
-        .ok = "Format",
-        .back = "Skip",
+        .ok = word(WORD_FORMAT),
+        .back = word(WORD_SKIP),
     };
     notice_draw(surface, &notice);
 }

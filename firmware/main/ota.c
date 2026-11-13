@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "words.h"
 #include "ota.h"
 
 #include <inttypes.h>
@@ -134,7 +135,7 @@ const char *ota_upload_begin(size_t image_size)
     /* The device stays up and on the network until the image is whole, or
      * given up. */
     power_hold_radio();
-    host_show_working("Updating", "in progress");
+    host_show_working(word(WORD_UPDATING), word(WORD_UPDATING_IN_PROGRESS));
     ESP_LOGI(TAG, "upload of %u bytes into %s", (unsigned)image_size, s_upload.slot->label);
     return upload_result(ota_stream_start(&s_upload.stream, &SLOT_WRITER, NULL,
                                           esp_app_get_description()->project_name,

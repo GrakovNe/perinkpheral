@@ -14,6 +14,7 @@
 
 #include "app_code.h"
 #include "glyphs.h"
+#include "words.h"
 #include "app_host.h"
 #include "app_system.h"
 #include "m3_area.h"
@@ -159,6 +160,7 @@ void app_main(void)
     display_start(&refresh_policy);
     app_host_set_dithering(cfg->dither != 0);
     gfx_font_use((gfx_family_t)cfg->font);
+    words_use(cfg->language);
     buttons_start(on_button_event);
     sysinfo_start(cfg->device_name);
     storage_start();

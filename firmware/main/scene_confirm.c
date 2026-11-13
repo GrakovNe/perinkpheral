@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "notice.h"
+#include "words.h"
 
 /* Somebody on the network asked for something that cannot be taken back:
  * the device says what, and whoever stands at it answers - OK does it,
@@ -52,7 +53,7 @@ static void confirm_draw(scene_t *scene, gfx_t *surface)
         .second = confirm->second,
         .icon = confirm->icon,
         .ok = confirm->action,
-        .back = "Cancel",
+        .back = word(WORD_CANCEL),
     };
     notice_draw(surface, &notice);
 }

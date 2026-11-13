@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "notice.h"
+#include "words.h"
 
 /* Something an application has to tell wherever the user has gone: the
  * time is up, a meeting begins. The host shows it, under its header, over
@@ -39,7 +40,7 @@ static void notify_draw(scene_t *scene, gfx_t *surface)
         .second = notify->second,
         .detail = notify->detail,
         .icon = notify->icon,
-        .ok = "Dismiss",
+        .ok = word(WORD_DISMISS),
     };
     notice_draw(surface, &notice);
 }

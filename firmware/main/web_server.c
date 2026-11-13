@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "words.h"
 #include "web_server.h"
 
 #include <inttypes.h>
@@ -457,7 +458,7 @@ static bool edit_network(const cJSON *json, appconf_t *wanted)
 
 static esp_err_t handle_wifi(httpd_req_t *request)
 {
-    static const confirmation_t ASKED = { "Join", "%s?", GFX_ICON_SIGNAL, "Join", "ssid" };
+    const confirmation_t ASKED = { word(WORD_JOIN), "%s?", GFX_ICON_SIGNAL, word(WORD_JOIN), "ssid" };
     return change_settings_as_asked(request, edit_network, true, &ASKED);
 }
 
@@ -601,7 +602,8 @@ static esp_err_t handle_reset(httpd_req_t *request)
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
     }
-    if (!is_confirmed_at_the_device(request, "Factory", "reset?", GFX_ICON_WARNING, "Reset")) {
+    if (!is_confirmed_at_the_device(request, word(WORD_FACTORY), word(WORD_FACTORY_RESET), GFX_ICON_WARNING,
+                                    word(WORD_RESET))) {
         return ESP_OK;
     }
     ESP_LOGW(TAG, "factory reset asked for, restarting");
@@ -648,7 +650,8 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
         return send_error(request, "Invalid request.");
     }
 
-    if (!is_confirmed_at_the_device(request, "Update", "firmware?", GFX_ICON_UPDATE, "Update")) {
+    if (!is_confirmed_at_the_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
+                                    GFX_ICON_UPDATE, word(WORD_UPDATE))) {
         return ESP_OK;
     }
     ESP_LOGW(TAG, "installing the release at %s", address);
@@ -683,7 +686,8 @@ static esp_err_t handle_ota(httpd_req_t *request)
     if (request->content_len == 0) {
         return send_error(request, "No image.");
     }
-    if (!is_confirmed_at_the_device(request, "Update", "firmware?", GFX_ICON_UPDATE, "Update")) {
+    if (!is_confirmed_at_the_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
+                                    GFX_ICON_UPDATE, word(WORD_UPDATE))) {
         return ESP_OK;
     }
     return web_server_take_firmware(request);

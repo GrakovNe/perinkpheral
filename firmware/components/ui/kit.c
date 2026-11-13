@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "words.h"
 #include "kit.h"
 
 #include <stddef.h>
@@ -267,8 +268,6 @@ static void draw_parts(gfx_t *g, int baseline, const gfx_font_t *font, const dat
 
 void kit_date(gfx_t *g, const kit_date_t *date)
 {
-    static const char *const MONTHS[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
     const gfx_font_t *time_font = gfx_font(GFX_FONT_LARGE);
     const gfx_font_t *date_font = kit_font(KIT_TITLE);
     int time_cap = gfx_font_cap_height(time_font), date_cap = gfx_font_cap_height(date_font);
@@ -293,7 +292,7 @@ void kit_date(gfx_t *g, const kit_date_t *date)
         snprintf(year, sizeof year, "%d", date->year % 10000);
         int month = date->month >= 1 && date->month <= 12 ? date->month : 1;
         const date_piece_t pieces[PARTS_MAX] = { { day, KIT_DATE_DAY },
-                                                 { MONTHS[month - 1], KIT_DATE_MONTH },
+                                                 { word((word_t)(WORD_JAN + (month - 1))), KIT_DATE_MONTH },
                                                  { year, KIT_DATE_YEAR } };
         draw_parts(g, top + date_cap, date_font, pieces, PARTS_MAX,
                    gfx_text_font_width(date_font, " ") + PART_PAD, date->selected);

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "words.h"
 #include "settings.h"
 
 #include <limits.h>
@@ -333,6 +334,10 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
         gfx_font_use((gfx_family_t)s_live.font);
         host_redraw();
     }
+    /* The host's own words follow the language at once; an application
+     * speaks it from the next time it is loaded. */
+    words_use(s_live.language);
+    host_redraw();
     refresh_policy_cfg_t policy = settings_refresh_policy(&s_live);
     display_set_policy(&policy);
     if (power_changed) {

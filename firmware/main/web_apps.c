@@ -22,6 +22,7 @@
 #include "app_code.h"
 #include "gfx_icons.h"
 #include "glyphs.h"
+#include "words.h"
 #include "host.h"
 #include "launcher.h"
 #include "power.h"
@@ -743,7 +744,8 @@ static esp_err_t handle_install(httpd_req_t *request)
      * do unasked - reset the device, forget its network: installing one is
      * asked about like those. */
     if (problem == NULL && asks_for_system) {
-        host_answer_t answer = host_ask_at_the_device("Install", "system app?", GFX_ICON_GEAR, "Install");
+        host_answer_t answer = host_ask_at_the_device(word(WORD_INSTALL), word(WORD_INSTALL_SYSTEM_APP),
+                                                      GFX_ICON_GEAR, word(WORD_INSTALL));
         problem = answer == HOST_ANSWER_CONFIRMED ? NULL
                   : answer == HOST_ANSWER_BUSY    ? "Device busy."
                                                   : "Not confirmed.";

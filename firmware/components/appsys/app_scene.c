@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "words.h"
 #include "app_scene.h"
 
 #include <stdlib.h>
@@ -77,7 +78,7 @@ static bool load(app_scene_t *self)
                                           : app_store_read_module(self->store_root,
                                                                   self->manifest.name, &module_size);
     if (self->module == NULL) {
-        self->load_error = "File not found.";
+        self->load_error = word(WORD_FILE_NOT_FOUND);
         return false;
     }
     switch (app_load(self->manifest.name, self->module, module_size, self->manifest.system,
@@ -85,15 +86,15 @@ static bool load(app_scene_t *self)
     case APP_OK:
         return true;
     case APP_ERR_NO_MEMORY:
-        self->load_error = "Out of memory.";
+        self->load_error = word(WORD_OUT_OF_MEMORY);
         break;
     case APP_ERR_OTHER_API:
         /* Made for a host that is not this one: after a firmware update,
          * most likely. The catalog has the one that is. */
-        self->load_error = "Update the app.";
+        self->load_error = word(WORD_UPDATE_THE_APP);
         break;
     case APP_ERR_BAD_MODULE:
-        self->load_error = "Invalid app.";
+        self->load_error = word(WORD_INVALID_APP);
         break;
     }
     release_module(self);
@@ -218,7 +219,7 @@ static void draw_message(gfx_t *surface, const char *title, const char *what, co
         .second = what,
         .detail = why,
         .icon = GFX_ICON_WARNING,
-        .back = "Close",
+        .back = word(WORD_CLOSE),
     };
     notice_draw(surface, &notice);
 }
@@ -227,7 +228,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (self->app == NULL) {
-        draw_message(surface, self->manifest.title, "cannot start", self->load_error);
+        draw_message(surface, self->manifest.title, word(WORD_CANNOT_START), self->load_error);
         return;
     }
     if (!app_has_stopped(self->app)) {
@@ -239,7 +240,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
     if (app_has_stopped(self->app)) {
         /* Over whatever it managed to draw before it stopped. */
         gfx_clear(surface, false);
-        draw_message(surface, self->manifest.title, "crashed", app_stop_reason(self->app));
+        draw_message(surface, self->manifest.title, word(WORD_CRASHED), app_stop_reason(self->app));
     }
 }
 

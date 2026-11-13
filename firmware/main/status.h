@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define STATUS_DATE_MAX 15 /* "Wed 11 Nov" */
+#define STATUS_DATE_MAX 31 /* "Fri 13 Nov", in letters of two bytes too */
 
 /* What the header shows, as data. */
 typedef struct {
