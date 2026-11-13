@@ -263,24 +263,36 @@ HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 
 /* Text is UTF-8, everywhere in this contract: what an application draws,
- * measures and is handed. Every size has all of printable ASCII, and a
- * character the device has no glyph for is drawn as '?' - an application
- * passes text on as it came and does not cut it by bytes (gfx_text_fit).
- * The degree sign ("\xC2\xB0") is the one character beyond ASCII that is
- * drawn, in every size.
+ * measures and is handed. Every size has all of printable ASCII. A letter
+ * beyond it is drawn with its own glyph when the user has added the pack
+ * that has it (Latin with marks, Cyrillic, Greek), is spelled in Latin
+ * letters when there is a spelling ("Moskva", "Strasse"), and is '?'
+ * otherwise - so an application passes text on as it came, measures it
+ * instead of counting, and never cuts it by bytes (gfx_text_fit). The
+ * degree sign ("\xC2\xB0") is drawn in every size, pack or no pack.
  *
  * A font is a size, not a typeface: the typeface is the user's choice, in
- * the device's settings - a monospaced one or one whose letters have their
- * own widths - and the capitals of a size are about as tall in either.
- * So nothing is laid out by counting characters: measure
- * (gfx_text_width, gfx_font_height, gfx_font_ascent, gfx_font_cap_height). */
-#define HOST_FONT_TEXT    0 /* the host's own text: capitals about 15 px */
-#define HOST_FONT_MEDIUM  1 /* about 25 px */
-#define HOST_FONT_LARGE   2 /* about 30 px */
-#define HOST_FONT_DISPLAY 3 /* about 50 px */
-#define HOST_FONT_HUGE    4 /* about 80 px: five digits fill the width */
-#define HOST_FONT_SMALL   5 /* about 9 px: secondary text beside something larger */
-
+ * the device's settings - Departure Mono, monospaced, or Jersey, whose
+ * letters have their own widths - and the capitals of a size are about as
+ * tall in either. So nothing is laid out by counting characters: measure
+ * (gfx_text_width, gfx_font_height, gfx_font_ascent, gfx_font_cap_height).
+ *
+ * The sizes, as capitals / the whole line in pixels, Departure Mono and
+ * then Jersey; a line of the surface's 400 pixels holds about so many
+ * characters:
+ *                       capitals   line       characters
+ *   HOST_FONT_SMALL      8 / 10    15 / 21    57 / 50
+ *   HOST_FONT_TEXT      16 / 15    30 / 28    28 / 33
+ *   HOST_FONT_MEDIUM    24 / 25    45 / 43    19 / 21
+ *   HOST_FONT_LARGE     32 / 30    60 / 56    14 / 16
+ *   HOST_FONT_DISPLAY   48 / 50    90 / 86     9 / 10
+ *   HOST_FONT_HUGE      80 / 80   150 / 140    5 / 6   */
+#define HOST_FONT_TEXT    0 /* the host's own text */
+#define HOST_FONT_MEDIUM  1
+#define HOST_FONT_LARGE   2
+#define HOST_FONT_DISPLAY 3
+#define HOST_FONT_HUGE    4 /* five digits fill the width */
+#define HOST_FONT_SMALL   5 /* secondary text beside something larger */
 /* A number that changes where it stands - a clock, a countdown - should
  * not shift what is beside it, and in a typeface whose digits are of
  * their own widths it does. Add HOST_FONT_TABULAR to the font and every

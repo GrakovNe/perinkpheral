@@ -473,6 +473,9 @@ tools/
   catalog/             builds a folder of applications into a catalog a device installs from
 assets/
   fonts/               DepartureMono-Regular.otf (OFL), its license
+docs/
+  guide/               the application platform's datasheet and development guide: guide.html, build.py (HTML to PDF
+                       with a Chromium browser), the PDF
 hardware/              everything about the physical device
   README.md            panel, datasheet, bench notes
   bom/                 the "hardware and assembly" page (links into render/ and step/)
@@ -509,7 +512,7 @@ Open:
 - The time zone the page works out from a browser is a rule of fixed dates; a zone that changes its clocks otherwise (Morocco) comes out approximate.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-The five milestones of the operating system are done but for what is listed above as open or put off. Next: applications for people - Home Assistant first, then a calendar by WebCal, then Plex with the certificate of the user's own - and, once two of them have tried the contract on servers that are not ours, the first release, with which the host API is versioned and stays compatible. The guide for application developers is written when the SDK is fixed.
+The five milestones of the operating system are done but for what is listed above as open or put off. Next: applications for people - Home Assistant first, then a calendar by WebCal, then Plex with the certificate of the user's own - and, once two of them have tried the contract on servers that are not ours, the first release, with which the host API is versioned and stays compatible. The guide for application developers is `docs/guide` - a datasheet, a guide and a reference in one PDF, built from `guide.html` by `build.py` - and is preliminary until the SDK is fixed: a change of `sdk/host_api.h` is a change of it.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.
