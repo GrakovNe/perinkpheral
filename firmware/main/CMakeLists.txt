@@ -17,12 +17,15 @@ idf_component_register(SRCS ${srcs}
 # A number that is another for another partition table: the lines of
 # partitions.csv that say something, without the spaces. An image carries
 # it, and a device takes no update built for another table.
-file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../partitions.csv" partition_lines REGEX "^[^#]")
+# The path without "..": a build with Ninja takes two spellings of one file
+# for two files, and stops.
+get_filename_component(partitions_csv "${CMAKE_CURRENT_LIST_DIR}/../partitions.csv" ABSOLUTE)
+file(STRINGS "${partitions_csv}" partition_lines REGEX "^[^#]")
 string(REPLACE " " "" partition_lines "${partition_lines}")
 string(SHA256 partition_hash "${partition_lines}")
 string(SUBSTRING "${partition_hash}" 0 8 partition_table_number)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE "APP_PARTITION_TABLE=0x${partition_table_number}u")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../partitions.csv")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${partitions_csv}")
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-u image_layout")
 
 # The applications in sdk/apps are built with the SDK and packed into the
@@ -59,7 +62,8 @@ if(CONFIG_APP_BUNDLE_APPS)
         get_filename_component(app_name "${app_dir}" NAME)
         file(GLOB app_sources CONFIGURE_DEPENDS "${app_dir}/*")
         add_custom_command(OUTPUT "${apps_image_dir}/${app_name}/app.wasm"
-                           COMMAND "${repo_dir}/tools/mkapp/mkapp.py" "${app_dir}"
+                           COMMAND "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}"
+                                   "${repo_dir}/tools/mkapp/mkapp.py" "${app_dir}"
                                    --out "${apps_image_dir}/${app_name}"
                            DEPENDS ${app_sources} ${sdk_sources}
                            VERBATIM)
@@ -92,7 +96,8 @@ foreach(system_app about device settings setup)
     file(GLOB system_app_sources CONFIGURE_DEPENDS "${system_app_dir}/*")
     add_custom_command(OUTPUT "${system_app_wasm}" "${system_app_manifest}"
                               "${system_app_strings}" "${system_app_words}"
-                       COMMAND "${repo_dir}/tools/mkapp/mkapp.py" "${system_app_dir}"
+                       COMMAND "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}"
+                                   "${repo_dir}/tools/mkapp/mkapp.py" "${system_app_dir}"
                                --out "${system_app_out}"
                        COMMAND "${CMAKE_COMMAND}" -E copy "${system_app_out}/app.wasm"
                                "${system_app_wasm}"

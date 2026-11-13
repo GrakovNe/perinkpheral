@@ -137,10 +137,12 @@ gives CMake (CLion: Settings, Build, CMake, Environment).
 - **This repository's root.** The sample and the system applications the same way, and the
   project's tools as targets: `host-tests`, `guide`, and with `IDF_PATH` set `firmware` and
   `firmware-send`. The firmware's own code is not part of this project.
-- **The `firmware` folder**, for the firmware's code. It is an ESP-IDF project and configures
-  with plain CMake in ESP-IDF's environment: give the IDE what `export.sh` sets (CLion:
-  Settings, Build, Toolchains, "Add environment", from file) and `WASI_SDK_PATH`, and keep its
-  build directory apart from `firmware/build`, which is `idf.py`'s. Flashing and the monitor
+- **The `firmware` folder**, for the firmware's code. It needs no setting up: outside
+  ESP-IDF's environment `firmware/cmake/environment.cmake` finds ESP-IDF (`IDF_PATH`, or
+  `~/esp/esp-idf`) and wasi-sdk (`WASI_SDK_PATH`, `/opt/wasi-sdk`, `~/opt/wasi-sdk`) and puts
+  the tools where the build finds them; anywhere else, `-DIDF_PATH=` and `-DWASI_SDK_PATH=`
+  among the CMake options. The IDE builds into a directory of its own, not `firmware/build`,
+  which is `idf.py`'s; what is sent to a device is `idf.py`'s build. Flashing and the monitor
   stay `idf.py`'s and `devtool.py`'s.
 
 ## Constraints

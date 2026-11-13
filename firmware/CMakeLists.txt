@@ -17,10 +17,16 @@ else()
     endif()
 endif()
 
-if(NOT DEFINED ENV{IDF_PATH})
-    message(FATAL_ERROR "IDF_PATH is not set. The firmware is an ESP-IDF 5.5 project: build it "
-                        "from a shell where ESP-IDF's export.sh was run, or give an IDE that "
-                        "environment (AGENTS.md).")
-endif()
+# ESP-IDF and wasi-sdk are found, and their tools put on PATH, when the
+# environment does not have them already: an IDE needs no setting up.
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/environment.cmake")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+# What the bootloader's own project cannot find by itself when the build
+# runs outside ESP-IDF's environment.
+if(CMAKE_MAKE_PROGRAM)
+    idf_build_set_property(EXTRA_CMAKE_ARGS "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}" APPEND)
+endif()
+if(IDF_COMPILER_DIR)
+    idf_build_set_property(EXTRA_CMAKE_ARGS "-DCMAKE_PROGRAM_PATH=${IDF_COMPILER_DIR}" APPEND)
+endif()
 project(perinkpheral)
