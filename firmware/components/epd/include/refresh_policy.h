@@ -11,28 +11,28 @@
 extern "C" {
 #endif
 
-/* When the panel may be refreshed and how, after Waveshare's rules for
- * the 4.2" V2: at least min_data_ms between data-driven updates, a full
- * refresh after full_every partial ones, at least one refresh per
- * keepalive_ms. A button is the user looking at the device: it redraws
- * at once (min_button_ms is 0 unless the user asks for more). A switch of the application on the scene is
- * always a full refresh. Pure, host-tested. */
+/* Refresh policy, from the Waveshare rules for the 4.2" V2:
+ *   - data-driven refreshes: at least min_data_ms apart;
+ *   - a full refresh after full_every partial ones;
+ *   - at least one refresh per keepalive_ms;
+ *   - a refresh after a button press: at least min_button_ms apart (default 0);
+ *   - a change of the current scene: always a full refresh.
+ * Pure, host-tested. */
 typedef enum {
-    REFRESH_FOR_DATA,      /* a poll result, a clock tick */
-    REFRESH_FOR_REQUEST,   /* an application asked to be shown soon, with nobody pressing */
-    REFRESH_FOR_ROW,       /* one picture of a row an application shows: soon, and never full */
-    REFRESH_FOR_BUTTON,    /* the user pressed something */
-    REFRESH_FOR_CLEAN,     /* an application asked for a picture without traces: a full refresh */
-    REFRESH_FOR_SWITCH,    /* another application takes the scene */
-    REFRESH_FOR_KEEPALIVE, /* nothing happened for a day */
+    REFRESH_FOR_DATA,      /* poll result, timer, clock */
+    REFRESH_FOR_REQUEST,   /* HOST_REDRAW_SOON */
+    REFRESH_FOR_ROW,       /* HOST_REDRAW_NO_BLINK: at once, never full */
+    REFRESH_FOR_BUTTON,    /* button press */
+    REFRESH_FOR_CLEAN,     /* HOST_REDRAW_CLEAN: full */
+    REFRESH_FOR_SWITCH,    /* change of the current scene: full */
+    REFRESH_FOR_KEEPALIVE, /* no refresh within keepalive_ms */
 } refresh_reason_t;
 
-/* What an application may ask for is not rationed, but the panel is not
- * refreshed on request more often than this. */
+/* Minimum interval between refreshes for REFRESH_FOR_REQUEST. */
 #define REFRESH_ON_REQUEST_MIN_MS 1000
-/* A refresh nobody asked for may come this much before its time. */
+/* A data-driven refresh is accepted this much before min_data_ms expires. */
 #define REFRESH_DATA_EARLY_MS     1000
-/* One of a row of pictures is shown as soon as the panel can. */
+/* Minimum interval between refreshes for REFRESH_FOR_ROW. */
 #define REFRESH_OF_ROW_MIN_MS     0
 
 typedef enum {
@@ -46,14 +46,14 @@ typedef struct {
     uint32_t min_button_ms;
     int      full_every;   /* partial refreshes before a full one */
     uint32_t keepalive_ms;
-    bool     full_is_fast; /* the shorter full refresh; not the policy's to decide with */
+    bool     full_is_fast; /* fast full refresh; passed to the driver, not used by the policy */
 } refresh_policy_cfg_t;
 
 typedef struct {
-    bool    shown;   /* anything on the panel since boot */
-    int64_t last_ms; /* of the last refresh of any kind */
-    bool    data_shown;   /* any refresh nobody asked for since boot */
-    int64_t last_data_ms; /* of the last such */
+    bool    shown;   /* a refresh was made since boot */
+    int64_t last_ms; /* time of the last refresh */
+    bool    data_shown;   /* a data-driven refresh was made since boot */
+    int64_t last_data_ms; /* time of the last data-driven refresh */
     int     partials;
 } refresh_policy_t;
 
@@ -63,12 +63,12 @@ refresh_kind_t refresh_policy_decide(const refresh_policy_t *p,
                                      const refresh_policy_cfg_t *cfg,
                                      refresh_reason_t why, int64_t now_ms);
 
-/* How long until refresh_policy_decide() stops answering REFRESH_NONE for
- * this reason; 0 when it would refresh now. */
+/* Time until refresh_policy_decide() allows a refresh for `why`; 0 when
+ * it allows one now. */
 uint32_t refresh_policy_wait_ms(const refresh_policy_t *p, const refresh_policy_cfg_t *cfg,
                                 refresh_reason_t why, int64_t now_ms);
 
-/* Call with what was actually done. */
+/* Records the refresh that was made. */
 void refresh_policy_note(refresh_policy_t *p, refresh_kind_t kind, refresh_reason_t why,
                          int64_t now_ms);
 

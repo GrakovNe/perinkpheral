@@ -16,42 +16,41 @@ extern "C" {
 #define DISPLAY_HEIGHT     300
 #define DISPLAY_FRAME_SIZE (DISPLAY_WIDTH / 8 * DISPLAY_HEIGHT)
 
-/* The panel as a service. It keeps a copy of the frame the panel shows,
- * so whoever draws needs a buffer of its own and hands it over whole;
- * the service decides whether the panel is touched at all and how.
- * `policy` is how the panel is to be treated; it is copied. */
+/* Display service. Holds a copy of the frame on the panel. The caller
+ * draws into its own buffer and passes whole frames; the service selects
+ * no refresh, a partial refresh or a full refresh.
+ * `policy`: the refresh policy; copied. */
 void display_start(const refresh_policy_cfg_t *policy);
 
-/* The user changed how the panel is to be treated; from the next frame on. */
+/* Replaces the refresh policy. Applies from the next frame. */
 void display_set_policy(const refresh_policy_cfg_t *policy);
 
 typedef enum {
-    DISPLAY_SHOWN,     /* the panel was refreshed with the frame */
-    DISPLAY_UNCHANGED, /* the panel already shows exactly this */
-    DISPLAY_DEFERRED,  /* too soon for this reason: offer the frame again later */
-    DISPLAY_FAILED,    /* the panel did not take it; what it shows is unknown */
+    DISPLAY_SHOWN,     /* the panel was refreshed */
+    DISPLAY_UNCHANGED, /* the frame equals the frame on the panel */
+    DISPLAY_DEFERRED,  /* refused by the policy; pass the frame again after display_wait_ms() */
+    DISPLAY_FAILED,    /* refresh failed; the panel content is unknown */
 } display_result_t;
 
-/* frame: DISPLAY_FRAME_SIZE bytes, row-major, MSB is the left pixel,
+/* `frame`: DISPLAY_FRAME_SIZE bytes, row-major, MSB is the left pixel,
  * 1 = white. */
 display_result_t display_show(const uint8_t *frame, refresh_reason_t why);
 
-/* The panel into its deep sleep: a moment after the last partial refresh
- * (DEADLINE_PANEL_SLEEP has come), and before the device restarts or
- * sleeps itself. */
+/* Puts the panel into deep sleep. Called on DEADLINE_PANEL_SLEEP (after
+ * the last partial refresh) and before a restart or sleep of the device. */
 void display_rest(void);
 
 
-/* DEADLINE_PANEL_KEEPALIVE has come: the refresh the panel is owed when
- * nothing else refreshed it for the hours of the policy. */
+/* Handles DEADLINE_PANEL_KEEPALIVE: refreshes the panel when no refresh
+ * was made within the keep-alive period of the policy. */
 void display_keepalive(void);
 
-/* After DISPLAY_DEFERRED: how long until a frame offered for this reason
- * would be taken. */
+/* Time until a frame with reason `why` is accepted. For use after
+ * DISPLAY_DEFERRED. */
 uint32_t display_wait_ms(refresh_reason_t why);
 
-/* What the panel shows now, for diagnostics. Only for the task that
- * calls display_show(): nobody else writes it. */
+/* The frame on the panel, for diagnostics. Valid only in the task that
+ * calls display_show(). */
 const uint8_t *display_shown_frame(void);
 
 #ifdef __cplusplus

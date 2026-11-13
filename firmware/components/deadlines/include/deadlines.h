@@ -14,62 +14,60 @@
 extern "C" {
 #endif
 
-/* Every deadline of the host is kept here, and this module does nothing
- * else: set one, take it back, be told that some have come. The scale is
- * the clock - the user's, the network's or 1970, it always has a time and
- * runs through sleep. Safe from any task.
+/* Deadlines of the host: set, cancel, notification of due ones.
+ * Time base: the system clock (set by the user, by the network, or
+ * counting from 1970); it runs through sleep. Thread-safe.
  *
- * Whoever has deadlines has a kind here. */
+ * Deadline kinds: */
 typedef enum {
-    DEADLINE_SCENE_TIMER,     /* number: the timer of the scene on the screen */
-    DEADLINE_ALARM,           /* owner: the application's id; number: its alarm */
-    DEADLINE_AWAKE_WINDOW,    /* the while after a press is over */
-    DEADLINE_POWER_LOOK,      /* is a computer on the cable: the power profile follows it */
-    DEADLINE_MEMORY_LOOK,     /* is the heap short: see memory.h */
+    DEADLINE_SCENE_TIMER,     /* number: timer id of the current scene */
+    DEADLINE_ALARM,           /* owner: application id; number: alarm id */
+    DEADLINE_AWAKE_WINDOW,    /* end of the period after a press */
+    DEADLINE_POWER_LOOK,      /* check of the USB host for the power profile */
+    DEADLINE_MEMORY_LOOK,     /* heap check, see memory.h */
     DEADLINE_WIFI_RETRY,
-    DEADLINE_STOP,            /* the device stops: see host_stop_soon() */
-    DEADLINE_DATE,            /* the day in the header is another */
-    DEADLINE_PANEL_SLEEP,     /* the panel into its deep sleep */
-    DEADLINE_PANEL_KEEPALIVE, /* the refresh that is due when nothing else was */
-    DEADLINE_POLL,            /* owner: the application's id; number: its poll */
-    DEADLINE_POLLER_LOOK,     /* the poller has something to look at again */
-    DEADLINE_CONFIRM,         /* nobody answered the question on the screen */
-    DEADLINE_MENU_IDLE,       /* the menu was left alone: the default application's turn */
+    DEADLINE_STOP,            /* stop of the device, see host_stop_soon() */
+    DEADLINE_DATE,            /* change of the date in the header */
+    DEADLINE_PANEL_SLEEP,     /* deep sleep of the panel */
+    DEADLINE_PANEL_KEEPALIVE, /* keep-alive refresh */
+    DEADLINE_POLL,            /* owner: application id; number: poll index */
+    DEADLINE_POLLER_LOOK,     /* wake-up of the poller */
+    DEADLINE_CONFIRM,         /* timeout of the question on the screen */
+    DEADLINE_MENU_IDLE,       /* idle timeout of the menu: the default application opens */
 } deadline_kind_t;
 
-/* `some_are_due` is called from the timer's task whenever a deadline has
- * come and nobody was told yet; it says whether the news was taken - if
- * not, it is told again in a moment. Whoever is told calls
- * deadlines_take_due() until there is none. */
+/* `some_are_due` is called from the timer task when a deadline is due
+ * and not yet reported. It returns true when the notification was
+ * accepted; on false the call is repeated. The receiver calls
+ * deadlines_take_due() until it returns false. */
 void deadlines_start(bool (*some_are_due)(void));
 
-/* The clock, in milliseconds since 1970. */
+/* System clock, milliseconds since 1970. */
 int64_t deadlines_now_ms(void);
 
-/* "In so long": moves with the clock when the clock is set. */
+/* Relative deadline, `in_ms` from now. Shifted when the clock is set. */
 bool deadlines_set_in(deadline_kind_t kind, uint32_t owner, int number, int64_t in_ms);
 
-/* "At such a time", milliseconds since 1970: stays where it is. */
+/* Absolute deadline, milliseconds since 1970. Not shifted when the clock is set. */
 bool deadlines_set_at(deadline_kind_t kind, uint32_t owner, int number, int64_t at_ms);
 
 void deadlines_cancel(deadline_kind_t kind, uint32_t owner, int number);
 
-/* The owners that are not among these are no more: their deadlines of
- * the kind go. */
+/* Cancels the deadlines of `kind` whose owner is not in `owners`. */
 void deadlines_keep_only(deadline_kind_t kind, const uint32_t *owners, int owner_count);
 
-/* Whether the deadline is set. */
+/* True when the deadline is set. */
 bool deadlines_has(deadline_kind_t kind, uint32_t owner, int number);
 
-/* One that has come, taken out; false when none has. */
+/* Removes one due deadline and returns it in `id`. False: none is due. */
 bool deadlines_take_due(deadline_id_t *id);
 
-/* Whoever takes them stopped before there was none: tell again. */
+/* Requests the notification again. For a receiver that stopped before deadlines_take_due() returned false. */
 void deadlines_reschedule(void);
 
-/* The one place the clock is set: the deadlines "in so long" move with
- * it in the same breath. False when the clock would not be set. Returns
- * through `moved_ms` how far it went. */
+/* Sets the system clock and shifts the relative deadlines by the same
+ * amount. The only place where the clock is set. `moved_ms`: the shift.
+ * False: the clock was not set. */
 bool deadlines_set_clock(const struct timeval *to, int64_t *moved_ms);
 
 #ifdef __cplusplus
