@@ -102,6 +102,9 @@ def main():
             at = end
         out.append(source[at:])
         result = "".join(out).replace('<html lang="en">', '<html lang="%s">' % language)
+        # A reference to a section at the end of a line of code is outside the comment before it.
+        if "(section" in pairs:
+            result = re.sub(r"\(section (\d+)\)", lambda m: "%s %s)" % (pairs["(section"], m.group(1)), result)
         # The running foot is in the style sheet, not in the text.
         foot = "perINKpheral / application guide"
         if foot in pairs:

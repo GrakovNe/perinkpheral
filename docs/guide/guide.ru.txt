@@ -2479,3 +2479,6 @@ perINKpheral / руководство по приложениям
 
 optional: data files, read with file_read()
 необязательно: файлы данных, читаются через file_read()
+
+(section
+(раздел
