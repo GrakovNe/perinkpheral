@@ -152,7 +152,7 @@ pages - Settings and About - are applications written with the same header.</p>
 </ul>
 </div>
 
-<h2 id="overview-model">The model in one paragraph</h2>
+<h2 id="overview-model">The model in short</h2>
 <p>There is no <code>main()</code> and no loop. An application exports handlers with fixed names
 and the host calls them: a button was pressed, a timer ran out, data arrived, the picture is
 wanted.</p>
@@ -470,7 +470,7 @@ include, checks everything against the limits and writes the package: <code>app.
 <p>A setting is declared, not coded: the device's page draws the form from the manifest without
 running the application, and stores each value as text under its key in the application's own
 store.</p>
-<p>The code reads it with <code>kv_get()</code>.</p>
+<p>The code reads a setting with <code>kv_get()</code>, by its key.</p>
 <p>A change arrives as
 <code>app_on_settings()</code>, and the host fetches the polls again at once.</p>
 <table>
@@ -684,7 +684,7 @@ to draw.</p>
 <h2 id="storage-kv">The store</h2>
 <p><code>kv_get()</code> and <code>kv_set()</code> keep small values under short keys, in a namespace
 no other application can reach.</p>
-<p>It holds the application's state and its settings, and it
+<p>The store holds the application's state and its settings, and it
 outlives the application: one that is removed and installed again finds what it left.</p>
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
@@ -836,8 +836,7 @@ matters: take data, keep a moment, tell the user. Each of these loads it for one
 BACK, and returns the screen to what had it.</p>
 <p>The application is not loaded for any of that and
 learns nothing of it, so it keeps no "is showing" of its own.</p>
-<p>Prefer this to
-<code>request_focus()</code> whenever what there is to say fits two lines.</p>
+<p>Prefer a notification to <code>request_focus()</code> whenever what there is to say fits two lines.</p>
 
 <h2 id="background-alarms">Alarms, timers</h2>
 <table>
