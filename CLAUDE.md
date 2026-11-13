@@ -6,7 +6,7 @@ The name is written `perinkpheral` in code, the repository and the domain; `perI
 
 This file is the one specification: vision, architecture, conventions, milestones and the current state. Next to it are only references: `AGENTS.md` - the bench, build and flash recipes, what must not be touched in the driver; `hardware/README.md` - everything found out about the panel, with the datasheet and links; `SECURITY.md` - who could take what from the device, what stands in the way and what does not. Where they disagree, this file wins.
 
-**Everything in this project is written strictly in English**: code, comments, commits, documentation, this file, web pages, strings on the device. **Version 1 is ASCII only**: Cyrillic (fonts, strings, text from applications) is out of scope and comes back as a separate task in version 2 - do not design for it or build on it now.
+**Everything in this project is written strictly in English**: code, comments, commits, documentation, this file, web pages, strings on the device. The one exception is the owner's (2026-11-14): the application guide has a Russian translation beside the English original (`docs/guide/guide.ru.txt`, built into `perinkpheral-app-guide.ru.pdf`); names are never translated in it (E-Ink, SDK, Watchdog, the calls and constants), and the English is the one that is right when the two differ. **Version 1 is ASCII only**: Cyrillic (fonts, strings, text from applications) is out of scope and comes back as a separate task in version 2 - do not design for it or build on it now.
 
 ## Vision and philosophy
 
@@ -517,7 +517,7 @@ Open:
 - The time zone the page works out from a browser is a rule of fixed dates; a zone that changes its clocks otherwise (Morocco) comes out approximate.
 - `hardware/render` is a symlink to `render/` in the repository root while Blender is still writing there by an absolute path; when the renders are done, replace the link with the folder itself.
 
-The five milestones of the operating system are done but for what is listed above as open or put off. Next: applications for people - Home Assistant first, then a calendar by WebCal, then Plex with the certificate of the user's own - and, once two of them have tried the contract on servers that are not ours, the first release, with which the host API is versioned and stays compatible. The guide for application developers is `docs/guide` - a datasheet, a guide and a reference in one PDF, built from `guide.html` by `build.py` - and is preliminary until the SDK is fixed: a change of `sdk/host_api.h` is a change of it.
+The five milestones of the operating system are done but for what is listed above as open or put off. Next: applications for people - Home Assistant first, then a calendar by WebCal, then Plex with the certificate of the user's own - and, once two of them have tried the contract on servers that are not ours, the first release, with which the host API is versioned and stays compatible. The guide for application developers is `docs/guide` - a datasheet, a guide and a reference in one PDF, built from `guide.html` by `build.py` - and is preliminary until the SDK is fixed: a change of `sdk/host_api.h` is a change of it. Its translation is `guide.ru.txt` - every piece of text and its Russian under it - which `units.py` puts into the page (`build.py --language ru`); `units.py missing ru` lists what a change of the guide left untranslated.
 
 ## Conventions
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.

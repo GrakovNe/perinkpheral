@@ -1,0 +1,2481 @@
+perINKpheral: application platform datasheet and development guide
+perINKpheral: платформа приложений, техническое описание и руководство разработчика
+
+Application platform<br>Datasheet and development guide
+Платформа приложений<br>Техническое описание и руководство разработчика
+
+Display
+Дисплей
+
+4.2" e-paper, 400 x 300 pixels, 1 bit
+4,2" E-Ink, 400 x 300 пикселей, 1 бит
+
+Input
+Ввод
+
+4 buttons
+4 кнопки
+
+Application
+Приложение
+
+WebAssembly module and manifest
+Модуль WebAssembly и манифест
+
+Language
+Язык
+
+C, no standard library
+C, без стандартной библиотеки
+
+Interface
+Интерфейс
+
+one header, sdk/host_api.h, ABI 2
+один заголовочный файл, sdk/host_api.h, ABI 2
+
+Memory
+Память
+
+64 KB per application
+64 КБ на приложение
+
+Build and upload
+Сборка и загрузка
+
+about 10 s, no reflashing
+около 10 с, без перепрошивки
+
+<b>I</b>Datasheet: parameters and execution model
+<b>I</b>Техническое описание: параметры и модель исполнения
+
+<b>II</b>Development guide: package, screen, input, storage, network
+<b>II</b>Руководство разработчика: пакет, экран, ввод, хранение, сеть
+
+<b>III</b>Reference: host API and SDK library
+<b>III</b>Справочник: API хоста и библиотека SDK
+
+revision 2, 2026-11-14 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 2, 2026-11-14 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+
+Contents
+Содержание
+
+Part I. Datasheet
+Часть I. Техническое описание
+
+1. Overview
+1. Обзор
+
+perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.
+perINKpheral - настольный дисплей: чёрно-белая панель E-Ink 4,2" с четырьмя кнопками на базе ESP32-C6. Отображается информация, рассчитанная на чтение с одного взгляда: время, погода, ближайшая встреча, состояние дома.
+
+The firmware is called the <i>host</i>. The menu and the settings are provided by the host. All other screens are provided by <i>applications</i>. Applications are installed from a catalog; the firmware is not reflashed.
+Прошивка называется <i>хостом</i>. Меню и настройки предоставляются хостом. Все остальные экраны предоставляются <i>приложениями</i>. Приложения устанавливаются из каталога; прошивка при этом не перезаписывается.
+
+An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.
+Приложение состоит из модуля WebAssembly и манифеста. Модуль пишется на C с одним заголовочным файлом, <code>sdk/host_api.h</code>, и исполняется интерпретатором (wasm3) внутри хоста.
+
+The host's own pages, Settings and About, are built as applications with the same header.
+Собственные страницы хоста, Settings и About, собраны как приложения с тем же заголовочным файлом.
+
+Features
+Возможности
+
+Display: 400 x 300 pixels, 1 bit, dithered greys, partial refresh in about 0.5 s
+Дисплей: 400 x 300 пикселей, 1 бит, оттенки серого дизерингом, частичное обновление примерно за 0,5 с
+
+Input: four buttons; short press, long press, key down and key up events
+Ввод: четыре кнопки; события короткого нажатия, длинного нажатия, нажатия и отпускания
+
+Sandbox: 64 KB of private memory; network access through the host only
+Песочница: 64 КБ собственной памяти; доступ в сеть только через хост
+
+Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code
+Сеть: запросы HTTP и HTTPS выполняются хостом - опросы по расписанию или запросы из кода
+
+Data: the host extracts values from JSON answers; any answer can be streamed in 1 KB pieces
+Данные: значения из ответов JSON извлекаются хостом; любой ответ может передаваться потоком, фрагментами по 1 КБ
+
+Background work: answers, alarms and device events are delivered while the application is off the screen
+Фоновая работа: ответы, будильники и события устройства доставляются приложению, когда оно не на экране
+
+Storage: a key-value store and files, kept across restarts and reinstalls
+Хранение: хранилище «ключ-значение» и файлы, сохраняются при перезагрузке и переустановке
+
+Design system: lists, notices, pickers, cells and a button row, drawn by the host
+Дизайн-система: списки, сообщения, выбор значения, ячейки и строка кнопок, отрисовываются хостом
+
+Notifications: shown by the host over any screen
+Уведомления: показываются хостом поверх любого экрана
+
+Settings: declared in the manifest, edited on the device's web page
+Настройки: объявляются в манифесте, редактируются на веб-странице устройства
+
+Localization: strings per language, loaded by the host; Latin with diacritics, Cyrillic and Greek
+Локализация: строки по языкам, загружаются хостом; латиница с диакритикой, кириллица и греческий
+
+Tools: build, check and measure an application; control a device over the network
+Инструменты: сборка, проверка и измерение приложения; управление устройством по сети
+
+How an application runs
+Как работает приложение
+
+An application is a set of exported handlers with fixed names. A handler is called by the host when an event occurs: a button press, a timer, incoming data, a request to draw.
+Приложение - это набор экспортируемых обработчиков с фиксированными именами. Обработчик вызывается хостом при наступлении события: нажатие кнопки, таймер, поступление данных, запрос на отрисовку.
+
+The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by the host when a frame is needed. Refresh timing and method are decided by the host.
+Состояние приложения изменяется в обработчике, после чего запрашивается перерисовка. <code>app_on_draw()</code> вызывается хостом, когда нужен кадр. Момент и способ обновления экрана определяются хостом.
+
+One application is loaded at a time. An application is unloaded when it leaves the screen. Persistent state is kept in the application's store; global variables are kept until the unload.
+Одновременно загружено одно приложение. Приложение выгружается, когда уходит с экрана. Постоянное состояние хранится в хранилище приложения; глобальные переменные сохраняются до выгрузки.
+
+2. Characteristics
+2. Характеристики
+
+Parameter
+Параметр
+
+Value
+Значение
+
+Notes
+Примечания
+
+Panel
+Панель
+
+4.2" e-paper, SSD1683
+4,2" E-Ink, SSD1683
+
+No backlight. The image is retained without power
+Без подсветки. Изображение сохраняется без питания
+
+Resolution
+Разрешение
+
+About 120 px per inch
+Около 120 пикселей на дюйм
+
+Application surface
+Поверхность приложения
+
+Below the host header. 400 x 300 with <code>"fullscreen": true</code>
+Под заголовком хоста. 400 x 300 при <code>"fullscreen": true</code>
+
+Depth
+Глубина цвета
+
+1 bit
+1 бит
+
+17 grey levels by fixed 4 x 4 dithering; for filled areas
+17 уровней серого фиксированным дизерингом 4 x 4; для заливок
+
+Partial refresh
+Частичное обновление
+
+0.46 - 0.53 s
+0,46 - 0,53 с
+
+Only the changed rectangle is sent
+Передаётся только изменившийся прямоугольник
+
+Full refresh
+Полное обновление
+
+2.2 s (2.7 s)
+2,2 с (2,7 с)
+
+Fast waveform (default waveform). The panel flashes
+Быстрая форма сигнала (форма сигнала по умолчанию). Панель мигает
+
+Full refresh interval
+Интервал полного обновления
+
+every 5 partial refreshes
+каждые 5 частичных обновлений
+
+User setting. Removes ghosting left by partial refreshes
+Настройка пользователя. Убирает остаточное изображение после частичных обновлений
+
+Refresh after a button press
+Обновление после нажатия кнопки
+
+immediate
+немедленно
+
+Refresh without a button press
+Обновление без нажатия кнопки
+
+max. 1 per 60 s
+не чаще 1 раза в 60 с
+
+User setting. The panel manufacturer recommends 180 s
+Настройка пользователя. Производитель панели рекомендует 180 с
+
+Frame sequence rate
+Частота последовательности кадров
+
+about 1.5 frames/s
+около 1,5 кадра/с
+
+<code>HOST_REDRAW_NO_BLINK</code>. Ghosting accumulates until the sequence ends
+<code>HOST_REDRAW_NO_BLINK</code>. Остаточное изображение накапливается до конца последовательности
+
+Buttons
+Кнопки
+
+Order on the device: UP, OK, DOWN, BACK
+Порядок на устройстве: UP, OK, DOWN, BACK
+
+Events per button
+Событий на кнопку
+
+Key down, key up, pressed, long pressed
+Нажата, отпущена, короткое нажатие, длинное нажатие
+
+Long press
+Длинное нажатие
+
+600 ms
+600 мс
+
+Reported while the button is held
+Сообщается, пока кнопка удерживается
+
+Reserved
+Зарезервировано
+
+long press of BACK
+длинное нажатие BACK
+
+Handled by the host: clears the stack and opens the menu
+Обрабатывается хостом: очищает стек и открывает меню
+
+Sandbox
+Песочница
+
+Linear memory
+Линейная память
+
+64 KB, fixed
+64 КБ, фиксированная
+
+One wasm page: 8 KB stack, static data, remainder for <code>app_alloc()</code>. Fixed size
+Одна страница wasm: стек 8 КБ, статические данные, остаток для <code>app_alloc()</code>. Размер фиксирован
+
+Module (<code>app.wasm</code>)
+Модуль (<code>app.wasm</code>)
+
+max. 48 KB
+до 48 КБ
+
+Executed from flash
+Исполняется из флеш-памяти
+
+Interpreter memory
+Память интерпретатора
+
+64 KB
+64 КБ
+
+About 11 KB base plus 4 bytes per byte of executed code
+Около 11 КБ базовых плюс 4 байта на каждый байт исполненного кода
+
+Executable code, all paths run
+Исполняемый код, пройдены все ветви
+
+about 13 KB
+около 13 КБ
+
+Derived from the interpreter memory. <code>mkapp</code> warns when the estimate is exceeded
+Следует из памяти интерпретатора. <code>mkapp</code> предупреждает о превышении оценки
+
+Handler time limit
+Лимит времени обработчика
+
+3 s
+3 с
+
+On expiry the handler is stopped and the application terminated
+По истечении обработчик останавливается, приложение завершается
+
+Loaded instances
+Загруженных экземпляров
+
+Across all applications
+На все приложения
+
+Floating point
+Числа с плавающей точкой
+
+integer only
+только целые
+
+The build rejects a module with a float operation
+Сборка отклоняет модуль с операцией над числами с плавающей точкой
+
+C library
+Библиотека C
+
+Strings, numbers, an arena allocator, the <code>memcpy</code> family. The standard C library is absent
+Строки, числа, арена-аллокатор, семейство <code>memcpy</code>. Стандартной библиотеки C нет
+
+Installed applications
+Установленных приложений
+
+Per device. Catalog size is unlimited
+На устройство. Размер каталога не ограничен
+
+Storage
+Хранение
+
+Store key
+Ключ хранилища
+
+1 - 15 characters
+1 - 15 символов
+
+Characters <code>!</code> to <code>~</code>
+Символы от <code>!</code> до <code>~</code>
+
+Store value
+Значение хранилища
+
+1024 bytes
+1024 байта
+
+Store total
+Хранилище целиком
+
+4096 bytes
+4096 байт
+
+Per application. Kept after removal and restored on reinstall
+На приложение. Сохраняется после удаления и доступно после переустановки
+
+Files total
+Файлы целиком
+
+Per application: packaged files and files written by the code. Each file counts as whole 4 KB blocks (16 blocks). Guaranteed for every installed application
+На приложение: файлы пакета и файлы, записанные кодом. Каждый файл считается целыми блоками по 4 КБ (16 блоков). Гарантируется каждому установленному приложению
+
+File name
+Имя файла
+
+1 - 23 characters
+1 - 23 символа
+
+<code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>
+<code>a-z 0-9 . - _</code>; первый символ - буква, цифра, <code>-</code> или <code>_</code>
+
+Network
+Сеть
+
+Transport
+Транспорт
+
+Performed by the host
+Выполняется хостом
+
+HTTPS trust
+Доверие HTTPS
+
+browser root set
+корневые сертификаты браузеров
+
+Self-signed certificates are rejected. Plain <code>http</code> is available for home networks
+Самоподписанные сертификаты отклоняются. Для домашних сетей доступен обычный <code>http</code>
+
+Hosts for requests from code
+Адреса для запросов из кода
+
+Listed in the manifest, or taken from a <code>url</code> or <code>link</code> setting. Polls use the address in their <code>url</code>
+Перечислены в манифесте либо берутся из настройки типа <code>url</code> или <code>link</code>. Опросы используют адрес из своего <code>url</code>
+
+Polls per manifest
+Опросов в манифесте
+
+Interval 10 s to 1 day; minimum 300 s on battery
+Интервал от 10 с до 1 суток; на батарее не менее 300 с
+
+Concurrent requests
+Одновременных запросов
+
+Per device. Queue: 2 more
+На устройство. Очередь: ещё 2
+
+Request headers / body
+Заголовки / тело запроса
+
+1023 / 512 bytes
+1023 / 512 байт
+
+Up to 4 header lines
+До 4 строк заголовков
+
+Answer with extracted values
+Ответ с извлечёнными значениями
+
+256 KB
+256 КБ
+
+JSON; up to 16 paths; value up to 63 bytes
+JSON; до 16 путей; значение до 63 байт
+
+Streamed answer
+Потоковый ответ
+
+4 MB
+4 МБ
+
+Pieces of up to 1024 bytes; about 90 KB/s over plain HTTP
+Фрагменты до 1024 байт; около 90 КБ/с по обычному HTTP
+
+Redirects
+Перенаправления
+
+<code>GET</code> only. Requests from code stay within the hosts list
+Только <code>GET</code>. Запросы из кода остаются в пределах списка адресов
+
+HTTPS request time
+Время запроса HTTPS
+
+about 6 s
+около 6 с
+
+Mostly the TLS handshake
+В основном TLS-рукопожатие
+
+Time and background work
+Время и фоновая работа
+
+Timers
+Таймеры
+
+One-shot, milliseconds. Active while the application is on the screen
+Однократные, в миллисекундах. Действуют, пока приложение на экране
+
+Alarms
+Будильники
+
+Relative, absolute, or repeating every 60 s to 1 day. Active on and off the screen. Cleared by a restart
+Относительные, абсолютные или повторяющиеся с периодом от 60 с до 1 суток. Действуют на экране и вне его. Сбрасываются при перезагрузке
+
+Device events (intents)
+События устройства (интенты)
+
+Started, time changed, network up
+Запуск, изменение времени, появление сети
+
+Queued notifications
+Уведомлений в очереди
+
+Per device
+На устройство
+
+Screen takeover
+Захват экрана
+
+max. 1 per 30 s
+не чаще 1 раза в 30 с
+
+<code>request_focus()</code>; granted by the host
+<code>request_focus()</code>; разрешается хостом
+
+Clock
+Часы
+
+Unix seconds
+секунды Unix
+
+Set from the network. 0 until first set. The time zone is a host setting
+Устанавливаются из сети. 0 до первой установки. Часовой пояс - настройка хоста
+
+Text
+Текст
+
+Encoding
+Кодировка
+
+All text. Passed as pointer and length
+Весь текст. Передаётся указателем и длиной
+
+Built-in glyphs
+Встроенные глифы
+
+printable ASCII, °
+печатные символы ASCII, °
+
+Glyph packs
+Пакеты глифов
+
+Latin with diacritics, Cyrillic, Greek. Installed by the user on the device's web page
+Латиница с диакритикой, кириллица, греческий. Устанавливаются пользователем на веб-странице устройства
+
+Fallback
+Замена
+
+ASCII transliteration
+транслитерация в ASCII
+
+"Moskva", "Strasse", "Athina"; otherwise <code>?</code>
+"Moskva", "Strasse", "Athina"; иначе <code>?</code>
+
+Text per drawing call
+Текст на один вызов отрисовки
+
+127 bytes
+127 байт
+
+Longer text is cut between characters
+Более длинный текст обрезается по границе символа
+
+Font sizes
+Размеры шрифта
+
+Capital height 8 to 80 px. Two typefaces, selected by the user
+Высота прописных от 8 до 80 пикселей. Две гарнитуры, выбирает пользователь
+
+Languages
+Языки
+
+English built in; other languages as tables loaded by the host (section 12)
+Английский встроен; остальные языки - таблицы, загружаемые хостом (раздел 12)
+
+3. Execution model
+3. Модель исполнения
+
+An application is loaded for a handler call and can be unloaded after it.
+Приложение загружается для вызова обработчика и может быть выгружено после него.
+
+Application lifecycle
+Жизненный цикл приложения
+
+Event
+Событие
+
+Instance
+Экземпляр
+
+Handlers, in order
+Обработчики, по порядку
+
+The user opens the application
+Пользователь открывает приложение
+
+Loaded; stays while it has the screen
+Загружается; остаётся, пока владеет экраном
+
+An answer, alarm, intent or settings change while on the screen
+Ответ, будильник, интент или изменение настроек, пока приложение на экране
+
+Same instance
+Тот же экземпляр
+
+The same while off the screen
+То же, пока приложение не на экране
+
+Loaded for the call, unloaded after it. The current screen is suspended and restored
+Загружается на время вызова, выгружается после него. Текущий экран приостанавливается и восстанавливается
+
+app_init, the handler, app_on_terminate
+app_init, обработчик, app_on_terminate
+
+<code>request_focus()</code> granted by the host
+<code>request_focus()</code> разрешён хостом
+
+Stays, on top of the stack
+Остаётся, на вершине стека
+
+The application leaves the screen: BACK, the menu, another application on top
+Приложение уходит с экрана: BACK, меню, другое приложение сверху
+
+Unloaded
+Выгружается
+
+Handler guarantees
+Гарантии для обработчиков
+
+Handlers are run one at a time, each to completion. Locking is unnecessary.
+Обработчики выполняются по одному, каждый до завершения. Блокировки не нужны.
+
+A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.
+Обработчик ограничен 3 секундами. Обработчик, превысивший лимит или вызвавший ловушку (например, на неверном указателе), останавливается. Приложение завершается, показывается экран ошибки. Хост продолжает работу.
+
+Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.
+Обработчики возвращают <code>void</code>. Перерисовка, экран или выход получаются запросом. Запросы применяются после возврата из обработчика.
+
+<code>app_init()</code> is called before any other handler of an instance.
+<code>app_init()</code> вызывается раньше любого другого обработчика экземпляра.
+
+Button events are delivered in order, without loss. Pending timers with the same number are merged. The pieces of one answer are delivered in order, in consecutive calls.
+События кнопок доставляются по порядку, без потерь. Ожидающие таймеры с одним номером объединяются. Фрагменты одного ответа доставляются по порядку, последовательными вызовами.
+
+Background delivery of an answer can be interrupted. On a button press the instance is unloaded and the remaining pieces are dropped. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute.
+Фоновая доставка ответа может быть прервана. При нажатии кнопки экземпляр выгружается, оставшиеся фрагменты отбрасываются. Вызывается только <code>app_on_terminate()</code>. Опрос повторяется через минуту.
+
+State
+Состояние
+
+Global variables are kept until the application is unloaded. Unloading occurs every time the application leaves the screen and after every background call.
+Глобальные переменные сохраняются до выгрузки приложения. Выгрузка происходит при каждом уходе приложения с экрана и после каждого фонового вызова.
+
+State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance. A value that must survive a power loss is saved immediately after it changes.
+Состояние загружается в <code>app_init()</code> и сохраняется в <code>app_on_terminate()</code> - последнем вызове каждого экземпляра. Значение, которое должно пережить отключение питания, сохраняется сразу после изменения.
+
+Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.
+Метки времени, действительные после перезагрузки: <code>time_now()</code> либо <code>time_uptime_ms()</code> вместе с <code>time_boot_id()</code>. Идентификатор загрузки меняется после каждой перезагрузки.
+
+Navigation and refresh
+Навигация и обновление экрана
+
+Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.
+Навигация организована как стек. Внизу находится меню. Приложение, открытое из меню, помещается сверху. Уведомление, вопрос хоста или приложение, запросившее экран, помещается над текущим экраном.
+
+The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.
+Верхний элемент снимается коротким нажатием BACK. Длинным нажатием BACK стек очищается и открывается меню.
+
+Only the top entry is loaded. An application lower in the stack is unloaded; its state is restored when it returns to the top.
+Загружен только верхний элемент. Приложение ниже в стеке выгружено; его состояние восстанавливается при возврате на вершину.
+
+The panel is controlled by the host. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.
+Панелью управляет хост. Каждый новый кадр сравнивается с кадром на панели, передаётся только изменившаяся область. Обновление без нажатия кнопки откладывается, если предыдущее было слишком недавно.
+
+A complete frame is always shown. Refresh timing is decided by the host.
+На панели всегда показан целый кадр. Момент обновления определяется хостом.
+
+Part II. Development guide
+Часть II. Руководство разработчика
+
+4. A first application
+4. Первое приложение
+
+Requirements
+Требования
+
+<b>wasi-sdk</b> 34 or newer. It provides clang for the wasm32 target. Set <code>WASI_SDK_PATH</code> to its location.
+<b>wasi-sdk</b> версии 34 или новее. Содержит clang для цели wasm32. Укажите путь к нему в <code>WASI_SDK_PATH</code>.
+
+<b>Python 3</b>. The tools use the standard library only.
+<b>Python 3</b>. Инструменты используют только стандартную библиотеку.
+
+A checkout of the <b>perinkpheral</b> repository. It contains <code>sdk/</code> and <code>tools/</code>.
+Копия репозитория <b>perinkpheral</b>. Содержит <code>sdk/</code> и <code>tools/</code>.
+
+A <b>device</b> on the same network, running a firmware with the development tools enabled (the default). The device shows its address on the second page of About. Set <code>PERINKPHERAL_HOST</code> to this address.
+<b>Устройство</b> в той же сети с прошивкой, в которой включены инструменты разработки (по умолчанию). Адрес устройства показан на второй странице About. Укажите этот адрес в <code>PERINKPHERAL_HOST</code>.
+
+Create, build, run
+Создание, сборка, запуск
+
+create a folder from the SDK sample
+создать папку из примера SDK
+
+build, upload, restart into the application
+собрать, загрузить, перезапустить в приложение
+
+local page: live screen, buttons, log, Run
+локальная страница: экран, кнопки, журнал, Run
+
+<code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.
+<code>serve</code> запускает локальную веб-страницу с экраном устройства, четырьмя кнопками, журналом устройства и кнопкой Run. Клавиши со стрелками, Enter и Backspace работают как кнопки.
+
+<code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.
+<code>new</code> также создаёт <code>CMakeLists.txt</code> в папке приложения. Откройте эту папку в IDE с поддержкой CMake, например CLion или VS Code.
+
+The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page).
+IDE находит заголовочные файлы SDK и сгенерированные <code>strings.h</code> и <code>pictures.h</code>. В проекте три цели сборки: <code>my-app</code> (сборка), <code>my-app-run</code> (сборка и запуск на устройстве) и <code>my-app-serve</code> (страница с экраном).
+
+Set <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the CMake environment of the IDE.
+Задайте <code>WASI_SDK_PATH</code> и <code>PERINKPHERAL_HOST</code> в окружении CMake в IDE.
+
+Sample application
+Пример приложения
+
+load the state from the store
+загрузить состояние из хранилища
+
+save the state before the unload
+сохранить состояние перед выгрузкой
+
+update the state, request a redraw
+изменить состояние, запросить перерисовку
+
+draw the whole frame from the state
+нарисовать весь кадр по состоянию
+
+Build report
+Отчёт сборки
+
+the module imports a function that <code>host_api.h</code> does not declare;
+модуль импортирует функцию, не объявленную в <code>host_api.h</code>;
+
+the code contains a floating-point operation (the report names it);
+код содержит операцию с плавающей точкой (отчёт её называет);
+
+the code calls a <code>sys_*</code> function and the manifest lacks <code>"system": true</code>;
+код вызывает функцию <code>sys_*</code>, а в манифесте нет <code>"system": true</code>;
+
+the manifest exceeds a limit;
+манифест превышает лимит;
+
+a translation does not match <code>en.json</code> (section 12).
+перевод не соответствует <code>en.json</code> (раздел 12).
+
+5. Package
+5. Пакет
+
+identity, polls, settings
+идентификация, опросы, настройки
+
+source code: one or more .c files
+исходный код: один или несколько файлов .c
+
+optional: en.json, ru.json ...; one file per language
+необязательно: en.json, ru.json ...; один файл на язык
+
+optional: PNG, PBM, or text rows of '#' and '.'
+необязательно: PNG, PBM или текстовые строки из '#' и '.'
+
+Manifest
+Манифест
+
+Polls
+Опросы
+
+Field
+Поле
+
+Format
+Формат
+
+Description
+Описание
+
+Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting
+До 511 байт. <code>http</code> или <code>https</code>; либо начинается с <code>{{key}}</code> настройки типа <code>url</code>; либо целиком <code>{{key}}</code> настройки типа <code>link</code>
+
+<code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required
+<code>{{key}}</code> любой настройки заменяется сохранённым значением в URL-кодировании: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, превращается в <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Настройка типа <code>url</code> в начале адреса и настройка типа <code>link</code> подставляются без изменений. Опрос с пустой настройкой в URL или заголовках завершается ошибкой <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен
+
+10 to 86400 seconds, or <code>"{{key}}"</code> of a setting
+от 10 до 86400 секунд либо <code>"{{key}}"</code> настройки
+
+Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice
+Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется хостом
+
+up to 4; a value up to 255 bytes
+до 4; значение до 255 байт
+
+<code>{{key}}</code> is supported in values. Used to send a token
+В значениях поддерживается <code>{{key}}</code>. Используется для передачи токена
+
+up to 16 paths of up to 63 bytes
+до 16 путей, каждый до 63 байт
+
+JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. The host extracts the values. Without <code>pick</code> the answer is streamed
+Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. Значения извлекаются хостом. Без <code>pick</code> ответ передаётся потоком
+
+Polls are numbered from 0 in the order of the list. Handlers receive this number.
+Опросы нумеруются с 0 в порядке списка. Этот номер получают обработчики.
+
+Settings
+Настройки
+
+Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.
+Настройки объявляются в манифесте. Веб-страница устройства строит форму настроек только по манифесту. Каждое значение хранится как текст в хранилище приложения под ключом настройки.
+
+The application reads a setting with <code>kv_get()</code> and the key of the setting.
+Приложение читает настройку вызовом <code>kv_get()</code> по ключу настройки.
+
+When the user saves the form, the host calls <code>app_on_settings()</code> and repeats all polls immediately.
+Когда пользователь сохраняет форму, хост вызывает <code>app_on_settings()</code> и сразу повторяет все опросы.
+
+Type
+Тип
+
+Form field
+Поле формы
+
+Stored value
+Хранимое значение
+
+Text line
+Строка текста
+
+The text, up to 255 bytes
+Текст, до 255 байт
+
+Number
+Число
+
+Digits, optional sign and decimal point
+Цифры, необязательные знак и десятичная точка
+
+Selection from up to 8 <code>options</code>
+Выбор из <code>options</code>, до 8 вариантов
+
+The option text, 1 - 23 characters. Translations add labels; the stored value is the option
+Текст варианта, 1 - 23 символа. Переводы добавляют подписи; хранится сам вариант
+
+Checkbox
+Флажок
+
+<code>"1"</code> or <code>"0"</code>; empty until first saved
+<code>"1"</code> или <code>"0"</code>; пусто до первого сохранения
+
+Password field
+Поле пароля
+
+The secret. Write-only for the web page; readable by the application with <code>kv_get()</code>
+Секрет. Для веб-страницы только запись; приложение читает его через <code>kv_get()</code>
+
+Place search by name
+Поиск места по названию
+
+The place name. The page also fills the two <code>number</code> settings named in <code>latitude</code> and <code>longitude</code>
+Название места. Страница также заполняет две настройки типа <code>number</code>, указанные в <code>latitude</code> и <code>longitude</code>
+
+Address of the user's server
+Адрес сервера пользователя
+
+Scheme, host and optional port: <code>http://192.168.1.10:8123</code>
+Схема, хост и необязательный порт: <code>http://192.168.1.10:8123</code>
+
+Complete URL supplied by the user
+Полный URL, заданный пользователем
+
+<code>https://host/path?key</code>, up to 255 bytes. Hidden on the web page like a secret. <code>webcal://</code> is converted to <code>https://</code>
+<code>https://host/path?key</code>, до 255 байт. На веб-странице скрыт, как секрет. <code>webcal://</code> преобразуется в <code>https://</code>
+
+<code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty. The code applies the same default when <code>kv_get()</code> finds no value.
+<code>default</code> только отображается: страница показывает его, пока настройка пуста, а хранилище остаётся пустым. Код применяет то же значение по умолчанию, когда <code>kv_get()</code> не находит значения.
+
+<code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.
+Настройки типов <code>url</code> и <code>link</code> доступны приложению только для чтения: <code>kv_set()</code> по их ключам завершается ошибкой. Когда пользователь меняет такую настройку, хост стирает секреты, не введённые заново, поэтому токен остаётся с тем сервером, для которого был введён.
+
+<code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.
+<code>title</code> - от 1 до 31 символа. <code>help</code> - до 95 символов.
+
+6. Screen
+6. Экран
+
+Surface and colour
+Поверхность и цвет
+
+The origin is the top left corner of the surface. <code>gfx_width()</code> and <code>gfx_height()</code> return its size. Use these values for layout.
+Начало координат - левый верхний угол поверхности. <code>gfx_width()</code> и <code>gfx_height()</code> возвращают её размер. Используйте эти значения для компоновки.
+
+Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, <code>gfx_*</code> and <code>ui_*</code> calls return <code>HOST_ERR_NOT_DRAWING</code>. Drawing is clipped to the surface.
+Вызовы отрисовки работают внутри <code>app_on_draw()</code>. В начале каждого вызова поверхность белая. В любом другом обработчике вызовы <code>gfx_*</code> и <code>ui_*</code> возвращают <code>HOST_ERR_NOT_DRAWING</code>. Отрисовка обрезается по границам поверхности.
+
+<code>gfx_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.
+<code>gfx_color()</code> задаёт цвет для последующих вызовов, от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16). В начале каждого <code>app_on_draw()</code> цвет равен <code>HOST_INK</code>. Промежуточные значения - оттенки серого, получаемые дизерингом. Используйте серый только для заливок: тонкие линии и мелкий текст становятся нечитаемыми.
+
+The standard margin is <code>HOST_UI_MARGIN</code> (16 px). Use it at the left and right edges.
+Стандартное поле - <code>HOST_UI_MARGIN</code> (16 пикселей). Используйте его у левого и правого краёв.
+
+Fonts
+Шрифты
+
+A font constant selects a size. The typeface is a user setting: Departure Mono (monospaced) or Jersey (proportional). Character widths differ between the two, so layout is based on measured widths.
+Константа шрифта задаёт размер. Гарнитура - настройка пользователя: Departure Mono (моноширинная) или Jersey (пропорциональная). Ширина символов у них разная, поэтому компоновка строится на измеренной ширине.
+
+Measure text with <code>gfx_text_width()</code>, <code>gfx_font_height()</code>, <code>gfx_font_ascent()</code> and <code>gfx_font_cap_height()</code>.
+Измеряйте текст вызовами <code>gfx_text_width()</code>, <code>gfx_font_height()</code>, <code>gfx_font_ascent()</code> и <code>gfx_font_cap_height()</code>.
+
+Constant
+Константа
+
+Capital height, px
+Высота прописных, пикс.
+
+Line height, px
+Высота строки, пикс.
+
+Characters per 400 px
+Символов на 400 пикс.
+
+Typical use
+Типичное применение
+
+Units, captions
+Единицы, подписи
+
+Body text; the host's own text
+Основной текст; текст самого хоста
+
+Titles, secondary values
+Заголовки, второстепенные значения
+
+Notice lines
+Строки сообщения
+
+The main value of a screen
+Главное значение экрана
+
+Clock: five digits fill the width
+Часы: пять цифр занимают всю ширину
+
+Each cell gives the value for Departure Mono, then for Jersey.
+В каждой ячейке значение для Departure Mono, затем для Jersey.
+
+The <code>y</code> argument of <code>gfx_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.
+Аргумент <code>y</code> вызова <code>gfx_text()</code> - верх строки. Базовая линия находится на <code>y + ascent</code>; верх прописных - на <code>y + ascent - cap_height</code>.
+
+Add <code>HOST_FONT_TABULAR</code> to the font for numbers that change in place, such as a clock or a countdown. All digits then have the same width. Every call that takes a font accepts the flag. Pass the same flag when measuring.
+Добавляйте <code>HOST_FONT_TABULAR</code> к шрифту для чисел, меняющихся на месте, например часов или обратного отсчёта. Все цифры получают одинаковую ширину. Флаг принимает любой вызов с аргументом шрифта. При измерении передавайте тот же флаг.
+
+<code>gfx_text_fit()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.
+<code>gfx_text_fit()</code> сокращает текст до заданной ширины и добавляет "...". Обрезка идёт по границе символа, поэтому результат остаётся корректным UTF-8.
+
+Text beyond ASCII
+Текст за пределами ASCII
+
+All text is UTF-8. The host draws each character using the first available option:
+Весь текст - в UTF-8. Хост рисует каждый символ первым доступным способом:
+
+The glyph of the character. Printable ASCII is always available. Latin letters with diacritics, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).
+Глиф символа. Печатные символы ASCII доступны всегда. Латиница с диакритикой, кириллица и греческий доступны, если пользователь установил пакет глифов (Settings, Language на веб-странице устройства).
+
+An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.
+Транслитерация в ASCII: "Moskva", "Strasse", "Athina". Типографские тире и кавычки заменяются простыми.
+
+A question mark.
+Вопросительный знак.
+
+The degree sign is built in at every size.
+Знак градуса встроен во все размеры.
+
+The width of a text depends on which option was used. Always measure a text before placing it.
+Ширина текста зависит от использованного способа. Всегда измеряйте текст перед размещением.
+
+Limits on user-visible text, such as a title or an option, are given in characters. A field holds half as many two-byte characters as one-byte characters.
+Лимиты на текст, видимый пользователю, например заголовок или вариант, заданы в символах. Поле вмещает вдвое меньше двухбайтовых символов, чем однобайтовых.
+
+Pictures and icons
+Картинки и иконки
+
+The host provides 20 built-in icons. Each icon is drawn on a grid of 11 x 11 cells. An application can use them on its own screens.
+Хост предоставляет 20 встроенных иконок. Каждая иконка нарисована на сетке 11 x 11 клеток. Приложение может использовать их на своих экранах.
+
+<code>gfx_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px.
+<code>gfx_icon()</code> рисует иконку с размером клетки от 1 до 16 пикселей. <code>ui_icon()</code> рисует иконку в одном из трёх стандартных размеров: 22, 44 или 99 пикселей.
+
+Meaning
+Значение
+
+connected
+подключено
+
+not connected
+не подключено
+
+arrow up
+стрелка вверх
+
+arrow down
+стрелка вниз
+
+arrow left
+стрелка влево
+
+arrow right
+стрелка вправо
+
+selected, done
+выбрано, готово
+
+cancel, close
+отмена, закрыть
+
+add
+добавить
+
+remove
+убрать
+
+delete
+удалить
+
+settings
+настройки
+
+time
+время
+
+waiting, timer
+ожидание, таймер
+
+notification, alarm
+уведомление, будильник
+
+information
+информация
+
+warning, error
+предупреждение, ошибка
+
+start, play
+запуск, воспроизведение
+
+pause
+пауза
+
+update; the project mark
+обновление; знак проекта
+
+Built-in icons at cell sizes of 2 and 4 pixels
+Встроенные иконки при размере клетки 2 и 4 пикселя
+
+Basic kit parts: title, text, caption, icons, value, button, bar, button row
+Базовые элементы Kit: заголовок, текст, подпись, иконки, значение, кнопка, полоса, строка кнопок
+
+An application's own pictures are placed in the <code>pictures/</code> folder. Supported formats are PNG, PBM and text. A text file contains rows of <code>#</code> (ink) and <code>.</code> (paper) and can hold several named pictures:
+Собственные картинки приложения размещаются в папке <code>pictures/</code>. Поддерживаются форматы PNG, PBM и текстовый. Текстовый файл содержит строки из <code>#</code> (чернила) и <code>.</code> (бумага) и может содержать несколько именованных картинок:
+
+generated by mkapp
+генерируется mkapp
+
+44 px: cell size 4
+44 пикс.: размер клетки 4
+
+22 px: cell size 2
+22 пикс.: размер клетки 2
+
+A line of the form <code>name:</code> starts a picture.
+Строка вида <code>name:</code> начинает картинку.
+
+Rows before the first such line form a picture named after the file.
+Строки до первой такой строки образуют картинку с именем файла.
+
+All rows of a picture have the same length.
+Все строки картинки имеют одинаковую длину.
+
+A picture is at most 255 cells wide and 255 cells high.
+Картинка не превышает 255 клеток в ширину и 255 клеток в высоту.
+
+The constant is <code>PICTURE_</code> followed by the picture name in upper case. Characters other than letters and digits are replaced with <code>_</code>. Example: <code>half-moon</code> becomes <code>PICTURE_HALF_MOON</code>.
+Константа - <code>PICTURE_</code> и имя картинки в верхнем регистре. Символы, кроме букв и цифр, заменяются на <code>_</code>. Пример: <code>half-moon</code> превращается в <code>PICTURE_HALF_MOON</code>.
+
+<code>mkpicture.py --show</code> prints the pictures as the tool read them.
+<code>mkpicture.py --show</code> выводит картинки в том виде, как их прочитал инструмент.
+
+A picture is stored as one bit per cell. <code>gfx_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.
+Картинка хранится по одному биту на клетку. <code>gfx_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.
+
+Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more detail. Pictures then match the icons in weight.
+Используйте те же сетки, что у встроенных иконок: 11 клеток либо 22 и 44 клетки для большей детализации. Тогда картинки совпадают с иконками по насыщенности.
+
+Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.
+Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.
+Kit
+Kit
+
+The kit is the set of interface parts that the host's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.
+Kit - набор элементов интерфейса, из которых собраны экраны самого хоста. Приложения могут использовать те же элементы через вызовы <code>ui_*</code>.
+
+Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in the host.
+Использовать Kit необязательно: вызовами <code>gfx_*</code> можно нарисовать что угодно. У Kit три преимущества. Приложение выглядит как остальная система. Оно следует за будущими изменениями внешнего вида без пересборки. Оно меньше, потому что код отрисовки находится в хосте.
+
+Call
+Вызов
+
+Use
+Применение
+
+List: one row per line, a value or icon at the right edge, the selected row inverted, a scroll bar. Without a selection, UP and DOWN scroll
+Список: одна строка на элемент, значение или иконка у правого края, выбранная строка инвертирована, полоса прокрутки. Без выбора UP и DOWN прокручивают список
+
+More than three items; menus; settings
+Более трёх элементов; меню; настройки
+
+Name, picture and value in a box of any size; the value at the largest size that fits
+Название, картинка и значение в рамке любого размера; значение - наибольшим шрифтом, который помещается
+
+Dashboards with one, two or four values
+Панели с одним, двумя или четырьмя значениями
+
+Value with its unit on the same baseline: "18 km/h"
+Значение с единицей на одной базовой линии: "18 km/h"
+
+Any number with a unit
+Любое число с единицей
+
+Two large lines, one text line, a large icon, button labels
+Две крупные строки, строка текста, крупная иконка, подписи кнопок
+
+Questions, errors, empty states, work in progress
+Вопросы, ошибки, пустые состояния, выполнение работы
+
+Standard notice for a request status: "Loading", "Not set up", "No network", "Access denied", "No answer"
+Стандартное сообщение для статуса запроса: "Loading", "Not set up", "No network", "Access denied", "No answer"
+
+Any screen that depends on the network
+Любой экран, зависящий от сети
+
+Button row at the bottom: OK action at the left, BACK action at the right
+Строка кнопок внизу: действие OK слева, действие BACK справа
+
+Screens where a button action needs a label
+Экраны, где действие кнопки нужно подписать
+
+One value from a sequence: the selected value framed, neighbours above and below
+Одно значение из ряда: выбранное в рамке, соседние сверху и снизу
+
+Selection among a few values with UP and DOWN
+Выбор из нескольких значений кнопками UP и DOWN
+
+Time, date or both; one part is set at a time
+Время, дата или оба; за раз задаётся одна часть
+
+Entry of a moment
+Ввод момента времени
+
+Frame with arrows for the available directions
+Рамка со стрелками доступных направлений
+
+Marks the value that the buttons change
+Отмечает значение, изменяемое кнопками
+
+Filled portion of a total, from the left
+Заполненная слева доля от целого
+
+Quantities. Changes with the data
+Количества. Меняется вместе с данными
+
+Page title with a rule; text in four styles, on one line or wrapped; icons at three sizes
+Заголовок страницы с линейкой; текст в четырёх стилях, в одну строку или с переносом; иконки трёх размеров
+
+Basic page elements
+Базовые элементы страницы
+
+ui_list_row: a list of rows with values
+ui_list_row: список строк со значениями
+
+ui_picker: selecting one value
+ui_picker: выбор одного значения
+
+ui_date: setting a date or a time
+ui_date: установка даты или времени
+
+ui_notice: a question
+ui_notice: вопрос
+
+ui_notice: a message with a reason
+ui_notice: сообщение с причиной
+
+ui_notice with is_working: work in progress
+ui_notice с is_working: выполняется работа
+
+Button handling for lists, pickers and dates is implemented in the SDK library (<code>app_ui.h</code>). The application calls it from <code>app_on_button()</code> and acts on the result. See section 7.
+Обработка кнопок для списков, выбора значения и дат реализована в библиотеке SDK (<code>app_ui.h</code>). Приложение вызывает её из <code>app_on_button()</code> и действует по результату. См. раздел 7.
+
+The <code>kit</code> application in the catalog shows every part on a separate page. Its source code is a working example for each part.
+Приложение <code>kit</code> из каталога показывает каждый элемент на отдельной странице. Его исходный код - рабочий пример для каждого элемента.
+
+Requesting a refresh
+Запрос обновления экрана
+
+Flag
+Флаг
+
+Host behaviour
+Поведение хоста
+
+From a button handler: immediate. From a timer, alarm or data handler: when the refresh policy allows, by default once a minute
+Из обработчика кнопки: немедленно. Из обработчика таймера, будильника или данных: когда позволяет политика обновления, по умолчанию раз в минуту
+
+Default
+По умолчанию
+
+Immediate, without a button press
+Немедленно, без нажатия кнопки
+
+Data the user is waiting for, such as the result of a manual refresh
+Данные, которых ждёт пользователь, например результат ручного обновления
+
+Full refresh: 2 - 3 s, one flash, removes ghosting
+Полное обновление: 2 - 3 с, одно мигание, убирает остаточное изображение
+
+Images that must be clean; the end of a frame sequence
+Изображения, которые должны быть чистыми; конец последовательности кадров
+
+Immediate; excluded from the periodic full refresh
+Немедленно; исключается из периодического полного обновления
+
+List navigation; values that change every second
+Навигация по списку; значения, меняющиеся каждую секунду
+
+Redraw requests are unlimited.
+Число запросов перерисовки не ограничено.
+
+Each refresh uses battery energy and wears the panel. Frequent changes also make the device distracting. See section 13 for guidelines.
+Каждое обновление расходует заряд батареи и изнашивает панель. Частые изменения также делают устройство отвлекающим. Рекомендации - в разделе 13.
+
+7. Buttons
+7. Кнопки
+
+The buttons are, in order: UP, OK, DOWN, BACK. The host uses them the same way on every screen. Applications should keep these meanings.
+Кнопки по порядку: UP, OK, DOWN, BACK. Хост использует их одинаково на всех экранах. Приложениям следует сохранять эти значения.
+
+Each press produces two kinds of events. The raw events are <code>KEYDOWN</code> and <code>KEYUP</code>. The interpreted events are <code>PRESSED</code>, sent when a short press ends, and <code>LONG_PRESSED</code>, sent after 600 ms while the button is still held. A long press does not produce <code>PRESSED</code>.
+Каждое нажатие порождает события двух видов. Низкоуровневые события - <code>KEYDOWN</code> и <code>KEYUP</code>. Интерпретированные события - <code>PRESSED</code>, отправляется по окончании короткого нажатия, и <code>LONG_PRESSED</code>, отправляется через 600 мс, пока кнопка ещё удерживается. Длинное нажатие не порождает <code>PRESSED</code>.
+
+Most applications handle only <code>PRESSED</code> and <code>LONG_PRESSED</code>.
+Большинство приложений обрабатывает только <code>PRESSED</code> и <code>LONG_PRESSED</code>.
+
+The event value combines the button and the action. Each combination has a constant:
+Значение события объединяет кнопку и действие. У каждой комбинации есть константа:
+
+<code>request_exit()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>request_focus()</code>.
+<code>request_exit()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>request_focus()</code>.
+
+Lists, pickers, dates
+Списки, выбор значения, даты
+
+.selected = -1: no selection, rows scroll
+.selected = -1: без выбора, строки прокручиваются
+
+8. Storage
+8. Хранение
+
+Store
+Хранилище
+
+<code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has a private namespace.
+<code>kv_get()</code> и <code>kv_set()</code> читают и записывают небольшие значения по ключу. У каждого приложения собственное пространство имён.
+
+The store holds the application's state and its settings. The data is kept when the application is removed and is available again after a reinstall.
+В хранилище находятся состояние приложения и его настройки. Данные сохраняются при удалении приложения и снова доступны после переустановки.
+
+no stored state, or an older version
+нет сохранённого состояния или старая версия
+
+<code>file_read()</code> and <code>file_write()</code> take an offset. A file can be read and extended in parts, so it never has to be held in memory in full.
+<code>file_read()</code> и <code>file_write()</code> принимают смещение. Файл можно читать и дописывать частями, поэтому держать его в памяти целиком не требуется.
+
+The files from the <code>files/</code> folder of the package are installed with the application.
+Файлы из папки <code>files/</code> пакета устанавливаются вместе с приложением.
+
+9. Network
+9. Сеть
+
+All network access goes through the host. The application describes a request; the host performs it and delivers the answer. The host performs one request at a time for the whole device. Delivery is independent of whether the application is on the screen.
+Весь доступ в сеть идёт через хост. Приложение описывает запрос; хост выполняет его и доставляет ответ. Хост выполняет один запрос за раз на всё устройство. Доставка не зависит от того, находится ли приложение на экране.
+
+Network availability is reported in the answer: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.
+О доступности сети сообщает ответ: запрос, сделанный без сети, завершается ошибкой <code>HOST_FAILED_NO_NETWORK</code>.
+
+Method
+Способ
+
+Trigger
+Запуск
+
+Delivery
+Доставка
+
+Poll with <code>pick</code>
+Опрос с <code>pick</code>
+
+Schedule
+Расписание
+
+<code>app_on_values()</code>, once, with the extracted values
+<code>app_on_values()</code>, один раз, с извлечёнными значениями
+
+Poll without <code>pick</code>
+Опрос без <code>pick</code>
+
+<code>app_on_data()</code> in pieces, with the poll number
+<code>app_on_data()</code> фрагментами, с номером опроса
+
+Code: after a button press, or as a follow-up request
+Код: после нажатия кнопки или как последующий запрос
+
+<code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)
+<code>app_on_data()</code> фрагментами, с тегом, выбранным приложением (16 - 255)
+
+Values extracted by the host
+Значения, извлечённые хостом
+
+order of "pick" in the manifest
+порядок "pick" в манифесте
+
+for ui_reason() when there is no data
+для ui_reason(), когда данных нет
+
+save to the store
+сохранить в хранилище
+
+otherwise keep the previous data
+иначе оставить прежние данные
+
+A path that is absent from the answer has no value: <code>app_value_number()</code> returns false. An absent value means no data.
+У пути, отсутствующего в ответе, нет значения: <code>app_value_number()</code> возвращает false. Отсутствующее значение означает отсутствие данных.
+
+Streamed answers
+Потоковые ответы
+
+single call, no data: http_status is a HOST_FAILED_* code
+один вызов, без данных: http_status - код HOST_FAILED_*
+
+the first piece carries the HTTP status
+с первым фрагментом приходит статус HTTP
+
+reset the parser
+сбросить разборщик
+
+data is valid until the handler returns
+данные действительны до возврата из обработчика
+
+the answer is complete
+ответ получен целиком
+
+Status
+Статус
+
+Notice
+Сообщение
+
+Return value
+Возвращаемое значение
+
+0 (no request yet)
+0 (запроса ещё не было)
+
+One notice per code: Not set up, No network, No answer ...
+По одному сообщению на код: Not set up, No network, No answer ...
+
+Any other non-2xx status
+Любой другой статус, кроме 2xx
+
+None. The answer arrived; missing data is reported by the application
+Нет. Ответ получен; об отсутствии данных сообщает приложение
+
+10. Background work
+10. Фоновая работа
+
+The host loads an off-screen application for a single call when one of these events occurs:
+Хост загружает приложение, которое не на экране, для одного вызова при наступлении одного из событий:
+
+Task
+Задача
+
+Mechanism
+Механизм
+
+Scheduled data
+Данные по расписанию
+
+Poll in the manifest
+Опрос в манифесте
+
+Active after a restart without code
+Действует после перезагрузки без кода
+
+Action at a set time
+Действие в заданное время
+
+Alarms are cleared by a restart. Restore them in the <code>started</code> intent from a time kept in the store
+Будильники сбрасываются при перезагрузке. Восстанавливайте их в интенте <code>started</code> по времени из хранилища
+
+Message to the user
+Сообщение пользователю
+
+Shown by the host over the current screen until dismissed
+Показывается хостом поверх текущего экрана, пока не будет закрыто
+
+Bring the application to the screen
+Вывод приложения на экран
+
+Granted by the host, at most once per 30 s
+Разрешается хостом, не чаще раза в 30 с
+
+Status in the header
+Статус в заголовке
+
+An icon and a short text in the header above every screen while the application is off the screen
+Иконка и короткий текст в заголовке над любым экраном, пока приложение не на экране
+
+Reaction to device start, network connection or clock change
+Реакция на запуск устройства, подключение к сети или изменение часов
+
+Intent in the manifest
+Интент в манифесте
+
+Notifications
+Уведомления
+
+the application is loaded for this call
+приложение загружено для этого вызова
+
+The notification is managed entirely by the host. The application stays unloaded while it is displayed.
+Уведомлением полностью управляет хост. Пока оно показано, приложение остаётся выгруженным.
+
+Use <code>notify()</code> instead of <code>request_focus()</code> when the message fits in two lines.
+Используйте <code>notify()</code> вместо <code>request_focus()</code>, когда сообщение помещается в две строки.
+
+Alarms, timers
+Будильники, таймеры
+
+Behaviour
+Поведение
+
+One shot. Calls <code>app_on_timer(id)</code>. Active only while the application is on the screen; set again in <code>app_on_focus()</code>
+Однократный. Вызывает <code>app_on_timer(id)</code>. Действует, только пока приложение на экране; устанавливайте заново в <code>app_on_focus()</code>
+
+One shot. Calls <code>app_on_alarm(id)</code> on or off the screen. Measures elapsed time, independent of clock changes
+Однократный. Вызывает <code>app_on_alarm(id)</code> на экране и вне его. Отсчитывает прошедшее время, не зависит от изменений часов
+
+One shot at a clock time. Follows clock changes
+Однократный, по времени часов. Следует за изменениями часов
+
+Repeating, every 60 s to 1 day. Each call loads the application; use the longest suitable period
+Повторяющийся, с периодом от 60 с до 1 суток. Каждый вызов загружает приложение; используйте наибольший подходящий период
+
+11. Time
+11. Время
+
+<code>time_now()</code> returns Unix time in seconds. It returns 0 until the device has obtained the time. The application must handle this case.
+<code>time_now()</code> возвращает время Unix в секундах. Возвращает 0, пока устройство не получило время. Приложение обязано обрабатывать этот случай.
+
+Display local time. The host owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.
+Отображайте местное время. Часовым поясом управляет хост. <code>time_local()</code> возвращает текущие местные дату и время, <code>time_local_at()</code> преобразует любой момент, <code>time_from_local()</code> преобразует местные дату и время обратно во время Unix, например для <code>alarm_set_at()</code>.
+
+<code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
+<code>time_text()</code> форматирует момент времени как текст на языке устройства. Собственные названия дней и месяцев приложениям не нужны. Форматы: "15:04", "Fri 13 Nov", "Friday", "13 November" и относительная форма: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
+
+To be called when the clock is set or changed, declare the <code>time_changed</code> intent.
+Чтобы получать вызов при установке или изменении часов, объявите интент <code>time_changed</code>.
+
+12. Languages
+12. Языки
+
+An application displays its text in the language of the device. The developer provides the translations. The host loads the translation for the current language.
+Приложение отображает свой текст на языке устройства. Переводы предоставляет разработчик. Хост загружает перевод для текущего языка.
+
+generated by mkapp: STR_NO_EVENTS, STR_STARTS_IN, app_string()
+генерируется mkapp: STR_NO_EVENTS, STR_STARTS_IN, app_string()
+
+text in the device's language
+текст на языке устройства
+
+Screen content
+Содержимое экрана
+
+Show one main value per screen.
+Показывайте одно главное значение на экране.
+
+Keep screens static.
+Делайте экраны статичными.
+
+Redraw only when the content changes.
+Перерисовывайте только при изменении содержимого.
+
+Draw black on white.
+Рисуйте чёрным по белому.
+
+Keep interface text short and standard.
+Делайте текст интерфейса коротким и стандартным.
+
+Minimize code size before data size.
+Сокращайте сначала размер кода, затем размер данных.
+
+Keep shared helpers out of line.
+Не встраивайте общие вспомогательные функции.
+
+Store pictures as bits.
+Храните картинки в битах.
+
+Process answers as a stream.
+Обрабатывайте ответы потоком.
+
+State and time
+Состояние и время
+
+Save state before every unload.
+Сохраняйте состояние перед каждой выгрузкой.
+
+Keep the displayed data until new data is complete.
+Сохраняйте показанные данные, пока новые не получены целиком.
+
+Explain an empty screen.
+Объясняйте пустой экран.
+
+Handle an unknown or changed clock.
+Обрабатывайте неизвестное или изменённое время.
+
+Interaction and data
+Взаимодействие и данные
+
+Take text input on the web page.
+Принимайте текстовый ввод на веб-странице.
+
+Take the screen rarely.
+Занимайте экран редко.
+
+Send user data only where the user directs.
+Отправляйте данные пользователя только туда, куда он указал.
+
+Poll no more often than the data changes.
+Опрашивайте не чаще, чем меняются данные.
+
+14. Tools and debugging
+14. Инструменты и отладка
+
+Command
+Команда
+
+Function
+Назначение
+
+Builds one application: compile, link with the SDK library, check, measure
+Собирает одно приложение: компиляция, компоновка с библиотекой SDK, проверка, измерение
+
+Creates a new application folder from the SDK sample
+Создаёт папку нового приложения из примера SDK
+
+Builds, uploads and restarts the device into the application
+Собирает, загружает и перезапускает устройство в приложение
+
+Local web page: live screen, buttons, log, Run
+Локальная веб-страница: экран устройства, кнопки, журнал, Run
+
+Saves the current panel frame as an image
+Сохраняет текущий кадр панели как изображение
+
+Sends button presses: 1 - 4 short, 1L - 4L long, in device order
+Отправляет нажатия кнопок: 1 - 4 короткие, 1L - 4L длинные, в порядке кнопок устройства
+
+Opens an installed application
+Открывает установленное приложение
+
+Prints the device log. <code>--app</code>: application lines only
+Выводит журнал устройства. <code>--app</code>: только строки приложений
+
+Writes a value to an application's store, for example a setting
+Записывает значение в хранилище приложения, например настройку
+
+Prints firmware, network, free memory and the last reset reason
+Выводит прошивку, сеть, свободную память и причину последней перезагрузки
+
+Prints pictures as rows of # and . as <code>mkapp</code> reads them
+Выводит картинки строками из # и . в том виде, как их читает <code>mkapp</code>
+
+Converts a video to a 1-bit stream that fits in an application file
+Преобразует видео в однобитный поток, помещающийся в файл приложения
+
+Builds a folder of applications into a catalog
+Собирает папку приложений в каталог
+
+<code>host_log(level, text, length)</code> writes one line of up to 200 characters to the device log. It replaces <code>printf</code>.
+<code>host_log(level, text, length)</code> записывает одну строку до 200 символов в журнал устройства. Заменяет <code>printf</code>.
+
+<code>press ... --shot</code> waits for the panel to finish and saves the frame. This can be used to script regression tests of the application's screens.
+<code>press ... --shot</code> дожидается окончания обновления панели и сохраняет кадр. Это позволяет автоматизировать регрессионные тесты экранов приложения.
+
+Common problems
+Типичные проблемы
+
+Symptom
+Признак
+
+Probable cause
+Вероятная причина
+
+Blank screen
+Пустой экран
+
+Drawing outside <code>app_on_draw()</code>, or a missing <code>request_redraw()</code> after a state change
+Отрисовка вне <code>app_on_draw()</code> либо отсутствие <code>request_redraw()</code> после изменения состояния
+
+State lost after leaving and returning
+Состояние теряется после ухода и возврата
+
+State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_init()</code>
+Состояние хранится в глобальных переменных. Сохраняйте его в <code>app_on_terminate()</code>, загружайте в <code>app_init()</code>
+
+"&lt;title&gt; crashed" with "memory alloca..."
+"&lt;title&gt; crashed" с "memory alloca..."
+
+Executed code exceeds the interpreter memory. See the build warning and "Memory" in section 13
+Исполненный код не помещается в память интерпретатора. См. предупреждение сборки и «Память» в разделе 13
+
+"&lt;title&gt; cannot start", "Update the app."
+"&lt;title&gt; cannot start", "Update the app."
+
+Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall
+Собрано с другим <code>host_api.h</code>, чем прошивка устройства. Пересоберите и переустановите
+
+Poll fails with -3
+Опрос завершается с -3
+
+A <code>{{setting}}</code> in its URL or headers is empty
+<code>{{setting}}</code> в его URL или заголовках пуста
+
+HTTPS fails with -6
+HTTPS завершается с -6
+
+Self-signed or expired server certificate. Use <code>http</code> within a home network
+Самоподписанный или просроченный сертификат сервера. В домашней сети используйте <code>http</code>
+
+<code>http_request()</code> returns -4
+<code>http_request()</code> возвращает -4
+
+The device request queue is full. Retry from a later handler
+Очередь запросов устройства заполнена. Повторите из следующего обработчика
+
+Ghost images of earlier frames
+Остаточное изображение предыдущих кадров
+
+A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw
+Последовательность перерисовок <code>NO_BLINK</code> без завершающей перерисовки <code>CLEAN</code>
+
+Characters shown as <code>?</code> or transliterated
+Символы показаны как <code>?</code> или транслитерированы
+
+The glyph pack for the script is not installed, or the text was truncated by bytes
+Пакет глифов для этой письменности не установлен либо текст обрезан по байтам
+
+A press is ignored shortly after start
+Нажатие игнорируется вскоре после запуска
+
+A background delivery was in progress. The press interrupted it and the screen is being redrawn
+Шла фоновая доставка. Нажатие прервало её, экран перерисовывается
+
+15. Publishing
+15. Публикация
+
+A device installs applications from <i>catalogs</i>. A catalog is a folder of static files with an index. It can be hosted anywhere that serves HTTPS, for example as raw files of a git repository or as a static site.
+Устройство устанавливает приложения из <i>каталогов</i>. Каталог - папка статических файлов с индексом. Его можно разместить на любом хостинге с HTTPS, например в виде файлов git-репозитория или статического сайта.
+
+build all applications in the folder
+собрать все приложения в папке
+
+output: catalog/catalog.json, one folder per application
+результат: catalog/catalog.json и по папке на приложение
+
+Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.
+Числовые аргументы и возвращаемые значения имеют тип <code>int32_t</code>, если не указано иное. Текстовый аргумент - указатель и длина в байтах; текст в UTF-8.
+
+A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.
+Вызов без собственного возвращаемого значения возвращает <code>HOST_OK</code> или отрицательный код <code>HOST_ERR_*</code>.
+
+16. Return codes
+16. Коды возврата
+
+Code
+Код
+
+Success
+Успех
+
+Drawing call outside <code>app_on_draw()</code>
+Вызов отрисовки вне <code>app_on_draw()</code>
+
+Pointer outside the application's memory; unknown font, icon, timer or style; size out of range
+Указатель вне памяти приложения; неизвестный шрифт, иконка, таймер или стиль; размер вне диапазона
+
+Key not stored; file not found; time not set; path absent from the answer
+Ключ не сохранён; файл не найден; время не установлено; путь отсутствует в ответе
+
+Value larger than the buffer; store or files full; request or notification queue full
+Значение больше буфера; хранилище или файлы заполнены; очередь запросов или уведомлений заполнена
+
+Storage failure
+Сбой хранилища
+
+17. Exports
+17. Экспорты
+
+All exports are optional. The host skips a handler that the module does not export.
+Все экспорты необязательны. Обработчик, который модуль не экспортирует, хост пропускает.
+
+Export
+Экспорт
+
+Called when
+Когда вызывается
+
+The instance is loaded and its strings are in place. Once per instance
+Экземпляр загружен, его строки на месте. Один раз на экземпляр
+
+The application receives the screen. Start <code>timer_set()</code> timers here
+Приложение получает экран. Здесь запускаются таймеры <code>timer_set()</code>
+
+The application is about to lose the screen
+Приложение сейчас потеряет экран
+
+The instance is about to be unloaded, for any reason: leaving the screen, end of a background call, device restart, removal. <code>app_on_blur()</code> precedes it if the application was on the screen
+Экземпляр сейчас будет выгружен по любой причине: уход с экрана, конец фонового вызова, перезагрузка устройства, удаление. Если приложение было на экране, перед этим вызывается <code>app_on_blur()</code>
+
+A frame is needed. Draw the complete frame from the state. The surface is white
+Нужен кадр. Нарисуйте весь кадр по состоянию. Поверхность белая
+
+A button event occurs: <code>BTN_&lt;UP|OK|DOWN|BACK&gt;_&lt;KEYDOWN|KEYUP|PRESSED|LONG_PRESSED&gt;</code>. Excludes <code>BTN_BACK_PRESSED</code> and <code>BTN_BACK_LONG_PRESSED</code>
+Происходит событие кнопки: <code>BTN_&lt;UP|OK|DOWN|BACK&gt;_&lt;KEYDOWN|KEYUP|PRESSED|LONG_PRESSED&gt;</code>. Кроме <code>BTN_BACK_PRESSED</code> и <code>BTN_BACK_LONG_PRESSED</code>
+
+BACK is pressed briefly. For applications with internal pages
+Короткое нажатие BACK. Для приложений с внутренними страницами
+
+A timer expires
+Срабатывает таймер
+
+An alarm expires, on or off the screen
+Срабатывает будильник, на экране или вне его
+
+A piece of an answer arrives. <code>request</code> is the poll number or the request tag. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>_LAST</code>, <code>_FAILED</code>
+Приходит фрагмент ответа. <code>request</code> - номер опроса или тег запроса. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>_LAST</code>, <code>_FAILED</code>
+
+The answer to a poll with <code>pick</code> arrives. Values are readable inside the handler
+Приходит ответ на опрос с <code>pick</code>. Значения доступны внутри обработчика
+
+The user saves the application's settings on the web page
+Пользователь сохраняет настройки приложения на веб-странице
+
+A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>_NETWORK_UP</code> (2), <code>_STARTED</code> (3)
+Происходит объявленное событие устройства: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>_NETWORK_UP</code> (2), <code>_STARTED</code> (3)
+
+Returns the buffer for one piece of data (1 KB). Provided by <code>sdk/lib</code>
+Возвращает буфер для одного фрагмента данных (1 КБ). Предоставляется <code>sdk/lib</code>
+
+Returns the buffer for the strings of the device's language. Generated by <code>mkapp</code>
+Возвращает буфер для строк на языке устройства. Генерируется <code>mkapp</code>
+
+18. Drawing
+18. Отрисовка
+
+Surface size: 400 x 260 below the header, 400 x 300 full-screen
+Размер поверхности: 400 x 260 под заголовком, 400 x 300 на весь экран
+
+Sets the drawing colour: <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16)
+Задаёт цвет отрисовки: от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16)
+
+Draws text; <code>y</code> is the top of the line. Returns the width. Up to 127 bytes
+Рисует текст; <code>y</code> - верх строки. Возвращает ширину. До 127 байт
+
+Returns the width of the text
+Возвращает ширину текста
+
+Shortens the text with "..." to fit the width. Returns the new length
+Сокращает текст с "..." до заданной ширины. Возвращает новую длину
+
+Line height; distance from the line top to the baseline; height of capitals and digits
+Высота строки; расстояние от верха строки до базовой линии; высота прописных и цифр
+
+Rectangle: <code>HOST_RECT_OUTLINE</code> or <code>HOST_RECT_FILLED</code>
+Прямоугольник: <code>HOST_RECT_OUTLINE</code> или <code>HOST_RECT_FILLED</code>
+
+Line, 1 px wide, end points included
+Линия шириной 1 пиксель, включая концы
+
+Picture generated by <code>mkapp</code> from <code>pictures/</code>: width byte, height byte, one bit per cell. Cell size 1 - 16 px
+Картинка, сгенерированная <code>mkapp</code> из <code>pictures/</code>: байт ширины, байт высоты, один бит на клетку. Размер клетки 1 - 16 пикселей
+
+Built-in icon <code>HOST_ICON_*</code>, 11 x 11 cells. Cell size 1 - 16 px
+Встроенная иконка <code>HOST_ICON_*</code>, 11 x 11 клеток. Размер клетки 1 - 16 пикселей
+
+Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits are transparent
+Битовая карта, один бит на пиксель. Установленные биты рисуются текущим цветом; сброшенные прозрачны
+
+Bitmap read by the host from an application file, starting at <code>offset</code>
+Битовая карта, читаемая хостом из файла приложения, начиная с <code>offset</code>
+
+QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only
+QR-код до 200 байт. Возвращает число модулей на сторону. Клетка 0: только измерение
+
+Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code>
+Запрашивает перерисовку. Флаги: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code>
+
+Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler
+Задаёт текст приложения в заголовке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Вызывается из любого обработчика
+
+19. Kit
+19. Kit
+
+Text in a style: <code>HOST_UI_TEXT</code>, <code>_TITLE</code>, <code>_CAPTION</code>, <code>_VALUE</code>; shortened to <code>max_width</code> (0: unlimited). Returns the width
+Текст в стиле: <code>HOST_UI_TEXT</code>, <code>_TITLE</code>, <code>_CAPTION</code>, <code>_VALUE</code>; сокращается до <code>max_width</code> (0: без ограничения). Возвращает ширину
+
+Text wrapped at spaces to <code>width</code>, up to <code>max_lines</code> (1 - 8); the last line is shortened with "...". Returns the number of lines
+Текст с переносом по пробелам до <code>width</code>, не более <code>max_lines</code> строк (1 - 8); последняя строка сокращается с "...". Возвращает число строк
+
+Text width and line height of a style
+Ширина текста и высота строки стиля
+
+Page title with a rule. Returns the <code>y</code> of the content area
+Заголовок страницы с линейкой. Возвращает <code>y</code> области содержимого
+
+Built-in icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>_MEDIUM</code> (44), <code>_LARGE</code> (99)
+Встроенная иконка размера <code>HOST_UI_ICON_SMALL</code> (22 пикс.), <code>_MEDIUM</code> (44), <code>_LARGE</code> (99)
+
+Button row at the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). Length 0 omits a button; a single button is centred
+Строка кнопок внизу, 44 пикселя (<code>HOST_UI_ACTIONS_HEIGHT</code>). Длина 0 убирает кнопку; единственная кнопка центрируется
+
+One button: its name on a plate and the action label beside it. Returns the width
+Одна кнопка: название на плашке и подпись действия рядом. Возвращает ширину
+
+For a <code>host_list_t</code> (count, selected or -1, top, height or 0 for the remaining height, first): number of visible rows; index of the first visible row
+Для <code>host_list_t</code> (count, selected или -1, top, height или 0 для оставшейся высоты, first): число видимых строк; индекс первой видимой строки
+
+One row. Rows outside the visible range are skipped. A value up to half the row width is kept whole; the label is shortened with "..."
+Одна строка. Строки вне видимого диапазона пропускаются. Значение шириной до половины строки остаётся целым; подпись сокращается с "..."
+
+Notice on the whole surface from a <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. Empty fields are omitted
+Сообщение на всю поверхность по <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. Пустые поля не выводятся
+
+Standard notice for a request status. Returns 1 if drawn, 0 for a 2xx status
+Стандартное сообщение для статуса запроса. Возвращает 1, если нарисовано, 0 для статуса 2xx
+
+Value with its unit on the baseline. Returns the total width
+Значение с единицей на базовой линии. Возвращает общую ширину
+
+Width of a value with its unit
+Ширина значения с единицей
+
+Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none). Picture size: 88 px in a full-surface cell, 44 px otherwise
+Ячейка по <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) с необязательной картинкой (0: нет). Размер картинки: 88 пикселей в ячейке на всю поверхность, иначе 44
+
+Returns the size class that fits the cell; 1 is the largest. Use the largest returned number for all cells of a screen
+Возвращает класс размера, подходящий ячейке; 1 - наибольший. Для всех ячеек экрана используйте наибольшее из возвращённых чисел
+
+Bar, 14 px high: <code>value</code> of <code>maximum</code>
+Полоса высотой 14 пикселей: <code>value</code> из <code>maximum</code>
+
+Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code>
+Рамка с необязательными стрелками: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code>
+
+Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row
+Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок
+
+Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]
+Редактор даты и времени по <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code> или <code>_NONE</code>); ok[32], back[32]
+
+20. Navigation, storage and network
+20. Навигация, хранение и сеть
+
+Closes the application: one step down the stack. Valid in button, back and timer handlers
+Закрывает приложение: один шаг вниз по стеку. Допустим в обработчиках кнопок, BACK и таймера
+
+Requests the screen from a background handler. Granted by the host, at most once per 30 s
+Запрашивает экран из фонового обработчика. Разрешается хостом, не чаще раза в 30 с
+
+Queues a notification from a <code>host_notice_t</code>: first (required), second, detail, icon. <code>HOST_ERR_NO_SPACE</code> when four are queued
+Ставит в очередь уведомление по <code>host_notice_t</code>: first (обязательно), second, detail, icon. <code>HOST_ERR_NO_SPACE</code>, если в очереди уже четыре
+
+Sets an icon and up to 31 bytes of text in the header, shown above every screen while the application is off the screen. Empty icon and text release the side. Cleared by a restart
+Задаёт иконку и до 31 байта текста в заголовке, показываются над любым экраном, пока приложение не на экране. Пустые иконка и текст освобождают сторону. Сбрасывается при перезагрузке
+
+One-shot timer, id 0 - 3. 0 ms cancels. A new call restarts it
+Однократный таймер, id 0 - 3. 0 мс отменяет. Новый вызов перезапускает
+
+One-shot alarm, id 0 - 3. 0 s cancels
+Однократный будильник, id 0 - 3. 0 с отменяет
+
+One-shot alarm at a clock time
+Однократный будильник по времени часов
+
+Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds (0: one period)
+Повторяющийся будильник, период 60 - 86400 с. Первый вызов через <code>first_in</code> секунд (0: через период)
+
+Reads a value. Returns its length; <code>HOST_ERR_NOT_FOUND</code>; <code>HOST_ERR_NO_SPACE</code> if the buffer is too small
+Читает значение. Возвращает его длину; <code>HOST_ERR_NOT_FOUND</code>; <code>HOST_ERR_NO_SPACE</code>, если буфер мал
+
+Writes a value. Length 0 deletes the key. Fails for <code>url</code> and <code>link</code> settings
+Записывает значение. Длина 0 удаляет ключ. Для настроек типов <code>url</code> и <code>link</code> завершается ошибкой
+
+Returns the file size, or <code>HOST_ERR_NOT_FOUND</code>
+Возвращает размер файла или <code>HOST_ERR_NOT_FOUND</code>
+
+Reads from an offset. Returns the number of bytes read; 0 at or past the end
+Читает со смещения. Возвращает число прочитанных байт; 0 в конце файла и за ним
+
+Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file
+Записывает по смещению внутри файла или в его конец. Длина 0 по смещению 0 удаляет файл
+
+Runs a manifest poll immediately
+Немедленно выполняет опрос из манифеста
+
+Sets the poll interval, 10 s to 1 day. Kept across restarts
+Задаёт интервал опроса, от 10 с до 1 суток. Сохраняется при перезагрузке
+
+Queues a request. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines
+Ставит запрос в очередь. Методы: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Заголовки: строки вида "Name: value"
+
+Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length
+Внутри <code>app_on_values()</code>: копирует значение пути <code>index</code> как текст без завершающего нуля. Возвращает его длину
+
+Inside a data handler: fills a <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+Внутри обработчика данных: заполняет <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+
+Replaces <code>{0}</code> .. <code>{3}</code> in the pattern with <code>host_text_argument_t</code> values (a number, or a text and its length). Returns the length
+Заменяет <code>{0}</code> .. <code>{3}</code> в шаблоне значениями <code>host_text_argument_t</code> (число либо текст и его длина). Возвращает длину
+
+Writes one log line of up to 200 characters. Levels: <code>HOST_LOG_ERROR</code>, <code>_WARN</code>, <code>_INFO</code>, <code>_DEBUG</code>
+Записывает одну строку журнала до 200 символов. Уровни: <code>HOST_LOG_ERROR</code>, <code>_WARN</code>, <code>_INFO</code>, <code>_DEBUG</code>
+
+21. Time
+21. Время
+
+Unix time in seconds; 0 while the time is unknown
+Время Unix в секундах; 0, пока время неизвестно
+
+Offset of local time from UTC in seconds, daylight saving included
+Смещение местного времени от UTC в секундах, с учётом летнего времени
+
+Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sunday, hour, minute, second
+Заполняет <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = воскресенье, hour, minute, second
+
+Unix time of a local date and time. Out-of-range days carry into the next month
+Время Unix для местных даты и времени. Дни за пределами месяца переходят в следующий
+
+Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>. Returns the length
+Форматирует момент времени на языке устройства. Стили: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>. Возвращает длину
+
+Milliseconds since device start; includes sleep time
+Миллисекунды с запуска устройства; включая время сна
+
+Identifier of the current boot; changes after every restart, never 0. Store it with a saved uptime
+Идентификатор текущей загрузки; меняется после каждой перезагрузки, никогда не равен 0. Сохраняйте его вместе с сохранённым временем работы
+
+22. System API
+22. Системный API
+
+The system API is the set of <code>sys_*</code> calls. The host's own pages use it.
+Системный API - набор вызовов <code>sys_*</code>. Его используют собственные страницы хоста.
+
+Any application can use the system API if its manifest contains <code>"system": true</code>. The web page warns the user before installing such an application. A module that imports a <code>sys_*</code> call without this declaration is rejected.
+Системный API доступен любому приложению, в манифесте которого есть <code>"system": true</code>. Перед установкой такого приложения веб-страница предупреждает пользователя. Модуль, импортирующий вызов <code>sys_*</code> без этого объявления, отклоняется.
+
+Device information as text: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_TIME_ZONE</code>, <code>_JOIN_CODE</code>
+Сведения об устройстве в виде текста: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_TIME_ZONE</code>, <code>_JOIN_CODE</code>
+
+Numeric host setting, range-checked: <code>SYS_NUMBER_TIME_AUTOMATIC</code>, <code>_REFRESH_FULL_EVERY</code>, <code>_REFRESH_MIN_SECONDS</code>, <code>_REFRESH_FORCE_HOURS</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FAST</code>, <code>_FONT</code>, <code>_MENU_IDLE_MINUTES</code>, <code>_HEADER_CLOCK</code>
+Числовая настройка хоста с проверкой диапазона: <code>SYS_NUMBER_TIME_AUTOMATIC</code>, <code>_REFRESH_FULL_EVERY</code>, <code>_REFRESH_MIN_SECONDS</code>, <code>_REFRESH_FORCE_HOURS</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FAST</code>, <code>_FONT</code>, <code>_MENU_IDLE_MINUTES</code>, <code>_HEADER_CLOCK</code>
+
+Text host setting: <code>SYS_TEXT_TIME_ZONE</code>, a POSIX TZ string
+Текстовая настройка хоста: <code>SYS_TEXT_TIME_ZONE</code>, строка POSIX TZ
+
+Sets the clock. Fails while the time source is the network
+Устанавливает часы. Завершается ошибкой, пока источник времени - сеть
+
+Installed applications by id, up to 16: list, title, removal
+Установленные приложения по id, до 16: список, название, удаление
+
+Default application id; 0: none
+id приложения по умолчанию; 0: нет
+
+The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height
+Словесный знак perINKpheraL квадратным шрифтом, масштаб 1 - 5: отрисовка, ширина, высота
+
+<code>SYS_DO_RESTART</code>, <code>_FORGET_NETWORK</code>, <code>_FACTORY_RESET</code>. Requires a confirmation screen in the application
+<code>SYS_DO_RESTART</code>, <code>_FORGET_NETWORK</code>, <code>_FACTORY_RESET</code>. Требует экрана подтверждения в приложении
+
+23. SDK library
+23. Библиотека SDK
+
+<code>mkapp</code> links the library into every application. Unused functions are removed. The headers are in <code>sdk/lib</code>.
+<code>mkapp</code> компонует библиотеку с каждым приложением. Неиспользуемые функции удаляются. Заголовочные файлы находятся в <code>sdk/lib</code>.
+
+<code>bool</code> is the standard type from <code>&lt;stdbool.h&gt;</code>. Text arguments are null-terminated unless stated otherwise.
+<code>bool</code> - стандартный тип из <code>&lt;stdbool.h&gt;</code>. Текстовые аргументы завершаются нулём, если не указано иное.
+
+app_text.h: short strings without printf
+app_text.h: короткие строки без printf
+
+declared by the caller
+объявляется вызывающим кодом
+
+excess text is dropped at a character boundary
+лишний текст отбрасывается по границе символа
+
+decimal, "-" when negative
+десятичное, "-" для отрицательных
+
+length of any null-terminated text
+длина любого текста, завершённого нулём
+
+app_values.h: what the host picked
+app_values.h: значения, извлечённые хостом
+
+false: value absent or buffer too small
+false: значения нет или буфер мал
+
+"-3.46", 1 -> -35; false: value absent
+"-3.46", 1 -> -35; false: значения нет
+
+the same for a given text
+то же для заданного текста
+
+app_ui.h: what the buttons do on the kit's screens
+app_ui.h: обработка кнопок на экранах Kit
+
+count, selected (-1: none), top, height, first
+count, selected (-1: нет), top, height, first
+
+UP, DOWN: changed; OK: done; BACK: cancelled
+UP, DOWN: changed; OK: done; BACK: cancelled
+
+call in app_on_draw() before drawing rows
+вызывать в app_on_draw() перед отрисовкой строк
+
+OK: next part; done after the last part
+OK: следующая часть; done после последней части
+
+local time; subtract time_zone_offset() for UTC
+местное время; для UTC вычесть time_zone_offset()
+
+app_alloc.h, json_pick.h, and what is generated
+app_alloc.h, json_pick.h и генерируемые файлы
+
+NULL if the arena is too small; memory is not zeroed
+NULL, если в арене мало места; память не обнуляется
+
+app_alloc_release(mark) frees everything allocated after the mark
+app_alloc_release(mark) освобождает всё, выделенное после отметки
+
+up to 16
+до 16
+
+one piece of the answer
+один фрагмент ответа
+
+NULL: value absent
+NULL: значения нет
+
+generated from strings/: enum { STR_NO_EVENTS, ... }; const char *app_string(int32_t id);
+генерируется из strings/: enum { STR_NO_EVENTS, ... }; const char *app_string(int32_t id);
+
+generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits };
+генерируется из pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits };
+
+<code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform.
+<code>memcpy</code>, <code>memmove</code>, <code>memset</code> и <code>strlen</code> предоставляются, потому что компилятор генерирует их вызовы. Это вся библиотека C платформы.
+
+24. Limits
+24. Лимиты
+
+Applies to
+К чему относится
+
+<code>abi</code> in the manifest
+<code>abi</code> в манифесте
+
+13 / 23 characters
+13 / 23 символа
+
+Application name and title
+Имя и название приложения
+
+Polls, hosts and settings per manifest
+Опросы, адреса и настройки в манифесте
+
+511 / 255 bytes
+511 / 255 байт
+
+Poll URL; setting value
+URL опроса; значение настройки
+
+Text per drawing or measuring call
+Текст на один вызов отрисовки или измерения
+
+63 / 31 bytes
+63 / 31 байт
+
+Header text; header status text
+Текст в заголовке; текст статуса в заголовке
+
+Store key; value; total per application
+Ключ хранилища; значение; всего на приложение
+
+23 / 64 KB
+23 / 64 КБ
+
+File name; total file size per application
+Имя файла; общий размер файлов на приложение
+
+One piece of an answer
+Один фрагмент ответа
+
+256 KB / 4 MB
+256 КБ / 4 МБ
+
+Answer with extracted values; streamed answer
+Ответ с извлечёнными значениями; потоковый ответ
+
+63 bytes
+63 байта
+
+One extracted value
+Одно извлечённое значение
+
+Request headers; body; queued requests per device
+Заголовки запроса; тело; запросов в очереди на устройство
+
+Tags for requests from code
+Теги для запросов из кода
+
+Timers and alarms per application
+Таймеры и будильники на приложение
+
+60 .. 86400 s
+60 .. 86400 с
+
+Period of a repeating alarm
+Период повторяющегося будильника
+
+Arguments of <code>text_fill()</code>
+Аргументы <code>text_fill()</code>
+
+QR code text; log line
+Текст QR-кода; строка журнала
+
+Icon grid; maximum cell size in pixels
+Сетка иконки; наибольший размер клетки в пикселях
+
+String table of one language
+Таблица строк одного языка
+
+8 KB
+8 КБ
+
+48 KB
+48 КБ
+
+Loaded by the host
+Загружается хостом
+
+<code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.
+<code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.
+<code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.
+<code>run</code> собирает приложение, загружает его и перезапускает устройство в него. Это занимает около десяти секунд. Прошивка не перезаписывается.
+
+BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.
+BACK здесь обрабатывается хостом: короткое нажатие BACK закрывает приложение, у которого нет экспорта <code>app_on_back()</code>.
+
+Line
+Строка
+
+Measures
+Что измеряет
+
+When exceeded
+При превышении
+
+File size: code and initial data. Executed from flash
+Размер файла: код и начальные данные. Исполняется из флеш-памяти
+
+Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing
+Перенесите картинки и таблицы в <code>files/</code>. Используйте Kit вместо собственной отрисовки
+
+Code size and the estimated interpreter memory needed to run all of it. <b>The scarcest resource</b>: one byte of code uses four bytes of memory
+Размер кода и оценка памяти интерпретатора, нужной для исполнения всего кода. <b>Самый дефицитный ресурс</b>: один байт кода занимает четыре байта памяти
+
+See "Memory" in section 13
+См. «Память» в разделе 13
+
+The 64 KB page: stack, static data, and the remainder for the arena
+Страница 64 КБ: стек, статические данные и остаток для арены
+
+Allocate large buffers with <code>app_alloc()</code> under a mark. Read files in parts
+Выделяйте большие буферы через <code>app_alloc()</code> под отметкой. Читайте файлы частями
+
+The build also fails in these cases:
+Сборка также завершается ошибкой в следующих случаях:
+
+<code>mkapp</code> builds the package from this folder. It compiles the sources with the SDK library, generates <code>strings.h</code> from <code>strings/</code> and <code>pictures.h</code> from <code>pictures/</code>, and checks all limits. The package contains <code>app.wasm</code>, <code>manifest.json</code>, the files and one string table per language.
+<code>mkapp</code> собирает пакет из этой папки. Он компилирует исходный код с библиотекой SDK, генерирует <code>strings.h</code> из <code>strings/</code> и <code>pictures.h</code> из <code>pictures/</code> и проверяет все лимиты. Пакет содержит <code>app.wasm</code>, <code>manifest.json</code>, файлы и по одной таблице строк на язык.
+
+1 - 13 of <code>a-z 0-9 - _</code>; equal to the folder name
+1 - 13 символов из <code>a-z 0-9 - _</code>; совпадает с именем папки
+
+Identifier: device folder, catalog key, store namespace. A changed name is a different application
+Идентификатор: папка на устройстве, ключ в каталоге, пространство имён хранилища. Изменённое имя - другое приложение
+
+Display name in the menu and on the web page. Translatable
+Отображаемое название в меню и на веб-странице. Переводится
+
+up to 15 bytes
+до 15 байт
+
+Set by the developer. A different version in a catalog is offered as an update
+Задаётся разработчиком. Другая версия в каталоге предлагается как обновление
+
+Host API version of the build. A mismatch is rejected at install
+Версия API хоста, под которую собрано приложение. Несовпадение отклоняется при установке
+
+true / false (default)
+true / false (по умолчанию)
+
+false: host header on top, surface 400 x 260. true: surface 400 x 300
+false: сверху заголовок хоста, поверхность 400 x 260. true: поверхность 400 x 300
+
+11 rows of 11 of <code>#</code> and <code>.</code>
+11 строк по 11 символов <code>#</code> и <code>.</code>
+
+Shown in the menu, on the web page and in catalogs. Optional
+Показывается в меню, на веб-странице и в каталогах. Необязательно
+
+up to 4
+до 4
+
+Scheduled requests performed by the host (below)
+Запросы по расписанию, выполняемые хостом (ниже)
+
+up to 4, each up to 63 bytes
+до 4, каждый до 63 байт
+
+Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt
+Адреса, разрешённые для <code>http_request()</code>: имя, имя с портом либо <code>{{key}}</code> настройки типа <code>url</code> или <code>link</code>. Требуется только для запросов из кода; на опросы не распространяется
+
+up to 8
+до 8
+
+Settings form on the device's web page (below)
+Форма настроек на веб-странице устройства (ниже)
+
+Device events that load the application. An unknown value fails the build
+События устройства, по которым загружается приложение. Неизвестное значение приводит к ошибке сборки
+
+Enables the <code>sys_*</code> calls. The web page warns the user before installation
+Включает вызовы <code>sys_*</code>. Перед установкой веб-страница предупреждает пользователя
+
+<code>https</code> URL
+URL с <code>https</code>
+
+Developer's page opened from the settings form, for setup that a form cannot express
+Страница разработчика, открываемая из формы настроек, для настройки, которую нельзя выразить формой
+
+The host ignores unknown keys. <code>mkapp</code> validates the keys listed above.
+Неизвестные ключи хост игнорирует. <code>mkapp</code> проверяет перечисленные выше ключи.
+
+Rules for text files:
+Правила для текстовых файлов:
+
+Short press of BACK
+Короткое нажатие BACK
+
+Without <code>app_on_back()</code>
+Без <code>app_on_back()</code>
+
+Closes the application (one step down the stack)
+Закрывает приложение (один шаг вниз по стеку)
+
+With <code>app_on_back()</code>
+С <code>app_on_back()</code>
+
+Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>request_exit()</code>
+Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>request_exit()</code>
+
+A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives all other events.
+Короткое нажатие BACK передаётся в <code>app_on_back()</code> либо закрывает приложение, если такого экспорта нет. Длинное нажатие BACK открывает меню хоста. <code>app_on_button()</code> получает все остальные события.
+
+<code>app_picker_t</code> and <code>app_date_t</code> follow the same pattern. The application keeps a struct, passes button events to one function and draws with another. The button function returns <i>changed</i>, <i>done</i>, <i>cancelled</i> or <i>ignored</i>.
+<code>app_picker_t</code> и <code>app_date_t</code> устроены так же. Приложение хранит структуру, передаёт события кнопок в одну функцию и рисует другой. Функция обработки кнопок возвращает <i>changed</i>, <i>done</i>, <i>cancelled</i> или <i>ignored</i>.
+
+Put a version field in every stored struct and check it on load. A newer version of the application will read data written by an older one.
+Добавляйте поле версии в каждую сохраняемую структуру и проверяйте его при загрузке. Новая версия приложения будет читать данные, записанные старой.
+
+Every write wears the flash memory. Write only when the data has changed. Do not write on every timer tick.
+Каждая запись изнашивает флеш-память. Записывайте, только когда данные изменились. Не записывайте по каждому срабатыванию таймера.
+
+<code>kv_set()</code> with a length of 0 deletes the key.
+<code>kv_set()</code> с длиной 0 удаляет ключ.
+
+Files
+Файлы
+
+Use files for data that does not fit in a store value: a downloaded list, a cache, a picture.
+Используйте файлы для данных, не помещающихся в значение хранилища: загруженный список, кэш, картинка.
+
+Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.
+Числа - целые. <code>app_value_number()</code> возвращает значение, умноженное на запрошенное число десятичных разрядов, с округлением.
+
+Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB.
+Обрабатывайте каждый фрагмент при получении и сохраняйте только данные для отображения. Используйте конечный автомат, <code>json_pick</code> из SDK или собственный разборщик. Ответ может занимать несколько мегабайт; у приложения 64 КБ.
+
+Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new answer.
+Заменяйте отображаемые данные только по <code>HOST_DATA_LAST</code>. Доставка может прекратиться без последнего фрагмента и без ошибки (раздел 3). <code>HOST_DATA_FIRST</code> всегда начинает новый ответ.
+
+Inside the handler, <code>data_response()</code> returns the response metadata: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After.
+Внутри обработчика <code>data_response()</code> возвращает метаданные ответа: статус, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After.
+
+Requests from code
+Запросы из кода
+
+Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.
+Запросы разрешены только на адреса, перечисленные в манифесте. Подстановки <code>{{key}}</code> работают в URL и в значениях заголовков, поэтому коду не нужно читать токен.
+
+<code>HOST_ERR_NO_SPACE</code> means that the request queue of the device is full (two waiting requests). Retry later.
+<code>HOST_ERR_NO_SPACE</code> означает, что очередь запросов устройства заполнена (два ожидающих запроса). Повторите позже.
+
+The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is sent once; its redirect response is delivered as the answer.
+Для <code>GET</code> хост выполняет до трёх перенаправлений. Перенаправление на адрес вне списка завершается ошибкой <code>HOST_FAILED_NOT_ALLOWED</code>. Запрос с телом отправляется один раз; ответ с перенаправлением доставляется как ответ на запрос.
+
+<code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.
+<code>poll_now(n)</code> немедленно выполняет опрос <code>n</code>, например когда пользователь нажимает кнопку обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например чтобы учесть заголовок Retry-After.
+
+Failed requests
+Неудавшиеся запросы
+
+Cause
+Причина
+
+No network connection
+Нет подключения к сети
+
+No answer from the server, or an incomplete answer
+Нет ответа от сервера либо ответ неполный
+
+A <code>{{setting}}</code> used by the request is empty
+<code>{{setting}}</code>, используемая запросом, пуста
+
+Redirect to a host outside the manifest's list
+Перенаправление на адрес вне списка манифеста
+
+Timeout after the server was reached
+Истекло время ожидания после соединения с сервером
+
+HTTPS certificate is not trusted by the device
+Устройство не доверяет сертификату HTTPS
+
+Answer larger than 256 KB (extracted values) or 4 MB (streamed)
+Ответ больше 256 КБ (извлечение значений) или 4 МБ (потоком)
+
+Insufficient device memory for the request
+Недостаточно памяти устройства для запроса
+
+Save the last status in the store. When there is no data to display, pass the status to <code>ui_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:
+Сохраняйте последний статус в хранилище. Когда данных для отображения нет, передавайте статус в <code>ui_reason()</code>. Вызов рисует стандартное сообщение для статуса и возвращает, было ли что-то нарисовано:
+
+After <code>notify()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
+После возврата из <code>notify()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
+
+<code>en.json</code> is required. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).
+<code>en.json</code> обязателен. Английский встраивается в модуль и используется, когда перевода нет. Все остальные файлы содержат точно те же ключи. Ключ <code>manifest</code> допускается только в переводах (см. ниже).
+
+When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.
+При загрузке приложения хост копирует таблицу строк на языке устройства в память приложения поверх английской. После этого <code>app_string()</code> возвращает переведённый текст без дополнительного вызова.
+
+<code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Write each string in one form for all numbers, for example "min".
+<code>text_fill()</code> заменяет <code>{0}</code>, <code>{1}</code> в строке числами или текстами. Перевод может располагать их в любом порядке. Пишите каждую строку в одной форме для всех чисел, например "min".
+
+The <code>manifest</code> key of a translation contains the translated parts of the manifest: the title, the title and help of each setting, and labels for the options of a choice. The stored option value does not change; only its label is translated.
+Ключ <code>manifest</code> перевода содержит переводимые части манифеста: название, заголовок и пояснение каждой настройки, подписи вариантов выбора. Хранимое значение варианта не меняется; переводится только его подпись.
+
+The build fails if a language is not listed in <code>sdk/languages.json</code> (27 languages, two-letter codes), if a translation has a missing or an extra key, or if a string contains a character that the glyph packs of the language do not cover.
+Сборка завершается ошибкой, если языка нет в <code>sdk/languages.json</code> (27 языков, двухбуквенные коды), если в переводе не хватает ключа или есть лишний, либо если строка содержит символ, которого нет в пакетах глифов языка.
+
+Translations are usually about a third longer than English. The kit shortens text that does not fit with "...". Check the translated screens on the device.
+Переводы обычно примерно на треть длиннее английского текста. Kit сокращает текст, который не помещается, с "...". Проверяйте переведённые экраны на устройстве.
+
+13. Design rules
+13. Правила проектирования
+
+These rules apply to all applications. The host's own screens follow them. Most are conventions; the host checks only a few.
+Эти правила относятся ко всем приложениям. Экраны самого хоста им следуют. Большинство из них - соглашения; хост проверяет лишь некоторые.
+
+The device is read from about a metre, in about a second. Choose the main value, draw it largest, and keep everything else small.
+Устройство читают примерно с метра, примерно за секунду. Выберите главное значение, нарисуйте его самым крупным, остальное оставьте мелким.
+
+Change a screen only when its data changes. A bar shows a quantity. To indicate work in progress, show a notice with <code>is_working</code>.
+Меняйте экран, только когда меняются его данные. Полоса показывает количество. Для индикации работы показывайте сообщение с <code>is_working</code>.
+
+A timer should request a redraw only if the picture will differ. A clock redraws once a minute, on the minute. By default the host allows one refresh per minute that was not caused by a button press. Design for this rate.
+Таймер должен запрашивать перерисовку, только если изображение изменится. Часы перерисовываются раз в минуту, на границе минуты. По умолчанию хост допускает одно обновление в минуту без нажатия кнопки. Проектируйте под эту частоту.
+
+Use ink on paper. Use grey for filled areas only. Use white text on a black bar only for the selected item or for new information.
+Используйте чернила на бумаге. Серый используйте только для заливок. Белый текст на чёрной полосе используйте только для выбранного элемента или новой информации.
+
+Use common words: "Save", "Remove", "Not set up". If a label needs an explanation, change the label.
+Используйте общепринятые слова: "Save", "Remove", "Not set up". Если подпись требует пояснения, смените подпись.
+
+Each byte of executed code uses about four bytes of the interpreter's 64 KB. Each byte of data uses one byte of the 64 KB page, which is mostly free. Prefer a table to a chain of <code>if</code> statements, the kit to custom drawing, <code>pick</code> to a custom parser, and <code>time_text()</code> to custom date formatting.
+Каждый байт исполненного кода занимает около четырёх байт из 64 КБ интерпретатора. Каждый байт данных занимает один байт страницы 64 КБ, которая в основном свободна. Предпочитайте таблицу цепочке операторов <code>if</code>, Kit - собственной отрисовке, <code>pick</code> - собственному разборщику, <code>time_text()</code> - собственному форматированию дат.
+
+Mark a small helper that is called from many places with <code>__attribute__((noinline))</code> and compare the build reports.
+Небольшую вспомогательную функцию, вызываемую из многих мест, помечайте <code>__attribute__((noinline))</code> и сравнивайте отчёты сборки.
+
+Put pictures in <code>pictures/</code>. Put large pictures in <code>files/</code>.
+Размещайте картинки в <code>pictures/</code>. Большие картинки размещайте в <code>files/</code>.
+
+Process an answer as it arrives and keep only the data to display. Allocate working buffers with <code>app_alloc()</code> and release them with a mark.
+Обрабатывайте ответ по мере поступления и сохраняйте только данные для отображения. Выделяйте рабочие буферы через <code>app_alloc()</code> и освобождайте их по отметке.
+
+All state that matters must be in the store when <code>app_on_terminate()</code> returns. To test: open the application, leave it, open it again. The screen must look the same.
+Всё значимое состояние должно быть в хранилище к моменту возврата из <code>app_on_terminate()</code>. Проверка: откройте приложение, выйдите, откройте снова. Экран должен выглядеть так же.
+
+After a failed or interrupted request, keep the previous data on the screen.
+После неудавшегося или прерванного запроса оставляйте на экране прежние данные.
+
+Call <code>ui_reason()</code> to show "Not set up", "No network" or "Loading".
+Вызывайте <code>ui_reason()</code>, чтобы показать "Not set up", "No network" или "Loading".
+
+Handle <code>time_now() == 0</code>. Use <code>alarm_set()</code> for a delay ("in ten minutes") and <code>alarm_set_at()</code> for a clock time ("at seven").
+Обрабатывайте <code>time_now() == 0</code>. Используйте <code>alarm_set()</code> для задержки («через десять минут») и <code>alarm_set_at()</code> для времени по часам («в семь»).
+
+Declare text such as a token, an address or a city as a manifest setting; the user enters it on the device's web page. On the device, let the user choose from a few values with UP and DOWN.
+Текст - токен, адрес, город - объявляйте настройкой в манифесте; пользователь вводит его на веб-странице устройства. На устройстве давайте пользователю выбор из нескольких значений кнопками UP и DOWN.
+
+Use a notification only for events the user asked to be told about, such as a timer or a meeting. Let other information wait until the user looks.
+Используйте уведомление только для событий, о которых пользователь просил сообщать, например таймер или встреча. Остальная информация ждёт, пока пользователь посмотрит на устройство.
+
+List only the hosts the application needs. Use a <code>url</code> setting for the user's own server. Use a <code>secret</code> setting for a token and send it through a header placeholder.
+Перечисляйте только те адреса, которые нужны приложению. Для собственного сервера пользователя используйте настройку типа <code>url</code>. Для токена используйте настройку типа <code>secret</code> и передавайте его подстановкой в заголовке.
+
+Offer the interval as a setting with a reasonable default. On battery power the host limits every poll to one per five minutes.
+Предлагайте интервал как настройку с разумным значением по умолчанию. При питании от батареи хост ограничивает каждый опрос одним разом в пять минут.
+
+The index lists the name, title, version and icon of each application, and its files with their sizes and SHA-256 hashes. The device accepts a file only if both the size and the hash match.
+В индексе перечислены имя, название, версия и иконка каждого приложения, а также его файлы с размерами и хешами SHA-256. Устройство принимает файл, только если совпадают и размер, и хеш.
+
+Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.
+Модель доверия: HTTPS до источника, выбранного пользователем, плюс песочница. Пакеты не подписываются.
+
+The official catalog is the <code>perinkpheral-apps</code> repository. It is the first source on every device. The user can add up to three more sources on the device's web page by entering a repository address.
+Официальный каталог - репозиторий <code>perinkpheral-apps</code>. Это первый источник на каждом устройстве. Пользователь может добавить ещё до трёх источников на веб-странице устройства, указав адрес репозитория.
+
+The web page shows a summary of each installed application, taken from its manifest: the servers it connects to, the polling interval, what it stores, and whether it starts with the device.
+Веб-страница показывает сводку по каждому установленному приложению, взятую из манифеста: серверы, к которым оно подключается, интервал опроса, что оно хранит и запускается ли вместе с устройством.
+
+Increase <code>version</code> with every change. The device compares versions to detect updates.
+Увеличивайте <code>version</code> при каждом изменении. Устройство сравнивает версии, чтобы обнаружить обновления.
+
+Part III. Reference
+Часть III. Справочник
+
+This part lists every declaration of <code>sdk/host_api.h</code> for ABI 2.
+В этой части перечислены все объявления <code>sdk/host_api.h</code> для ABI 2.
+
+The buffer is always null-terminated and stays within its size. The text is complete after each call.
+Буфер всегда завершается нулём и не выходит за свой размер. После каждого вызова текст в буфере полон.
+
+These functions work only inside <code>app_on_values()</code>. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest.
+Эти функции работают только внутри <code>app_on_values()</code>. <code>index</code> - позиция пути в списке <code>pick</code> манифеста.
+
+To handle BACK on these screens, export <code>app_on_back()</code> and pass <code>BTN_BACK_PRESSED</code> from it to the same button function.
+Чтобы обрабатывать BACK на этих экранах, экспортируйте <code>app_on_back()</code> и передавайте из него <code>BTN_BACK_PRESSED</code> в ту же функцию обработки кнопок.
+
+<code>strings.h</code> and <code>pictures.h</code> are generated for each application. The build places them first on the include path, so a system header with the same name is not used.
+<code>strings.h</code> и <code>pictures.h</code> генерируются для каждого приложения. Сборка ставит их первыми в пути поиска заголовочных файлов, поэтому системный заголовочный файл с тем же именем не используется.
+
+Loading
+=
+
+Access denied / Check the settings
+=
+
+Not found / Check the address
+=
+
+No answer / Code &lt;status&gt;
+=
+
+perINKpheral / application guide
+perINKpheral / руководство по приложениям
+
+optional: data files, read with file_read()
+необязательно: файлы данных, читаются через file_read()

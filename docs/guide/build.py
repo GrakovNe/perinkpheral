@@ -3,7 +3,7 @@
 # Copyright (c) 2026 GrakovNe
 """Builds the application guide: guide.html into a PDF.
 
-    docs/guide/build.py [--out perinkpheral-app-guide.pdf]
+    docs/guide/build.py [--language ru] [--out perinkpheral-app-guide.pdf]
 
 The guide is one HTML file, written by hand. This puts a table of contents
 into it - made of its headings - and prints it with a Chromium browser, twice:
@@ -75,9 +75,20 @@ def pages_of(pdf, found):
 def main():
     args = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
-    args.add_argument("--out", default=os.path.join(HERE, "perinkpheral-app-guide.pdf"))
+    args.add_argument("--language", default="en",
+                      help="en, or a language units.py has made guide.<language>.html for")
+    args.add_argument("--out")
     options = args.parse_args()
-    with open(os.path.join(HERE, "guide.html")) as f:
+    suffix = "" if options.language == "en" else "." + options.language
+    if not options.out:
+        options.out = os.path.join(HERE, "perinkpheral-app-guide%s.pdf" % suffix)
+    if suffix:
+        # A translation is made of guide.html and guide.<language>.txt each time: it is never edited.
+        made = subprocess.run([sys.executable, os.path.join(HERE, "units.py"), "apply", options.language],
+                              capture_output=True, text=True)
+        if made.returncode != 0:
+            sys.exit(made.stderr.strip() or made.stdout.strip())
+    with open(os.path.join(HERE, "guide%s.html" % suffix), encoding="utf-8") as f:
         source = f.read()
     found = headings(source)
     # Where the fonts, the mark and the screens are: the page is printed from a scratch folder.
@@ -103,14 +114,14 @@ def main():
         cover_pdf, body_pdf = os.path.join(scratch, "cover.pdf"), os.path.join(scratch, "body.pdf")
         # A marker inside every heading, for the first print to be searched for.
         marked = re.sub(r'(<h[12][^>]*id="([^"]+)"[^>]*>)', r'\1<span class="mark">[[\2]]</span>', source)
-        with open(page, "w") as f:
+        with open(page, "w", encoding="utf-8") as f:
             f.write(marked.replace("<!--CONTENTS-->", contents(found, {})))
         print_pdf(page, first)
         pages = {ident: number + 1 for ident, number in pages_of(first, found).items()}
-        with open(page, "w") as f:
+        with open(page, "w", encoding="utf-8") as f:
             f.write(source.replace("<!--CONTENTS-->", contents(found, pages)))
         print_pdf(page, body_pdf)
-        with open(page, "w") as f:
+        with open(page, "w", encoding="utf-8") as f:
             f.write(cover)
         print_pdf(page, cover_pdf)
         joined = subprocess.run(["pdfunite", cover_pdf, body_pdf, os.path.abspath(options.out)],
