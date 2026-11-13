@@ -136,8 +136,9 @@ application from somebody else's catalog**. Against it:
    wants to look**: a button on its tile beside the gear opens its manifest as a person
    reads it - where it connects, how often, what it keeps. Not before installing: an
    application has to install in one click, or nobody will use the catalog.
-2. **Home Assistant: a secret of the device's own instead of the user's token.** It comes
-   with the integration (item 2 of the plan) anyway.
+2. *(Written 2026-11-13: the integration makes a secret for a screen and gives it to the
+   display; it opens one address. Not yet run inside a Home Assistant.)* **Home Assistant: a
+   secret of the device's own instead of the user's token.**
 
 Accepted and not to be built: a password or a question for settings and catalogs, a
 password on the access point, a secret an application cannot read, HTTPS on the page,
