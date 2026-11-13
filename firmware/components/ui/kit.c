@@ -174,7 +174,7 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum)
 #define ARROW_HEIGHT       (5 * ARROW_CELL)
 #define ARROW_FIRST_COLUMN 1
 #define ARROW_FIRST_ROW    3
-#define ARROW_GAP          6 /* from the frame to an arrow */
+#define ARROW_GAP          12 /* from the frame to an arrow */
 
 static void draw_arrow(gfx_t *g, gfx_icon_id_t arrow, int left, int top)
 {
@@ -198,7 +198,7 @@ void kit_frame(gfx_t *g, int left, int top, int width, int height, bool has_up, 
 
 #define PICKER_FRAME_INSET  40 /* from both sides of the surface */
 #define PICKER_FRAME_HEIGHT 56
-#define PICKER_NEIGHBOUR    22 /* from the frame's arrow to the line beyond it */
+#define PICKER_NEIGHBOUR    30 /* from the frame's arrow to the line beyond it */
 
 void kit_picker(gfx_t *g, const kit_picker_t *picker)
 {
