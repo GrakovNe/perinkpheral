@@ -93,6 +93,8 @@ static bool settings_value(void *context, const char *key, char *value, size_t v
                         : strcmp(key, "empty") == 0  ? ""
                         : strcmp(key, "base") == 0   ? "http://10.0.0.2:8123"
                         : strcmp(key, "city") == 0   ? "New York&x=1/~a"
+                        : strcmp(key, "evil") == 0   ? "x\r\nHost: other"
+                        : strcmp(key, "evil") == 0   ? "x\r\nHost: other"
                                                      : NULL;
     if (found == NULL || strlen(found) >= value_size) {
         return false;
@@ -143,6 +145,12 @@ static void test_template(void)
     CHECK_STR(filled, "http://10.0.0.2/x?t=s3cret");
     CHECK(text_template_fill("{{token}}", settings_value, NULL, filled, sizeof filled));
     CHECK_STR(filled, "s3cret");
+    /* a value with a line break in it is no header and no server, whoever
+     * stored it; in a path it is only bytes, and goes in encoded */
+    CHECK(!text_template_fill("Bearer {{evil}}", settings_value, NULL, filled, sizeof filled));
+    CHECK(!text_template_fill_url("{{evil}}/api", settings_value, NULL, filled, sizeof filled));
+    CHECK(text_template_fill_url("http://a/{{evil}}", settings_value, NULL, filled, sizeof filled));
+    CHECK_STR(filled, "http://a/x%0D%0AHost%3A%20other");
     CHECK(text_template_fill("a{{empty}}b", settings_value, NULL, filled, sizeof filled));
     CHECK_STR(filled, "ab");
 

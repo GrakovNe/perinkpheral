@@ -160,6 +160,11 @@ typedef enum {
 /* Whether `value` may be stored under `key`: the manifest has such a
  * setting, and the value fits its type. `is_secret` may be NULL. The
  * manifest is one that app_manifest_parse() accepted. */
+/* Whether `key` is a setting of the "url" type: where the user said the
+ * server is. The application's requests go there, so it is the user's to
+ * write and never the application's. */
+bool app_manifest_is_server_setting(const char *json, const char *key);
+
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret);
 

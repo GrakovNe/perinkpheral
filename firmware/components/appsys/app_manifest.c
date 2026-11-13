@@ -398,6 +398,23 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
     return accepted;
 }
 
+bool app_manifest_is_server_setting(const char *json, const char *key)
+{
+    cJSON *root = cJSON_Parse(json);
+    bool   is_server = false;
+    const cJSON *setting;
+    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    {
+        const cJSON *named = cJSON_GetObjectItemCaseSensitive(setting, "key");
+        if (cJSON_IsString(named) && strcmp(named->valuestring, key) == 0) {
+            is_server = setting_type(setting) == APP_SETTING_URL;
+            break;
+        }
+    }
+    cJSON_Delete(root);
+    return is_server;
+}
+
 static bool are_sound_hosts(const cJSON *hosts, const cJSON *settings)
 {
     if (hosts == NULL) {

@@ -213,6 +213,10 @@ static void test_a_server_of_the_users_own(void)
         "\"polls\":[{\"url\":\"{{server}}/api/states\",\"every\":60}],"
         "\"hosts\":[\"{{server}}\"]}";
     CHECK(parse(manifest) == APP_MANIFEST_OK);
+    /* where the requests go is the user's to write, not the application's */
+    CHECK(app_manifest_is_server_setting(manifest, "server"));
+    CHECK(!app_manifest_is_server_setting(manifest, "token"));
+    CHECK(!app_manifest_is_server_setting(manifest, "nobody"));
     /* the setting takes a server and nothing more */
     CHECK(app_manifest_accepts_setting(manifest, "server", "https://ha.example.org", NULL));
     CHECK(app_manifest_accepts_setting(manifest, "server", "http://192.168.1.10:8123", NULL));

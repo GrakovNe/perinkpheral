@@ -60,6 +60,21 @@ static void log_from_app(int level, const char *text, int length)
     }
 }
 
+/* Where the user said the server is decides where the application's
+ * requests go: that setting is the user's to write, on the page, and the
+ * application's only to read. */
+static int32_t kv_set(const char *app_name, const char *key, const void *value, int32_t length)
+{
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    bool  is_the_users = manifest != NULL && app_manifest_is_server_setting(manifest, key);
+    free(manifest);
+    if (is_the_users) {
+        ESP_LOGW(TAG, "%s: \"%s\" is the user's to set", app_name, key);
+        return HOST_ERR_ARGUMENT;
+    }
+    return app_kv_set(app_name, key, value, length);
+}
+
 static int32_t file_size(const char *app_name, const char *file)
 {
     long size = app_store_file_size(STORAGE_APPS_ROOT, app_name, file);
@@ -269,7 +284,7 @@ const app_services_t *app_host_services(void)
         .log = log_from_app,
         .timer_set = timers_set,
         .kv_get = app_kv_get,
-        .kv_set = app_kv_set,
+        .kv_set = kv_set,
         .dithers = dithers,
         .poll_now = poller_poll_now,
         .http_request = poller_request,

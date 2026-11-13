@@ -20,6 +20,16 @@ static bool is_unreserved(char character)
 
 /* Percent-encodes the terminated `value` where it lies; false when the
  * longer text does not fit into `capacity`. */
+static bool is_printable(const char *text)
+{
+    for (; *text != '\0'; text++) {
+        if (*text < ' ' || *text > '~') {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool encode_in_place(char *value, size_t capacity)
 {
     static const char HEX[] = "0123456789ABCDEF";
@@ -77,8 +87,15 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
          * a setting of the type that is one - and goes in as it is. Anywhere
          * else a value is a part of a path or of a query, and is encoded. */
         bool is_the_server = for_url && opening == template_text;
-        if (!value_of(context, key, filled + used, filled_size - used) ||
-            (for_url && !is_the_server && !encode_in_place(filled + used, filled_size - used))) {
+        if (!value_of(context, key, filled + used, filled_size - used)) {
+            return false;
+        }
+        /* A value that goes in as it is - into a header, or as the server -
+         * must not bring a line break along: that would be a header of its
+         * own making. Whatever wrote the value, it is looked at here. */
+        bool goes_in_as_it_is = !for_url || is_the_server;
+        if (goes_in_as_it_is ? !is_printable(filled + used)
+                             : !encode_in_place(filled + used, filled_size - used)) {
             return false;
         }
         used += strlen(filled + used);
