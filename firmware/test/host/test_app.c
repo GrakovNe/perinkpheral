@@ -585,6 +585,8 @@ static void test_values(void)
     CHECK(gfx_get(&surface, 4, ROW_VALUES) && gfx_get(&surface, 6, ROW_VALUES));
     /* and a call through a function pointer, which the trimmed interpreter still has */
     CHECK(gfx_get(&surface, 8, ROW_VALUES));
+    /* the arena hands the free part of the page out and takes it back */
+    CHECK(gfx_get(&surface, 20, ROW_VALUES));
     /* the network: online, a poll asked for by its number, a wrong number refused */
     CHECK(gfx_get(&surface, 12, ROW_VALUES) && polled_now == 1);
     /* a request of its own: the method, the URL, the headers taken apart, the body */

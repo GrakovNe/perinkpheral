@@ -38,6 +38,7 @@
       <button data-key="4">Back<small>Backspace</small></button>
     </div>
     <p><label>A long press: hold a button, or Shift with the key.</label></p>
+    <p id="memory"></p>
   </div>
   <div class="side">
     <div class="bar">
@@ -128,6 +129,27 @@ async function read_log() {
   setTimeout(read_log, 1000);
 }
 
+/* ---- memory: what the application on the screen took at its most ---- */
+const PAGE_BYTES = 65536;
+const kb = bytes => (bytes / 1024).toFixed(1) + " KB";
+
+async function read_memory() {
+  try {
+    const answer = await fetch("/status");
+    if (answer.ok) {
+      const status = await answer.json();
+      /* The area is the application's page and what the interpreter needs to run it. */
+      const interpreter = Math.max(0, status.app_area_used - PAGE_BYTES);
+      byId("memory").textContent = status.app_area_used
+        ? "Application: " + kb(interpreter) + " of " + kb(status.app_area - PAGE_BYTES) +
+          " to run its code. Host: " + kb(status.free_memory) + " free, " +
+          kb(status.least_free_memory) + " at the least."
+        : "No application is loaded. Host: " + kb(status.free_memory) + " free.";
+    }
+  } catch (failure) { /* the screen's own look says so */ }
+  setTimeout(read_memory, 3000);
+}
+
 byId("clear").addEventListener("click", () => { byId("log").textContent = ""; });
 
 /* ---- build the application and put it on the device ---- */
@@ -149,5 +171,6 @@ if (APP_DIR) {
 
 look();
 read_log();
+read_memory();
 </script>
 </html>

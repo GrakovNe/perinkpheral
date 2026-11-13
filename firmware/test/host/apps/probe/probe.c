@@ -6,6 +6,7 @@
  * interpreter and reads what it did off the pixels. Every row it paints
  * answers one question about the host API.
  */
+#include "app_alloc.h"
 #include "app_values.h"
 #include "host_api.h"
 #include "json_pick.h"
@@ -271,6 +272,34 @@ void app_on_alarm(int32_t id)
     alarms_rung += id == 2 ? 1 : 100;
 }
 
+/* The arena of sdk/lib/app_alloc.h: pieces that do not overlap, at
+ * addresses anything may stand at, given back to a mark, and no more of
+ * them than the page has. */
+static bool memory_is_handed_out(void)
+{
+    int32_t  left_at_first = app_alloc_left();
+    int32_t  before = app_alloc_mark();
+    uint8_t *first = app_alloc(100);
+    int64_t *second = app_alloc(sizeof(int64_t));
+    if (first == NULL || second == NULL || left_at_first < 1024 || left_at_first >= 65536) {
+        return false;
+    }
+    for (int32_t i = 0; i < 100; i++) {
+        first[i] = (uint8_t)i;
+    }
+    *second = -1;
+    bool is_apart = (uint8_t *)second >= first + 100 && first[99] == 99;
+    bool is_aligned = ((uintptr_t)first & 7) == 0 && ((uintptr_t)second & 7) == 0;
+    bool is_counted = app_alloc_left() == left_at_first - 104 - 8;
+    bool refuses_too_much = app_alloc(left_at_first) == NULL && app_alloc(0) == NULL &&
+                            app_alloc(-1) == NULL;
+    void *all_the_rest = app_alloc(app_alloc_left());
+    bool takes_the_last = all_the_rest != NULL && app_alloc_left() == 0 && app_alloc(1) == NULL;
+    app_alloc_release(before);
+    return is_apart && is_aligned && is_counted && refuses_too_much && takes_the_last &&
+           app_alloc_left() == left_at_first && app_alloc(100) == first;
+}
+
 static bool numbers_parse(void)
 {
     int32_t number = 0;
@@ -419,6 +448,9 @@ void app_on_draw(void)
     }
     if (numbers_parse()) {
         mark(6, ROW_VALUES);
+    }
+    if (memory_is_handed_out()) {
+        mark(20, ROW_VALUES);
     }
     if (calls_through_pointers()) {
         mark(8, ROW_VALUES);

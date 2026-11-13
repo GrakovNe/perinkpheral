@@ -213,8 +213,9 @@ def report(wasm_path, import_count, files_bytes, memory_end):
     print("  code    %s; running it takes about %s of the interpreter's %s"
           % (kb(code), kb(running), kb(INTERPRETER_ROOM_BYTES)))
     if memory_end > 0:
-        print("  memory  %s of %s: %s of stack, %s of data"
-              % (kb(memory_end), kb(WASM_PAGE), kb(APP_STACK), kb(memory_end - APP_STACK)))
+        print("  memory  %s of %s: %s of stack, %s of data; %s left for app_alloc()"
+              % (kb(memory_end), kb(WASM_PAGE), kb(APP_STACK), kb(memory_end - APP_STACK),
+                 kb(WASM_PAGE - memory_end)))
     if files_bytes > 0:
         print("  files   %s of %s" % (kb(files_bytes), kb(FILES_MAX_BYTES)))
     if running > INTERPRETER_ROOM_BYTES:
