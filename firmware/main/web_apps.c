@@ -754,7 +754,10 @@ static bool is_sound_file_list(const cJSON *files)
     double taken = 0;
     for (int i = 1; i < count - 1; i++) {
         const cJSON *size = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, i), "size");
-        if (!cJSON_IsNumber(size) || size->valuedouble < 0) {
+        /* Bounded before it is made a whole number: a size beyond any
+         * number cannot be one. */
+        if (!cJSON_IsNumber(size) || size->valuedouble < 0 ||
+            size->valuedouble > APP_FILES_MAX_BYTES) {
             return false;
         }
         long blocks = ((long)size->valuedouble + MANIFEST_FILE_BLOCK_BYTES - 1) /
