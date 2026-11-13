@@ -135,7 +135,7 @@
 <ul>
   <li>Display: 400 x 300 pixels, 1 bit, dithered greys, partial refresh in about 0.5 s</li>
   <li>Input: four buttons; short press, long press, key down and key up events</li>
-  <li>Sandbox: 64 KB of memory, no access to host memory, no sockets</li>
+  <li>Sandbox: 64 KB of private memory; network access through the host only</li>
   <li>Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code</li>
   <li>Data: the host extracts values from JSON answers; any answer can be streamed in 1 KB pieces</li>
   <li>Background work: answers, alarms and device events are delivered while the application is off the screen</li>
@@ -151,9 +151,9 @@
 </div>
 
 <h2 id="overview-model">How an application runs</h2>
-<p>An application has no <code>main()</code> and no main loop. It exports handlers with fixed names. The host calls a handler when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
+<p>An application is a set of exported handlers with fixed names. The host calls a handler when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
 <p>A handler updates the application's state and requests a redraw. The host calls <code>app_on_draw()</code> when it needs a frame. The host decides when and how the panel is refreshed.</p>
-<p>Only one application is loaded at a time. The host unloads an application when it leaves the screen. State that must be kept is saved to the application's store; global variables are lost.</p>
+<p>One application is loaded at a time. The host unloads it when it leaves the screen. Persistent state is kept in the application's store; global variables live until the unload.</p>
 
 <h1 id="characteristics">2. Characteristics</h1>
 
@@ -244,7 +244,7 @@
 </table>
 
 <h1 id="model">3. Execution model</h1>
-<p>An application is not a process. The host loads it to call a handler and can unload it afterwards. This section describes when an application is loaded and what a handler can rely on.</p>
+<p>The host loads an application to call a handler and can unload it after the call.</p>
 
 <h2 id="model-life">Application lifecycle</h2>
 <table>
@@ -258,25 +258,25 @@
 
 <h2 id="model-rules">Handler guarantees</h2>
 <ul>
-  <li>Handlers run one at a time. A handler runs to completion before any other code of the host or of an application runs. No locking is needed.</li>
-  <li>A handler has 3 seconds. The host stops a handler that runs longer. The host also stops a handler that traps, for example on an invalid pointer. In both cases the application is terminated and the screen shows an error. The host keeps running.</li>
-  <li>A handler returns no value. To redraw, to take the screen or to exit, the handler makes a request. The request takes effect after the handler returns.</li>
+  <li>Handlers run one at a time, each to completion. Locking is unnecessary.</li>
+  <li>A handler has 3 seconds. A handler that runs longer, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and the screen shows an error. The host keeps running.</li>
+  <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. A request takes effect after the handler returns.</li>
   <li>The host calls <code>app_init()</code> before any other handler of an instance.</li>
-  <li>Button events are not lost and arrive in order. Pending timers with the same number are merged into one. The pieces of one answer arrive in order, with no other handler called between them.</li>
-  <li>Background delivery of an answer can be interrupted. If the user presses a button, the host unloads the instance and drops the remaining pieces. The application receives <code>app_on_terminate()</code> and no failure. The host repeats the poll after one minute.</li>
+  <li>Button events arrive in order and are all delivered. Pending timers with the same number are merged into one. The pieces of one answer arrive in order, in consecutive calls.</li>
+  <li>Background delivery of an answer can be interrupted. If the user presses a button, the host unloads the instance and drops the remaining pieces. The application receives <code>app_on_terminate()</code> only. The host repeats the poll after one minute.</li>
 </ul>
 
 <h2 id="model-state">State</h2>
-<p>Global variables are lost when the application is unloaded. The host unloads the application every time it leaves the screen and after every background call.</p>
+<p>Global variables live until the application is unloaded. Unloading happens every time the application leaves the screen and after every background call.</p>
 <p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call every instance receives. A value that must survive a power loss is saved immediately after it changes.</p>
-<p>Uptime alone is not a valid timestamp across restarts. Valid timestamps are <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
+<p>Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
 
 <h2 id="model-screen">Navigation and refresh</h2>
 <p>Navigation is a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a question from the host or an application that requested the screen is placed on top of the current screen.</p>
 <p>A short press of BACK removes the top entry. A long press of BACK clears the stack and opens the menu.</p>
 <p>Only the top entry is loaded. An application lower in the stack is unloaded and restores its state when it returns to the top.</p>
 <p>The host controls the panel. It compares each new frame with the frame on the panel and sends only the changed area. It postpones a refresh that was not caused by a button press if the previous one was too recent.</p>
-<p>An application cannot refresh the panel directly and cannot leave a partially drawn frame on it.</p>
+<p>The panel always shows a complete frame. Refresh timing is decided by the host.</p>
 
 <h1 class="part" id="part-2">Part II. Development guide</h1>
 
@@ -294,7 +294,7 @@
 <pre>tools/devtool/devtool.py new my-app --title "My app"     # a folder with the SDK's sample in it
 tools/devtool/devtool.py run my-app                      # build, upload, restart the device into it
 tools/devtool/devtool.py serve my-app                    # a page with the live screen, buttons, log, Run</pre>
-<p><code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.</p>
+<p><code>run</code> builds the application, uploads it and restarts the device into it. Duration: about ten seconds. The firmware stays untouched.</p>
 <p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.</p>
 
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. The folder opens as a project in any IDE that supports CMake, such as CLion or VS Code.</p>
@@ -350,7 +350,7 @@ void app_on_draw(void)              /* and this paints the state, all of it, on 
     draw_line(0, "Hello from wasm");
     draw_line(2, counter_buffer);
 }</pre>
-<p>The sample does not handle BACK. A short press of BACK closes an application that does not export <code>app_on_back()</code>.</p>
+<p>BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.</p>
 
 <h2 id="start-report">Build report</h2>
 <pre>tools/mkapp/mkapp.py my-app --out build/my-app
@@ -433,7 +433,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
 
 <h2 id="package-settings">Settings</h2>
-<p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest; the application is not run for this. Each value is stored as text in the application's store, under the key of the setting.</p>
+<p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
 <p>The application reads a setting with <code>kv_get()</code> and the key of the setting.</p>
 <p>When the user saves the form, the host calls <code>app_on_settings()</code> and repeats all polls immediately.</p>
 <table>
@@ -448,8 +448,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">link</td><td>a whole address the user was given</td><td><code>https://host/path?key</code>, up to 255 bytes; kept from the page like a secret. <code>webcal://</code> is taken as <code>https://</code></td></tr>
 </table>
 <ul>
-  <li><code>default</code> is the value the page displays while the setting is empty. It is not stored. The code is expected to apply the same default when <code>kv_get()</code> finds no value.</li>
-  <li>The application cannot change a <code>url</code> or <code>link</code> setting: <code>kv_set()</code> on its key fails. When the user changes such a setting, the host erases the secrets that were not entered again. This prevents sending a token to a different server.</li>
+  <li><code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty. The code applies the same default when <code>kv_get()</code> finds no value.</li>
+  <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
 </ul>
 
@@ -457,14 +457,14 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 
 <h2 id="screen-surface">Surface and colour</h2>
 <ul>
-  <li>The origin is the top left corner of the surface. <code>gfx_width()</code> and <code>gfx_height()</code> return its size. Layout is based on these values, not on the constants 400 and 260.</li>
-  <li>Drawing calls work only inside <code>app_on_draw()</code>. The surface is white at the start of each call. Outside <code>app_on_draw()</code>, <code>gfx_*</code> and <code>ui_*</code> calls return <code>HOST_ERR_NOT_DRAWING</code>. Drawing outside the surface is clipped.</li>
+  <li>The origin is the top left corner of the surface. <code>gfx_width()</code> and <code>gfx_height()</code> return its size. Layout is based on these values.</li>
+  <li>Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, <code>gfx_*</code> and <code>ui_*</code> calls return <code>HOST_ERR_NOT_DRAWING</code>. Drawing is clipped to the surface.</li>
   <li><code>gfx_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Greys are intended for filled areas only: thin lines and small text become unreadable.</li>
   <li>The standard left and right margin is <code>HOST_UI_MARGIN</code> (16 px).</li>
 </ul>
 
 <h2 id="screen-fonts">Fonts</h2>
-<p>A font constant selects a size. The typeface is a user setting: Departure Mono (monospaced) or Jersey (proportional). Character widths differ between the two, so a layout must not rely on a character count.</p>
+<p>A font constant selects a size. The typeface is a user setting: Departure Mono (monospaced) or Jersey (proportional). Character widths differ between the two, so layout is based on measured widths.</p>
 <p>Text measurement: <code>gfx_text_width()</code>, <code>gfx_font_height()</code>, <code>gfx_font_ascent()</code> and <code>gfx_font_cap_height()</code>.</p>
 <table>
   <tr><th style="width:24%">Size</th><th>Capitals, px</th><th>Line, px</th><th>Characters in 400 px</th><th style="width:34%">For</th></tr>
@@ -477,9 +477,9 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 </table>
 <p>Each cell gives the value for Departure Mono, then for Jersey.</p>
 <ul>
-  <li>The <code>y</code> argument of <code>gfx_text()</code> is the top of the line, not the baseline. For capitals that start at <code>top</code>, the value of <code>y</code> is <code>top - (ascent - cap_height)</code>.</li>
+  <li>The <code>y</code> argument of <code>gfx_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.</li>
   <li><code>HOST_FONT_TABULAR</code>, added to a font, gives all digits the same width. It is intended for numbers that change in place, such as a clock or a countdown. Every call that takes a font accepts the flag. Measurement requires the same flag as drawing.</li>
-  <li><code>gfx_text_fit()</code> shortens a text to a given width and appends "...". It cuts between characters. Truncation of UTF-8 text by bytes is not safe.</li>
+  <li><code>gfx_text_fit()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.</li>
 </ul>
 
 <h2 id="screen-letters">Text beyond ASCII</h2>
@@ -489,7 +489,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <li>An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.</li>
   <li>A question mark.</li>
 </ol>
-<p>The degree sign is available in every size and does not need a glyph pack.</p>
+<p>The degree sign is built in at every size.</p>
 <p>The width of a text depends on which option was used. Text is therefore measured before it is placed.</p>
 <p>Limits on user-visible text, such as a title or an option, are given in characters. A field holds half as many two-byte characters as one-byte characters.</p>
 
@@ -572,7 +572,7 @@ drop:
   <tr><td class="c">HOST_REDRAW_CLEAN</td><td>a full refresh: 2 - 3 s, a blink, no traces</td><td>a picture that must be clean; the end of a row of quick ones</td></tr>
   <tr><td class="c">HOST_REDRAW_NO_BLINK</td><td>now, and never as the full refresh the host makes after a few partial ones</td><td>stepping through a list; a value that changes every second</td></tr>
 </table>
-<p>The host does not limit the number of redraw requests.</p>
+<p>Redraw requests are unlimited.</p>
 <p>Each refresh uses battery energy and wears the panel. Frequent changes also make the device distracting. Guidelines: section 13.</p>
 
 <h1 id="buttons">7. Buttons</h1>
@@ -595,7 +595,7 @@ drop:
   <tr><td>does not export <code>app_on_back()</code></td><td>leaves it: one step down the stack. Nothing to write</td></tr>
   <tr><td>exports <code>app_on_back()</code></td><td>is delivered there. Go a page back; from the first page call <code>request_exit()</code></td></tr>
 </table>
-<p><code>app_on_button()</code> never receives <code>BTN_BACK_PRESSED</code>. A long press of BACK always opens the host's menu.</p>
+<p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives all other events.</p>
 <p><code>request_exit()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>request_focus()</code>.</p>
 
 <h2 id="buttons-kit">Lists, pickers, dates</h2>
@@ -623,7 +623,7 @@ void app_on_draw(void)
 
 <h1 id="storage">8. Storage</h1>
 <h2 id="storage-kv">The store</h2>
-<p><code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has its own namespace. Other applications cannot access it.</p>
+<p><code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has a private namespace.</p>
 <p>The store holds the application's state and its settings. The data is kept when the application is removed and is available again after a reinstall.</p>
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
@@ -645,8 +645,8 @@ void app_init(void)
 <p>The files from the <code>files/</code> folder of the package are installed with the application.</p>
 
 <h1 id="network">9. The network</h1>
-<p>An application does not open connections. It describes a request; the host performs it and delivers the answer. The host performs one request at a time for the whole device. The answer is delivered whether or not the application is on the screen.</p>
-<p>There is no call to check for a network connection. A request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
+<p>All network access goes through the host. The application describes a request; the host performs it and delivers the answer. The host performs one request at a time for the whole device. Delivery is independent of whether the application is on the screen.</p>
+<p>Network availability is reported in the answer: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
 <table>
   <tr><th style="width:20%">Way</th><th style="width:33%">When</th><th>The answer arrives as</th></tr>
   <tr><td>a poll with <code>pick</code></td><td>on a schedule, with no code running</td><td><code>app_on_values()</code>: the values of the paths, once</td></tr>
@@ -669,8 +669,8 @@ void app_on_values(int32_t request, int32_t http_status)
     }                                              /* else: what was shown before stays */
     request_redraw(HOST_REDRAW_NORMAL);
 }</pre>
-<p>Floating point is not available. <code>app_value_number()</code> returns an integer scaled by the requested number of decimals, rounded.</p>
-<p>If the answer does not contain a path, its value is missing. A missing value means no data, not zero.</p>
+<p>Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.</p>
+<p>A path that is absent from the answer has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
 
 <h2 id="network-pieces">Streamed answers</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
@@ -705,7 +705,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
 <ul>
   <li>Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.</li>
   <li><code>HOST_ERR_NO_SPACE</code> means that the request queue of the device is full (two waiting requests). The request can be repeated later.</li>
-  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is not repeated; the redirect response is delivered as the answer.</li>
+  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is sent once; its redirect response is delivered as the answer.</li>
   <li><code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
@@ -733,7 +733,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
 </table>
 
 <h1 id="background">10. Background work</h1>
-<p>An application that is off the screen is not loaded. The host loads it for a single call when one of these events occurs:</p>
+<p>The host loads an off-screen application for a single call when one of these events occurs:</p>
 <table>
   <tr><th style="width:26%">To</th><th style="width:31%">Use</th><th>Notes</th></tr>
   <tr><td>take data on a schedule</td><td>a poll in the manifest</td><td>needs nothing after a restart: the manifest is the schedule</td></tr>
@@ -751,7 +751,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
     notify(&amp;notice);
 }</pre>
 <p>After <code>notify()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.</p>
-<p>The application is not loaded while the notification is displayed and is not told when it is dismissed. It does not need to track the notification.</p>
+<p>The notification is managed entirely by the host. The application stays unloaded while it is displayed.</p>
 <p><code>notify()</code> is preferred over <code>request_focus()</code> when the message fits in two lines.</p>
 
 <h2 id="background-alarms">Alarms, timers</h2>
@@ -787,40 +787,40 @@ char line[32];
 int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string(STR_STARTS_IN)),
                            &amp;minutes, 1, line, sizeof line);          /* "In 10 min" */</pre>
 <ul>
-  <li><code>en.json</code> is required. English is compiled into the module and is used when no translation is available. Every other file must contain exactly the same keys. A translation can also contain the key <code>manifest</code> (see below); <code>en.json</code> must not.</li>
+  <li><code>en.json</code> is required. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).</li>
   <li>When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.</li>
-  <li><code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Plural forms are not supported; wording that avoids them is required, for example "min" instead of "minutes".</li>
+  <li><code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. A string has one form for all numbers, for example "min".</li>
   <li>The <code>manifest</code> key of a translation contains the translated parts of the manifest: the title, the title and help of each setting, and labels for the options of a choice. The stored option value does not change; only its label is translated.</li>
   <li>The build fails if a language is not listed in <code>sdk/languages.json</code> (27 languages, two-letter codes), if a translation has a missing or an extra key, or if a string contains a character that the glyph packs of the language do not cover.</li>
   <li>Translations are usually about a third longer than English. The kit shortens text that does not fit with "...". Translated screens require a check on the device.</li>
 </ul>
 
 <h1 id="design">13. Design rules</h1>
-<p>The host does not enforce most of these rules. Applications are expected to follow them; the host's own screens do.</p>
+<p>These rules apply to all applications. The host's own screens follow them. Most are conventions; the host checks only a few.</p>
 
 <h2 id="design-paper">Screen content</h2>
 <div class="rule"><b>One main value per screen.</b> The device is read from about a metre, in about a second. The main value is the largest element; everything else is small.</div>
-<div class="rule"><b>No animation.</b> Animation, blinking and self-advancing progress bars are not used. A bar shows a quantity and changes only when the quantity changes. Work in progress is indicated by a notice with <code>is_working</code>.</div>
+<div class="rule"><b>Static screens.</b> A screen changes only when its data changes. A bar shows a quantity. Work in progress is indicated by a notice with <code>is_working</code>.</div>
 <div class="rule"><b>Redraws only on content change.</b> A timer requests a redraw only if the picture differs. A clock redraws once a minute, on the minute. By default the host allows one refresh per minute that was not caused by a button press; a design is expected to fit this rate.</div>
 <div class="rule"><b>Black on white.</b> Content is ink on paper. Grey is for filled areas only. White text on a black bar is reserved for the selected item and for new information.</div>
 <div class="rule"><b>Short, standard interface text.</b> Labels use common words: "Save", "Remove", "Not set up". A label that needs an explanation is the wrong label.</div>
 
 <h2 id="design-memory">Memory</h2>
 <div class="rule"><b>Code size before data size.</b> Each byte of executed code uses about four bytes of the interpreter's 64 KB. Each byte of data uses one byte of the 64 KB page, which is mostly free. Preferred: a table over a chain of <code>if</code> statements, the kit over custom drawing, <code>pick</code> over a custom parser, <code>time_text()</code> over custom date formatting.</div>
-<div class="rule"><b>Shared helpers are not inlined.</b> A small helper called from many places is marked <code>__attribute__((noinline))</code>. The build report shows the effect.</div>
-<div class="rule"><b>Pictures are stored as bits.</b> Pictures belong in <code>pictures/</code>, not in string literals. Large pictures belong in <code>files/</code>.</div>
-<div class="rule"><b>No whole answer in memory.</b> An answer is processed as it arrives; only the data to display is kept. Working buffers come from <code>app_alloc()</code> and are released with a mark.</div>
+<div class="rule"><b>Shared helpers stay out of line.</b> A small helper called from many places is marked <code>__attribute__((noinline))</code>. The build report shows the effect.</div>
+<div class="rule"><b>Pictures are stored as bits.</b> Pictures belong in <code>pictures/</code>. Large pictures belong in <code>files/</code>.</div>
+<div class="rule"><b>Answers are processed as a stream.</b> An answer is processed as it arrives; only the data to display is kept. Working buffers come from <code>app_alloc()</code> and are released with a mark.</div>
 
 <h2 id="design-state">State and time</h2>
 <div class="rule"><b>State is saved before every unload.</b> All state that matters is in the store when <code>app_on_terminate()</code> returns. Test: open the application, leave it, open it again; the screen looks the same.</div>
-<div class="rule"><b>Displayed data stays until new data is complete.</b> A failed or interrupted request does not clear the screen. Old data is more useful than an empty screen.</div>
-<div class="rule"><b>An empty screen has an explanation.</b> A blank screen is a defect. <code>ui_reason()</code> shows "Not set up", "No network" or "Loading".</div>
+<div class="rule"><b>Displayed data stays until new data is complete.</b> After a failed or interrupted request the screen keeps the previous data.</div>
+<div class="rule"><b>An empty screen has an explanation.</b> <code>ui_reason()</code> shows "Not set up", "No network" or "Loading".</div>
 <div class="rule"><b>The clock can be unknown and can change.</b> <code>time_now() == 0</code> is a valid state. <code>alarm_set()</code> is for a delay ("in ten minutes"); <code>alarm_set_at()</code> is for a clock time ("at seven").</div>
 
 <h2 id="design-user">Interaction and data</h2>
-<div class="rule"><b>No text input on the device.</b> Text such as a token, an address or a city is a manifest setting, entered on the device's web page. On the device, a value is chosen from a few options with UP and DOWN.</div>
-<div class="rule"><b>The screen is taken rarely.</b> Notifications are for events the user asked to be told about, such as a timer or a meeting. Information that can wait does not interrupt.</div>
-<div class="rule"><b>User data goes only where the user directs.</b> The hosts list contains only the hosts the application needs. The user's own server is a <code>url</code> setting, not a fixed host. A token is a <code>secret</code> setting, sent through a header placeholder; the code does not handle it.</div>
+<div class="rule"><b>Text is entered on the web page.</b> Text such as a token, an address or a city is a manifest setting, entered on the device's web page. On the device, a value is chosen from a few options with UP and DOWN.</div>
+<div class="rule"><b>The screen is taken rarely.</b> Notifications are for events the user asked to be told about, such as a timer or a meeting. Other information waits until the user looks.</div>
+<div class="rule"><b>User data goes only where the user directs.</b> The hosts list contains only the hosts the application needs. The user's own server is a <code>url</code> setting. A token is a <code>secret</code> setting, sent through a header placeholder by the host.</div>
 <div class="rule"><b>Polling is no more frequent than data changes.</b> The interval is a setting with a reasonable default. On battery power the host limits every poll to one per five minutes.</div>
 
 <h1 id="tools">14. Tools and debugging</h1>
@@ -864,7 +864,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
                                                        # catalog/catalog.json and a folder for each</pre>
 <ul>
   <li>The index lists the name, title, version and icon of each application, and its files with their sizes and SHA-256 hashes. The device accepts a file only if both the size and the hash match.</li>
-  <li>Applications are not signed. Trust is based on HTTPS to a source that the user selected. The sandbox limits what an application can do.</li>
+  <li>Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.</li>
   <li>The official catalog is the <code>perinkpheral-apps</code> repository. It is the first source on every device. The user can add up to three more sources on the device's web page by entering a repository address.</li>
   <li>The web page shows a summary of each installed application, taken from its manifest: the servers it connects to, the polling interval, what it stores, and whether it starts with the device.</li>
   <li><code>version</code> increases with every change. The device compares versions to detect updates.</li>
@@ -872,7 +872,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
 <p>This part lists every declaration of <code>sdk/host_api.h</code> for ABI 2.</p>
-<p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes. Text is UTF-8 and does not need a terminator.</p>
+<p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.</p>
 <p>A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.</p>
 
 <h1 id="ref-codes">16. Return codes</h1>
@@ -1014,7 +1014,7 @@ void    app_text_add(app_text_t *text, const char *more);   /* what does not fit
 void    app_text_add_number(app_text_t *text, int32_t value);               /* decimal, "-" when negative */
 void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);          /* 7, 2 -> "07" */
 int32_t app_text_length(const char *text);                  /* of any terminated text: app_string()'s too */</pre>
-<p>The buffer is always null-terminated and is never overrun. No final call is needed: the buffer holds the complete text after each call.</p>
+<p>The buffer is always null-terminated and stays within its size. The text is complete after each call.</p>
 <h2 id="lib-values">app_values.h: what the host picked</h2>
 <pre>bool app_value_text(int32_t index, char *text, int32_t text_size);        /* false: no such value, or no room */
 bool app_value_number(int32_t index, int32_t decimals, int32_t *number);  /* "-3.46", 1 -> -35; false: none */
@@ -1051,7 +1051,7 @@ const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL
 #include "strings.h"      /* made of strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
 #include "pictures.h"     /* made of pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
 <p><code>strings.h</code> and <code>pictures.h</code> are generated for each application. The build places them first on the include path, so a system header with the same name is not used.</p>
-<p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. No other C library functions are available.</p>
+<p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform.</p>
 
 <h1 id="ref-limits">24. Limits</h1>
 <table>
