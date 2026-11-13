@@ -112,6 +112,14 @@ typedef struct {
 
 void kit_date(gfx_t *g, const kit_date_t *date);
 
+/* A value and, after it on its baseline, what it is a value of - "18
+ * km/h", "25 min" - the unit in a smaller size the value's own decides:
+ * the small one beside text, the text's beside large digits. `top` is the
+ * top of the value's line; `tabular` keeps its digits in columns. With no
+ * surface (NULL) nothing is drawn. Returns the width of both. */
+int kit_value(gfx_t *g, int left, int top, const gfx_font_t *font, bool tabular, const char *value,
+              const char *unit);
+
 /* One thing worth a glance, in a box of any size: its name across the
  * top, and under it a picture and the value side by side in the middle of
  * what is left. The value is as large as fits; a cell that is the whole

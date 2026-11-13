@@ -496,6 +496,17 @@ typedef struct host_notice {
 } host_notice_t;
 HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
 
+/* The same notice as something to tell the user wherever they have gone:
+ * "Time is up", a meeting that begins. From any handler - an alarm's, off
+ * the screen, is what it is for. The host shows it under its header over
+ * whatever has the screen, keeps it until OK or BACK dismisses it, and
+ * gives the screen back; the application is not loaded for any of that
+ * and learns nothing of it, so it keeps no "is showing" of its own.
+ * `first`, `second`, `detail` and `icon` are used; `first` must not be
+ * empty. Several wait their turn; a restart forgets them. HOST_OK,
+ * HOST_ERR_ARGUMENT, or HOST_ERR_NO_SPACE when too many wait. */
+HOST_IMPORT(notify, int32_t notify(const host_notice_t *notice));
+
 /* The parts the host's screens are put together from, for an application
  * to put its own together the same way. Nobody has to: gfx_* draws
  * anything. sdk/lib/app_ui.h adds what the buttons do to the screens that
@@ -553,6 +564,27 @@ HOST_IMPORT(ui_actions, int32_t ui_actions(const char *ok, int32_t ok_length, co
  * the data does; it is not a thing that moves. */
 HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t value,
                                    int32_t maximum));
+
+/* A value and, after it on its baseline, what it is a value of: "18 km/h",
+ * "763 ppm", "25 min". The unit's size follows the value's - the small
+ * print beside text, the text's size beside large digits. `y` is the top
+ * of the value's line; `font` is a HOST_FONT_*, with HOST_FONT_TABULAR if
+ * wanted. A unit of length 0 is none. Both return the width of the two. */
+HOST_IMPORT(ui_value, int32_t ui_value(int32_t x, int32_t y, int32_t font, const char *value,
+                                       int32_t value_length, const char *unit,
+                                       int32_t unit_length));
+HOST_IMPORT(ui_value_width, int32_t ui_value_width(int32_t font, const char *value,
+                                                   int32_t value_length, const char *unit,
+                                                   int32_t unit_length));
+
+/* Why there is nothing to show, said the way every application says it:
+ * `status` is what the last answer came to - 0 for none yet, a
+ * HOST_FAILED_*, an HTTP status - and the host draws its notice for it on
+ * the whole surface: "Loading", "Not set up", "No network", "Access
+ * denied", "No answer" with the code. Returns 1 when it drew, and 0,
+ * drawing nothing, for an answer that came (2xx): what is missing then is
+ * the application's own to say. */
+HOST_IMPORT(ui_reason, int32_t ui_reason(int32_t status));
 
 /* The frame around what UP and DOWN change, with an arrow over it and
  * under it for each way there is to go. */
@@ -865,6 +897,25 @@ HOST_IMPORT(time_local, int32_t time_local(host_local_time_t *now));
  * carry a zone of their own are whoever prepares the feed's to convert. */
 HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_time_t *parts));
 
+/* A moment in words, in the user's zone, so that no application carries
+ * the names of days and months: writes up to `capacity` bytes, with no
+ * terminator, and returns the length.
+ *   HOST_TIME_CLOCK      "15:04"
+ *   HOST_TIME_DATE       "Fri 13 Nov"
+ *   HOST_TIME_WEEKDAY    "Friday"
+ *   HOST_TIME_LONG_DATE  "13 November"
+ *   HOST_TIME_NEAR       as near as it is: "15:04" today, "Tmrw 15:04",
+ *                        "Sat 15:04" within a week, "21 Nov" beyond
+ *   HOST_TIME_NEAR_DAY   the same for a whole day: "Today", "Tmrw", "Sat", "21 Nov" */
+#define HOST_TIME_CLOCK     0
+#define HOST_TIME_DATE      1
+#define HOST_TIME_WEEKDAY   2
+#define HOST_TIME_LONG_DATE 3
+#define HOST_TIME_NEAR      4
+#define HOST_TIME_NEAR_DAY  5
+HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char *text,
+                                         int32_t capacity));
+
 /* And back: the moment at which the user's clock and calendar show this -
  * "07:30 tomorrow" for alarm_set_at(). The weekday is not looked at, and
  * a day or an hour past the end of its month or day counts on into the
@@ -947,6 +998,7 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
                                             1 Jersey */
 #define SYS_NUMBER_MENU_IDLE_MINUTES    7 /* the menu left alone so long gives the screen to the
                                             default application */
+#define SYS_NUMBER_HEADER_CLOCK         8 /* 1: the header shows the time where the date stands */
 #define SYS_REFRESH_FULL_NEVER         255
 typedef struct {
     int32_t value;

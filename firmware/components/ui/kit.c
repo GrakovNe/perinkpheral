@@ -372,3 +372,31 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
     }
     gfx_text_tabular(g, row_left, middle + gfx_font_cap_height(font) / 2, font, value, true);
 }
+
+/* ---- a value with its unit ---- */
+
+int kit_value(gfx_t *g, int left, int top, const gfx_font_t *font, bool tabular, const char *value,
+              const char *unit)
+{
+    int baseline = top + gfx_font_ascent(font);
+    int width = tabular ? gfx_text_tabular_width(font, value) : gfx_text_font_width(font, value);
+    if (g != NULL) {
+        if (tabular) {
+            gfx_text_tabular(g, left, baseline, font, value, true);
+        } else {
+            gfx_text_font(g, left, baseline, font, value, true);
+        }
+    }
+    if (!has_text(unit)) {
+        return width;
+    }
+    /* Beside large digits a unit is the size of the text; beside text it
+     * is the small print. */
+    bool              is_large = gfx_font_cap_height(font) >= 2 * gfx_font_cap_height(kit_font(KIT_TEXT));
+    const gfx_font_t *unit_font = kit_font(is_large ? KIT_TEXT : KIT_CAPTION);
+    int               gap = is_large ? 12 : 5;
+    if (g != NULL) {
+        gfx_text_font(g, left + width + gap, baseline, unit_font, unit, true);
+    }
+    return width + gap + gfx_text_font_width(unit_font, unit);
+}

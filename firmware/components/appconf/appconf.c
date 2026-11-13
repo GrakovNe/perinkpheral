@@ -220,6 +220,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     if (c->refresh_fast > 1) {
         BAD("Fast refresh must be 0 or 1.");
     }
+    if (c->header_clock > 1) {
+        BAD("Clock in header must be 0 or 1.");
+    }
     if (c->font >= APPCONF_FONT_COUNT) {
         BAD("Unknown font.");
     }

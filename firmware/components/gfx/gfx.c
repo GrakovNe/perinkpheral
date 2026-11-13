@@ -446,17 +446,72 @@ static int draw_degree(gfx_t *g, int x, int y, const gfx_font_t *font, bool blac
     return gap + size + (is_last ? 0 : gap);
 }
 
+/* The fonts are ASCII, and names come in other alphabets: what has an
+ * honest spelling in Latin letters is drawn in them - Russian, and the
+ * punctuation a careful typist uses - and only the rest as "?". Returns
+ * the letters to draw for a character, or NULL when it is drawn as it is. */
+static const char *in_latin(uint32_t cp, char capital[4])
+{
+    static const char *const CYRILLIC[] = {
+        "a", "b", "v", "g", "d", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p",
+        "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya",
+    };
+    if (cp < 0x80) {
+        return NULL;
+    }
+    if (cp >= 0x430 && cp <= 0x44F) {
+        return CYRILLIC[cp - 0x430];
+    }
+    if (cp >= 0x410 && cp <= 0x42F) {
+        /* A capital is its first letter raised. */
+        const char *small = CYRILLIC[cp - 0x410];
+        size_t      length = strlen(small);
+        memcpy(capital, small, length + 1);
+        if (length > 0) {
+            capital[0] = (char)(capital[0] - 'a' + 'A');
+        }
+        return capital;
+    }
+    switch (cp) {
+    case 0x451: return "e";
+    case 0x401: return "E";
+    case 0xA0:  return " ";
+    case 0x2013:
+    case 0x2014: return "-";
+    case 0x2018:
+    case 0x2019: return "'";
+    case 0xAB:
+    case 0xBB:
+    case 0x201C:
+    case 0x201D:
+    case 0x201E: return "\"";
+    case 0x2026: return "...";
+    default:     return NULL;
+    }
+}
+
 static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black,
                      int cell)
 {
     int x0 = x;
     int scale = font->scale;
     const char *s = utf8;
-    while (*s != '\0') {
-        uint32_t cp = next_cp(&s);
-        if (cp == DEGREE_SIGN) {
-            x += draw_degree(g, x, y, font, black, *s == '\0');
-            continue;
+    const char *spelled = NULL; /* the Latin letters of a character being spelled out */
+    char        capital[4];
+    while (*s != '\0' || (spelled != NULL && *spelled != '\0')) {
+        uint32_t cp;
+        if (spelled != NULL && *spelled != '\0') {
+            cp = (uint8_t)*spelled++;
+        } else {
+            cp = next_cp(&s);
+            if (cp == DEGREE_SIGN) {
+                x += draw_degree(g, x, y, font, black, *s == '\0');
+                continue;
+            }
+            spelled = in_latin(cp, capital);
+            if (spelled != NULL) {
+                continue; /* its letters come next, or nothing: a sign with no sound */
+            }
         }
         const gfx_glyph_t *gl = font_glyph(font, cp);
         if (gl == NULL) {

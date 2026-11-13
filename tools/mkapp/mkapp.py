@@ -301,7 +301,15 @@ def names_a_server(text, servers):
     return None
 
 
-def check_poll(path, number, poll, servers):
+def pace_seconds(text):
+    """A pace as a person writes it, in seconds; 0 when the text is not one."""
+    found = re.fullmatch(r"(\d{1,6}) *(?:([smhd])[a-z]*)?", text if isinstance(text, str) else "")
+    if not found:
+        return 0
+    return int(found.group(1)) * {None: 1, "s": 1, "m": 60, "h": 3600, "d": 86400}[found.group(2)]
+
+
+def check_poll(path, number, poll, servers, settings):
     where = "%s: poll %d" % (path, number)
     if not isinstance(poll, dict):
         sys.exit("%s must be an object" % where)
@@ -312,9 +320,19 @@ def check_poll(path, number, poll, servers):
         sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes, or begin with "
                  "{{key}} of a setting of the \"url\" or \"link\" type" % (where, URL_MAX))
     every = poll.get("every")
-    if (isinstance(every, bool) or not isinstance(every, (int, float))
+    if isinstance(every, str):
+        # "{{key}}": the pace is the user's choice in that setting.
+        named = [setting for setting in settings if every == "{{%s}}" % setting.get("key")]
+        if not named:
+            sys.exit("%s: \"every\" as text must be {{key}} of a setting" % where)
+        for value in named[0].get("options", []) + [named[0].get("default", "1 min")]:
+            if not POLL_EVERY_MIN_S <= pace_seconds(value) <= POLL_EVERY_MAX_S:
+                sys.exit("%s: \"%s\" of the setting \"%s\" is not a pace of %d seconds to a "
+                         "day: write \"15 min\", \"1 h\", \"30 s\""
+                         % (where, value, named[0]["key"], POLL_EVERY_MIN_S))
+    elif (isinstance(every, bool) or not isinstance(every, (int, float))
             or not POLL_EVERY_MIN_S <= every <= POLL_EVERY_MAX_S):
-        sys.exit("%s: \"every\" must be %d to %d seconds"
+        sys.exit("%s: \"every\" must be %d to %d seconds, or {{key}} of a setting"
                  % (where, POLL_EVERY_MIN_S, POLL_EVERY_MAX_S))
     headers = poll.get("headers", {})
     if not isinstance(headers, dict) or len(headers) > HEADERS_MAX:
@@ -445,7 +463,7 @@ def check_manifest(app_dir):
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:
         sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))
     for number, poll in enumerate(polls):
-        check_poll(path, number, poll, servers)
+        check_poll(path, number, poll, servers, manifest.get("settings", []))
         # A link is the whole address: nothing stands after it.
         if isinstance(poll, dict) and names_a_server(poll.get("url", ""), links) not in (None, ""):
             sys.exit("%s: poll %d: a setting of the \"link\" type is the whole \"url\""

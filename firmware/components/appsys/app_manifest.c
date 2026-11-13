@@ -125,6 +125,35 @@ static bool is_a_companion(const cJSON *companion)
     return true;
 }
 
+uint32_t app_manifest_pace_seconds(const char *text)
+{
+    uint32_t number = 0;
+    int      digits = 0;
+    while (*text >= '0' && *text <= '9' && digits < 6) {
+        number = number * 10 + (uint32_t)(*text++ - '0');
+        digits++;
+    }
+    if (digits == 0) {
+        return 0;
+    }
+    while (*text == ' ') {
+        text++;
+    }
+    switch (*text) {
+    case '\0':
+    case 's':
+        return number;
+    case 'm':
+        return number * 60;
+    case 'h':
+        return number * 3600;
+    case 'd':
+        return number * 86400;
+    default:
+        return 0;
+    }
+}
+
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting
  * of the "url" type - the server the user named - or of the "link" type,
  * which is the whole address and has nothing after it. */
@@ -157,11 +186,44 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
         return false;
     }
     const cJSON *every = cJSON_GetObjectItemCaseSensitive(poll, "every");
-    if (!cJSON_IsNumber(every) || every->valuedouble < APP_POLL_EVERY_MIN_S ||
-        every->valuedouble > APP_POLL_EVERY_MAX_S) {
+    parsed->every_key[0] = '\0';
+    if (cJSON_IsString(every)) {
+        /* "{{key}}": the pace is the user's choice in that setting, and
+         * its default - or a quarter of an hour - until one is made. */
+        const char  *text = every->valuestring;
+        size_t       length = strlen(text);
+        const cJSON *setting;
+        bool         is_found = false;
+        if (length < 5 || length - 4 > APP_SETTING_KEY_MAX || !starts_with(text, "{{") ||
+            strcmp(text + length - 2, "}}") != 0) {
+            return false;
+        }
+        memcpy(parsed->every_key, text + 2, length - 4);
+        parsed->every_key[length - 4] = '\0';
+        parsed->every_s = APP_POLL_EVERY_UNSET_S;
+        cJSON_ArrayForEach(setting, settings)
+        {
+            const cJSON *key = cJSON_GetObjectItemCaseSensitive(setting, "key");
+            if (!cJSON_IsString(key) || strcmp(key->valuestring, parsed->every_key) != 0) {
+                continue;
+            }
+            is_found = true;
+            const cJSON *preset = cJSON_GetObjectItemCaseSensitive(setting, "default");
+            uint32_t     pace = cJSON_IsString(preset) ? app_manifest_pace_seconds(preset->valuestring)
+                                                       : 0;
+            if (pace >= APP_POLL_EVERY_MIN_S && pace <= APP_POLL_EVERY_MAX_S) {
+                parsed->every_s = pace;
+            }
+        }
+        if (!is_found) {
+            return false;
+        }
+    } else if (!cJSON_IsNumber(every) || every->valuedouble < APP_POLL_EVERY_MIN_S ||
+               every->valuedouble > APP_POLL_EVERY_MAX_S) {
         return false;
+    } else {
+        parsed->every_s = (uint32_t)every->valuedouble;
     }
-    parsed->every_s = (uint32_t)every->valuedouble;
     return read_headers(cJSON_GetObjectItemCaseSensitive(poll, "headers"), parsed) &&
            read_pick(cJSON_GetObjectItemCaseSensitive(poll, "pick"), parsed);
 }
@@ -748,6 +810,7 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
             result = APP_MANIFEST_BAD_POLL;
             break;
         }
+        strcpy(manifest->poll_every_key[manifest->poll_count], parsed->every_key);
         manifest->poll_every_s[manifest->poll_count++] = parsed->every_s;
     }
     free(parsed);

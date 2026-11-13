@@ -81,6 +81,7 @@ typedef struct {
      * the menu is left alone, and by BACK in the menu. Empty: none. */
     char    default_app[APPCONF_APP_NAME_MAX + 1];
     uint8_t menu_idle_min;
+    uint8_t header_clock; /* 1: the header shows the time where the date stands */
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

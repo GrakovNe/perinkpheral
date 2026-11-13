@@ -12,15 +12,26 @@
 
 #include "deadlines.h"
 #include "events.h"
+#include "settings.h"
 #include "net_time.h"
 #include "poller.h"
 #include "wifi.h"
 
 #define MS_PER_SECOND        1000
 #define DATE_FORMAT          "%a %d %b"
+#define CLOCK_FORMAT         "%H:%M"
+#define SECONDS_PER_MINUTE   60
 
 static SemaphoreHandle_t s_lock;
 static status_t          s_last_told; /* what the host was last told about */
+
+/* The user may have the time where the date stands. */
+static bool shows_clock(void)
+{
+    appconf_t settings;
+    settings_read(&settings);
+    return settings.header_clock != 0;
+}
 
 void status_read(status_t *status)
 {
@@ -38,7 +49,8 @@ void status_read(status_t *status)
         time_t now = (time_t)net_time_now();
         struct tm local;
         localtime_r(&now, &local);
-        strftime(status->date, sizeof status->date, DATE_FORMAT, &local);
+        strftime(status->date, sizeof status->date, shows_clock() ? CLOCK_FORMAT : DATE_FORMAT,
+                 &local);
     }
 }
 
@@ -48,6 +60,13 @@ static void expect_next_day(void)
 {
     time_t    now = time(NULL);
     struct tm local;
+    if (shows_clock()) {
+        /* The header is another at the turn of every minute. */
+        deadlines_set_at(DEADLINE_DATE, 0, 0,
+                         (int64_t)(now - now % SECONDS_PER_MINUTE + SECONDS_PER_MINUTE) *
+                             MS_PER_SECOND);
+        return;
+    }
     localtime_r(&now, &local);
     local.tm_mday += 1;
     local.tm_hour = local.tm_min = local.tm_sec = 0;

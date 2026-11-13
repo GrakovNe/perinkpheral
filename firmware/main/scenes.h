@@ -64,6 +64,13 @@ typedef void (*scenes_answer_fn)(bool is_confirmed);
 scene_t *scene_confirm(const char *first, const char *second, int icon, const char *action,
                        scenes_answer_fn answer);
 
+/* What an application has to tell wherever the user has gone, under the
+ * header: up to two large lines, a line of ordinary text, an icon. OK and
+ * BACK both say "seen", once. The texts must outlive the scene's time on
+ * the screen; an empty one is NULL. */
+scene_t *scene_notify(const char *first, const char *second, const char *detail, int icon,
+                      scenes_action_fn seen);
+
 /* The device is busy with something that takes a while - an update being
  * written: two lines and three strokes under them. The buttons do
  * nothing. */

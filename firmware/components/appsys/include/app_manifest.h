@@ -38,6 +38,7 @@ extern "C" {
 #define APP_POLL_EVERY_MIN_S     MANIFEST_POLL_EVERY_MIN_S
 #define APP_POLL_EVERY_MAX_S     MANIFEST_POLL_EVERY_MAX_S
 #define APP_URL_MAX              MANIFEST_URL_MAX
+#define APP_POLL_EVERY_UNSET_S    (15 * 60) /* a pace left to a setting that has no default */
 #define APP_HEADERS_MAX          MANIFEST_HEADERS_MAX
 #define APP_HEADER_NAME_MAX      MANIFEST_HEADER_NAME_MAX
 #define APP_HEADER_VALUE_MAX     MANIFEST_HEADER_VALUE_MAX
@@ -66,6 +67,9 @@ typedef struct {
     uint32_t id;
     int      poll_count;
     uint32_t poll_every_s[APP_POLLS_MAX];
+    /* The setting a poll's pace is the user's choice in ("every": "{{key}}"),
+     * or empty; poll_every_s is then what holds while nothing is chosen. */
+    char     poll_every_key[APP_POLLS_MAX][MANIFEST_SETTING_KEY_MAX + 1];
     /* The icon, when the manifest has one: a row a word, the leftmost cell
      * the highest of its APP_ICON_CELLS bits, a set bit ink. */
     bool     has_icon;
@@ -84,6 +88,7 @@ typedef struct {
     app_header_t headers[APP_HEADERS_MAX];
     int          header_count;
     uint32_t     every_s;
+    char         every_key[MANIFEST_SETTING_KEY_MAX + 1]; /* see poll_every_key */
     /* The paths to pick out of a JSON answer (see json_pick.h). None: the
      * application takes the answer as it comes, in pieces. */
     char         pick[JSON_PICK_PATHS_MAX][JSON_PICK_PATH_MAX + 1];
@@ -165,6 +170,10 @@ typedef enum {
  * server is. The application's requests go there, so it is the user's to
  * write and never the application's. */
 bool app_manifest_is_server_setting(const char *json, const char *key);
+
+/* A pace as a person writes it - "15 min", "1 h", "3 hours", "30 s", or
+ * seconds as a number - in seconds; 0 when the text is not one. */
+uint32_t app_manifest_pace_seconds(const char *text);
 
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret);

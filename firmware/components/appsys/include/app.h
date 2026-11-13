@@ -69,6 +69,9 @@ typedef struct {
     /* What stays on a side of the header while the application is away: an
      * icon of the host's (or -1) and a line; both empty gives it back. */
     void (*header_status)(const char *app_name, int side, int icon, const char *text);
+    /* A notification for the user, shown by the host until dismissed; an
+     * empty text is NULL. False: too many wait already. May be NULL. */
+    bool (*notify)(const char *first, const char *second, const char *detail, int icon);
     /* The application's own files, as file_size and file_read of
      * host_api.h answer; the name is checked and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);

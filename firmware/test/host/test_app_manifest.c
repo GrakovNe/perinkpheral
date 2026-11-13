@@ -261,6 +261,25 @@ static void test_a_server_of_the_users_own(void)
                 "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"C\"}],"
                 "\"polls\":[{\"url\":\"{{feed}}/more\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 
+    /* a poll's pace may be the user's choice in a setting */
+    CHECK(app_manifest_pace_seconds("15 min") == 900 && app_manifest_pace_seconds("1 h") == 3600);
+    CHECK(app_manifest_pace_seconds("3 hours") == 10800 && app_manifest_pace_seconds("30 s") == 30);
+    CHECK(app_manifest_pace_seconds("900") == 900 && app_manifest_pace_seconds("Off") == 0);
+    CHECK(app_manifest_pace_seconds("5 parsecs") == 0 && app_manifest_pace_seconds("") == 0);
+    {
+        static const char PACED[] =
+            "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+            "\"settings\":[{\"key\":\"every\",\"type\":\"choice\",\"title\":\"Refresh\","
+            "\"options\":[\"5 min\",\"1 h\"],\"default\":\"1 h\"}],"
+            "\"polls\":[{\"url\":\"https://example.org/x\",\"every\":\"{{every}}\"}]}";
+        app_manifest_t paced;
+        CHECK(app_manifest_parse(PACED, &paced) == APP_MANIFEST_OK);
+        CHECK(paced.poll_every_s[0] == 3600 && strcmp(paced.poll_every_key[0], "every") == 0);
+        CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+                    "\"polls\":[{\"url\":\"https://example.org/x\",\"every\":\"{{nothing}}\"}]}") ==
+              APP_MANIFEST_BAD_POLL);
+    }
+
     /* a poll or a host may begin with a setting only when it is a server's */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
                 "\"settings\":[{\"key\":\"server\",\"type\":\"text\",\"title\":\"S\"}],"

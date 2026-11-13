@@ -457,6 +457,82 @@ static void open_confirm(void *argument)
     }
 }
 
+/* ---- notifications ----
+ *
+ * What applications asked to be told to the user. One is on the screen,
+ * the rest wait their turn; a restart forgets them. */
+#define NOTICES_MAX      4
+#define NOTICE_LINE_MAX  31
+#define NOTICE_DETAIL_MAX 47
+typedef struct {
+    char first[NOTICE_LINE_MAX + 1], second[NOTICE_LINE_MAX + 1], detail[NOTICE_DETAIL_MAX + 1];
+    int  icon;
+} told_t;
+static struct {
+    told_t   waiting[NOTICES_MAX]; /* the first of them is the one on the screen */
+    int      count;
+    bool     is_open;
+    bool     is_seen; /* dismissed: it leaves once the handler has returned */
+    scene_t *scene;
+} s_notices;
+
+bool host_notify(const char *first, const char *second, const char *detail, int icon)
+{
+    if (s_notices.count >= NOTICES_MAX) {
+        return false;
+    }
+    told_t *told = &s_notices.waiting[s_notices.count++];
+    strlcpy(told->first, first != NULL ? first : "", sizeof told->first);
+    strlcpy(told->second, second != NULL ? second : "", sizeof told->second);
+    strlcpy(told->detail, detail != NULL ? detail : "", sizeof told->detail);
+    told->icon = icon;
+    return true;
+}
+
+static void on_notice_seen(void)
+{
+    s_notices.is_seen = true;
+}
+
+static const char *line_or_none(const char *text)
+{
+    return text[0] != '\0' ? text : NULL;
+}
+
+/* After every event: the one that was dismissed leaves, and the next one
+ * that waits is shown. Never from inside a scene's own handler. */
+static void tend_the_notices(void)
+{
+    if (s_notices.is_seen) {
+        s_notices.is_seen = false;
+        if (s_notices.is_open) {
+            s_notices.is_open = false;
+            give_way_to_the_screen();
+            wm_close(&wm, s_notices.scene);
+            memmove(&s_notices.waiting[0], &s_notices.waiting[1],
+                    (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
+            s_notices.count--;
+        }
+    }
+    /* The user's own way out - the long press that empties the stack -
+     * took it off the screen: seen. */
+    if (s_notices.is_open && !wm_has(&wm, s_notices.scene)) {
+        s_notices.is_open = false;
+        memmove(&s_notices.waiting[0], &s_notices.waiting[1],
+                (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
+        s_notices.count--;
+    }
+    if (!s_notices.is_open && s_notices.count > 0 && !s_is_delivering) {
+        const told_t *told = &s_notices.waiting[0];
+        give_way_to_the_screen();
+        s_notices.scene = scene_notify(line_or_none(told->first), line_or_none(told->second),
+                                       line_or_none(told->detail), told->icon, on_notice_seen);
+        s_notices.is_open = true;
+        wm_open(&wm, s_notices.scene);
+        wm_invalidate(&wm, WM_CHANGED_URGENTLY);
+    }
+}
+
 /* Nobody came. */
 static void close_unanswered_confirm(void)
 {
@@ -838,6 +914,7 @@ void host_run(void)
         if (s_confirm.is_to_put_away) {
             put_question_away();
         }
+        tend_the_notices();
         if (s_reload_is_due) {
             /* Asked for from inside a handler, which has returned by now. */
             s_reload_is_due = false;

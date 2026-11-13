@@ -90,6 +90,7 @@ static const display_setting_t DISPLAY_SETTINGS[] = {
     { "Forced refresh", SYS_NUMBER_REFRESH_FORCE_HOURS, FORCE_HOURS_CHOICES,
       COUNT_OF(FORCE_HOURS_CHOICES) },
     { "Fast refresh", SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
+    { "Clock in header", SYS_NUMBER_HEADER_CLOCK, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
 };
 
 #define ROOT_ROWS 5
@@ -257,6 +258,7 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
         }
         break;
     case SYS_NUMBER_REFRESH_FAST:
+    case SYS_NUMBER_HEADER_CLOCK:
         app_text_add(&out, value != 0 ? "On" : "Off");
         break;
     case SYS_NUMBER_FONT:

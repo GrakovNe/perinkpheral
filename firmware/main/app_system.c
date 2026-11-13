@@ -124,6 +124,11 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
         *least = 0;
         *most = 1;
         return HOST_OK;
+    case SYS_NUMBER_HEADER_CLOCK:
+        *value = settings.header_clock;
+        *least = 0;
+        *most = 1;
+        return HOST_OK;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
         *value = settings.refresh_full_every;
         *least = APPCONF_REFRESH_FULL_EVERY_LEAST;
@@ -183,6 +188,9 @@ int32_t app_system_number_set(int what, int32_t value)
         break;
     case SYS_NUMBER_REFRESH_FAST:
         wanted.refresh_fast = (uint8_t)value;
+        break;
+    case SYS_NUMBER_HEADER_CLOCK:
+        wanted.header_clock = (uint8_t)value;
         break;
     case SYS_NUMBER_REFRESH_FULL_EVERY:
         wanted.refresh_full_every = (uint8_t)value;

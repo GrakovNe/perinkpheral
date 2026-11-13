@@ -292,6 +292,7 @@ const app_services_t *app_host_services(void)
         .alarm_set = alarm_set,
         .alarm_set_every = alarm_set_every,
         .header_status = header_status,
+        .notify = host_notify,
         .file_size = file_size,
         .file_read = file_read,
         .file_write = file_write,

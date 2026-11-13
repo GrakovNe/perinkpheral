@@ -243,6 +243,7 @@
     <label for="refresh_keepalive_h">Keep-alive refresh, h</label>
     <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
     <label class="check"><input id="refresh_fast" type="checkbox">Fast refresh</label>
+    <label class="check"><input id="header_clock" type="checkbox">Clock in header</label>
     <label class="check"><input id="dither" type="checkbox">Dithering</label>
     <label for="power_saving">Power saving</label>
     <select id="power_saving">
@@ -1124,6 +1125,7 @@ async function loadSettings() {
   byId("dither").checked = settings.dither;
   byId("font").value = settings.font;
   byId("refresh_fast").checked = settings.refresh_fast;
+  byId("header_clock").checked = settings.header_clock;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").value = settings.power_saving;
   byId("menu_idle_min").value = settings.menu_idle_min;
@@ -1167,6 +1169,7 @@ saveSettings("display", () => ({
   dither: byId("dither").checked,
   font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
+  header_clock: byId("header_clock").checked,
   power_saving: Number(byId("power_saving").value),
 }));
 

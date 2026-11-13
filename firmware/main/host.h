@@ -38,6 +38,11 @@ void host_redraw(void);
  * empty: the side is free again. In the host loop. */
 void host_set_header_status(uint32_t app_id, int side, int icon, const char *text);
 
+/* An application's notification: shown over whatever has the screen once
+ * the handler that asked has returned, and kept until somebody dismisses
+ * it; several wait their turn. From the host loop. False: too many wait. */
+bool host_notify(const char *first, const char *second, const char *detail, int icon);
+
 /* What somebody on the network asked for cannot be taken back: the device
  * shows the question - two lines of it, an icon beside them (a
  * gfx_icon_id_t), and what OK does - and this waits for whoever stands at

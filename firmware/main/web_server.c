@@ -492,6 +492,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "dither", settings.dither != 0);
     cJSON_AddNumberToObject(json, "font", settings.font);
     cJSON_AddBoolToObject(json, "refresh_fast", settings.refresh_fast != 0);
+    cJSON_AddBoolToObject(json, "header_clock", settings.header_clock != 0);
     cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
     cJSON_AddNumberToObject(json, "power_saving", settings.power_saving);
     cJSON_AddStringToObject(json, "default_app", settings.default_app);
@@ -545,6 +546,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
         take_number(json, "font", UINT8_MAX, &font) &&
         take_flag(json, "dither", &wanted->dither) &&
         take_flag(json, "refresh_fast", &wanted->refresh_fast) &&
+        take_flag(json, "header_clock", &wanted->header_clock) &&
         take_flag(json, "time_auto", &wanted->time_auto) &&
         take_number(json, "power_saving", UINT8_MAX, &power_saving) &&
         take_string(json, "default_app", wanted->default_app, sizeof wanted->default_app) &&

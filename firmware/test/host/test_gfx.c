@@ -274,7 +274,7 @@ static void test_text_font(void)
 
     /* unknown code points draw the '?' block, and the pen advances */
     fresh();
-    gfx_text_font(&g, 0, 5, &tiny, "\xD0\x96I", true);
+    gfx_text_font(&g, 0, 5, &tiny, "\xE4\xB8\xADI", true);
     CHECK(gfx_get(&g, 0, 3) && gfx_get(&g, 1, 4) && gfx_get(&g, 4, 2));
     CHECK(count_black() == 7);
 }
@@ -312,6 +312,21 @@ static void test_picture(void)
     CHECK(count_black() == 3 * 2 * 2);
     CHECK(gfx_get(&g, 10, 4) && gfx_get(&g, 11, 5) && !gfx_get(&g, 12, 4) && gfx_get(&g, 14, 4));
     CHECK(gfx_get(&g, 12, 6) && gfx_get(&g, 13, 7) && !gfx_get(&g, 10, 6));
+}
+
+/* Russian is drawn in Latin letters, and so is a careful typist's punctuation. */
+static void test_in_latin(void)
+{
+    const gfx_font_t *font = gfx_font_system();
+    CHECK(gfx_text_font_width(font, "\xD0\x96\xD1\x83\xD0\xBA") == gfx_text_font_width(font, "Zhuk"));
+    CHECK(gfx_text_font_width(font, "\xD0\xBE\xD0\xB1\xD1\x8A\xD0\xB5\xD0\xBA\xD1\x82") ==
+          gfx_text_font_width(font, "obekt")); /* the hard sign has no sound */
+    CHECK(gfx_text_font_width(font, "a \xE2\x80\x94 b\xE2\x80\xA6") == gfx_text_font_width(font, "a - b..."));
+    CHECK(gfx_text_font_width(font, "\xE4\xB8\xAD") == gfx_text_font_width(font, "?"));
+    char fitted[32];
+    gfx_text_fit(font, "\xD0\x9C\xD0\xBE\xD1\x81\xD0\xBA\xD0\xB2\xD0\xB0", gfx_text_font_width(font, "Mo..."),
+                 fitted, sizeof fitted);
+    CHECK_STR(fitted, "\xD0\x9C\xD0\xBE...");
 }
 
 static void test_text_fit(void)
@@ -371,6 +386,7 @@ int main(void)
     test_digits_in_columns();
     test_picture();
     test_degree_sign();
+    test_in_latin();
     test_text_fit();
     test_clear_and_pixel();
     test_fill_frame();

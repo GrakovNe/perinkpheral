@@ -5,6 +5,7 @@
 #include "app.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
@@ -697,6 +698,97 @@ HOST_FUNCTION(host_ui_bar)
     m3ApiReturn(HOST_OK);
 }
 
+/* ui_value() and ui_value_width(): the same arguments, drawn or measured. */
+static int32_t value_with_unit(IM3Runtime runtime, void *memory, gfx_t *surface, int32_t x,
+                               int32_t y, int32_t font_id, uint32_t value_offset,
+                               int32_t value_length, uint32_t unit_offset, int32_t unit_length)
+{
+    const gfx_font_t *font = font_by_id(font_id);
+    char value[HOST_TEXT_MAX + 1], unit[HOST_TEXT_MAX + 1];
+    if (font == NULL || !is_drawable(x) || !is_drawable(y) ||
+        !copy_text(runtime, memory, value_offset, value_length, value) ||
+        !copy_text(runtime, memory, unit_offset, unit_length, unit)) {
+        return HOST_ERR_ARGUMENT;
+    }
+    return kit_value(surface, x, y, font, is_tabular(font_id), value, unit);
+}
+
+HOST_FUNCTION(host_ui_value)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, font_id);
+    m3ApiGetArg(uint32_t, value);
+    m3ApiGetArg(int32_t, value_length);
+    m3ApiGetArg(uint32_t, unit);
+    m3ApiGetArg(int32_t, unit_length);
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    m3ApiReturn(value_with_unit(runtime, _mem, app->surface, x, y, font_id, value, value_length,
+                                unit, unit_length));
+}
+
+HOST_FUNCTION(host_ui_value_width)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, font_id);
+    m3ApiGetArg(uint32_t, value);
+    m3ApiGetArg(int32_t, value_length);
+    m3ApiGetArg(uint32_t, unit);
+    m3ApiGetArg(int32_t, unit_length);
+    m3ApiReturn(value_with_unit(runtime, _mem, NULL, 0, 0, font_id, value, value_length, unit,
+                                unit_length));
+}
+
+/* Why an application has nothing to show, said the same way by all of
+ * them: what the last answer from the network came to. */
+HOST_FUNCTION(host_ui_reason)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, status);
+    static const struct {
+        int32_t     status;
+        int         icon;
+        const char *first, *detail;
+    } REASONS[] = {
+        { 0, GFX_ICON_HOURGLASS, "Loading", NULL },
+        { HOST_FAILED_NOT_READY, GFX_ICON_GEAR, "Not set up", "Open the page" },
+        { HOST_FAILED_NO_NETWORK, GFX_ICON_NO_SIGNAL, "No network", NULL },
+        { HOST_FAILED_NO_ANSWER, GFX_ICON_WARNING, "No answer", NULL },
+        { HOST_FAILED_TIMEOUT, GFX_ICON_WARNING, "No answer", NULL },
+        { HOST_FAILED_NOT_ALLOWED, GFX_ICON_WARNING, "Not allowed", NULL },
+        { HOST_FAILED_NOT_TRUSTED, GFX_ICON_WARNING, "Not trusted", "Check the certificate" },
+        { HOST_FAILED_TOO_LARGE, GFX_ICON_WARNING, "Too large", NULL },
+        { HOST_FAILED_NO_MEMORY, GFX_ICON_WARNING, "No memory", NULL },
+        { 401, GFX_ICON_WARNING, "Access denied", "Check the settings" },
+        { 403, GFX_ICON_WARNING, "Access denied", "Check the settings" },
+        { 404, GFX_ICON_WARNING, "Not found", "Check the address" },
+    };
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    if (status >= 200 && status < 300) {
+        m3ApiReturn(0); /* an answer came: what is wrong, if anything, is the application's to say */
+    }
+    char     code[24];
+    notice_t notice = { .first = "No answer", .detail = code, .icon = GFX_ICON_WARNING };
+    snprintf(code, sizeof code, "Code %d", (int)status);
+    for (size_t i = 0; i < sizeof REASONS / sizeof REASONS[0]; i++) {
+        if (REASONS[i].status == status) {
+            notice.first = REASONS[i].first;
+            notice.detail = REASONS[i].detail;
+            notice.icon = REASONS[i].icon;
+            break;
+        }
+    }
+    notice_draw(app->surface, &notice);
+    m3ApiReturn(1);
+}
+
 HOST_FUNCTION(host_ui_frame)
 {
     m3ApiReturnType(int32_t);
@@ -1017,6 +1109,32 @@ HOST_FUNCTION(host_header_status)
     }
     if (app->services->header_status != NULL) {
         app->services->header_status(app->name, side, icon, text);
+    }
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(host_notify)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, notice_offset);
+
+    app_t *app = APP_OF(runtime);
+    const uint8_t *given = in_app_memory(runtime, _mem, notice_offset, sizeof(host_notice_t));
+    if (given == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    host_notice_t asked;
+    memcpy(&asked, given, sizeof asked);
+    bool is_an_icon = asked.icon == HOST_ICON_NONE || (asked.icon >= 0 && asked.icon < GFX_ICON_COUNT);
+    const char *first = notice_text(asked.first, sizeof asked.first);
+    if (!is_an_icon || first == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (app->services->notify == NULL ||
+        !app->services->notify(first, notice_text(asked.second, sizeof asked.second),
+                               notice_text(asked.detail, sizeof asked.detail),
+                               asked.icon == HOST_ICON_NONE ? NOTICE_NO_ICON : asked.icon)) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
     }
     m3ApiReturn(HOST_OK);
 }
@@ -1464,6 +1582,75 @@ HOST_FUNCTION(host_time_local_at)
     m3ApiReturn(local_time_at(runtime, _mem, parts_offset, unix_time));
 }
 
+/* A moment in words. Whole days are counted on the user's calendar. */
+HOST_FUNCTION(host_time_text)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int64_t, unix_time);
+    m3ApiGetArg(int32_t, style);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+    static const char *const WEEKDAYS[] = { "Sunday", "Monday", "Tuesday", "Wednesday",
+                                            "Thursday", "Friday", "Saturday" };
+    static const char *const MONTHS[] = { "January", "February", "March", "April",
+                                          "May", "June", "July", "August",
+                                          "September", "October", "November", "December" };
+    app_t *app = APP_OF(runtime);
+    char  *text = (char *)in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    if (text == NULL || capacity < 1 || style < HOST_TIME_CLOCK || style > HOST_TIME_NEAR_DAY) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    host_local_time_t at, today;
+    take_apart(app, unix_time, &at);
+    int64_t now = app->services->unix_time();
+    take_apart(app, now, &today);
+    int64_t days = days_from_civil(at.year, at.month, at.day) -
+                   days_from_civil(today.year, today.month, today.day);
+    char line[32];
+    char clock[8];
+    snprintf(clock, sizeof clock, "%02d:%02d", (int)at.hour, (int)at.minute);
+    switch (style) {
+    case HOST_TIME_CLOCK:
+        snprintf(line, sizeof line, "%s", clock);
+        break;
+    case HOST_TIME_DATE:
+        snprintf(line, sizeof line, "%.3s %d %.3s", WEEKDAYS[at.weekday], (int)at.day,
+                 MONTHS[at.month - 1]);
+        break;
+    case HOST_TIME_WEEKDAY:
+        snprintf(line, sizeof line, "%s", WEEKDAYS[at.weekday]);
+        break;
+    case HOST_TIME_LONG_DATE:
+        snprintf(line, sizeof line, "%d %s", (int)at.day, MONTHS[at.month - 1]);
+        break;
+    default: {
+        /* How near: today a time, this week a day, beyond it a date. */
+        bool with_clock = style == HOST_TIME_NEAR;
+        if (now == 0 || days < 0 || days >= 7) {
+            snprintf(line, sizeof line, "%d %.3s", (int)at.day, MONTHS[at.month - 1]);
+        } else if (days == 0) {
+            snprintf(line, sizeof line, "%s", with_clock ? clock : "Today");
+        } else {
+            char day[8];
+            snprintf(day, sizeof day, "%.*s", days == 1 ? 4 : 3,
+                     days == 1 ? "Tmrw" : WEEKDAYS[at.weekday]);
+            if (with_clock) {
+                snprintf(line, sizeof line, "%s %s", day, clock);
+            } else {
+                snprintf(line, sizeof line, "%s", day);
+            }
+        }
+        break;
+    }
+    }
+    size_t length = strlen(line);
+    if (length > (size_t)capacity) {
+        length = (size_t)capacity;
+    }
+    memcpy(text, line, length);
+    m3ApiReturn((int32_t)length);
+}
+
 HOST_FUNCTION(host_time_from_local)
 {
     m3ApiReturnType(int64_t);
@@ -1748,6 +1935,9 @@ static const struct {
     { "ui_button", "i(ii*i*ii)", host_ui_button },
     { "ui_actions", "i(*i*i)", host_ui_actions },
     { "ui_bar", "i(iiiii)", host_ui_bar },
+    { "ui_value", "i(iii*i*i)", host_ui_value },
+    { "ui_value_width", "i(i*i*i)", host_ui_value_width },
+    { "ui_reason", "i(i)", host_ui_reason },
     { "ui_frame", "i(iiiii)", host_ui_frame },
     { "ui_picker", "i(*)", host_ui_picker },
     { "ui_cell_fit", "i(**)", host_ui_cell_fit },
@@ -1757,6 +1947,7 @@ static const struct {
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
+    { "notify", "i(*)", host_notify },
     { "request_exit", "v()", host_request_exit },
     { "header_text", "i(i*i)", host_header_text },
     { "timer_set", "i(ii)", host_timer_set },
@@ -1777,6 +1968,7 @@ static const struct {
     { "time_local", "i(i)", host_time_local },
     { "time_local_at", "i(Ii)", host_time_local_at },
     { "time_from_local", "I(i)", host_time_from_local },
+    { "time_text", "i(Ii*i)", host_time_text },
     { "time_uptime_ms", "I()", host_time_uptime_ms },
     { "time_boot_id", "i()", host_time_boot_id },
     { "log", "v(i*i)", host_log },

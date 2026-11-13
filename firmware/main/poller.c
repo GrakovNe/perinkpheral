@@ -53,6 +53,7 @@ static poll_schedule_t   s_schedule;
  * so that nothing here looks at a list another task is rewriting. An
  * application is its id everywhere below. */
 static app_manifest_t    s_known[LAUNCHER_INSTALLED_MAX];
+static uint32_t pace_the_user_chose(const app_manifest_t *known, int poll);
 static int               s_known_count;
 /* The schedule is changed from other tasks too: an application asks for a
  * poll, the web page saves settings. */
@@ -653,7 +654,10 @@ static int schedule_installed(void)
             }
             /* The pace the application asked for before the restart, if it
              * asked for one: the first fetch is at once all the same. */
-            uint32_t kept_s = app_kv_poll_pace(s_known[i].name, poll);
+            uint32_t kept_s = pace_the_user_chose(&s_known[i], poll);
+            if (kept_s == 0) {
+                kept_s = app_kv_poll_pace(s_known[i].name, poll);
+            }
             if (kept_s != 0) {
                 bool is_another;
                 poll_schedule_set_interval(&s_schedule, apps[i], poll, kept_s, &is_another);
@@ -714,15 +718,52 @@ void poller_start(void)
     ESP_LOGI(TAG, "%d polls of the installed applications are scheduled", polls);
 }
 
+/* The pace of a poll that the manifest leaves to a setting: what the user
+ * chose there, or 0 when the poll has no such setting or nothing is chosen. */
+static uint32_t pace_the_user_chose(const app_manifest_t *known, int poll)
+{
+    if (known->poll_every_key[poll][0] == '\0') {
+        return 0;
+    }
+    char    chosen[APP_SETTING_VALUE_MAX + 1];
+    int32_t length = app_kv_get(known->name, known->poll_every_key[poll], chosen,
+                                (int32_t)sizeof chosen - 1);
+    if (length <= 0) {
+        return 0;
+    }
+    chosen[length] = '\0';
+    return app_manifest_pace_seconds(chosen);
+}
+
+/* The settings of an application were changed: its polls are fetched at
+ * once, and those whose pace is a setting take the pace it has now. */
 void poller_hurry(const char *app_name)
 {
     int app = app_number(app_name);
-    if (app != NO_APP) {
-        lock();
-        poll_schedule_want_of(&s_schedule, app);
-        unlock();
-        wake();
+    if (app == NO_APP) {
+        return;
     }
+    for (int i = 0; i < s_known_count; i++) {
+        if ((int)s_known[i].id != app) {
+            continue;
+        }
+        for (int poll = 0; poll < s_known[i].poll_count; poll++) {
+            if (s_known[i].poll_every_key[poll][0] == '\0') {
+                continue;
+            }
+            uint32_t pace_s = pace_the_user_chose(&s_known[i], poll);
+            bool     is_another;
+            lock();
+            poll_schedule_set_interval(&s_schedule, app, poll,
+                                       pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll],
+                                       &is_another);
+            unlock();
+        }
+    }
+    lock();
+    poll_schedule_want_of(&s_schedule, app);
+    unlock();
+    wake();
 }
 
 bool poller_poll_now(const char *app_name, int poll)
