@@ -42,6 +42,16 @@ uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)
  * parsed manifest does not keep: a poll in full, the settings. */
 char *app_store_read_manifest(const char *root, const char *name);
 
+/* What of the manifest a person reads, in another language, as tools/mkapp
+ * wrote it beside the manifest ("manifest.ru"): a title, and for a setting
+ * its title, its help and the labels of its options -
+ *
+ *     { "title": "...", "settings": { "every": { "title": "...", "help": "...",
+ *                                                "options": { "15 min": "..." } } } }
+ *
+ * - or NULL when the application has none for the language. To be freed. */
+char *app_store_read_translation(const char *root, const char *name, const char *language);
+
 /* The files of an application: the two it is made of, and whatever data
  * it brings along or keeps - pictures, a cache. */
 #define APP_FILE_MANIFEST "manifest.json"

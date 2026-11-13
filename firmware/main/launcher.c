@@ -10,6 +10,7 @@
 
 #include "mbedtls/sha256.h"
 
+#include "cJSON.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -19,6 +20,7 @@
 #include "app_kv.h"
 #include "app_scene.h"
 #include "app_store.h"
+#include "settings.h"
 #include "storage.h"
 
 static const char *TAG = "launcher";
@@ -117,6 +119,26 @@ static uint32_t id_of(const char *app_name, const uint8_t *code, size_t code_siz
     return id != 0 ? id : 1;
 }
 
+/* The title the application has for the device's language, when it has
+ * one that fits: what the menu, the page and Settings then call it. */
+static void take_translated_title(app_manifest_t *manifest)
+{
+    appconf_t settings;
+    settings_read(&settings);
+    if (strcmp(settings.language, "en") == 0) {
+        return;
+    }
+    char  *text = app_store_read_translation(STORAGE_APPS_ROOT, manifest->name, settings.language);
+    cJSON *translation = text != NULL ? cJSON_Parse(text) : NULL;
+    free(text);
+    const cJSON *title = cJSON_GetObjectItemCaseSensitive(translation, "title");
+    if (cJSON_IsString(title) && title->valuestring[0] != '\0' &&
+        strlen(title->valuestring) < sizeof manifest->title) {
+        strcpy(manifest->title, title->valuestring);
+    }
+    cJSON_Delete(translation);
+}
+
 /* Reads the store and makes a scene of every installed application. */
 static void read_installed(void)
 {
@@ -124,6 +146,9 @@ static void read_installed(void)
     app_code_adopt(STORAGE_APPS_ROOT);
     s_installed_count = app_store_list(STORAGE_APPS_ROOT, s_installed, INSTALLED_APPS_MAX);
     ESP_LOGI(TAG, "%d applications installed", s_installed_count);
+    for (int i = 0; i < s_installed_count; i++) {
+        take_translated_title(&s_installed[i]);
+    }
     for (int i = 0; i < s_installed_count; i++) {
         /* Run from its slot, in place; one that has none is read from its
          * file into memory, as all of them used to be. */

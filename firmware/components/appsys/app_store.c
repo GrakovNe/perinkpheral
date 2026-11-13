@@ -109,6 +109,19 @@ char *app_store_read_manifest(const char *root, const char *name)
     return (char *)read_file(path, MANIFEST_MAX_BYTES, &size);
 }
 
+char *app_store_read_translation(const char *root, const char *name, const char *language)
+{
+    char   file[APP_FILE_NAME_MAX + 1];
+    char   path[PATH_MAX_BYTES];
+    size_t size;
+    if (!app_manifest_is_valid_name(name) ||
+        snprintf(file, sizeof file, "manifest.%s", language) >= (int)sizeof file ||
+        !app_store_is_file_name(file) || !path_of(path, root, name, file)) {
+        return NULL;
+    }
+    return (char *)read_file(path, MANIFEST_MAX_BYTES, &size);
+}
+
 bool app_store_is_file_name(const char *file)
 {
     size_t length = strlen(file);

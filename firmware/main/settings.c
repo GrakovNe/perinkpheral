@@ -317,6 +317,7 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
         return SETTINGS_NOT_STORED;
     }
     bool power_changed = wanted->power_saving != s_live.power_saving;
+    bool language_changed = strcmp(wanted->language, s_live.language) != 0;
     bool zone_changed = strcmp(wanted->tz, s_live.tz) != 0;
     if (needs_restart != NULL) {
         *needs_restart = strcmp(wanted->device_name, s_live.device_name) != 0 ||
@@ -338,6 +339,9 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
      * speaks it from the next time it is loaded. */
     words_use(s_live.language);
     host_redraw();
+    if (language_changed) {
+        host_reload_apps_later(); /* their titles are other words now */
+    }
     refresh_policy_cfg_t policy = settings_refresh_policy(&s_live);
     display_set_policy(&policy);
     if (power_changed) {

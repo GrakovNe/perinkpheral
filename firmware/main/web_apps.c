@@ -99,6 +99,52 @@ static void stored_value(const char *app_name, const char *key,
     value[length > 0 ? length : 0] = '\0';
 }
 
+/* What the application says of itself in the device's language, or NULL. */
+static cJSON *translation_of(const char *app_name)
+{
+    appconf_t settings;
+    settings_read(&settings);
+    if (strcmp(settings.language, "en") == 0) {
+        return NULL;
+    }
+    char  *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
+    cJSON *translation = text != NULL ? cJSON_Parse(text) : NULL;
+    free(text);
+    return translation;
+}
+
+/* A setting as the page shows it: its title and help in the device's
+ * language, and for a choice a label beside every option - the options
+ * themselves stay what is stored and what the application compares. */
+static void translate_setting(cJSON *setting, const cJSON *translated)
+{
+    static const char *const WORDS[] = { "title", "help" };
+    for (size_t i = 0; i < sizeof WORDS / sizeof WORDS[0]; i++) {
+        const cJSON *text = cJSON_GetObjectItemCaseSensitive(translated, WORDS[i]);
+        if (cJSON_IsString(text) && text->valuestring[0] != '\0') {
+            cJSON_DeleteItemFromObjectCaseSensitive(setting, WORDS[i]);
+            cJSON_AddStringToObject(setting, WORDS[i], text->valuestring);
+        }
+    }
+    const cJSON *names = cJSON_GetObjectItemCaseSensitive(translated, "options");
+    const cJSON *options = cJSON_GetObjectItemCaseSensitive(setting, "options");
+    if (!cJSON_IsObject(names) || !cJSON_IsArray(options)) {
+        return;
+    }
+    cJSON       *labels = cJSON_CreateArray();
+    const cJSON *option;
+    cJSON_ArrayForEach(option, options)
+    {
+        const cJSON *label = cJSON_IsString(option)
+                                 ? cJSON_GetObjectItemCaseSensitive(names, option->valuestring)
+                                 : NULL;
+        cJSON_AddItemToArray(labels, cJSON_CreateString(cJSON_IsString(label) ? label->valuestring
+                                                        : cJSON_IsString(option) ? option->valuestring
+                                                                                 : ""));
+    }
+    cJSON_AddItemToObject(setting, "labels", labels);
+}
+
 /* The manifest's "settings" as they are, and beside them what is set. */
 static void add_settings(cJSON *app, const char *app_name)
 {
@@ -127,7 +173,8 @@ static void add_settings(cJSON *app, const char *app_name)
         settings = cJSON_CreateArray();
     }
     cJSON *values = cJSON_CreateObject();
-    const cJSON *setting;
+    cJSON *translation = translation_of(app_name);
+    cJSON *setting;
     cJSON_ArrayForEach(setting, settings)
     {
         const cJSON *key = cJSON_GetObjectItemCaseSensitive(setting, "key");
@@ -135,6 +182,9 @@ static void add_settings(cJSON *app, const char *app_name)
         if (!cJSON_IsString(key) || !cJSON_IsString(type)) {
             continue;
         }
+        translate_setting(setting, cJSON_GetObjectItemCaseSensitive(
+                                       cJSON_GetObjectItemCaseSensitive(translation, "settings"),
+                                       key->valuestring));
         char value[APP_SETTING_VALUE_MAX + 1];
         stored_value(app_name, key->valuestring, value);
         if (strcmp(type->valuestring, "secret") == 0) {
@@ -144,6 +194,7 @@ static void add_settings(cJSON *app, const char *app_name)
             cJSON_AddStringToObject(values, key->valuestring, value);
         }
     }
+    cJSON_Delete(translation);
     cJSON_AddItemToObject(app, "settings", settings);
     cJSON_AddItemToObject(app, "values", values);
 }

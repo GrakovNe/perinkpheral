@@ -118,6 +118,52 @@ def strings_table(texts, capacity):
             + b"".join(offset.to_bytes(2, "little") for offset in offsets) + blob)
 
 
+BUILT_MANIFESTS = {}  # language code -> the manifest's words in it, as JSON text
+
+
+def translated_manifest(path, words, app_dir, glyphs):
+    """The "manifest" of a translation, held to the manifest: a title, and for settings
+    that exist their titles, help and the labels of options that exist."""
+    with open(os.path.join(app_dir, "manifest.json")) as f:
+        manifest = json.load(f)
+    settings = {setting["key"]: setting for setting in manifest.get("settings", [])}
+
+    def words_of(text, most, what):
+        strange = sorted({c for c in text if not (" " <= c <= "~") and ord(c) not in glyphs}) \
+            if isinstance(text, str) else []
+        if not is_words(text, 1, most) or strange:
+            sys.exit("%s: %s must be 1-%d characters of the language's own letters%s"
+                     % (path, what, most,
+                        ": " + " ".join("U+%04X" % ord(c) for c in strange) if strange else ""))
+        return text
+
+    if not isinstance(words, dict) or set(words) - {"title", "settings"}:
+        sys.exit("%s: \"manifest\" has a \"title\" and \"settings\", nothing else" % path)
+    out = {}
+    if "title" in words:
+        out["title"] = words_of(words["title"], TITLE_MAX, "the title")
+    for key, said in (words.get("settings") or {}).items():
+        if key not in settings:
+            sys.exit("%s: the manifest has no setting \"%s\"" % (path, key))
+        if not isinstance(said, dict) or set(said) - {"title", "help", "options"}:
+            sys.exit("%s: setting \"%s\" has a \"title\", \"help\" and \"options\"" % (path, key))
+        one = {}
+        if "title" in said:
+            one["title"] = words_of(said["title"], SETTING_TITLE_MAX, "the title of \"%s\"" % key)
+        if "help" in said:
+            one["help"] = words_of(said["help"], SETTING_HELP_MAX, "the help of \"%s\"" % key)
+        if "options" in said:
+            have = settings[key].get("options", [])
+            if not isinstance(said["options"], dict) or set(said["options"]) - set(have):
+                sys.exit("%s: setting \"%s\": labels are for the options the manifest has: %s"
+                         % (path, key, ", ".join(have) or "none"))
+            one["options"] = {option: words_of(label, SETTING_OPTION_MAX,
+                                               "the label of \"%s\"" % option)
+                              for option, label in said["options"].items()}
+        out.setdefault("settings", {})[key] = one
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+
+
 def make_strings(app_dir, scratch):
     """An application's `strings` folder as strings.h and strings.c for the build, and a
     table for every language but English. Returns the generated source, or None."""
@@ -126,6 +172,7 @@ def make_strings(app_dir, scratch):
         return None
     known = languages()
     translations = {}
+    BUILT_MANIFESTS.clear()
     for name in sorted(os.listdir(folder)):
         if name.startswith(".") or not name.endswith(".json"):
             continue
@@ -138,7 +185,17 @@ def make_strings(app_dir, scratch):
                 texts = json.load(f, object_pairs_hook=unique_keys)
         except ValueError as error:
             sys.exit("%s: %s" % (path, error))
-        if not isinstance(texts, dict) or any(not isinstance(text, str) for text in texts.values()):
+        if not isinstance(texts, dict):
+            sys.exit("%s: an object of keys and texts" % path)
+        # What of the manifest a person reads, in this language: not a string of
+        # the code, and checked against the manifest itself.
+        manifest_words = texts.pop("manifest", None)
+        if manifest_words is not None:
+            if code == "en":
+                sys.exit("%s: English is the manifest itself: no \"manifest\" here" % path)
+            BUILT_MANIFESTS[code] = translated_manifest(path, manifest_words, app_dir,
+                                                        known[code])
+        if any(not isinstance(text, str) for text in texts.values()):
             sys.exit("%s: an object of keys and texts" % path)
         for key, text in texts.items():
             strange = sorted({c for c in text if not (" " <= c <= "~") and ord(c) not in known[code]
@@ -634,6 +691,10 @@ def main():
         with open(os.path.join(options.out, "strings." + code), "wb") as f:
             f.write(table)
         files_bytes += len(table)
+    for code, words in sorted(BUILT_MANIFESTS.items()):
+        with open(os.path.join(options.out, "manifest." + code), "w") as f:
+            f.write(words)
+        files_bytes += len(words.encode())
     report(wasm_path, len(imports), files_bytes, memory_end)
 
 

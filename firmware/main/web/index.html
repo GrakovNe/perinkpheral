@@ -668,8 +668,11 @@ function settingField(app, setting) {
   let input;
   if (setting.type === "choice") {
     input = make("select");
-    for (const option of [""].concat(setting.options))
-      input.append(make("option", { value: option, textContent: option || "-" }));
+    /* An option is what is stored; its label, when the device gives one, what is read. */
+    const labels = setting.labels || setting.options;
+    input.append(make("option", { value: "", textContent: "-" }));
+    setting.options.forEach((option, at) =>
+      input.append(make("option", { value: option, textContent: labels[at] || option })));
     input.value = value;
   } else {
     input = make("input", { maxLength: 255, autocomplete: "off" });
