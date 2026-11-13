@@ -83,6 +83,8 @@ def main():
     # Where the fonts, the mark and the screens are: the page is printed from a scratch folder.
     root = "file://" + os.path.abspath(os.path.join(HERE, "..", ".."))
     source = source.replace("{{ROOT}}", root)
+    # A table's first row is its head, and is said again on every page the table runs to.
+    source = re.sub(r"<table>\s*(<tr><th.*?</tr>)", r"<table><thead>\1</thead>", source, flags=re.S)
     # A section's number on a plate of its own: "4. A first application".
     source = re.sub(r'(<h1 id="[^"]+">)(\d+)\. ', r'\1<span class="plate">\2</span>', source)
     # A marker inside every heading, for the first print to be searched for.

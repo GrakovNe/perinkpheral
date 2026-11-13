@@ -49,7 +49,16 @@
 
   p { margin: 0 0 2.2mm; orphans: 3; widows: 3; }
   ul, ol { margin: 0 0 2.4mm; padding-left: 4.4mm; }
-  li { margin-bottom: 1.2mm; }
+  li { margin-bottom: 1.2mm; break-inside: avoid; }
+  /* A page does not end on the first item of a list or begin with its last one, and a table
+   * is not left with a single row on either side of the break. */
+  li:first-child, tbody tr:first-child { break-after: avoid; }
+  li:last-child, tr:last-child { break-before: avoid; }
+  .rule, .note { break-inside: avoid; }
+  /* What introduces a list, a table or a piece of code stays with it. */
+  p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), p:has(+ .screens) { break-after: avoid; }
+  thead { display: table-header-group; }
+  h2 + p, h3 + p, h1 + p { break-before: avoid; }
   code { font-size: 8pt; background: var(--paper-light); padding: 0 .6mm; }
   pre { font-size: 7pt; line-height: 1.38; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre;
         background: var(--paper-light); break-inside: avoid; position: relative; }
@@ -61,7 +70,7 @@
   th { background: var(--ink); color: #fff; text-align: left; font-weight: 400; font-size: 8pt; letter-spacing: .02em;
        padding: 1.5mm 1.8mm; }
   td { padding: 1.4mm 1.8mm; border-bottom: .5pt solid var(--rule); vertical-align: top; }
-  tr:nth-child(odd) td { background: var(--paper-light); }
+  tbody tr:nth-child(odd) td { background: var(--paper-light); }
   tr { break-inside: avoid; }
   td.c { font-size: 7.2pt; line-height: 1.45; }
   td.n { white-space: nowrap; }
