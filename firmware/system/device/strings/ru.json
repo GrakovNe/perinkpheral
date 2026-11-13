@@ -1,5 +1,5 @@
 {
-  "name": "Имя",
+  "name": "Название",
   "wifi": "Wi-Fi",
   "connecting": "Подключение",
   "setup_mode": "Настройка",
@@ -10,7 +10,7 @@
   "free_memory": "Память",
   "unit_h": " ч ",
   "unit_min": " мин",
-  "uptime": "Работает",
+  "uptime": "Аптайм",
   "manifest": {
     "title": "Устройство"
   }
