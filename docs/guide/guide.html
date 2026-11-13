@@ -8,15 +8,18 @@
   :root { --ink: #141413; --paper: #E9E7E1; --paper-light: #F4F3F0; --rule: #C9C6BD; --grey: #6B6963; }
   @page { size: A4; margin: 22mm 21mm 24mm 21mm;
           @bottom-left  { content: "perINKpheral / application guide";
-                          font: 6.5pt "Departure Mono", monospace; color: #6B6963; letter-spacing: .04em;
+                          font: 7pt Helvetica, Arial, sans-serif; color: #6B6963;
                           border-top: .6pt solid #141413; padding-top: 2.2mm; vertical-align: top; }
           @bottom-right { content: counter(page);
-                          font: 6.5pt "Departure Mono", monospace; color: #141413;
+                          font: 7pt Helvetica, Arial, sans-serif; color: #141413;
                           border-top: .6pt solid #141413; padding-top: 2.2mm; vertical-align: top; } }
   @page :first { margin: 0; @bottom-left { content: none; border: 0; } @bottom-right { content: none; border: 0; } }
   html { font: 9pt/1.45 Helvetica, Arial, sans-serif; color: var(--ink); }
   body { margin: 0; }
-  .mono, code, pre, td.c, th, h1, h2, figcaption, a.toc1, .plate, .cover .facts { font-family: "Departure Mono", "Courier New", monospace; }
+  /* The device's own font names things: a section, the guide itself. What is read is set in a
+   * face made for reading, and code in a plain monospace. */
+  h1, h2, .plate { font-family: "Departure Mono", "Courier New", monospace; }
+  .mono, code, pre, td.c { font-family: Menlo, Consolas, "DejaVu Sans Mono", "Courier New", monospace; }
 
   /* The cover: the panel's own paper, the mark, the word. */
   .cover { box-sizing: border-box; width: 210mm; height: 297mm; background: var(--paper);
@@ -25,9 +28,9 @@
   .cover .word { width: 132mm; display: block; margin-top: 30mm; }
   .cover .what { font: 22pt/1.2 "Departure Mono", monospace; margin: 9mm 0 0; letter-spacing: -.01em; }
   .cover .pitch { font-size: 12.5pt; line-height: 1.5; max-width: 118mm; margin: 10mm 0 0; }
-  .cover .steps { font: 8.5pt/1.9 "Departure Mono", monospace; margin: 8mm 0 0; padding: 0; list-style: none; }
-  .cover .steps b { background: var(--ink); color: var(--paper); font-weight: 400; padding: .7mm 1.6mm; margin-right: 2.2mm; }
-  .cover .facts { position: absolute; left: 21mm; right: 21mm; bottom: 20mm; font-size: 7pt; line-height: 1.7;
+  .cover .steps { font-size: 10pt; line-height: 2.1; margin: 8mm 0 0; padding: 0; list-style: none; }
+  .cover .steps b { background: var(--ink); color: var(--paper); font: 400 8.5pt "Departure Mono", monospace; padding: .7mm 1.8mm; margin-right: 2.6mm; }
+  .cover .facts { position: absolute; left: 21mm; right: 21mm; bottom: 20mm; font-size: 8pt; line-height: 1.6;
                   color: var(--grey); border-top: .6pt solid var(--ink); padding-top: 3mm; }
 
   h1 { font-size: 16.5pt; font-weight: 400; line-height: 1.25; margin: 10mm 0 3mm; break-after: avoid; }
@@ -47,29 +50,29 @@
   p { margin: 0 0 2.2mm; orphans: 3; widows: 3; }
   ul, ol { margin: 0 0 2.4mm; padding-left: 4.4mm; }
   li { margin-bottom: 1.2mm; }
-  code { font-size: 7.6pt; background: var(--paper-light); padding: 0 .6mm; }
-  pre { font-size: 6.6pt; line-height: 1.42; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre;
+  code { font-size: 8pt; background: var(--paper-light); padding: 0 .6mm; }
+  pre { font-size: 7pt; line-height: 1.38; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre;
         background: var(--paper-light); break-inside: avoid; position: relative; }
   pre::before, .note::before { top: 0; right: 0; width: 5mm; height: 5mm; border-width: .8pt .8pt 0 0; }
   pre::after, .note::after   { bottom: 0; left: 0; width: 5mm; height: 5mm; border-width: 0 0 .8pt .8pt; }
   pre code, td code, th code { background: none; padding: 0; font-size: inherit; }
 
   table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 3.8mm; font-size: 8pt; line-height: 1.36; }
-  th { background: var(--ink); color: #fff; text-align: left; font-weight: 400; font-size: 7pt; letter-spacing: .02em;
+  th { background: var(--ink); color: #fff; text-align: left; font-weight: 400; font-size: 8pt; letter-spacing: .02em;
        padding: 1.5mm 1.8mm; }
   td { padding: 1.4mm 1.8mm; border-bottom: .5pt solid var(--rule); vertical-align: top; }
   tr:nth-child(odd) td { background: var(--paper-light); }
   tr { break-inside: avoid; }
-  td.c { font-size: 6.6pt; line-height: 1.5; }
+  td.c { font-size: 7.2pt; line-height: 1.45; }
   td.n { white-space: nowrap; }
   .note { padding: 2.4mm 3.4mm; margin: 2mm 0 3.2mm; position: relative; background: var(--paper-light); }
   .rule { margin: 0 0 2.6mm; }
-  .rule b { display: block; font: 400 8.2pt "Departure Mono", monospace; }
+  .rule b { display: block; }
   a.toc { display: flex; align-items: baseline; color: inherit; text-decoration: none; }
-  a.toc1 { font-size: 8.6pt; margin-top: 2.8mm; }
+  a.toc1 { font-size: 10pt; margin-top: 2.6mm; }
   a.toc2 { font-size: 8.2pt; margin: 1.1mm 0 0 5mm; }
   a.toc i { flex: 1; border-bottom: .9pt dotted var(--grey); margin: 0 1.5mm; position: relative; top: -1.1mm; }
-  a.toc b { font: 400 7.6pt "Departure Mono", monospace; }
+  a.toc b { font-weight: 400; }
   .mark { font-size: 1pt; color: #fff; letter-spacing: 0; }
   .two { columns: 2; column-gap: 8mm; }
   .two > * { break-inside: avoid; }
@@ -78,7 +81,7 @@
   .screens { display: flex; gap: 5mm; margin: 2.5mm 0 4mm; break-inside: avoid; }
   figure { margin: 0; flex: 1; }
   figure img { width: 100%; display: block; border: .7pt solid var(--ink); image-rendering: pixelated; }
-  figcaption { font-size: 6.4pt; color: var(--grey); margin-top: 1.4mm; letter-spacing: .02em; }
+  figcaption { font-size: 7.4pt; color: var(--grey); margin-top: 1.4mm; }
 </style>
 </head>
 <body>
