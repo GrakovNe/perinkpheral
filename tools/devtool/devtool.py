@@ -201,6 +201,20 @@ def command_new(options):
         json.dump(manifest, f, indent=2)
         f.write("\n")
     shutil.copy(os.path.join(sample, "hello.c"), os.path.join(options.dir, name + ".c"))
+    # For an IDE that reads CMake: the code is understood, and building, running and the
+    # page are targets. The checkout is found by PERINKPHERAL, or where it was just now.
+    checkout = os.path.relpath(os.path.join(os.path.dirname(SDK_APPS), ".."),
+                               os.path.abspath(options.dir)).replace(os.sep, "/")
+    with open(os.path.join(options.dir, "CMakeLists.txt"), "w") as f:
+        f.write("cmake_minimum_required(VERSION 3.20)\n\n"
+                "if(DEFINED ENV{PERINKPHERAL})\n"
+                "    set(PERINKPHERAL \"$ENV{PERINKPHERAL}\")\n"
+                "else()\n"
+                "    set(PERINKPHERAL \"${CMAKE_CURRENT_LIST_DIR}/%s\")\n"
+                "endif()\n"
+                "include(\"${PERINKPHERAL}/sdk/cmake/perinkpheral.cmake\")\n\n"
+                "project(%s C)\n"
+                "perinkpheral_app(.)\n" % (checkout, name))
     print("%s: build it and put it on the device with `devtool.py run %s`"
           % (os.path.abspath(options.dir), options.dir))
 

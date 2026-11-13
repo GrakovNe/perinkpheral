@@ -122,6 +122,27 @@ and says the version alone:
 
 `build-release/perinkpheral.bin` is the asset of the release on GitHub.
 
+### An IDE (CLion, or any that reads CMake)
+
+Three projects, each opened as a folder. All need `WASI_SDK_PATH` in the environment the IDE
+gives CMake (CLion: Settings, Build, CMake, Environment).
+
+- **An application, or a folder of them.** `devtool.py new` writes a `CMakeLists.txt` into the
+  application; the perinkpheral-apps repository has one for all of its own. The code is
+  understood with the SDK's headers, `strings.h` and `pictures.h`, and every application has
+  build targets: `<name>` (the package, with `mkapp`'s report), `<name>-run` (build, upload,
+  restart the device into it) and `<name>-serve` (the live page). The device's address is
+  `PERINKPHERAL_HOST`, in the environment or as a CMake variable. The module behind it is
+  `sdk/cmake/perinkpheral.cmake`; `mkapp` still does the building.
+- **This repository's root.** The sample and the system applications the same way, and the
+  project's tools as targets: `host-tests`, `guide`, and with `IDF_PATH` set `firmware` and
+  `firmware-send`. The firmware's own code is not part of this project.
+- **The `firmware` folder**, for the firmware's code. It is an ESP-IDF project and configures
+  with plain CMake in ESP-IDF's environment: give the IDE what `export.sh` sets (CLion:
+  Settings, Build, Toolchains, "Add environment", from file) and `WASI_SDK_PATH`, and keep its
+  build directory apart from `firmware/build`, which is `idf.py`'s. Flashing and the monitor
+  stay `idf.py`'s and `devtool.py`'s.
+
 ## Constraints
 
 Code:

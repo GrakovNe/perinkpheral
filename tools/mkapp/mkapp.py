@@ -254,6 +254,19 @@ def clang():
     return sdk_tool("clang")
 
 
+def make_pictures(app_dir, scratch):
+    """The drawings of the `pictures` folder, as pictures.h for the code. Says whether
+    there were any."""
+    pictures_dir = os.path.join(app_dir, "pictures")
+    if not os.path.isdir(pictures_dir):
+        return False
+    made = subprocess.run([sys.executable, MKPICTURE, pictures_dir, "--out",
+                           os.path.join(scratch, "pictures.h")], capture_output=True, text=True)
+    if made.returncode != 0:
+        sys.exit(made.stderr.strip() or "%s: no pictures made" % pictures_dir)
+    return True
+
+
 def build(app_dir, wasm_path):
     sources = sorted(glob.glob(os.path.join(app_dir, "*.c")))
     if not sources:
@@ -271,14 +284,7 @@ def build(app_dir, wasm_path):
     # The linker's map says where the module's data ends in its memory: the
     # binary itself does not, for what starts as zeroes is not written out.
     with tempfile.TemporaryDirectory() as scratch:
-        # The drawings of the `pictures` folder, as pictures.h for the code.
-        pictures_dir = os.path.join(app_dir, "pictures")
-        if os.path.isdir(pictures_dir):
-            made = subprocess.run([sys.executable, MKPICTURE, pictures_dir, "--out",
-                                   os.path.join(scratch, "pictures.h")], capture_output=True,
-                                  text=True)
-            if made.returncode != 0:
-                sys.exit(made.stderr.strip() or "%s: no pictures made" % pictures_dir)
+        if make_pictures(app_dir, scratch):
             command.append("-I" + scratch)
         strings_source = make_strings(app_dir, scratch)
         if strings_source is not None:
@@ -672,8 +678,17 @@ def main():
     args = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("app_dir")
-    args.add_argument("--out", required=True, help="directory for app.wasm")
+    args.add_argument("--out", help="directory for app.wasm")
+    args.add_argument("--headers", help="only write strings.h, strings.c and pictures.h there: "
+                                        "what an editor needs to read the code")
     options = args.parse_args()
+    if options.headers:
+        os.makedirs(options.headers, exist_ok=True)
+        make_pictures(options.app_dir, options.headers)
+        make_strings(options.app_dir, options.headers)
+        return
+    if not options.out:
+        args.error("--out is required")
 
     manifest_path = check_manifest(options.app_dir)
     os.makedirs(options.out, exist_ok=True)

@@ -277,6 +277,11 @@ working beside an editor: the screen as the panel shows it, the four buttons (an
 arrows, Enter and Backspace), the device's log as it is written, and a button that builds and
 uploads again.</p>
 
+<p>In an IDE that reads CMake - CLion, VS Code - open the application's folder: <code>new</code>
+wrote a <code>CMakeLists.txt</code> into it. The code is understood with the SDK's headers and
+the generated <code>strings.h</code> and <code>pictures.h</code>, and <code>my-app</code>,
+<code>my-app-run</code> and <code>my-app-serve</code> are build targets. The IDE needs
+<code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the environment it gives CMake.</p>
 <h2 id="start-sample">The sample, whole</h2>
 <pre>#include "app_text.h"
 #include "host_api.h"

@@ -455,6 +455,7 @@ firmware/              the ESP-IDF project (build from this folder)
   test/host/           host tests of the pure modules (tinytest)
 sdk/
   host_api.h           the only contract; applications and the host's import table are built from it
+  cmake/               applications as a CMake project for an IDE: the code understood, build, run and the page as targets
   lib/                 what applications link instead of a C library; json_pick, which the host builds too; app_ui, what the buttons do on the kit's screens
   companion/           a sample of a companion page
   apps/

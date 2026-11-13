@@ -19,3 +19,4 @@ firmware/test/host/test_*
 firmware/test/host/build/
 sdk/apps/*/*.wasm
 .DS_Store
+cmake-build-*/
