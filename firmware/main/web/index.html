@@ -63,6 +63,8 @@
   .place li { padding: .5rem; cursor: pointer; }
   .place li:hover, .place li.current { background: var(--ink); color: var(--paper); }
   input, select, button { height: 2.6rem; }
+  /* What is hidden stays hidden whatever its own display is. */
+  [hidden] { display: none !important; }
   button { margin-top: 1rem; padding: 0 1rem; font: inherit; cursor: pointer;
            color: var(--paper); background: var(--ink); border: 1px solid var(--ink);
            border-radius: 0; display: inline-flex; align-items: center;
