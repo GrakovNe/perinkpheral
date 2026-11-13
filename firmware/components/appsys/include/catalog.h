@@ -35,7 +35,7 @@ extern "C" {
     "https://raw.githubusercontent.com/GrakovNe/perinkpheral-apps/HEAD/catalog"
 #define CATALOG_ADDED_SOURCES_MAX (CATALOG_SOURCES_MAX - 1)
 
-/* True for a few lines, each an http(s) address in printable ASCII of at
+/* True for a few lines, each an https address in printable ASCII of at
  * most CATALOG_SOURCE_URL_MAX; an empty text is "no sources". */
 bool catalog_sources_are_valid(const char *sources);
 

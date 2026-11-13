@@ -64,7 +64,8 @@ SETTING_OPTION_MAX = LIMITS["SETTING_OPTION_MAX"]
 FILE_NAME_MAX = LIMITS["FILE_NAME_MAX"]
 INTENTS = ("time_changed", "network_up", "started")
 SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url")
-FILES_MAX_BYTES = 120 * 1024
+FILES_MAX_BYTES = LIMITS["FILES_MAX_BYTES"]
+MODULE_MAX_BYTES = LIMITS["MODULE_MAX_BYTES"]
 HEADER_NAME_MAX = LIMITS["HEADER_NAME_MAX"]
 HEADER_VALUE_MAX = LIMITS["HEADER_VALUE_MAX"]
 
@@ -418,6 +419,10 @@ def main():
     with open(manifest_path) as f:
         asks_for_system = json.load(f).get("system", False)
     imports = check(wasm_path, asks_for_system)
+    module_bytes = os.path.getsize(wasm_path)
+    if module_bytes > MODULE_MAX_BYTES:
+        sys.exit("%s: the module is %d bytes, at most %d fit on the device"
+                 % (wasm_path, module_bytes, MODULE_MAX_BYTES))
     shutil.copy(manifest_path, os.path.join(options.out, "manifest.json"))
     copy_data_files(options.app_dir, options.out)
     print("%s: %d bytes, %d host calls" % (wasm_path, os.path.getsize(wasm_path), len(imports)))

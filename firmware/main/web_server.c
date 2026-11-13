@@ -87,7 +87,8 @@ static bool is_sent_to_the_device(const char *host)
 
 bool web_server_refuses_cross_site(httpd_req_t *request)
 {
-    char origin[ORIGIN_HEADER_MAX], host[HOST_HEADER_MAX];
+    /* A header too long for its buffer leaves the buffer as it was. */
+    char origin[ORIGIN_HEADER_MAX] = "", host[HOST_HEADER_MAX] = "";
     bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
     bool has_origin = httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof origin) !=
                       ESP_ERR_NOT_FOUND;
@@ -202,6 +203,9 @@ static const char *phase_name(wifi_phase_t phase)
 
 static esp_err_t handle_status(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     wifi_status_t wifi;
     wifi_get_status(&wifi);
     const esp_partition_t *running = esp_ota_get_running_partition();
@@ -290,6 +294,9 @@ bool web_server_has_memory(httpd_req_t *request, memory_need_t need)
 
 static esp_err_t handle_log(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
         return ESP_OK;
     }
@@ -452,6 +459,9 @@ static esp_err_t handle_time(httpd_req_t *request)
 
 static esp_err_t handle_settings(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     appconf_t settings;
     settings_read(&settings);
     cJSON *json = cJSON_CreateObject();

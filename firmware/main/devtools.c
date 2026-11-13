@@ -186,6 +186,9 @@ static void bmp_header(uint8_t header[BMP_HEADER_BYTES])
 
 static esp_err_t handle_screen(httpd_req_t *http)
 {
+    if (web_server_refuses_cross_site(http)) {
+        return ESP_OK;
+    }
     request_t *request = new_request(REQUEST_SCREEN);
     if (request == NULL || !ask_host(request)) {
         return send_text(http, "503 Service Unavailable", "the host did not answer");

@@ -25,8 +25,8 @@ extern "C" {
  * LittleFS and a folder on the development machine under the host
  * tests. */
 
-/* A module larger than this is not an application for a 64 KB device. */
-#define APP_MODULE_MAX_BYTES (48 * 1024)
+/* A module larger than this does not fit when it runs. */
+#define APP_MODULE_MAX_BYTES MANIFEST_MODULE_MAX_BYTES
 
 /* Fills `manifests` with every application under root that has a valid
  * manifest named like its folder, sorted by title, and returns how many;
@@ -51,7 +51,7 @@ char *app_store_read_manifest(const char *root, const char *name);
  * starting with a dot. */
 #define APP_FILE_NAME_MAX MANIFEST_FILE_NAME_MAX
 /* All the data files of one application may take this much. */
-#define APP_FILES_MAX_BYTES (120 * 1024)
+#define APP_FILES_MAX_BYTES MANIFEST_FILES_MAX_BYTES
 
 /* True for the manifest, the module and any well-named data file. */
 bool app_store_is_file_name(const char *file);

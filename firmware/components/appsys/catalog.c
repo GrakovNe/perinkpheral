@@ -7,15 +7,13 @@
 #include <stdio.h>
 #include <string.h>
 
+/* HTTPS and nothing else: it is what vouches for an application, and the
+ * checksums of an index that came in the clear vouch for nothing. */
 static bool is_web_address(const char *line, size_t length)
 {
-    static const char HTTP[] = "http://", HTTPS[] = "https://";
-    size_t scheme = length > sizeof HTTPS - 1 && strncmp(line, HTTPS, sizeof HTTPS - 1) == 0
-                        ? sizeof HTTPS - 1
-                        : length > sizeof HTTP - 1 && strncmp(line, HTTP, sizeof HTTP - 1) == 0
-                              ? sizeof HTTP - 1
-                              : 0;
-    if (scheme == 0 || length > CATALOG_SOURCE_URL_MAX) {
+    static const char HTTPS[] = "https://";
+    bool is_https = length > sizeof HTTPS - 1 && strncmp(line, HTTPS, sizeof HTTPS - 1) == 0;
+    if (!is_https || length > CATALOG_SOURCE_URL_MAX) {
         return false;
     }
     for (size_t i = 0; i < length; i++) {

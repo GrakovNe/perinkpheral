@@ -42,5 +42,10 @@
 #define MANIFEST_SETTING_OPTIONS_MAX 8
 #define MANIFEST_SETTING_OPTION_MAX  23
 
-/* The names of the files an application brings. */
-#define MANIFEST_FILE_NAME_MAX 23
+/* The module: what fits when it runs is less than its slot of 64 KB - the
+ * interpreter needs about two bytes of memory for a byte of code it runs. */
+#define MANIFEST_MODULE_MAX_BYTES (48 * 1024)
+
+/* The names of the files an application brings, and all of them together. */
+#define MANIFEST_FILE_NAME_MAX  23
+#define MANIFEST_FILES_MAX_BYTES (120 * 1024)

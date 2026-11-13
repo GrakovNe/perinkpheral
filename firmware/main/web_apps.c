@@ -140,6 +140,9 @@ static void add_settings(cJSON *app, const char *app_name)
 
 static esp_err_t handle_list(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
         return ESP_OK;
     }
@@ -302,6 +305,9 @@ static esp_err_t handle_settings(httpd_req_t *request)
 
 static esp_err_t handle_sources(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     char *sources = malloc(CATALOG_SOURCES_TEXT_MAX);
     if (sources == NULL) {
         return httpd_resp_send_500(request);
@@ -397,6 +403,9 @@ static bool pass_on(void *context, const uint8_t *piece, size_t length)
 
 static esp_err_t handle_catalog(httpd_req_t *request)
 {
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
     if (!web_server_has_memory(request, MEMORY_FOR_A_SESSION)) {
         return ESP_OK;
     }
