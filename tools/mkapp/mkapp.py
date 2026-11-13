@@ -88,6 +88,10 @@ def sdk_tool(name):
     return path
 
 
+MKPICTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mkpicture",
+                         "mkpicture.py")
+
+
 def clang():
     return sdk_tool("clang")
 
@@ -109,6 +113,15 @@ def build(app_dir, wasm_path):
     # The linker's map says where the module's data ends in its memory: the
     # binary itself does not, for what starts as zeroes is not written out.
     with tempfile.TemporaryDirectory() as scratch:
+        # The drawings of the `pictures` folder, as pictures.h for the code.
+        pictures_dir = os.path.join(app_dir, "pictures")
+        if os.path.isdir(pictures_dir):
+            made = subprocess.run([sys.executable, MKPICTURE, pictures_dir, "--out",
+                                   os.path.join(scratch, "pictures.h")], capture_output=True,
+                                  text=True)
+            if made.returncode != 0:
+                sys.exit(made.stderr.strip() or "%s: no pictures made" % pictures_dir)
+            command.append("-I" + scratch)
         map_path = os.path.join(scratch, "app.map")
         if subprocess.run(command + ["-Wl,-Map=" + map_path]).returncode != 0:
             sys.exit("%s did not compile" % app_dir)

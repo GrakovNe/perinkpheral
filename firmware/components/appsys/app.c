@@ -382,6 +382,38 @@ HOST_FUNCTION(host_gfx_icon)
     m3ApiReturn(HOST_OK);
 }
 
+/* A picture in the application's memory, whole: its two bytes of size and
+ * every row they promise. */
+static const uint8_t *picture_of(IM3Runtime runtime, void *memory, uint32_t offset)
+{
+    const uint8_t *header = in_app_memory(runtime, memory, offset, GFX_PICTURE_HEADER);
+    if (header == NULL || header[0] == 0 || header[1] == 0) {
+        return NULL;
+    }
+    return in_app_memory(runtime, memory, offset, (uint32_t)gfx_picture_bytes(header));
+}
+
+HOST_FUNCTION(host_gfx_picture)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, x);
+    m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(uint32_t, picture_offset);
+    m3ApiGetArg(int32_t, cell);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    const uint8_t *picture = picture_of(runtime, _mem, picture_offset);
+    if (picture == NULL || !is_drawable(x) || !is_drawable(y) || cell < 1 ||
+        cell > HOST_ICON_CELL_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    gfx_picture(app->surface, x, y, picture, cell, true);
+    m3ApiReturn(HOST_OK);
+}
+
 static bool is_an_icon(int32_t icon)
 {
     return icon >= 0 && icon < GFX_ICON_COUNT;
@@ -713,6 +745,75 @@ HOST_FUNCTION(host_ui_picker)
         picker.chosen = "";
     }
     kit_picker(app->surface, &picker);
+    m3ApiReturn(HOST_OK);
+}
+
+/* What the application asked for as the kit takes it; false when it is
+ * not a cell. `asked` keeps the texts the cell points into. */
+static bool cell_of(IM3Runtime runtime, void *memory, uint32_t cell_offset, uint32_t picture_offset,
+                    host_cell_t *asked, kit_cell_t *cell)
+{
+    const uint8_t *given = in_app_memory(runtime, memory, cell_offset, sizeof *asked);
+    if (given == NULL) {
+        return false;
+    }
+    memcpy(asked, given, sizeof *asked);
+    const uint8_t *picture = NULL;
+    if (picture_offset != 0) {
+        picture = picture_of(runtime, memory, picture_offset);
+        if (picture == NULL) {
+            return false;
+        }
+    }
+    if (!is_drawable(asked->x) || !is_drawable(asked->y) || !is_drawable(asked->width) ||
+        !is_drawable(asked->height) || asked->width <= 0 || asked->height <= 0) {
+        return false;
+    }
+    const char *value = notice_text(asked->value, sizeof asked->value);
+    *cell = (kit_cell_t){
+        .left = asked->x, .top = asked->y, .width = asked->width, .height = asked->height,
+        .name = notice_text(asked->name, sizeof asked->name),
+        .value = value != NULL ? value : "",
+        .picture = picture,
+        .size = asked->size,
+    };
+    return true;
+}
+
+HOST_FUNCTION(host_ui_cell_fit)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, cell_offset);
+    m3ApiGetArg(uint32_t, picture_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    host_cell_t asked;
+    kit_cell_t  cell;
+    if (!cell_of(runtime, _mem, cell_offset, picture_offset, &asked, &cell)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(kit_cell_fit(app->surface, &cell));
+}
+
+HOST_FUNCTION(host_ui_cell)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, cell_offset);
+    m3ApiGetArg(uint32_t, picture_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_DRAWING);
+    }
+    host_cell_t asked;
+    kit_cell_t  cell;
+    if (!cell_of(runtime, _mem, cell_offset, picture_offset, &asked, &cell)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    kit_cell(app->surface, &cell);
     m3ApiReturn(HOST_OK);
 }
 
@@ -1634,6 +1735,7 @@ static const struct {
     { "data_response", "i(i)", host_data_response },
     { "gfx_qr", "i(iii*i)", host_gfx_qr },
     { "gfx_icon", "i(iiii)", host_gfx_icon },
+    { "gfx_picture", "i(ii*i)", host_gfx_picture },
     { "ui_list_visible", "i(*)", host_ui_list_visible },
     { "ui_list_first", "i(*)", host_ui_list_first },
     { "ui_list_row", "i(*i*i*ii)", host_ui_list_row },
@@ -1648,6 +1750,8 @@ static const struct {
     { "ui_bar", "i(iiiii)", host_ui_bar },
     { "ui_frame", "i(iiiii)", host_ui_frame },
     { "ui_picker", "i(*)", host_ui_picker },
+    { "ui_cell_fit", "i(**)", host_ui_cell_fit },
+    { "ui_cell", "i(**)", host_ui_cell },
     { "ui_date", "i(*)", host_ui_date },
     { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },

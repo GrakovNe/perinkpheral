@@ -112,6 +112,25 @@ typedef struct {
 
 void kit_date(gfx_t *g, const kit_date_t *date);
 
+/* One thing worth a glance, in a box of any size: its name across the
+ * top, and under it a picture and the value side by side in the middle of
+ * what is left. The value is as large as fits; a cell that is the whole
+ * surface has everything a size larger. Several cells on a screen should
+ * be of one size: ask each with kit_cell_fit() and draw all with the
+ * largest number, which is the smallest text. */
+#define KIT_CELL_PICTURE_LARGE 88 /* the picture's side in a cell that is the whole surface */
+#define KIT_CELL_PICTURE_SMALL 44 /* and in any other */
+typedef struct {
+    int            left, top, width, height;
+    const char    *name;    /* or NULL */
+    const char    *value;
+    const uint8_t *picture; /* as gfx_picture takes it, or NULL */
+    int            size;    /* 0: what fits; else what kit_cell_fit() said */
+} kit_cell_t;
+
+int  kit_cell_fit(const gfx_t *g, const kit_cell_t *cell);
+void kit_cell(gfx_t *g, const kit_cell_t *cell);
+
 #ifdef __cplusplus
 }
 #endif

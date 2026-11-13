@@ -191,7 +191,7 @@ What the host itself has to say takes the whole screen, with no header, and is o
 - **Work going on** (`scene_working.c`): "Updating in progress" from the first byte of a firmware image to the restart into it, or until the upload is given up. The buttons do nothing.
 - **An application that is not running** (`app_scene.c`): its title, "crashed" or "cannot start", why in a line of ordinary text under them, the warning; BACK closes, and so does any press.
 - **The questions Settings asks** - remove an application, forget the network, factory reset - are the same notice, drawn by the host for the application (`ui_notice`), under its header: OK does it, BACK cancels.
-- **The kit** (`components/ui/kit.c`, `list.c`, `notice.c`, all pure, rendered by `tools/preview`) is what every screen is put together from, the host's and an application's alike - the design system. Primitives: text in four styles (text, title, caption, value), the title of a page with its line, an icon in three sizes (22, 44, 99 px), a button with what it does, the row of buttons along the bottom. Elements: a bar (how much of how much; it changes with the data, it does not move), the frame with arrows around what UP and DOWN change. Screens: the list (rows with values, options with a check, facts nobody chooses from), the notice (a question, an error, work going on, a message such as "Not set up"), the picker of one value from a row, the date and time set a part at a time. An application asks for them with `ui_*`; **what the buttons do on those screens is `sdk/lib/app_ui.h`** (`app_list_button`, `app_picker_button`, `app_date_button`, each answering changed, done or cancelled), so an application writes only what the result is for. Nobody has to use any of it: `gfx_*` draws anything. Settings is written with it, and `kit` in the catalog shows every part on a page of its own.
+- **The kit** (`components/ui/kit.c`, `list.c`, `notice.c`, all pure, rendered by `tools/preview`) is what every screen is put together from, the host's and an application's alike - the design system. Primitives: text in four styles (text, title, caption, value), the title of a page with its line, an icon in three sizes (22, 44, 99 px), a button with what it does, the row of buttons along the bottom. Elements: a bar (how much of how much; it changes with the data, it does not move), the frame with arrows around what UP and DOWN change. the cell - a name, a picture and a value in a box of any size, which is what a dashboard is made of. Screens: the list (rows with values, options with a check, facts nobody chooses from), the notice (a question, an error, work going on, a message such as "Not set up"), the picker of one value from a row, the date and time set a part at a time. An application asks for them with `ui_*`; **what the buttons do on those screens is `sdk/lib/app_ui.h`** (`app_list_button`, `app_picker_button`, `app_date_button`, each answering changed, done or cancelled), so an application writes only what the result is for. Nobody has to use any of it: `gfx_*` draws anything. Settings is written with it, and `kit` in the catalog shows every part on a page of its own.
 - **Any application may ask for the host's look**: `ui_notice` is this notice, and `ui_list_row` a row of the host's list - the bar behind the chosen row, a value or an icon at the right edge, the scroll bar (`components/ui/list.c`, pure). The menu and the lists of Settings are drawn by the same code, so an application that uses it looks the part and stays so when the look changes.
 
 ### Power-up
@@ -242,6 +242,8 @@ gfx_line(x0, y0, x1, y1)
 gfx_bitmap(x, y, w, h, bits_ptr)       // a set bit takes the colour, a clear one leaves what is there
 gfx_qr(x, y, cell, str_ptr, len)       // a QR code of the text, up to 57 modules a side; returns the modules, cell 0 only measures
 gfx_bitmap_file(x, y, w, h, name, name_len, offset)  // the same picture read by the host from the application's file
+gfx_picture(x, y, picture_ptr, cell)   // a picture of the application's own: a byte of width, a byte of height, a bit a cell;
+                                       // a cell so many pixels. tools/mkpicture makes them of PNGs and of rows of '#' and '.'
 gfx_icon(icon, x, y, cell)             // one of the host's icons, 11 cells square, a cell so many pixels; in the current colour
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
@@ -253,6 +255,8 @@ ui_text_width(style, str, len) / ui_text_height(style)           // to centre an
 ui_icon(x, y, icon, size)              // a host's icon at 22, 44 or 99 px
 ui_button(x, y, name, action, mirrored) / ui_actions(ok, back)   // a button and what it does; the row along the bottom
 ui_bar(x, y, w, value, max) / ui_frame(x, y, w, h, arrows)       // how much of how much; the frame around what is set
+ui_cell(struct_ptr, picture_ptr) / ui_cell_fit(...)   // a name, a picture and a value in a box of any size, the value as large
+                                       // as fits; cells that stand together take the size the longest value can have
 ui_picker(struct_ptr) / ui_date(struct_ptr)   // one of a row of values; a time, a date or both, a part framed
 request_exit()                         // done: one step down the stack, as BACK does in the host's pages
 header_text(side, str_ptr, len)        // its own line in the host's header, left or right; len 0 gives the side back
@@ -450,6 +454,8 @@ tools/
   devtool/             the device over the network: screenshots, presses, the log, upload and run an application, flash
   devshot/             the same over USB for a device with no network: presses and the frame its panel shows
   mkapp/               builds app.wasm (wasi-sdk) and checks its imports and memory
+  mkpicture/           drawings - PNG, PBM, rows of '#' and '.' - into the pictures an application carries in its
+                       code; mkapp runs it over an application's `pictures` folder and the code includes pictures.h
   mkvideo/             a video into a 1-bit stream small enough to be a file of an application
   catalog/             builds a folder of applications into a catalog a device installs from
 assets/

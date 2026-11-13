@@ -65,6 +65,16 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
  * 1 = white, rows padded to a byte). */
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits);
 
+/* A picture as tools/mkpicture writes it: a byte of how many cells wide, a
+ * byte of how many tall, and the cells a bit each - 1 is ink, the leftmost
+ * in the high bit, a row padded to a byte. Drawn with a cell so many
+ * pixels, so one drawing serves several sizes. */
+#define GFX_PICTURE_HEADER 2
+int  gfx_picture_width(const uint8_t *picture);
+int  gfx_picture_height(const uint8_t *picture);
+int  gfx_picture_bytes(const uint8_t *picture); /* header and all */
+void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black);
+
 /* The square font (font_square.c): every
  * glyph is a square on a grid of three strokes and two gaps, `scale`
  * pixels per stroke (scale 5 gives the 27 px original); no ascenders or

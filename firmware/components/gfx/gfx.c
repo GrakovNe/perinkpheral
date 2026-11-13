@@ -167,6 +167,42 @@ void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits)
     }
 }
 
+int gfx_picture_width(const uint8_t *picture)
+{
+    return picture[0];
+}
+
+int gfx_picture_height(const uint8_t *picture)
+{
+    return picture[1];
+}
+
+int gfx_picture_bytes(const uint8_t *picture)
+{
+    return GFX_PICTURE_HEADER + (picture[0] + 7) / 8 * picture[1];
+}
+
+void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black)
+{
+    int width = picture[0], height = picture[1], stride = (width + 7) / 8;
+    const uint8_t *bits = picture + GFX_PICTURE_HEADER;
+    for (int row = 0; row < height; row++) {
+        /* A run of ink in a row is one rectangle. */
+        for (int column = 0; column < width;) {
+            if ((bits[row * stride + column / 8] & (0x80 >> (column % 8))) == 0) {
+                column++;
+                continue;
+            }
+            int start = column;
+            while (column < width &&
+                   (bits[row * stride + column / 8] & (0x80 >> (column % 8))) != 0) {
+                column++;
+            }
+            gfx_fill(g, x + start * cell, y + row * cell, (column - start) * cell, cell, black);
+        }
+    }
+}
+
 /* One code point from UTF-8; invalid bytes come back as '?'. */
 static uint32_t next_cp(const char **s)
 {

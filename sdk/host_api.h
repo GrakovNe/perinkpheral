@@ -416,6 +416,16 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_CELL_MAX   16
 HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
 
+/* A picture of the application's own, as tools/mkpicture makes one from
+ * an image or from rows of '#' and '.': a byte of how many cells wide, a
+ * byte of how many tall, then the cells a bit each - 1 takes the colour,
+ * the leftmost in the high bit, a row padded to a byte. `cell` is how many
+ * pixels a cell is drawn, 1 to HOST_ICON_CELL_MAX: one drawing serves
+ * several sizes, and costs an eighth of what its rows as text would.
+ * tools/mkapp makes pictures.h of an application's `pictures` folder. */
+HOST_IMPORT(gfx_picture,
+            int32_t gfx_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t cell));
+
 /* ---- The host's own look ----
  *
  * What the host draws for itself, drawn for an application by the host:
@@ -547,6 +557,25 @@ HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t 
 #define HOST_UI_ARROW_DOWN 2
 HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int32_t height,
                                        int32_t arrows));
+
+/* One thing worth a glance in a box of any size: its name across the top,
+ * and under it a picture and the value side by side. The value is as large
+ * as fits; a cell that is the whole surface has everything a size larger,
+ * its picture HOST_UI_CELL_PICTURE_LARGE pixels square and any other
+ * cell's HOST_UI_CELL_PICTURE_SMALL. `picture` is a picture as gfx_picture
+ * takes it, or 0. Cells that stand together should be of one size:
+ * ui_cell_fit() says the size a cell would have - 1 the largest - and the
+ * largest number among them goes into every `size`; 0 is "what fits". */
+#define HOST_UI_CELL_PICTURE_LARGE 88
+#define HOST_UI_CELL_PICTURE_SMALL 44
+typedef struct host_cell {
+    int32_t x, y, width, height;
+    char    name[24];  /* empty: none */
+    char    value[24];
+    int32_t size;
+} host_cell_t;
+HOST_IMPORT(ui_cell_fit, int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture));
+HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture));
 
 /* One of a row of values, on the whole surface: the chosen one framed in
  * the middle, what UP leads to over it and what DOWN leads to under it.

@@ -300,3 +300,75 @@ void kit_date(gfx_t *g, const kit_date_t *date)
     }
     kit_actions(g, date->ok, date->back);
 }
+
+/* ---- the cell ---- */
+
+#define CELL_PADDING     12
+#define CELL_PICTURE_GAP 14
+
+static const gfx_font_id_t CELL_FONTS[] = { GFX_FONT_HUGE, GFX_FONT_DISPLAY, GFX_FONT_LARGE,
+                                            GFX_FONT_MEDIUM, GFX_FONT_TEXT };
+#define CELL_SIZES          ((int)(sizeof CELL_FONTS / sizeof CELL_FONTS[0]))
+#define CELL_FIRST_OF_SMALL 3 /* a cell that is not the whole surface begins at this size */
+
+static bool cell_is_large(const gfx_t *g, const kit_cell_t *cell)
+{
+    return cell->width >= g->w && cell->height >= g->h;
+}
+
+/* The side of the square the picture stands in; 0 with no picture. */
+static int cell_picture_side(const gfx_t *g, const kit_cell_t *cell)
+{
+    return cell->picture == NULL    ? 0
+           : cell_is_large(g, cell) ? KIT_CELL_PICTURE_LARGE
+                                    : KIT_CELL_PICTURE_SMALL;
+}
+
+int kit_cell_fit(const gfx_t *g, const kit_cell_t *cell)
+{
+    int side = cell_picture_side(g, cell);
+    int room = cell->width - 2 * CELL_PADDING - (side > 0 ? side + CELL_PICTURE_GAP : 0);
+    int size = cell_is_large(g, cell) ? 1 : CELL_FIRST_OF_SMALL;
+    while (size < CELL_SIZES &&
+           gfx_text_tabular_width(gfx_font(CELL_FONTS[size - 1]), cell->value) > room) {
+        size++;
+    }
+    return size;
+}
+
+void kit_cell(gfx_t *g, const kit_cell_t *cell)
+{
+    int size = cell->size >= 1 && cell->size <= CELL_SIZES ? cell->size : kit_cell_fit(g, cell);
+    const gfx_font_t *font = gfx_font(CELL_FONTS[size - 1]);
+    kit_style_t       name_style = cell_is_large(g, cell) ? KIT_TEXT : KIT_CAPTION;
+    int               name_height = 0;
+    if (has_text(cell->name)) {
+        const gfx_font_t *name_font = kit_font(name_style);
+        char              fitted[TEXT_BUFFER];
+        gfx_text_fit(name_font, cell->name, cell->width - 2 * CELL_PADDING, fitted, sizeof fitted);
+        kit_text(g, cell->left + (cell->width - gfx_text_font_width(name_font, fitted)) / 2,
+                 cell->top + CELL_PADDING, name_style, fitted, 0);
+        name_height = gfx_font_height(name_font) + CELL_PADDING / 2;
+    }
+
+    int side = cell_picture_side(g, cell);
+    char value[TEXT_BUFFER];
+    gfx_text_fit(font, cell->value,
+                 cell->width - 2 * CELL_PADDING - (side > 0 ? side + CELL_PICTURE_GAP : 0), value,
+                 sizeof value);
+    int row_width = gfx_text_tabular_width(font, value) + (side > 0 ? side + CELL_PICTURE_GAP : 0);
+    int row_left = cell->left + (cell->width - row_width) / 2;
+    int middle = cell->top + CELL_PADDING + name_height +
+                 (cell->height - 2 * CELL_PADDING - name_height) / 2;
+    if (side > 0) {
+        /* The drawing as large as whole pixels a cell let it be, in the
+         * middle of its square. */
+        int width = gfx_picture_width(cell->picture), height = gfx_picture_height(cell->picture);
+        int longest = width > height ? width : height;
+        int pixels = longest > 0 && side / longest > 0 ? side / longest : 1;
+        gfx_picture(g, row_left + (side - width * pixels) / 2, middle - height * pixels / 2,
+                    cell->picture, pixels, true);
+        row_left += side + CELL_PICTURE_GAP;
+    }
+    gfx_text_tabular(g, row_left, middle + gfx_font_cap_height(font) / 2, font, value, true);
+}

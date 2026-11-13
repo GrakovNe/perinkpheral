@@ -300,6 +300,20 @@ static void test_degree_sign(void)
     CHECK(!gfx_get(&g, 2 + 6, baseline - capitals));
 }
 
+/* A picture: two bytes of size, then a bit a cell; drawn a cell so many
+ * pixels. */
+static void test_picture(void)
+{
+    static const uint8_t PICTURE[] = { 3, 2, 0xA0, 0x40 }; /* "#.#" over ".#." */
+    CHECK(gfx_picture_width(PICTURE) == 3 && gfx_picture_height(PICTURE) == 2);
+    CHECK(gfx_picture_bytes(PICTURE) == (int)sizeof PICTURE);
+    fresh();
+    gfx_picture(&g, 10, 4, PICTURE, 2, true);
+    CHECK(count_black() == 3 * 2 * 2);
+    CHECK(gfx_get(&g, 10, 4) && gfx_get(&g, 11, 5) && !gfx_get(&g, 12, 4) && gfx_get(&g, 14, 4));
+    CHECK(gfx_get(&g, 12, 6) && gfx_get(&g, 13, 7) && !gfx_get(&g, 10, 6));
+}
+
 static void test_text_fit(void)
 {
     const gfx_font_t *font = gfx_font_system();
@@ -355,6 +369,7 @@ static void test_digits_in_columns(void)
 int main(void)
 {
     test_digits_in_columns();
+    test_picture();
     test_degree_sign();
     test_text_fit();
     test_clear_and_pixel();
