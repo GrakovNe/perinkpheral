@@ -130,6 +130,64 @@ static bool put_file(const char *name, const char *file, const char *content)
     return app_store_commit_file(root, name, file);
 }
 
+static bool begin_file(const char *name, const char *file, const char *content)
+{
+    char path[APP_STORE_PATH_MAX];
+    if (!app_store_begin_file(root, name, file, path)) {
+        return false;
+    }
+    FILE *incoming = fopen(path, "wb");
+    if (incoming == NULL) {
+        return false;
+    }
+    fwrite(content, 1, strlen(content), incoming);
+    fclose(incoming);
+    return true;
+}
+
+static void leave_mark(const char *name)
+{
+    char path[256];
+    snprintf(path, sizeof path, "%s/%s/.commit", root, name);
+    fclose(fopen(path, "wb"));
+}
+
+static void test_several_files_at_once(void)
+{
+    fresh_root();
+    /* all of them, as one step */
+    CHECK(put_file("app", APP_FILE_MODULE, "old"));
+    CHECK(begin_file("app", APP_FILE_MODULE, "new module"));
+    CHECK(begin_file("app", "data.bin", "12345"));
+    CHECK(app_store_file_size(root, "app", APP_FILE_MODULE) == 3); /* nothing yet */
+    CHECK(app_store_commit_all(root, "app"));
+    CHECK(app_store_file_size(root, "app", APP_FILE_MODULE) == 10);
+    CHECK(app_store_file_size(root, "app", "data.bin") == 5);
+
+    /* stopped half-way - the mark is there: the rest is put in place at start */
+    CHECK(begin_file("app", APP_FILE_MODULE, "newer module!"));
+    CHECK(begin_file("app", "data.bin", "1234567"));
+    leave_mark("app");
+    app_store_recover(root);
+    CHECK(app_store_file_size(root, "app", APP_FILE_MODULE) == 13);
+    CHECK(app_store_file_size(root, "app", "data.bin") == 7);
+
+    /* a download that never finished - no mark: what it left goes, and what
+     * was installed stays */
+    CHECK(begin_file("app", APP_FILE_MODULE, "half"));
+    app_store_recover(root);
+    CHECK(app_store_file_size(root, "app", APP_FILE_MODULE) == 13);
+    CHECK(app_store_commit_all(root, "app")); /* nothing was left to put in place */
+    CHECK(app_store_file_size(root, "app", APP_FILE_MODULE) == 13);
+
+    /* and before a new install, what a failed one left is dropped */
+    CHECK(begin_file("app", "stale.bin", "x"));
+    CHECK(app_store_drop_incoming(root, "app"));
+    CHECK(app_store_commit_all(root, "app"));
+    CHECK(app_store_file_size(root, "app", "stale.bin") < 0);
+    CHECK(!app_store_commit_all(root, "../escape"));
+}
+
 static void test_install_files(void)
 {
     fresh_root();
@@ -229,5 +287,6 @@ int main(void)
     test_capacity_and_missing_root();
     test_read_module();
     test_install_files();
+    test_several_files_at_once();
     REPORT();
 }

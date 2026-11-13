@@ -550,15 +550,7 @@ typedef struct {
 static void put_in_place(void *argument)
 {
     install_command_t *command = argument;
-    const cJSON *entry;
-    command->is_done = true;
-    cJSON_ArrayForEach(entry, command->files)
-    {
-        const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
-        command->is_done = app_store_commit_file(STORAGE_APPS_ROOT, command->app_name,
-                                                 name->valuestring) &&
-                           command->is_done;
-    }
+    command->is_done = app_store_commit_all(STORAGE_APPS_ROOT, command->app_name);
     host_reload_apps();
 }
 
@@ -624,6 +616,8 @@ static esp_err_t handle_install(httpd_req_t *request)
     const char  *problem = NULL;
     const cJSON *entry;
     bool         asks_for_system = false;
+    /* What an install that failed left behind is not this one's. */
+    app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
     /* The device stays on the network until the last file is here. */
     power_hold_radio();
     cJSON_ArrayForEach(entry, files)

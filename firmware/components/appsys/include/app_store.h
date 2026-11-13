@@ -71,6 +71,18 @@ bool app_store_begin_file(const char *root, const char *name, const char *file,
                           char path[APP_STORE_PATH_MAX]);
 bool app_store_commit_file(const char *root, const char *name, const char *file);
 
+/* An application is several files. Every file of it that was begun and
+ * not yet put in place is put in place, as one step that a failure or a
+ * loss of power does not leave half done: what is left is finished by
+ * app_store_recover(). To be called once all of them are here and checked. */
+bool app_store_commit_all(const char *root, const char *name);
+/* Files of the application that were begun and never put in place go. */
+bool app_store_drop_incoming(const char *root, const char *name);
+/* At start, before anything is read or downloaded: finishes what
+ * app_store_commit_all() was stopped in, and removes what a download left
+ * unfinished. */
+void app_store_recover(const char *root);
+
 typedef enum {
     APP_WRITE_OK,
     APP_WRITE_REFUSED,  /* not a data file's name, or an offset past its end */

@@ -207,6 +207,8 @@ void launcher_reload(launcher_drop_fn drop, void *context)
 
 void launcher_start(void)
 {
+    /* An install the power stopped is finished, or cleared away, first. */
+    app_store_recover(STORAGE_APPS_ROOT);
     read_installed();
     s_system_scenes[SYSTEM_SETTINGS] =
         system_app_scene(&s_system[SYSTEM_SETTINGS], system_settings_manifest_start,

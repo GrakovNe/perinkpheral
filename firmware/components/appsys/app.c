@@ -16,6 +16,7 @@
 #include "list.h"
 #include "notice.h"
 #include "host_api.h"
+#include "manifest_limits.h"
 #include "qrcodegen.h"
 #include "wasm3.h"
 
@@ -802,21 +803,22 @@ HOST_FUNCTION(host_data_response)
     m3ApiGetArg(uint32_t, response_offset);
 
     app_t *app = APP_OF(runtime);
-    host_response_t *response = (host_response_t *)in_app_memory_to_fill(
-        runtime, _mem, response_offset, (int32_t)sizeof *response);
-    if (response == NULL) {
+    uint8_t *given = in_app_memory_to_fill(runtime, _mem, response_offset,
+                                           (int32_t)sizeof(host_response_t));
+    if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (!app->is_in_answer) {
         m3ApiReturn(HOST_ERR_NOT_FOUND);
     }
+    /* Put together here and copied: the application's address need not be
+     * one a structure may stand at. */
+    host_response_t response = { .length = -1 };
     if (app->response != NULL) {
-        memcpy(response, app->response, sizeof *response);
-    } else {
-        memset(response, 0, sizeof *response);
-        response->length = -1;
+        response = *app->response;
     }
-    response->status = app->response_status;
+    response.status = app->response_status;
+    memcpy(given, &response, sizeof response);
     m3ApiReturn(HOST_OK);
 }
 
@@ -1074,6 +1076,7 @@ HOST_FUNCTION(host_gfx_bitmap_file)
     char name[HOST_FILE_NAME_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || width <= 0 || height <= 0 ||
         width > app->surface->w || height > app->surface->h || offset < 0 ||
+        offset > MANIFEST_FILES_MAX_BYTES ||
         !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -1402,7 +1405,16 @@ HOST_FUNCTION(host_log)
     m3ApiGetArg(int32_t, length);
     const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
     if (text != NULL) {
-        APP_OF(runtime)->services->log(level, (const char *)text, length);
+        /* One line of the log, and nothing that could pass for another:
+         * what is not a printable character is shown as one that is. */
+        char line[HOST_LOG_TEXT_MAX];
+        if (length > HOST_LOG_TEXT_MAX) {
+            length = HOST_LOG_TEXT_MAX;
+        }
+        for (int32_t i = 0; i < length; i++) {
+            line[i] = text[i] >= ' ' && text[i] <= '~' ? (char)text[i] : '?';
+        }
+        APP_OF(runtime)->services->log(level, line, length);
     }
     m3ApiSuccess();
 }

@@ -161,6 +161,8 @@ bool app_store_begin_file(const char *root, const char *name, const char *file,
 #define COMMIT_ATTEMPTS 10
 #define COMMIT_RETRY_US 20000
 
+static bool replace_with(const char *incoming, const char *installed);
+
 bool app_store_commit_file(const char *root, const char *name, const char *file)
 {
     char incoming[PATH_MAX_BYTES], installed[PATH_MAX_BYTES];
@@ -171,6 +173,47 @@ bool app_store_commit_file(const char *root, const char *name, const char *file)
     /* The file it replaces may be open this very moment - the poller reads
      * a manifest for every request it makes - and a file that is open is
      * not replaced. It is read in a moment: tried again a few times. */
+    return replace_with(incoming, installed);
+}
+
+/* ---- several files at once ----
+ *
+ * An application is several files, and putting them in place one by one
+ * can stop half-way: a failure, the power. A mark is left before the first
+ * and taken away after the last; a folder found with the mark at start is
+ * one whose new files were all here and checked, and the rest of them are
+ * put in place then. Without the mark, new files are what a download left
+ * unfinished, and go. The mark's name is none a file may have. */
+#define COMMIT_MARK ".commit"
+
+static bool is_incoming(const char *file)
+{
+    size_t length = strlen(file);
+    return length > sizeof INCOMING_SUFFIX - 1 &&
+           strcmp(file + length - (sizeof INCOMING_SUFFIX - 1), INCOMING_SUFFIX) == 0;
+}
+
+/* The name of one new file in the folder; false when there is none. */
+static bool find_incoming(const char *folder, char file[APP_STORE_PATH_MAX])
+{
+    DIR *directory = opendir(folder);
+    if (directory == NULL) {
+        return false;
+    }
+    bool           found = false;
+    struct dirent *entry;
+    while (!found && (entry = readdir(directory)) != NULL) {
+        if (is_incoming(entry->d_name) && strlen(entry->d_name) < APP_STORE_PATH_MAX) {
+            strcpy(file, entry->d_name);
+            found = true;
+        }
+    }
+    closedir(directory);
+    return found;
+}
+
+static bool replace_with(const char *incoming, const char *installed)
+{
     for (int attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
         if (rename(incoming, installed) == 0) {
             return true;
@@ -178,6 +221,74 @@ bool app_store_commit_file(const char *root, const char *name, const char *file)
         usleep(COMMIT_RETRY_US);
     }
     return false;
+}
+
+/* Every new file of the folder into its place, or - `keeps` false - away. */
+static bool settle_incoming(const char *folder, bool keeps)
+{
+    char file[APP_STORE_PATH_MAX];
+    while (find_incoming(folder, file)) {
+        char incoming[2 * PATH_MAX_BYTES], installed[2 * PATH_MAX_BYTES];
+        snprintf(incoming, sizeof incoming, "%s/%s", folder, file);
+        snprintf(installed, sizeof installed, "%s/%.*s", folder,
+                 (int)(strlen(file) - (sizeof INCOMING_SUFFIX - 1)), file);
+        if (!(keeps ? replace_with(incoming, installed) : remove(incoming) == 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool folder_of(char folder[PATH_MAX_BYTES], char mark[PATH_MAX_BYTES + sizeof COMMIT_MARK],
+                      const char *root, const char *name)
+{
+    if (!app_manifest_is_valid_name(name) ||
+        snprintf(folder, PATH_MAX_BYTES, "%s/%s", root, name) >= PATH_MAX_BYTES) {
+        return false;
+    }
+    snprintf(mark, PATH_MAX_BYTES + sizeof COMMIT_MARK, "%s/%s", folder, COMMIT_MARK);
+    return true;
+}
+
+bool app_store_commit_all(const char *root, const char *name)
+{
+    char folder[PATH_MAX_BYTES], mark[PATH_MAX_BYTES + sizeof COMMIT_MARK];
+    if (!folder_of(folder, mark, root, name)) {
+        return false;
+    }
+    FILE *marked = fopen(mark, "wb");
+    if (marked == NULL || fclose(marked) != 0) {
+        return false;
+    }
+    /* Half-way and failed, the mark stays: the rest is done at the next start. */
+    return settle_incoming(folder, true) && remove(mark) == 0;
+}
+
+bool app_store_drop_incoming(const char *root, const char *name)
+{
+    char folder[PATH_MAX_BYTES], mark[PATH_MAX_BYTES + sizeof COMMIT_MARK];
+    return folder_of(folder, mark, root, name) && settle_incoming(folder, false);
+}
+
+void app_store_recover(const char *root)
+{
+    DIR *directory = opendir(root);
+    if (directory == NULL) {
+        return;
+    }
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        char folder[PATH_MAX_BYTES], mark[PATH_MAX_BYTES + sizeof COMMIT_MARK];
+        if (!folder_of(folder, mark, root, entry->d_name)) {
+            continue;
+        }
+        struct stat found;
+        bool        was_being_put_in_place = stat(mark, &found) == 0;
+        if (settle_incoming(folder, was_being_put_in_place) && was_being_put_in_place) {
+            remove(mark);
+        }
+    }
+    closedir(directory);
 }
 
 long app_store_file_size(const char *root, const char *name, const char *file)

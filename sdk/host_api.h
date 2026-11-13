@@ -647,8 +647,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 /* A request the application makes itself: an action on a button, a
  * second step after an answer. Only to the hosts the manifest lists
  * under "hosts". The host makes one request at a time for the whole
- * device and keeps at most HOST_HTTP_PENDING_MAX of an application's
- * waiting; the answer comes through app_on_data() in pieces, under
+ * device and keeps at most HOST_HTTP_PENDING_MAX waiting, of all the
+ * applications together - HOST_ERR_NO_SPACE when they are taken, to be
+ * asked again later; the answer comes through app_on_data() in pieces, under
  * `tag` - whether the application is on the screen by then or not. The
  * tag is the application's own name for the request, a number from
  * HOST_REQUEST_FIRST to HOST_REQUEST_LAST, so that it cannot be taken for
@@ -851,6 +852,9 @@ HOST_IMPORT(time_boot_id, uint32_t time_boot_id(void));
 #define HOST_LOG_WARN  2
 #define HOST_LOG_INFO  3
 #define HOST_LOG_DEBUG 4
+/* One line: what is longer is cut, and a character that is not printable
+ * ASCII - a line break among them - is logged as "?". */
+#define HOST_LOG_TEXT_MAX 200
 HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length));
 
 /* ---- the system API ----
