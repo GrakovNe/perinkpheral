@@ -21,6 +21,7 @@ static log_ring_t   s_ring;
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static vprintf_like_t s_console;
 static SemaphoreHandle_t s_line_lock;
+static uint32_t     s_written; /* bytes ever logged: where the log ends, for whoever follows it */
 
 /* The console gets the colours; the copy that is read as text does not.
  * Removes "ESC [ ... m" in place and returns the new length. */
@@ -62,6 +63,7 @@ static int capture(const char *format, va_list arguments)
                                                                        : sizeof line - 1);
         portENTER_CRITICAL(&s_lock);
         log_ring_write(&s_ring, line, kept);
+        s_written += (uint32_t)kept;
         portEXIT_CRITICAL(&s_lock);
     }
     xSemaphoreGive(s_line_lock);
@@ -75,10 +77,13 @@ void log_capture_start(void)
     s_console = esp_log_set_vprintf(capture);
 }
 
-size_t log_capture_read(char *text, size_t text_size)
+size_t log_capture_read(char *text, size_t text_size, uint32_t *end)
 {
     portENTER_CRITICAL(&s_lock);
     size_t length = log_ring_read(&s_ring, text, text_size);
+    if (end != NULL) {
+        *end = s_written;
+    }
     portEXIT_CRITICAL(&s_lock);
     return length;
 }

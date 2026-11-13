@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,8 +19,10 @@ void log_capture_start(void);
 #define LOG_CAPTURE_BYTES 4096
 
 /* The log kept so far, oldest first, terminated. text_size of
- * LOG_CAPTURE_BYTES + 1 takes all of it. Returns its length. */
-size_t log_capture_read(char *text, size_t text_size);
+ * LOG_CAPTURE_BYTES + 1 takes all of it. Returns its length. `end`, when
+ * not NULL, gets how many bytes were ever logged: the place this text
+ * ends at, for whoever comes back for what was logged after it. */
+size_t log_capture_read(char *text, size_t text_size, uint32_t *end);
 
 #ifdef __cplusplus
 }

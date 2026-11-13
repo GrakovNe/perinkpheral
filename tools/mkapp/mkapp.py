@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SDK = os.path.join(ROOT, "sdk")
@@ -105,8 +106,16 @@ def build(app_dir, wasm_path):
         "-Wl,-z,stack-size=%d" % APP_STACK,
         "-o", wasm_path,
     ] + sources
-    if subprocess.run(command).returncode != 0:
-        sys.exit("%s did not compile" % app_dir)
+    # The linker's map says where the module's data ends in its memory: the
+    # binary itself does not, for what starts as zeroes is not written out.
+    with tempfile.TemporaryDirectory() as scratch:
+        map_path = os.path.join(scratch, "app.map")
+        if subprocess.run(command + ["-Wl,-Map=" + map_path]).returncode != 0:
+            sys.exit("%s did not compile" % app_dir)
+        with open(map_path) as f:
+            placed = re.findall(r"^\s*([0-9a-f]+)\s+[0-9a-f]+\s+([0-9a-f]+)\s+\.\w+\s*$",
+                                f.read(), re.M)
+    return max((int(start, 16) + int(size, 16) for start, size in placed), default=0)
 
 
 class Reader:
@@ -163,6 +172,53 @@ def inspect(wasm_path):
             memory = (initial, reader.unsigned() if has_maximum else None)
         reader.at = section_end
     return imports, memory
+
+
+SECTION_CODE = 10
+# What an application's code costs when it runs, as measured on the device
+# (`app_area_used` in /api/status, less the 64 KB page): the interpreter
+# needs about this much for any application, and about four bytes for every
+# byte of the module's code section - 12 KB for the sample, 26 for the
+# weather, 28 for HA Companion, 35 for Settings.
+INTERPRETER_BASE_BYTES = 11 * 1024
+INTERPRETER_BYTES_PER_CODE_BYTE = 4
+INTERPRETER_ROOM_BYTES = 48 * 1024
+
+
+def measure(wasm_path):
+    """Returns the bytes of code in the module."""
+    with open(wasm_path, "rb") as f:
+        reader = Reader(f.read())
+    reader.at = 8
+    code = 0
+    while reader.at < len(reader.data):
+        section = reader.byte()
+        size = reader.unsigned()
+        section_end = reader.at + size
+        if section == SECTION_CODE:
+            code = size
+        reader.at = section_end
+    return code
+
+
+def report(wasm_path, import_count, files_bytes, memory_end):
+    """What the build came to, against what the device has for it."""
+    def kb(count):
+        return "%.1f KB" % (count / 1024)
+    module = os.path.getsize(wasm_path)
+    code = measure(wasm_path)
+    running = INTERPRETER_BASE_BYTES + INTERPRETER_BYTES_PER_CODE_BYTE * code
+    print("%s: %d bytes, %d host calls" % (wasm_path, module, import_count))
+    print("  module  %s of %s" % (kb(module), kb(MODULE_MAX_BYTES)))
+    print("  code    %s; running it takes about %s of the interpreter's %s"
+          % (kb(code), kb(running), kb(INTERPRETER_ROOM_BYTES)))
+    if memory_end > 0:
+        print("  memory  %s of %s: %s of stack, %s of data"
+              % (kb(memory_end), kb(WASM_PAGE), kb(APP_STACK), kb(memory_end - APP_STACK)))
+    if files_bytes > 0:
+        print("  files   %s of %s" % (kb(files_bytes), kb(FILES_MAX_BYTES)))
+    if running > INTERPRETER_ROOM_BYTES:
+        print("  warning: this much code may not fit when all of it runs", file=sys.stderr)
 
 
 def host_imports(macro="HOST_IMPORT"):
@@ -386,7 +442,7 @@ def copy_data_files(app_dir, out_dir):
     """What is in the application's `files` folder goes onto the device beside the module."""
     files_dir = os.path.join(app_dir, "files")
     if not os.path.isdir(files_dir):
-        return
+        return 0
     total = 0
     for name in sorted(os.listdir(files_dir)):
         path = os.path.join(files_dir, name)
@@ -403,6 +459,7 @@ def copy_data_files(app_dir, out_dir):
     if total > FILES_MAX_BYTES:
         sys.exit("%s: %d bytes of files, and an application may have %d"
                  % (files_dir, total, FILES_MAX_BYTES))
+    return total
 
 
 def main():
@@ -415,7 +472,7 @@ def main():
     manifest_path = check_manifest(options.app_dir)
     os.makedirs(options.out, exist_ok=True)
     wasm_path = os.path.join(options.out, "app.wasm")
-    build(options.app_dir, wasm_path)
+    memory_end = build(options.app_dir, wasm_path)
     with open(manifest_path) as f:
         asks_for_system = json.load(f).get("system", False)
     imports = check(wasm_path, asks_for_system)
@@ -424,8 +481,8 @@ def main():
         sys.exit("%s: the module is %d bytes, at most %d fit on the device"
                  % (wasm_path, module_bytes, MODULE_MAX_BYTES))
     shutil.copy(manifest_path, os.path.join(options.out, "manifest.json"))
-    copy_data_files(options.app_dir, options.out)
-    print("%s: %d bytes, %d host calls" % (wasm_path, os.path.getsize(wasm_path), len(imports)))
+    files_bytes = copy_data_files(options.app_dir, options.out)
+    report(wasm_path, len(imports), files_bytes, memory_end)
 
 
 if __name__ == "__main__":

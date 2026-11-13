@@ -1,0 +1,153 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- The device in a browser tab: its screen as the panel shows it, its four
+     buttons, its log. Served by `devtool.py serve`, which passes the requests on. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>perINKpheral</title>
+<style>
+  :root { --ink: #141413; --paper: #E9E7E1; --dim: #6b6a66; }
+  body { margin: 0; padding: 16px; background: var(--paper); color: var(--ink);
+         font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  main { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .device { flex: none; }
+  #screen { display: block; width: 800px; max-width: calc(100vw - 32px); aspect-ratio: 4 / 3;
+            image-rendering: pixelated; border: 1px solid var(--ink); background: var(--paper); }
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  button { font: inherit; padding: 10px 0; border: 1px solid var(--ink); background: var(--paper);
+           color: var(--ink); cursor: pointer; }
+  button:active, button.held { background: var(--ink); color: var(--paper); }
+  button small { display: block; color: var(--dim); }
+  button:active small, button.held small { color: var(--paper); }
+  .side { flex: 1 1 320px; min-width: 0; }
+  #log { margin: 0; height: 600px; overflow: auto; border: 1px solid var(--ink); padding: 8px;
+         white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .bar button { padding: 6px 14px; }
+  #state { color: var(--dim); margin-left: auto; }
+  label { color: var(--dim); }
+</style>
+<main>
+  <div class="device">
+    <img id="screen" alt="The device's screen">
+    <div class="keys">
+      <button data-key="1">Up<small>arrow up</small></button>
+      <button data-key="2">OK<small>Enter</small></button>
+      <button data-key="3">Down<small>arrow down</small></button>
+      <button data-key="4">Back<small>Backspace</small></button>
+    </div>
+    <p><label>A long press: hold a button, or Shift with the key.</label></p>
+  </div>
+  <div class="side">
+    <div class="bar">
+      <button id="run" hidden>Run</button>
+      <label><input id="apps-only" type="checkbox"> Apps only</label>
+      <button id="clear">Clear</button>
+      <span id="state"></span>
+    </div>
+    <pre id="log"></pre>
+  </div>
+</main>
+<script>
+const APP_DIR = "{{app}}";
+const LONG_PRESS_MS = 600;
+const byId = id => document.getElementById(id);
+const state = text => { byId("state").textContent = text; };
+
+/* ---- the screen: asked for often, drawn anew only when the panel was ---- */
+let frame = null;
+
+async function look() {
+  try {
+    const answer = await fetch("/screen");
+    if (!answer.ok) throw new Error(await answer.text());
+    const number = answer.headers.get("X-Frame");
+    if (number !== frame) {
+      frame = number;
+      const old = byId("screen").src;
+      byId("screen").src = URL.createObjectURL(await answer.blob());
+      if (old) URL.revokeObjectURL(old);
+    }
+    state(answer.headers.get("X-Pending") === "1" ? "a frame is waiting for the panel" : "");
+  } catch (failure) {
+    state("no answer from the device");
+  }
+  setTimeout(look, 400);
+}
+
+/* ---- the buttons ---- */
+async function press(key) {
+  const answer = await fetch("/press?key=" + key, { method: "POST" });
+  if (!answer.ok) state(await answer.text());
+}
+
+for (const button of document.querySelectorAll("[data-key]")) {
+  let held = null, was_long = false;
+  button.addEventListener("pointerdown", () => {
+    was_long = false;
+    held = setTimeout(() => { was_long = true; button.classList.add("held"); }, LONG_PRESS_MS);
+  });
+  const let_go = () => { clearTimeout(held); button.classList.remove("held"); };
+  button.addEventListener("pointerup", () => {
+    let_go();
+    press(button.dataset.key + (was_long ? "L" : ""));
+  });
+  button.addEventListener("pointerleave", let_go);
+}
+
+const KEYS = { ArrowUp: "1", Enter: "2", ArrowDown: "3", Backspace: "4", Escape: "4" };
+addEventListener("keydown", event => {
+  const key = KEYS[event.key];
+  if (!key || event.repeat || event.target.tagName === "INPUT") return;
+  event.preventDefault();
+  press(key + (event.shiftKey ? "L" : ""));
+});
+
+/* ---- the log: only what came since the last look ---- */
+let log_end = null, kept_part = "";
+
+async function read_log() {
+  try {
+    const answer = await fetch("/log" + (log_end === null ? "" : "?since=" + log_end));
+    if (answer.ok) {
+      log_end = Number(answer.headers.get("X-Log-End"));
+      /* A line may arrive in two halves: the last one waits for its end. */
+      const lines = (kept_part + await answer.text()).split("\n");
+      kept_part = lines.pop();
+      const only_apps = byId("apps-only").checked;
+      const wanted = lines.filter(line => !only_apps || line.includes(" app: "));
+      if (wanted.length) {
+        const log = byId("log");
+        const at_end = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+        log.append(wanted.join("\n") + "\n");
+        if (at_end) log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (failure) { /* the screen's own look says so */ }
+  setTimeout(read_log, 1000);
+}
+
+byId("clear").addEventListener("click", () => { byId("log").textContent = ""; });
+
+/* ---- build the application and put it on the device ---- */
+if (APP_DIR) {
+  const run = byId("run");
+  run.hidden = false;
+  run.title = APP_DIR;
+  run.addEventListener("click", async () => {
+    run.disabled = true;
+    state("building and uploading");
+    const answer = await fetch("/run", { method: "POST" });
+    const said = await answer.text();
+    byId("log").append("--- run: " + said.trim() + "\n");
+    byId("log").scrollTop = byId("log").scrollHeight;
+    state(answer.ok ? "" : "the build failed: see the log");
+    run.disabled = false;
+  });
+}
+
+look();
+read_log();
+</script>
+</html>

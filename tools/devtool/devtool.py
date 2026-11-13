@@ -4,7 +4,14 @@
 """Look at a device and drive it over the network, without a cable.
 
     devtool.py status                     what the device is and how it is doing
-    devtool.py log                        the end of its log
+    devtool.py log [--follow] [--app]     the end of its log; --follow goes on
+                                          printing what is logged, --app keeps
+                                          only the lines of applications
+    devtool.py serve [app dir] [--port N] a page on this computer with the live
+                                          screen, the four buttons, the log and,
+                                          given an application, a Run button
+    devtool.py new my-app [--title T]     a folder with an application to start
+                                          from: the SDK's sample under that name
     devtool.py shot [out.png]             the frame its panel shows
     devtool.py press 3 3 2 [--shot f.png] buttons, one after another: 1-4 a short
                                           press, 1L-4L a long one
@@ -26,8 +33,11 @@ is needed; `run` also needs what tools/mkapp needs.
 """
 import argparse
 import glob
+import http.server
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -59,7 +69,14 @@ DEFAULT_FIRMWARE = os.path.join(os.path.dirname(TOOLS), "firmware", "build", "pe
 
 class Device:
     def __init__(self, host):
+        self.host = host
         self.base = "http://" + host
+
+    def fetch(self, path, method="GET"):
+        """Returns (body, headers), or raises: for a caller that goes on after a refusal."""
+        request = urllib.request.Request(self.base + path, method=method)
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as answer:
+            return answer.read(), answer.headers
 
     def request(self, path, method="GET", body=None, timeout=REQUEST_TIMEOUT_S):
         """Returns (body, headers); exits with the device's own words when it refuses."""
@@ -143,8 +160,129 @@ def command_status(device, options):
         print("%-18s %s" % (key, value))
 
 
+APP_LOG_MARK = " app: "  # the tag the host logs an application's lines under
+FOLLOW_POLL_S = 1.0
+
+
+def log_since(device, end):
+    """What was logged after `end` (None: all there is), and where that ends."""
+    text, headers = device.request("/api/log" + ("?since=%d" % end if end is not None else ""))
+    return text.decode("utf-8", "replace"), int(headers.get("X-Log-End", 0))
+
+
 def command_log(device, options):
-    sys.stdout.write(device.request("/api/log")[0].decode("utf-8", "replace"))
+    end = None
+    while True:
+        text, end = log_since(device, end)
+        for line in text.splitlines(keepends=True):
+            if not options.app or APP_LOG_MARK in line:
+                sys.stdout.write(line)
+        sys.stdout.flush()
+        if not options.follow:
+            return
+        time.sleep(FOLLOW_POLL_S)
+
+
+def command_new(options):
+    """The SDK's sample under another name: a manifest and one source file."""
+    name = os.path.basename(os.path.normpath(options.dir))
+    if not re.fullmatch(r"[a-z0-9_-]{1,13}", name):
+        sys.exit("\"%s\": an application's name is 1-13 of a-z, 0-9, '-' and '_', and it is "
+                 "its folder's name" % name)
+    if os.path.exists(options.dir):
+        sys.exit("%s is there already" % options.dir)
+    sample = os.path.join(SDK_APPS, "hello")
+    with open(os.path.join(sample, "manifest.json")) as f:
+        manifest = json.load(f)
+    manifest["name"] = name
+    manifest["title"] = options.title or name.replace("-", " ").replace("_", " ").capitalize()
+    os.makedirs(options.dir)
+    with open(os.path.join(options.dir, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+    shutil.copy(os.path.join(sample, "hello.c"), os.path.join(options.dir, name + ".c"))
+    print("%s: build it and put it on the device with `devtool.py run %s`"
+          % (os.path.abspath(options.dir), options.dir))
+
+
+# ---- the page: the device in a browser tab, beside any editor ----
+#
+# The device takes requests from its own page only, so a page of ours cannot
+# ask it directly: this is a small server on the developer's computer that
+# gives the page and passes its requests on.
+
+class Page(http.server.BaseHTTPRequestHandler):
+    device = None
+    app_dir = None
+
+    def log_message(self, *arguments):
+        pass
+
+    def answer(self, status, body, content_type="text/plain; charset=utf-8", headers=()):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        for name, value in headers:
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def pass_on(self, path, method="GET", expose=()):
+        try:
+            body, headers = self.device.fetch(path, method)
+        except (urllib.error.URLError, OSError) as failure:
+            return self.answer(502, ("no answer from the device: %s" % failure).encode())
+        self.answer(200, body, headers.get("Content-Type", "application/octet-stream"),
+                    [(name, headers[name]) for name in expose if headers.get(name)])
+
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path == "/":
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "page.html"),
+                      "rb") as f:
+                page = f.read().replace(b"{{app}}", (self.app_dir or "").encode())
+            self.answer(200, page, "text/html; charset=utf-8")
+        elif url.path == "/screen":
+            self.pass_on("/api/dev/screen", expose=("X-Frame", "X-Pending"))
+        elif url.path == "/log":
+            self.pass_on("/api/log?" + url.query, expose=("X-Log-End",))
+        elif url.path == "/status":
+            self.pass_on("/api/status")
+        else:
+            self.answer(404, b"Not found.")
+
+    def do_POST(self):
+        url = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(url.query)
+        if url.path == "/press":
+            key = query.get("key", [""])[0]
+            if not re.fullmatch(r"[1-4]L?", key):
+                return self.answer(400, b"a key is 1-4, or 1L-4L")
+            self.pass_on("/api/dev/button?button=%s&press=%s"
+                         % (key[0], "long" if key.endswith("L") else "short"), "POST")
+        elif url.path == "/run" and self.app_dir:
+            # The build's own words go back to the page, whatever they are.
+            done = subprocess.run([sys.executable, os.path.abspath(__file__), "--host",
+                                   self.device.host, "run", self.app_dir],
+                                  capture_output=True, text=True)
+            self.answer(200 if done.returncode == 0 else 500,
+                        (done.stdout + done.stderr).encode())
+        else:
+            self.answer(404, b"Not found.")
+
+
+def command_serve(device, options):
+    device.status()  # is it there, and built with the development tools
+    Page.device = device
+    Page.app_dir = os.path.abspath(options.app_dir) if options.app_dir else None
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", options.port), Page)
+    print("http://127.0.0.1:%d - the device at %s%s; Ctrl-C stops it"
+          % (options.port, device.host, ", running " + Page.app_dir if Page.app_dir else ""))
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 def command_shot(device, options):
@@ -237,7 +375,20 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
 
     commands.add_parser("status").set_defaults(run=command_status)
-    commands.add_parser("log").set_defaults(run=command_log)
+    log = commands.add_parser("log")
+    log.add_argument("--follow", action="store_true", help="go on printing what is logged")
+    log.add_argument("--app", action="store_true", help="only what applications log")
+    log.set_defaults(run=command_log)
+
+    serve = commands.add_parser("serve")
+    serve.add_argument("app_dir", nargs="?", help="an application the page can build and run")
+    serve.add_argument("--port", type=int, default=8400)
+    serve.set_defaults(run=command_serve)
+
+    new = commands.add_parser("new")
+    new.add_argument("dir", help="the folder to make; its name is the application's")
+    new.add_argument("--title", help="what the menu shows; the name by default")
+    new.set_defaults(run=None)
 
     shot = commands.add_parser("shot")
     shot.add_argument("out", nargs="?", default="shot.png")
@@ -271,6 +422,8 @@ def main():
     flash.set_defaults(run=command_flash)
 
     options = parser.parse_args()
+    if options.command == "new":
+        return command_new(options)  # needs no device
     if not options.host:
         sys.exit("which device? give --host <address> or set PERINKPHERAL_HOST")
     try:

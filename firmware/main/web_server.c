@@ -4,6 +4,7 @@
  */
 #include "web_server.h"
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -304,9 +305,24 @@ static esp_err_t handle_log(httpd_req_t *request)
     if (log == NULL) {
         return httpd_resp_send_500(request);
     }
-    size_t length = log_capture_read(log, LOG_CAPTURE_BYTES + 1);
+    uint32_t end = 0;
+    size_t   length = log_capture_read(log, LOG_CAPTURE_BYTES + 1, &end);
+    /* "?since=<where the last answer ended>" gives only what came after:
+     * the log can be followed without reading it whole every time. What
+     * was logged and already pushed out by newer lines is simply missing. */
+    char   query[48], since_text[16];
+    size_t skipped = 0;
+    if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK &&
+        httpd_query_key_value(query, "since", since_text, sizeof since_text) == ESP_OK) {
+        uint32_t since = (uint32_t)strtoul(since_text, NULL, 10);
+        uint32_t fresh = end - since; /* the counter wraps, and so does this */
+        skipped = fresh < length ? length - fresh : 0;
+    }
+    char end_text[16];
+    snprintf(end_text, sizeof end_text, "%" PRIu32, end);
+    httpd_resp_set_hdr(request, "X-Log-End", end_text);
     httpd_resp_set_type(request, "text/plain; charset=utf-8");
-    esp_err_t err = httpd_resp_send(request, log, (ssize_t)length);
+    esp_err_t err = httpd_resp_send(request, log + skipped, (ssize_t)(length - skipped));
     free(log);
     return err;
 }

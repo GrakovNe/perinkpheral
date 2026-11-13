@@ -37,7 +37,7 @@ static int key_index(const char *keys, char key)
 static void print_kept_log(void)
 {
     static char log[LOG_CAPTURE_BYTES + 1];
-    log_capture_read(log, sizeof log);
+    log_capture_read(log, sizeof log, NULL);
     printf("LOG BEGIN\n%sLOG END\n", log);
 }
 
