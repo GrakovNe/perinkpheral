@@ -119,11 +119,13 @@
 <h1 id="overview">1. Overview</h1>
 <p>perINKpheral is a desk companion: a 4.2" black-and-white e-paper panel and four buttons on an
 ESP32-C6. It shows what one glances at - the time, the weather, the next meeting, the state of
-a home - and stays silent otherwise. The firmware (the <i>host</i>) does not change with what
+a home - and stays silent otherwise.</p>
+<p>The firmware (the <i>host</i>) does not change with what
 the device shows: everything the user sees beyond the menu and the settings is an
 <i>application</i>, installed from a catalog without reflashing.</p>
 <p>An application is a WebAssembly module and a manifest. It is written in C against one header,
-<code>sdk/host_api.h</code>, and run by an interpreter (wasm3) inside the host. The host's own
+<code>sdk/host_api.h</code>, and run by an interpreter (wasm3) inside the host.</p>
+<p>The host's own
 pages - Settings and About - are applications written with the same header.</p>
 
 <h2 id="overview-features">Features</h2>
@@ -153,9 +155,11 @@ pages - Settings and About - are applications written with the same header.</p>
 <h2 id="overview-model">The model in one paragraph</h2>
 <p>There is no <code>main()</code> and no loop. An application exports handlers with fixed names
 and the host calls them: a button was pressed, a timer ran out, data arrived, the picture is
-wanted. A handler changes the application's state and asks for a redraw; the host calls
+wanted.</p>
+<p>A handler changes the application's state and asks for a redraw; the host calls
 <code>app_on_draw()</code> when it needs the frame, and decides itself whether and how the panel
-is refreshed. One application is in memory at a time. It is unloaded when it leaves the screen,
+is refreshed.</p>
+<p>One application is in memory at a time. It is unloaded when it leaves the screen,
 so whatever must be remembered lives in its store, not in its variables.</p>
 
 <h1 id="characteristics">2. Characteristics</h1>
@@ -279,7 +283,8 @@ call it, and every such reason is one of its exported handlers.</p>
 
 <h2 id="model-state">State</h2>
 <p>Globals do not survive an unload, and an unload follows every visit to the screen and every
-call in the background. Read the state in <code>app_init()</code>, write it in
+call in the background.</p>
+<p>Read the state in <code>app_init()</code>, write it in
 <code>app_on_terminate()</code> - the last call an instance gets, whatever the reason - or at the
 moment it changes if it must not be lost to a loss of power.</p>
 <p>Do not store a moment as "ticks since the start" and expect it to mean anything later: store
@@ -289,11 +294,14 @@ which is another number after every restart.</p>
 <h2 id="model-screen">Who owns the screen</h2>
 <p>Moving about is a stack. The menu is at the bottom. Opening an application puts it on top;
 a notification, a question of the host's, an application that asked for the screen go on top of
-that. BACK is one step down; a long press of BACK empties the stack. Only the top is loaded, so
+that.</p>
+<p>BACK is one step down; a long press of BACK empties the stack.</p>
+<p>Only the top is loaded, so
 an application that waits under another enters again from what it stored.</p>
 <p>Between the surface and the panel stands the host. It compares the frame an application drew
 with what the panel shows, sends only what differs, and refuses a refresh that comes too soon
-after the last one that nobody asked for. An application cannot refresh the panel, and cannot
+after the last one that nobody asked for.</p>
+<p>An application cannot refresh the panel, and cannot
 leave a half-drawn screen.</p>
 
 <h1 class="part" id="part-2">Part II. Development guide</h1>
@@ -315,15 +323,18 @@ leave a half-drawn screen.</p>
 <pre>tools/devtool/devtool.py new my-app --title "My app"     # a folder with the SDK's sample in it
 tools/devtool/devtool.py run my-app                      # build, upload, restart the device into it
 tools/devtool/devtool.py serve my-app                    # a page with the live screen, buttons, log, Run</pre>
-<p><code>run</code> takes about ten seconds and does not reflash anything. <code>serve</code> is for
+<p><code>run</code> takes about ten seconds and does not reflash anything.</p>
+<p><code>serve</code> is for
 working beside an editor: the screen as the panel shows it, the four buttons (and the keyboard's
 arrows, Enter and Backspace), the device's log as it is written, and a button that builds and
 uploads again.</p>
 
 <p>In an IDE that reads CMake - CLion, VS Code - open the application's folder: <code>new</code>
-wrote a <code>CMakeLists.txt</code> into it. The code is understood with the SDK's headers and
+wrote a <code>CMakeLists.txt</code> into it.</p>
+<p>The code is understood with the SDK's headers and
 the generated <code>strings.h</code> and <code>pictures.h</code>, and <code>my-app</code>,
-<code>my-app-run</code> and <code>my-app-serve</code> are build targets. The IDE needs
+<code>my-app-run</code> and <code>my-app-serve</code> are build targets.</p>
+<p>The IDE needs
 <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the environment it gives CMake.</p>
 <h2 id="start-sample">The sample, whole</h2>
 <pre>#include "app_text.h"
@@ -458,7 +469,9 @@ include, checks everything against the limits and writes the package: <code>app.
 <h2 id="package-settings">Settings</h2>
 <p>A setting is declared, not coded: the device's page draws the form from the manifest without
 running the application, and stores each value as text under its key in the application's own
-store. The code reads it with <code>kv_get()</code>. A change arrives as
+store.</p>
+<p>The code reads it with <code>kv_get()</code>.</p>
+<p>A change arrives as
 <code>app_on_settings()</code>, and the host fetches the polls again at once.</p>
 <table>
   <tr><th style="width:11%">Type</th><th style="width:27%">On the page</th><th>Stored value and notes</th></tr>
@@ -498,7 +511,8 @@ store. The code reads it with <code>kv_get()</code>. A change arrives as
 <h2 id="screen-fonts">Fonts</h2>
 <p>A font is a size. The typeface is the user's choice - Departure Mono, monospaced, or Jersey,
 whose letters have their own widths - so a layout made by counting characters is wrong for half
-the users. Measure: <code>gfx_text_width()</code>, <code>gfx_font_height()</code>,
+the users.</p>
+<p>Measure: <code>gfx_text_width()</code>, <code>gfx_font_height()</code>,
 <code>gfx_font_ascent()</code>, <code>gfx_font_cap_height()</code>.</p>
 <table>
   <tr><th style="width:24%">Size</th><th>Capitals, px</th><th>Line, px</th><th>Characters in 400 px</th><th style="width:34%">For</th></tr>
@@ -529,14 +543,16 @@ these that applies:</p>
       as plain ones;</li>
   <li>a <code>?</code>.</li>
 </ol>
-<p>The degree sign is drawn in every size, pack or no pack. Widths differ between the three
-cases, which is one more reason to measure. Limits on text a person reads - a title, an option -
+<p>The degree sign is drawn in every size, pack or no pack.</p>
+<p>Widths differ between the three
+cases, which is one more reason to measure.</p>
+<p>Limits on text a person reads - a title, an option -
 are counted in characters, and a field holds half as many letters of two bytes as of one.</p>
 
 <h2 id="screen-pictures">Pictures and icons</h2>
 <p>The host has twenty icons, 11 cells square: signal, no signal, four arrows, check, cross,
-plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update.
-<code>gfx_icon()</code> draws one with a cell of any number of pixels; <code>ui_icon()</code> at
+plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update.</p>
+<p><code>gfx_icon()</code> draws one with a cell of any number of pixels; <code>ui_icon()</code> at
 the host's three sizes, 22, 44 and 99 px.</p>
 <div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>the host's icons at a cell of 2 and of 4 pixels; the last is the project's own mark</figcaption></figure>
@@ -550,17 +566,22 @@ drop:
 ....###....                                gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px, the same drawing */
 ...#####...
 ..#######..</pre>
-<p>The rules of the text form: a line <code>name:</code> begins a drawing, and what stands before the first such line is named after the file; the rows of a drawing are of one length, at most 255 cells a side. The name in the code is <code>PICTURE_</code> and the drawing's name in capitals, whatever is not a letter or a digit becoming <code>_</code>: <code>half-moon</code> is <code>PICTURE_HALF_MOON</code>. <code>mkpicture.py --show</code> prints what was understood.</p>
+<p>The rules of the text form: a line <code>name:</code> begins a drawing, and what stands before the first such line is named after the file; the rows of a drawing are of one length, at most 255 cells a side.</p>
+<p>The name in the code is <code>PICTURE_</code> and the drawing's name in capitals, whatever is not a letter or a digit becoming <code>_</code>: <code>half-moon</code> is <code>PICTURE_HALF_MOON</code>.</p>
+<p><code>mkpicture.py --show</code> prints what was understood.</p>
 <p>A picture is a bit a cell, an eighth of what its rows would take as text, and is drawn with a
-cell of 1 to 16 pixels, so one drawing serves several sizes. Draw on the grid the host's icons
+cell of 1 to 16 pixels, so one drawing serves several sizes.</p>
+<p>Draw on the grid the host's icons
 use - 11 cells, or 22 and 44 for finer work - and the application's pictures stand beside the
-host's without looking foreign. A picture too large for the module goes into
+host's without looking foreign.</p>
+<p>A picture too large for the module goes into
 <code>files/</code> and is drawn from there with <code>gfx_bitmap_file()</code>, without passing
 through the application's memory.</p>
 
 <h2 id="screen-kit">The kit</h2>
 <p>The host's screens are put together from a handful of parts, and an application may ask for
-the same parts. Nobody has to - <code>gfx_*</code> draws anything - but an application built from
+the same parts.</p>
+<p>Nobody has to - <code>gfx_*</code> draws anything - but an application built from
 them looks the part, keeps doing so when the look changes, and is smaller: the kit's code is in
 the host.</p>
 <table>
@@ -588,7 +609,8 @@ the host.</p>
   <figure><img src="{{ROOT}}/docs/guide/screens/notice-progress.png" alt=""><figcaption>ui_notice with is_working</figcaption></figure>
 </div>
 <p>What the buttons do on a list, a picker and a date is in the SDK's library
-(<code>app_ui.h</code>): the application writes only what the result is for (section 7). The
+(<code>app_ui.h</code>): the application writes only what the result is for (section 7).</p>
+<p>The
 catalog's <code>kit</code> application shows every part on a page of its own, and its source is
 the shortest way to see one used.</p>
 
@@ -600,7 +622,8 @@ the shortest way to see one used.</p>
   <tr><td class="c">HOST_REDRAW_CLEAN</td><td>a full refresh: 2 - 3 s, a blink, no traces</td><td>a picture that must be clean; the end of a row of quick ones</td></tr>
   <tr><td class="c">HOST_REDRAW_NO_BLINK</td><td>now, and never as the full refresh the host makes after a few partial ones</td><td>stepping through a list; a value that changes every second</td></tr>
 </table>
-<p>There is no budget on redraws: the device is its owner's. Every refresh nevertheless costs
+<p>There is no budget on redraws: the device is its owner's.</p>
+<p>Every refresh nevertheless costs
 battery and a little of the panel's life, and a panel that keeps changing stops being
 something one can ignore. Section 13 says what follows.</p>
 
@@ -608,8 +631,10 @@ something one can ignore. Section 13 says what follows.</p>
 <p>The buttons mean the same everywhere in the host: UP, OK, DOWN, BACK. Keep the meaning.</p>
 <p>A press arrives twice over: as it happens - <code>KEYDOWN</code>, then <code>KEYUP</code> - and as
 what it meant - <code>PRESSED</code> after the key went up, or <code>LONG_PRESSED</code> while it is
-still held, the release then being only a <code>KEYUP</code>. Most applications handle the last
-two and ignore the rest. One number carries the button and the action, and has a name:</p>
+still held, the release then being only a <code>KEYUP</code>.</p>
+<p>Most applications handle the last
+two and ignore the rest.</p>
+<p>One number carries the button and the action, and has a name:</p>
 <pre>void app_on_button(int32_t event)
 {
     switch (event) {
@@ -626,7 +651,8 @@ two and ignore the rest. One number carries the button and the action, and has a
   <tr><td>exports <code>app_on_back()</code></td><td>is delivered there. Go a page back; from the first page call <code>request_exit()</code></td></tr>
 </table>
 <p><code>BTN_BACK_PRESSED</code> never reaches <code>app_on_button()</code>, and a long press of BACK
-is always the host's menu. <code>request_exit()</code> is one step down - the user returns to what
+is always the host's menu.</p>
+<p><code>request_exit()</code> is one step down - the user returns to what
 they were looking at, which matters for an application that took the screen by itself.</p>
 
 <h2 id="buttons-kit">Lists, pickers, dates</h2>
@@ -657,7 +683,8 @@ to draw.</p>
 <h1 id="storage">8. Storage</h1>
 <h2 id="storage-kv">The store</h2>
 <p><code>kv_get()</code> and <code>kv_set()</code> keep small values under short keys, in a namespace
-no other application can reach. It holds the application's state and its settings, and it
+no other application can reach.</p>
+<p>It holds the application's state and its settings, and it
 outlives the application: one that is removed and installed again finds what it left.</p>
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
@@ -676,15 +703,17 @@ void app_init(void)
   <li><code>kv_set()</code> with a length of 0 removes the key.</li>
 </ul>
 <h2 id="storage-files">Files</h2>
-<p>For what does not fit a value: a list fetched from the network, a cache, a picture.
-<code>file_read()</code> and <code>file_write()</code> take an offset, so a file is read and grown
-in parts without ever being whole in memory. The files of the package's <code>files/</code>
+<p>For what does not fit a value: a list fetched from the network, a cache, a picture.</p>
+<p><code>file_read()</code> and <code>file_write()</code> take an offset, so a file is read and grown
+in parts without ever being whole in memory.</p>
+<p>The files of the package's <code>files/</code>
 folder are there from the install.</p>
 
 <h1 id="network">9. The network</h1>
 <p>An application never connects to anything. It says what it wants; the host makes the
 request, one at a time for the whole device, and hands over the answer - whether the
-application is on the screen then or not. There is no "is the network there": ask, and "no
+application is on the screen then or not.</p>
+<p>There is no "is the network there": ask, and "no
 network" is one of the answers.</p>
 <table>
   <tr><th style="width:20%">Way</th><th style="width:33%">When</th><th>The answer arrives as</th></tr>
@@ -709,7 +738,8 @@ void app_on_values(int32_t request, int32_t http_status)
     request_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 <p>There is no floating point: a number is read with as many decimals as asked for, rounded,
-as an integer. A path the answer did not have is missing - treat it as no data, not as zero.</p>
+as an integer.</p>
+<p>A path the answer did not have is missing - treat it as no data, not as zero.</p>
 
 <h2 id="network-pieces">An answer in pieces</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
@@ -803,8 +833,10 @@ matters: take data, keep a moment, tell the user. Each of these loads it for one
     notify(&amp;notice);
 }</pre>
 <p>The host owns the notification from there: it shows it under its header, keeps it until OK or
-BACK, and returns the screen to what had it. The application is not loaded for any of that and
-learns nothing of it, so it keeps no "is showing" of its own. Prefer this to
+BACK, and returns the screen to what had it.</p>
+<p>The application is not loaded for any of that and
+learns nothing of it, so it keeps no "is showing" of its own.</p>
+<p>Prefer this to
 <code>request_focus()</code> whenever what there is to say fits two lines.</p>
 
 <h2 id="background-alarms">Alarms, timers</h2>
@@ -941,7 +973,8 @@ every five minutes whatever is asked.</div>
   <tr><td class="c">tools/catalog/mkcatalog.py &lt;folder&gt; --out &lt;dir&gt;</td><td>builds a folder of applications into a catalog</td></tr>
 </table>
 <p><code>host_log(level, text, length)</code> writes a line of up to 200 characters into the
-device's log; it is the <code>printf</code> there is. <code>press ... --shot</code> waits for the
+device's log; it is the <code>printf</code> there is.</p>
+<p><code>press ... --shot</code> waits for the
 panel and saves the frame, which is enough to script a regression test of an application's
 screens.</p>
 
@@ -979,9 +1012,11 @@ that serves HTTPS - a git host's raw files, a static site.</p>
 </ul>
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
-<p>Every declaration of <code>sdk/host_api.h</code>, ABI 2. Numbers are <code>int32_t</code> unless
+<p>Every declaration of <code>sdk/host_api.h</code>, ABI 2.</p>
+<p>Numbers are <code>int32_t</code> unless
 shown otherwise. A text argument is a pointer and a length in bytes, UTF-8, with no terminator
-needed. A call with no value of its own returns <code>HOST_OK</code> or a negative
+needed.</p>
+<p>A call with no value of its own returns <code>HOST_OK</code> or a negative
 <code>HOST_ERR_*</code>.</p>
 
 <h1 id="ref-codes">16. Return codes</h1>
@@ -1098,7 +1133,8 @@ needed. A call with no value of its own returns <code>HOST_OK</code> or a negati
 </table>
 
 <h1 id="ref-system">22. The system API</h1>
-<p>What the host's own pages are written with. Any application may have it - the device is its
+<p>What the host's own pages are written with.</p>
+<p>Any application may have it - the device is its
 owner's - by declaring <code>"system": true</code>; the page then tells the user before
 installing, and a module that imports a <code>sys_*</code> call without the declaration is
 refused.</p>
@@ -1116,7 +1152,8 @@ refused.</p>
 
 <h1 id="ref-library">23. The SDK library</h1>
 <p>Linked into every application by <code>mkapp</code>; what is not used is not kept. The headers are in
-<code>sdk/lib</code>. <code>bool</code> is C's own, of <code>&lt;stdbool.h&gt;</code>; a text is terminated unless said otherwise.</p>
+<code>sdk/lib</code>.</p>
+<p><code>bool</code> is C's own, of <code>&lt;stdbool.h&gt;</code>; a text is terminated unless said otherwise.</p>
 <h2 id="lib-text">app_text.h: short strings without printf</h2>
 <pre>typedef struct { char *next; char *last; } app_text_t;      /* a local of the caller's, on the stack */
 
@@ -1164,7 +1201,8 @@ const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL
 #include "strings.h"      /* made of strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
 #include "pictures.h"     /* made of pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
 <p><code>strings.h</code> and <code>pictures.h</code> are an application's own and come first: a system header of the
-same name is never taken for them. <code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are
+same name is never taken for them.</p>
+<p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are
 there for what the compiler calls by itself; there is no other C library.</p>
 
 <h1 id="ref-limits">24. Limits</h1>
