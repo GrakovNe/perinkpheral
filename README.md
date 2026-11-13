@@ -162,7 +162,7 @@ A device with no network stored puts up an open Wi-Fi access point
 named after itself, `Perinkpheral-XXXX`. Join it, open
 <http://192.168.4.1>, enter your network and its password; the device
 restarts and joins. If it cannot - a wrong password - its own access
-point comes back after two minutes. The device page in the menu shows
+point comes back after two minutes. The second page of About in the menu shows
 where the device is.
 
 ### Updating without the cable

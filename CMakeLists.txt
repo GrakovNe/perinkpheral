@@ -12,7 +12,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/sdk/cmake/perinkpheral.cmake")
 project(perinkpheral C)
 
 perinkpheral_app(sdk/apps/hello)
-foreach(system_app about device settings setup)
+foreach(system_app about settings setup)
     perinkpheral_app(firmware/system/${system_app} NO_RUN)
 endforeach()
 

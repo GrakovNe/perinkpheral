@@ -95,7 +95,7 @@ endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
 file(GLOB system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
                                                "${repo_dir}/tools/mkapp/mkapp.py")
-foreach(system_app about device settings setup)
+foreach(system_app about settings setup)
     set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
     set(system_app_out "${system_apps_dir}/${system_app}")
     # What is embedded is named after the application: the file's name is

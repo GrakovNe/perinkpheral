@@ -72,7 +72,7 @@ the window manager and `firmware/main/screens.c` natively and writes a
 PNG per screen. Look at them; the panel shows exactly that.
 
 The device without hands on it, over the network: `tools/devtool/devtool.py`
-with `PERINKPHERAL_HOST` set to the device's address (the Device page of
+with `PERINKPHERAL_HOST` set to the device's address (the second page of About, in
 its menu shows it).
 - `shot out.png` saves the frame the panel shows;
 - `press 3 3 2 --shot out.png` presses buttons (`1`-`4` short, `1L`-`4L`
@@ -104,7 +104,7 @@ Firmware without the cable, once the device is on a network:
 `curl --data-binary @firmware/build/perinkpheral.bin
 http://<address>/api/ota`. The device restarts into the new image and
 keeps it only if it comes back reachable; `GET /api/status` says
-whether it is still on probation. The address is on the device page of
+whether it is still on probation. The address is on the second page of About, in
 the menu.
 
 The log without the cable: `curl http://<address>/api/log` gives the

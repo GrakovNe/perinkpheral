@@ -92,7 +92,7 @@ int main(int argc, char **argv)
     const screens_header_t offline = { GFX_ICON_NO_SIGNAL, NULL, NULL, SCREENS_NO_ICON };
     gfx_t content;
 
-    const char *titles[] = { "Clock", "Hello", "Device", "About" };
+    const char *titles[] = { "Clock", "Hello", "Settings", "About" };
     start_screen(&online, &content);
     screens_menu(&content, row_from_array, titles, 4, 0);
     if (save(dir, "menu")) {
@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 
     /* A list longer than the screen: at its start, in the middle, at its end. */
     const char *many[] = { "Weather", "Clock", "Timer", "Hello", "Bad Apple",
-                           "Settings", "Device", "About", "Calendar", "Plex" };
+                           "Settings", "About", "Calendar", "Plex", "Stars" };
     const int selections[] = { 0, 5, 9 };
     const char *const names[] = { "menu-scroll-start", "menu-scroll-middle", "menu-scroll-end" };
     for (int shot = 0; shot < 3; shot++) {

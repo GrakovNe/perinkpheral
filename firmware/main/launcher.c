@@ -58,11 +58,10 @@ static int          s_entry_count;
                                                                "_manifest_ru_start")
 SYSTEM_APP(setup);
 SYSTEM_APP(settings);
-SYSTEM_APP(device);
 SYSTEM_APP(about);
 
 /* In the order the menu lists them, after the installed ones. */
-enum { SYSTEM_SETTINGS, SYSTEM_DEVICE, SYSTEM_ABOUT, SYSTEM_IN_MENU, SYSTEM_SETUP = SYSTEM_IN_MENU,
+enum { SYSTEM_SETTINGS, SYSTEM_ABOUT, SYSTEM_IN_MENU, SYSTEM_SETUP = SYSTEM_IN_MENU,
        SYSTEM_APP_COUNT };
 
 static app_manifest_t s_system[SYSTEM_APP_COUNT];
@@ -261,7 +260,7 @@ const uint8_t *launcher_system_file(const char *app_name, const char *file, size
         const char    *name;
         const uint8_t *strings, *strings_end;
         const char    *manifest;
-    } WORDS[] = { WORDS_OF(setup), WORDS_OF(settings), WORDS_OF(device), WORDS_OF(about) };
+    } WORDS[] = { WORDS_OF(setup), WORDS_OF(settings), WORDS_OF(about) };
 #undef WORDS_OF
     for (size_t i = 0; i < sizeof WORDS / sizeof WORDS[0]; i++) {
         if (strcmp(WORDS[i].name, app_name) != 0) {
@@ -288,10 +287,6 @@ void launcher_start(void)
         system_app_scene(&s_system[SYSTEM_SETTINGS], system_settings_manifest_start,
                          system_settings_wasm_start,
                          (size_t)(system_settings_wasm_end - system_settings_wasm_start));
-    s_system_scenes[SYSTEM_DEVICE] =
-        system_app_scene(&s_system[SYSTEM_DEVICE], system_device_manifest_start,
-                         system_device_wasm_start,
-                         (size_t)(system_device_wasm_end - system_device_wasm_start));
     s_system_scenes[SYSTEM_ABOUT] =
         system_app_scene(&s_system[SYSTEM_ABOUT], system_about_manifest_start,
                          system_about_wasm_start,
