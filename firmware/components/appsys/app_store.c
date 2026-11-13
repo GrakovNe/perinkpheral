@@ -340,6 +340,14 @@ static bool is_data_file(const char *file)
            !is_incoming;
 }
 
+/* What a file of so many bytes takes of the partition: whole blocks. */
+static long taken_by(long size)
+{
+    return size <= 0 ? 0
+                     : (size + MANIFEST_FILE_BLOCK_BYTES - 1) / MANIFEST_FILE_BLOCK_BYTES *
+                           MANIFEST_FILE_BLOCK_BYTES;
+}
+
 /* How much the application's data files take, the one named `except` not counted. */
 static long data_bytes(const char *root, const char *name, const char *except)
 {
@@ -357,7 +365,7 @@ static long data_bytes(const char *root, const char *name, const char *except)
             continue;
         }
         long size = app_store_file_size(root, name, entry->d_name);
-        total += size > 0 ? size : 0;
+        total += taken_by(size);
     }
     closedir(directory);
     return total;
@@ -383,7 +391,7 @@ app_write_result_t app_store_write_file(const char *root, const char *name, cons
     }
     long end = offset + (long)length;
     long size_after = end > size_before ? end : size_before;
-    if (data_bytes(root, name, file) + size_after > APP_FILES_MAX_BYTES) {
+    if (data_bytes(root, name, file) + taken_by(size_after) > APP_FILES_MAX_BYTES) {
         return APP_WRITE_NO_SPACE;
     }
     FILE *opened = fopen(path, size < 0 ? "wb" : "r+b");

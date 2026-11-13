@@ -245,7 +245,7 @@ installs one.
 Applications reach a device from a **catalog**: a folder of static files
 with an index, served from anywhere over HTTPS, the way a Debian
 repository is. The device's page lists what its catalogs hold and
-installs with a click. A device has five places for applications, and
+installs with a click. A device has six places for applications, and
 one that is removed keeps its settings for when it comes back. The
 official applications - a clock, the weather, a timer - are in
 [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps);

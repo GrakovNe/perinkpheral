@@ -744,8 +744,24 @@ static bool is_sound_file_list(const cJSON *files)
     const cJSON *first = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, 0), "name");
     const cJSON *last =
         cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, count - 1), "name");
-    return cJSON_IsString(first) && strcmp(first->valuestring, APP_FILE_MODULE) == 0 &&
-           cJSON_IsString(last) && strcmp(last->valuestring, APP_FILE_MANIFEST) == 0;
+    if (!cJSON_IsString(first) || strcmp(first->valuestring, APP_FILE_MODULE) != 0 ||
+        !cJSON_IsString(last) || strcmp(last->valuestring, APP_FILE_MANIFEST) != 0) {
+        return false;
+    }
+    /* What lies between them is the application's files, and all of them
+     * together have a share, each counted as the whole blocks it takes: a
+     * catalog cannot bring more than an application may write. */
+    double taken = 0;
+    for (int i = 1; i < count - 1; i++) {
+        const cJSON *size = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, i), "size");
+        if (!cJSON_IsNumber(size) || size->valuedouble < 0) {
+            return false;
+        }
+        long blocks = ((long)size->valuedouble + MANIFEST_FILE_BLOCK_BYTES - 1) /
+                      MANIFEST_FILE_BLOCK_BYTES;
+        taken += (double)blocks * MANIFEST_FILE_BLOCK_BYTES;
+    }
+    return taken <= APP_FILES_MAX_BYTES;
 }
 
 static esp_err_t handle_install(httpd_req_t *request)
@@ -833,7 +849,7 @@ static esp_err_t handle_install(httpd_req_t *request)
 }
 
 /* What the application stored - its settings among it - stays unless the
- * user asks otherwise: with five places for applications they come and
+ * user asks otherwise: with six places for applications they come and
  * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)
 {

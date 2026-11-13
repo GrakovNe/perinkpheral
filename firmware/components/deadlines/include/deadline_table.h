@@ -18,7 +18,7 @@ extern "C" {
  * a deadline "in so long" moves with it, one "at such a time" stays.
  * Pure, host-tested. */
 
-#define DEADLINES_MAX 64
+#define DEADLINES_MAX 80
 #define DEADLINE_NONE INT64_MAX
 
 /* Whose deadline: its kind, the owner among those of the kind (an

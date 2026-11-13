@@ -14,7 +14,7 @@ extern "C" {
 /* What the device can show: the installed applications, each as a scene,
  * and the host's own pages. */
 
-/* Five applications from the catalog, a few more a developer uploaded, and
+/* Six applications from the catalog, a few more a developer uploaded, and
  * the system ones. */
 #define LAUNCHER_ENTRIES_MAX 11
 

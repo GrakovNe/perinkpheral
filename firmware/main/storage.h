@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,6 +20,10 @@ extern "C" {
 bool storage_start(void);
 
 bool storage_is_mounted(void);
+
+/* How much of the applications' partition is taken, the file system's own
+ * part included, and how large it is; zeroes while it is not mounted. */
+void storage_usage(size_t *used_bytes, size_t *total_bytes);
 
 /* Leaves an empty file system in the partition, to be mounted at the
  * next start. */

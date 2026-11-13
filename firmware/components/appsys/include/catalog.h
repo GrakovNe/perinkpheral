@@ -24,7 +24,7 @@ extern "C" {
 #define CATALOG_URL_MAX         255
 #define CATALOG_INDEX_FILE      "catalog.json"
 /* No more applications than this on a device: few, and large ones. */
-#define CATALOG_INSTALLED_MAX   5
+#define CATALOG_INSTALLED_MAX   6
 /* What an application is made of at most: the module, the manifest and
  * its data files. */
 #define CATALOG_APP_FILES_MAX   8

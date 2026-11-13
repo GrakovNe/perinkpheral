@@ -247,6 +247,10 @@ static esp_err_t handle_status(httpd_req_t *request)
     cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
     cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);
     cJSON_AddBoolToObject(json, "storage_ok", storage_is_mounted());
+    size_t storage_used = 0, storage_total = 0;
+    storage_usage(&storage_used, &storage_total);
+    cJSON_AddNumberToObject(json, "storage_used", (double)storage_used);
+    cJSON_AddNumberToObject(json, "storage_total", (double)storage_total);
     cJSON_AddNumberToObject(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
     cJSON_AddBoolToObject(json, "usb_host", usb_serial_jtag_is_connected());

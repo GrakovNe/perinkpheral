@@ -902,10 +902,12 @@ APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
  * application reads the files that came in its package - everything in
  * its `files` folder when it was built - and the ones it wrote itself:
  * a picture that arrived in pieces, a cache. All of them together may
- * take HOST_FILES_MAX bytes. Writing wears the flash like kv_set() does. The name is 1-23 of a-z, 0-9,
+ * take HOST_FILES_MAX bytes as they lie on the device, where a file is
+ * whole blocks of 4 KB: sixteen blocks, in one file or in several. Every
+ * installed application has that much, whatever the others take. Writing wears the flash like kv_set() does. The name is 1-23 of a-z, 0-9,
  * '.', '-' and '_', not starting with a dot. */
 #define HOST_FILE_NAME_MAX 23
-#define HOST_FILES_MAX     (120 * 1024)
+#define HOST_FILES_MAX     (64 * 1024)
 
 /* The length of the file, or HOST_ERR_NOT_FOUND. */
 HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length));

@@ -259,11 +259,18 @@ static void test_install_files(void)
     CHECK(app_store_write_file(root, "fresh", APP_FILE_MODULE, 0, "x", 1) == APP_WRITE_REFUSED);
     CHECK(app_store_write_file(root, "fresh", APP_FILE_MANIFEST, 0, "x", 1) == APP_WRITE_REFUSED);
     CHECK(app_store_write_file(root, "fresh", "../x", 0, "x", 1) == APP_WRITE_REFUSED);
-    /* all its data files together have a share: 10 + 8 bytes are taken */
+    /* all its data files together have a share, counted as they lie on the
+     * device - each a whole number of blocks: two small files are two blocks */
     static char big[APP_FILES_MAX_BYTES];
-    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big, APP_FILES_MAX_BYTES - 18) ==
+    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big,
+                               APP_FILES_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES + 1) ==
+          APP_WRITE_NO_SPACE);
+    CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big,
+                               APP_FILES_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES) ==
           APP_WRITE_OK);
-    CHECK(app_store_write_file(root, "fresh", "cache.bin", 8, "i", 1) == APP_WRITE_NO_SPACE);
+    CHECK(app_store_write_file(root, "fresh", "more.bin", 0, "i", 1) == APP_WRITE_NO_SPACE);
+    /* inside the block a file has already, there is room */
+    CHECK(app_store_write_file(root, "fresh", "cache.bin", 8, "i", 1) == APP_WRITE_OK);
     CHECK(app_store_write_file(root, "fresh", "cache.bin", 0, "A", 1) == APP_WRITE_OK);
     /* length 0 at the start removes the file, and one that is not there is gone already */
     CHECK(app_store_write_file(root, "fresh", "big.bin", 0, "", 0) == APP_WRITE_OK);

@@ -152,7 +152,7 @@ so whatever must be remembered lives in its store, not in its variables.</p>
   <tr><td>Instances in memory</td><td class="n">1</td><td>of all applications together</td></tr>
   <tr><td>Floating point</td><td class="n">none</td><td>the build refuses a module that has a float operation</td></tr>
   <tr><td>C library</td><td class="n">none</td><td><code>sdk/lib</code> instead: strings, numbers, an arena, <code>memcpy</code> and its family</td></tr>
-  <tr><td>Installed applications</td><td class="n">5</td><td>per device; a catalog may hold any number</td></tr>
+  <tr><td>Installed applications</td><td class="n">6</td><td>per device; a catalog may hold any number</td></tr>
 </table>
 
 <h2 id="char-storage">Storage</h2>
@@ -161,7 +161,7 @@ so whatever must be remembered lives in its store, not in its variables.</p>
   <tr><td>Store: a key</td><td class="n">1 - 15 characters</td><td>from <code>!</code> to <code>~</code>, no spaces</td></tr>
   <tr><td>Store: a value</td><td class="n">1024 bytes</td><td></td></tr>
   <tr><td>Store: all values</td><td class="n">4096 bytes</td><td>of one application; kept when it is removed, for when it comes back</td></tr>
-  <tr><td>Files: all of them</td><td class="n">120 KB</td><td>what came in the package and what the application wrote</td></tr>
+  <tr><td>Files: all of them</td><td class="n">64 KB</td><td>what came in the package and what the application wrote, each file counted as the whole 4 KB blocks it takes on the device: 16 blocks. Every installed application has this much, whatever the others take</td></tr>
   <tr><td>Files: a name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>, not starting with a dot</td></tr>
 </table>
 
@@ -1074,7 +1074,7 @@ refused.</p>
   <tr><td class="c">HOST_TEXT_MAX</td><td>127 bytes</td><td>one text drawn or measured</td></tr>
   <tr><td class="c">HOST_HEADER_TEXT_MAX / HOST_STATUS_TEXT_MAX</td><td>63 / 31 bytes</td><td>a header text; a header status</td></tr>
   <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 4096</td><td>a key; a value; an application's whole store</td></tr>
-  <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX</td><td>23 / 120 KB</td><td>a file's name; all files of an application</td></tr>
+  <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX</td><td>23 / 64 KB</td><td>a file's name; all files of an application</td></tr>
   <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>a piece of an answer</td></tr>
   <tr><td class="c">HOST_ANSWER_MAX / HOST_ANSWER_PIECES_MAX</td><td>256 KB / 4 MB</td><td>an answer picked apart; an answer in pieces</td></tr>
   <tr><td class="c">HOST_VALUE_MAX</td><td>63 bytes</td><td>a picked value</td></tr>

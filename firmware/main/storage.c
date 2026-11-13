@@ -48,3 +48,12 @@ bool storage_start(void)
              (unsigned)(total_bytes / 1024));
     return true;
 }
+
+void storage_usage(size_t *used_bytes, size_t *total_bytes)
+{
+    *used_bytes = 0;
+    *total_bytes = 0;
+    if (s_is_mounted) {
+        esp_littlefs_info(APPS_PARTITION, total_bytes, used_bytes);
+    }
+}

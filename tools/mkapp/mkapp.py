@@ -66,6 +66,12 @@ FILE_NAME_MAX = LIMITS["FILE_NAME_MAX"]
 INTENTS = ("time_changed", "network_up", "started")
 SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url", "link")
 FILES_MAX_BYTES = LIMITS["FILES_MAX_BYTES"]
+FILE_BLOCK_BYTES = LIMITS["FILE_BLOCK_BYTES"]
+
+
+def taken_by(size):
+    """What a file of so many bytes takes on the device: whole blocks."""
+    return -(-size // FILE_BLOCK_BYTES) * FILE_BLOCK_BYTES
 MODULE_MAX_BYTES = LIMITS["MODULE_MAX_BYTES"]
 HEADER_NAME_MAX = LIMITS["HEADER_NAME_MAX"]
 HEADER_VALUE_MAX = LIMITS["HEADER_VALUE_MAX"]
@@ -666,11 +672,8 @@ def copy_data_files(app_dir, out_dir):
         if not re.fullmatch(r"[a-z0-9_-][a-z0-9._-]{0,%d}" % (FILE_NAME_MAX - 1), name):
             sys.exit("%s: a file's name is 1-%d of a-z, 0-9, '.', '-' and '_', not starting "
                      "with a dot" % (path, FILE_NAME_MAX))
-        total += os.path.getsize(path)
+        total += taken_by(os.path.getsize(path))
         shutil.copy(path, os.path.join(out_dir, name))
-    if total > FILES_MAX_BYTES:
-        sys.exit("%s: %d bytes of files, and an application may have %d"
-                 % (files_dir, total, FILES_MAX_BYTES))
     return total
 
 
@@ -707,11 +710,15 @@ def main():
     for code, table in sorted(BUILT_STRINGS.items()):
         with open(os.path.join(options.out, "strings." + code), "wb") as f:
             f.write(table)
-        files_bytes += len(table)
+        files_bytes += taken_by(len(table))
     for code, words in sorted(BUILT_MANIFESTS.items()):
         with open(os.path.join(options.out, "manifest." + code), "w") as f:
             f.write(words)
-        files_bytes += len(words.encode())
+        files_bytes += taken_by(len(words.encode()))
+    if files_bytes > FILES_MAX_BYTES:
+        sys.exit("%s: its files take %d bytes on the device - each a whole number of %d-byte "
+                 "blocks - and an application may have %d"
+                 % (options.app_dir, files_bytes, FILE_BLOCK_BYTES, FILES_MAX_BYTES))
     report(wasm_path, len(imports), files_bytes, memory_end)
 
 

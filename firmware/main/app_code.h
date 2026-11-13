@@ -20,9 +20,12 @@ extern "C" {
  * else ever goes there. An application's manifest, files and store are
  * where they were. */
 
-/* A slot is one page of the chip's memory mapping; a module is what is
- * left of it after a few bytes that say whose it is. */
-#define APP_CODE_SLOT_BYTES   0x10000
+/* A slot is whole sectors of flash - it is erased alone - and as small as
+ * holds the largest module (48 KB) after a few bytes that say whose it
+ * is: 52 KB, six of them in the partition's 320 KB. They were 64 KB, one
+ * page of the chip's memory mapping, and five, until 2026-11-13; the
+ * partition is mapped whole, so a slot need not be a page. */
+#define APP_CODE_SLOT_BYTES   0xD000
 #define APP_CODE_MODULE_BYTES (APP_CODE_SLOT_BYTES - 32)
 
 /* Once, before anything asks. Without the partition - a device flashed

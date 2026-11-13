@@ -45,10 +45,15 @@
 #define MANIFEST_SETTING_OPTIONS_MAX 8
 #define MANIFEST_SETTING_OPTION_MAX  23
 
-/* The module: what fits when it runs is less than its slot of 64 KB - the
+/* The module: what fits when it runs is less than its slot of 52 KB - the
  * interpreter needs about two bytes of memory for a byte of code it runs. */
 #define MANIFEST_MODULE_MAX_BYTES (48 * 1024)
 
-/* The names of the files an application brings, and all of them together. */
+/* The names of the files an application brings, and all of them together -
+ * as they lie on the device, where a file takes whole blocks: each is
+ * counted rounded up to one. That is what makes the room a promise: six
+ * applications full of files, and one of them being installed anew over
+ * itself, fit the files' partition whatever the files are. */
 #define MANIFEST_FILE_NAME_MAX  23
-#define MANIFEST_FILES_MAX_BYTES (120 * 1024)
+#define MANIFEST_FILES_MAX_BYTES (64 * 1024)
+#define MANIFEST_FILE_BLOCK_BYTES 4096
