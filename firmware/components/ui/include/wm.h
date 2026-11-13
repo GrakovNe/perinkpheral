@@ -13,121 +13,111 @@
 extern "C" {
 #endif
 
-/* The window manager: which scene has the screen, how the user moves
- * between scenes, and how a frame is put together from the host's header
- * and the scene's own picture. Pure, host-tested.
+/* Window manager: scene stack, navigation, frame composition (host header
+ * plus the picture of the current scene). Pure, host-tested.
  *
- * The scenes are a stack. The home - the menu - is under all of them and
- * is what shows when the stack is empty. A scene that is opened goes on
- * top and has the screen; the one under it leaves and waits, and enters
- * again when what covered it is gone. BACK is one step down. That is all
- * there is to moving about: a question the host asks over an application,
- * an application that took the screen for its alarm - each comes off the
- * top and what was under it is there again.
- *
- *   - Opening from the home starts anew: what was under the menu is
- *     forgotten, the stack is the scene opened.
- *   - A long press on BACK is the beginning again: the stack is emptied
- *     and the menu shows. BACK in the menu does nothing.
- *   - A scene is in the stack once: opened again, it moves to the top from
- *     where it waited, and BACK returns to what the user was looking at.
- *   - Only the scene on top is entered - there is room for one
- *     application in memory - so a scene that waits must be able to enter
- *     again from what it stored. */
+ * Stack rules:
+ *   - The home scene (the menu) is below the stack and is shown when the
+ *     stack is empty.
+ *   - An opened scene is pushed on top and becomes current. The scene
+ *     below receives leave() and receives enter() again when it is on top.
+ *   - BACK pops one scene.
+ *   - A scene opened from the home scene replaces the whole stack.
+ *   - A long press of BACK empties the stack. BACK in the home scene has
+ *     no effect.
+ *   - A scene occupies one stack entry: opened again, it is moved to the top.
+ *   - Only the top scene is entered (memory holds one application). A
+ *     scene below must restore its state on enter(). */
 
 #define WM_STACK_DEPTH 6
 
 #define WM_HEADER_HEIGHT 39
-/* The last row of the screen belongs to nobody and stays white: it makes
- * the area under the header a round 400 x 260. */
+/* Bottom row of the screen: unused, white. The area under the header is
+ * 400 x 260. */
 #define WM_BOTTOM_EDGE   1
 
-/* Why the frame has to be shown again; the display decides how. */
+/* Cause of a frame change. The display service selects the refresh by it. */
 typedef enum {
     WM_CLEAN,
-    WM_CHANGED_BY_DATA,   /* something arrived, the clock moved */
-    WM_CHANGED_URGENTLY,  /* a scene asked to be shown soon */
-    WM_CHANGED_IN_A_ROW,  /* the same, and without a full refresh: one picture of many */
-    WM_CHANGED_BY_INPUT,  /* the user pressed a button */
-    WM_CHANGED_CLEANLY,   /* a scene asked for a picture without traces */
-    WM_CHANGED_BY_SWITCH, /* another scene took the screen */
+    WM_CHANGED_BY_DATA,   /* data, timer or clock */
+    WM_CHANGED_URGENTLY,  /* SCENE_REDRAW_SOON */
+    WM_CHANGED_IN_A_ROW,  /* SCENE_REDRAW_NO_BLINK */
+    WM_CHANGED_BY_INPUT,  /* button press */
+    WM_CHANGED_CLEANLY,   /* SCENE_REDRAW_CLEAN */
+    WM_CHANGED_BY_SWITCH, /* current scene changed */
 } wm_change_t;
 
-/* `scene` is the one the header is drawn above. */
+/* Draws the header. `scene`: the scene under it. */
 typedef void (*wm_draw_header_fn)(gfx_t *surface, const scene_t *scene, void *context);
 
 typedef struct {
-    scene_t *home;    /* the menu: a long press on BACK always leads here */
-    scene_t *current; /* who has the screen: the top of the stack, or the home */
-    scene_t *stack[WM_STACK_DEPTH]; /* the oldest first; never the home at the bottom */
+    scene_t *home;    /* the menu; target of a long press of BACK */
+    scene_t *current; /* top of the stack, or `home` when the stack is empty */
+    scene_t *stack[WM_STACK_DEPTH]; /* oldest first; never contains `home` */
     int      depth;
     wm_change_t change;
-    bool     suspended;   /* the current scene has left, see wm_suspend() */
+    bool     suspended;   /* see wm_suspend() */
 
     wm_draw_header_fn draw_header;
     void             *header_context;
 } wm_t;
 
-/* `first` takes the screen at once; it may be `home` itself. Nothing here
- * may be NULL but header_context. */
+/* `first` becomes current; it may be `home`. Only `header_context` may be NULL. */
 void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_header,
              void *header_context);
 
 void wm_button(wm_t *wm, scene_button_t button, scene_press_t press);
 
-/* A timer ran out; it goes to the scene on the screen, if that takes timers. */
+/* Delivers an expired timer to the current scene. */
 void wm_timer(wm_t *wm, int timer_id);
 
-/* The scene on the screen has to let go of what it holds for a moment -
- * there is room for one application in memory, and another one is about
- * to be loaded to take its data. The scene leaves, the frame stays as it
- * is; wm_resume() lets it enter again. Between the two nothing reaches
- * the scene. */
+/* wm_suspend(): the current scene receives leave(); the frame is kept.
+ * Used before another application is loaded for a background delivery.
+ * No events reach the scene until wm_resume(), which calls enter(). */
 void wm_suspend(wm_t *wm);
 void wm_resume(wm_t *wm);
 
-/* Puts `scene` on top of whatever has the screen: the host has a question,
- * an application asked for the screen and got it. Ends a suspension - the
- * scene that was suspended waits under the new one like any other. */
+/* Pushes `scene` on top of the stack. Ends a suspension: the suspended
+ * scene stays in the stack below `scene`. */
 void wm_open(wm_t *wm, scene_t *scene);
 
-/* Gives `scene` the screen as the menu would: the stack is this scene. */
+/* Replaces the stack with `scene`, as opening from the menu does. */
 void wm_open_from_home(wm_t *wm, scene_t *scene);
 
-/* One step down the stack, as BACK does. */
+/* Pops the top scene, as BACK does. */
 void wm_back(wm_t *wm);
 
-/* Whether `scene` is somewhere in the stack, on top or waiting. */
+/* True when `scene` is in the stack at any depth. */
 bool wm_has(const wm_t *wm, const scene_t *scene);
 
-/* A scene reacted to something that did not reach it through the window
- * manager - data arrived for it. Counts only for the scene on the screen. */
+/* Applies a reaction to an event delivered outside the window manager
+ * (data). Ignored unless `scene` is current. */
 void wm_scene_reacted(wm_t *wm, const scene_t *scene, scene_reaction_t reaction,
                       wm_change_t cause);
 
-/* Something outside the scene changed what the frame shows. */
+/* Marks the frame as changed for a cause outside the scene. */
 void wm_invalidate(wm_t *wm, wm_change_t change);
 
-/* WM_CLEAN: the last drawn frame still stands. */
+/* Pending change. WM_CLEAN: the last drawn frame is valid. */
 wm_change_t wm_pending_change(const wm_t *wm);
 
-/* Draws the whole frame. The change stays pending until wm_shown(). */
+/* Draws the whole frame. The change remains pending until wm_shown(). */
 void wm_draw(wm_t *wm, gfx_t *screen);
 
-/* The frame drawn last reached the panel. */
+/* Reports that the last drawn frame is on the panel. */
 void wm_shown(wm_t *wm);
 
-/* How wide the two texts of a header may be when together they are wider
- * than `available`: each is sure of half, and what one does not need of
- * its half goes to the other. */
+/* Width limits of the two header texts when their sum exceeds `available`.
+ * Each text is guaranteed half; the unused part of a half is given to the
+ * other text. */
 void wm_header_share(int left_width, int right_width, int available, int *left_max,
                      int *right_max);
 
-/* Takes `scene` out of the stack wherever it is: it is done, or about to
- * be gone. If it had the screen, what was under it has it now. */
+/* Removes `scene` from the stack at any depth. When it was current, the
+ * scene below becomes current. */
 void wm_close(wm_t *wm, const scene_t *scene);
 
-/* The two parts of a screen that has a header. */
+/* Splits the screen into the header area and the content area. */
 void wm_split(const gfx_t *screen, gfx_t *header, gfx_t *content);
 
 #ifdef __cplusplus

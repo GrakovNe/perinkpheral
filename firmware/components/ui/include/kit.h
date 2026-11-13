@@ -12,99 +12,98 @@
 extern "C" {
 #endif
 
-/* The parts every screen of the device is put together from - the host's
- * own, and an application's when it asks for them (ui_* in host_api.h),
- * so that the plain half of every application looks the same: text and a
- * title, an icon, a button with what it does, the row of buttons along
- * the bottom, a bar, the frame around what is being changed, and the two
- * screens that set a value. The list is list.h and the notice notice.h.
- * Pure: tools/preview renders the sheet. */
+/* UI kit: the components of the host screens. Applications use the same
+ * components through ui_* (host_api.h).
+ * Primitives: text, title, icon, button, action row.
+ * Elements: bar, frame, value with unit, cell.
+ * Screens: picker, date and time.
+ * See also: list.h, notice.h. Pure; rendered by tools/preview. */
 
 #define KIT_MARGIN         16
-#define KIT_ACTIONS_HEIGHT 44 /* what the row of buttons takes at the bottom */
+#define KIT_ACTIONS_HEIGHT 44 /* height of the action row at the bottom */
 
 /* ---- primitives ---- */
 
 typedef enum {
-    KIT_TEXT,    /* what is read: the host's text */
-    KIT_TITLE,   /* what a page is about */
-    KIT_CAPTION, /* what stands beside something larger */
-    KIT_VALUE,   /* the one number the screen is for */
+    KIT_TEXT,    /* body text */
+    KIT_TITLE,   /* page title */
+    KIT_CAPTION, /* small text beside a larger element */
+    KIT_VALUE,   /* main value of a screen */
 } kit_style_t;
 
 const gfx_font_t *kit_font(kit_style_t style);
 
-/* A line of text with its top at `top`, cut with "..." at `max_width`
- * (0: not cut). Returns the width drawn. */
+/* Draws one line. `top`: top of the line. `max_width`: the text is cut
+ * with "..." to this width; 0: no limit. Returns the width drawn. */
 int kit_text(gfx_t *g, int left, int top, kit_style_t style, const char *text, int max_width);
 
-/* The text over as many lines as it takes and no more than `max_lines`,
- * broken at its spaces, the last one cut with "..." when there is more.
- * A word wider than the width is cut. Returns the lines drawn. */
+/* Draws text on up to `max_lines` lines of `width`, broken at spaces.
+ * The last line is cut with "..." when text remains. A word wider than
+ * `width` is cut. Returns the number of lines drawn. */
 int kit_text_lines(gfx_t *g, int left, int top, kit_style_t style, const char *text, int width,
                    int max_lines);
 
-/* The same in the middle of the surface's width. */
+/* Draws one line centred on the surface width. */
 void kit_text_centered(gfx_t *g, int top, kit_style_t style, const char *text);
 
-/* The title of a page at its usual place, a line under it. Returns where
- * the page's own content begins. */
+/* Draws the page title and the rule under it. Returns the top of the
+ * content area. */
 int kit_title(gfx_t *g, const char *text);
 
 typedef enum {
-    KIT_ICON_SMALL,  /* 22 px: beside text */
+    KIT_ICON_SMALL,  /* 22 px, beside text */
     KIT_ICON_MEDIUM, /* 44 px */
-    KIT_ICON_LARGE,  /* 99 px: what a notice is about */
+    KIT_ICON_LARGE,  /* 99 px, the icon of a notice */
 } kit_icon_size_t;
 
 int  kit_icon_side(kit_icon_size_t size);
 void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size);
 
-/* A button of the device and what it does: its name white on black, the
- * action beside it - after the name, or, mirrored, before it. `baseline`
- * is the text's. Returns the width. */
+/* Button label: the button name in white on black and its action beside
+ * it. The action follows the name; `is_mirrored`: it precedes the name.
+ * `baseline`: baseline of the text. Returns the width. */
 int kit_button_width(const char *name, const char *action);
 int kit_button(gfx_t *g, int left, int baseline, const char *name, const char *action,
                bool is_mirrored);
 
-/* The row along the bottom of the surface: what OK does and its name from
- * the left edge, BACK's name and what it does from the right -
- * "Save OK        BACK Cancel". NULL: that button does nothing here. */
+/* Action row at the bottom of the surface: the OK action and "OK" from
+ * the left edge, "BACK" and its action from the right edge:
+ * "Save OK        BACK Cancel". NULL: the button is not shown. A single
+ * button is centred. */
 void kit_actions(gfx_t *g, const char *ok, const char *back);
 
 /* ---- elements ---- */
 
-/* How much of how much: a frame, filled from the left. Not a thing that
- * moves - it changes when the data does. */
+/* Bar: an outline filled from the left in proportion `value` / `maximum`. */
 void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum);
 
-/* The frame around what UP and DOWN change, an arrow over it and one
- * under it for each way there is to go. */
+/* Frame around the value changed by UP and DOWN. `has_up`, `has_down`:
+ * an arrow above and below the frame. */
 void kit_frame(gfx_t *g, int left, int top, int width, int height, bool has_up, bool has_down);
 
-/* ---- screens: the whole surface ---- */
+/* ---- screens (whole surface) ---- */
 
-/* One of a row of values: the chosen one framed in the middle, what UP
- * leads to over it and what DOWN leads to under it. NULL or empty: the
- * row ends there. */
+/* Picker of one value: `chosen` framed in the middle, `above` (reached by
+ * UP) over it, `below` (reached by DOWN) under it. NULL or empty: no
+ * value in that direction. */
 typedef struct {
     const char *above;
     const char *chosen;
     const char *below;
-    const char *ok;   /* for kit_actions() */
+    const char *ok;   /* as in kit_actions() */
     const char *back;
 } kit_picker_t;
 
 void kit_picker(gfx_t *g, const kit_picker_t *picker);
 
-/* A time, a date, or both, set a part at a time. */
+/* Date and time screen. One part is selected for editing. */
 typedef enum {
     KIT_DATE_HOUR,
     KIT_DATE_MINUTE,
     KIT_DATE_DAY,
     KIT_DATE_MONTH,
     KIT_DATE_YEAR,
-    KIT_DATE_NONE, /* nothing is being set: only shown */
+    KIT_DATE_NONE, /* display only */
 } kit_date_part_t;
 
 typedef struct {
@@ -118,28 +117,28 @@ typedef struct {
 
 void kit_date(gfx_t *g, const kit_date_t *date);
 
-/* A value and, after it on its baseline, what it is a value of - "18
- * km/h", "25 min" - the unit in a smaller size the value's own decides:
- * the small one beside text, the text's beside large digits. `top` is the
- * top of the value's line; `tabular` keeps its digits in columns. With no
- * surface (NULL) nothing is drawn. Returns the width of both. */
+/* Value with unit: "18 km/h", "25 min". The unit follows the value on
+ * its baseline in a smaller font selected by `font`: the small font beside
+ * the text font, the text font beside larger ones. `top`: top of the
+ * value line. `tabular`: digits of equal width. `g` NULL: measure only.
+ * Returns the width of value and unit. */
 int kit_value(gfx_t *g, int left, int top, const gfx_font_t *font, bool tabular, const char *value,
               const char *unit);
 
-/* One thing worth a glance, in a box of any size: its name across the
- * top, and under it a picture and the value side by side in the middle of
- * what is left. The value is as large as fits; a cell that is the whole
- * surface has everything a size larger. Several cells on a screen should
- * be of one size: ask each with kit_cell_fit() and draw all with the
- * largest number, which is the smallest text. */
-#define KIT_CELL_PICTURE_LARGE 88 /* the picture's side in a cell that is the whole surface */
-#define KIT_CELL_PICTURE_SMALL 44 /* and in any other */
+/* Cell: a box of any size with `name` along the top and, centred in the
+ * rest, `picture` and `value` side by side. The value takes the largest
+ * font that fits. A cell that covers the whole surface is drawn one size
+ * larger.
+ * For cells of equal text size: call kit_cell_fit() for each cell and draw
+ * all with the largest result (the smallest font). */
+#define KIT_CELL_PICTURE_LARGE 88 /* picture side in a cell that covers the whole surface */
+#define KIT_CELL_PICTURE_SMALL 44 /* picture side in other cells */
 typedef struct {
     int            left, top, width, height;
-    const char    *name;    /* or NULL */
+    const char    *name;    /* NULL: none */
     const char    *value;
-    const uint8_t *picture; /* as gfx_picture takes it, or NULL */
-    int            size;    /* 0: what fits; else what kit_cell_fit() said */
+    const uint8_t *picture; /* gfx_picture format; NULL: none */
+    int            size;    /* 0: largest that fits; else a result of kit_cell_fit() */
 } kit_cell_t;
 
 int  kit_cell_fit(const gfx_t *g, const kit_cell_t *cell);

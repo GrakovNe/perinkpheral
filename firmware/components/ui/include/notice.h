@@ -13,21 +13,19 @@
 extern "C" {
 #endif
 
-/* A notice of the host's own, on the whole of the surface it is given:
- * what it has to ask, what went wrong, what it is busy with. Two lines of
- * large text on the left, a large icon on the right; along the bottom
- * what the buttons do when somebody is expected to press one - OK from
- * the left edge, BACK from the right - or three strokes for work that is
- * going on. Pure: tools/preview renders it. */
+/* Notice: a question, an error or work in progress on the whole surface.
+ * Layout: two lines of large text on the left, a large icon on the right.
+ * Bottom: the action row (OK from the left edge, BACK from the right), or
+ * three strokes for work in progress. Pure; rendered by tools/preview. */
 #define NOTICE_NO_ICON (-1)
 
 typedef struct {
     const char *first;
     const char *second;  /* NULL: one line */
-    const char *detail;  /* a line of ordinary text under them - why exactly; NULL: none */
-    int         icon;    /* a gfx_icon_id_t, or NOTICE_NO_ICON */
-    const char *ok;      /* what OK does; NULL: nothing */
-    const char *back;    /* what BACK does; NULL: nothing */
+    const char *detail;  /* one line of body text under them; NULL: none */
+    int         icon;    /* gfx_icon_id_t, or NOTICE_NO_ICON */
+    const char *ok;      /* action of OK; NULL: not shown */
+    const char *back;    /* action of BACK; NULL: not shown */
     bool        is_working;
 } notice_t;
 
