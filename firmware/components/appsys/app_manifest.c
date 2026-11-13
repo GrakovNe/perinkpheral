@@ -102,7 +102,7 @@ static bool read_pick(const cJSON *pick, app_poll_t *poll)
     return true;
 }
 
-static bool is_url_setting(const cJSON *settings, const char *key, size_t key_length);
+static int address_setting(const cJSON *settings, const char *key, size_t key_length);
 
 /* The page that sets the application up from a browser: somewhere a
  * browser will take a secret from, so https and nothing else. */
@@ -126,7 +126,8 @@ static bool is_a_companion(const cJSON *companion)
 }
 
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting
- * of the "url" type - the server the user named. */
+ * of the "url" type - the server the user named - or of the "link" type,
+ * which is the whole address and has nothing after it. */
 static bool begins_with_a_server(const cJSON *settings, const char *text, const char **rest)
 {
     if (!starts_with(text, "{{")) {
@@ -134,7 +135,8 @@ static bool begins_with_a_server(const cJSON *settings, const char *text, const 
     }
     const char *key = text + 2;
     const char *closing = strstr(key, "}}");
-    if (closing == NULL || !is_url_setting(settings, key, (size_t)(closing - key))) {
+    int type = closing != NULL ? address_setting(settings, key, (size_t)(closing - key)) : -1;
+    if (type < 0 || (type == APP_SETTING_LINK && closing[2] != '\0')) {
         return false;
     }
     *rest = closing + 2;
@@ -168,7 +170,7 @@ static const char *const SETTING_TYPES[] = {
     [APP_SETTING_TEXT] = "text",     [APP_SETTING_SECRET] = "secret",
     [APP_SETTING_NUMBER] = "number", [APP_SETTING_CHOICE] = "choice",
     [APP_SETTING_TOGGLE] = "toggle", [APP_SETTING_PLACE] = "place",
-    [APP_SETTING_URL] = "url",
+    [APP_SETTING_URL] = "url", [APP_SETTING_LINK] = "link",
 };
 #define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
 
@@ -235,21 +237,25 @@ static int setting_type(const cJSON *setting)
 
 static bool fits_type(const cJSON *setting, int type, const char *value);
 static bool is_a_server(const char *value);
+static bool is_a_link(const char *value);
 
-static bool is_url_setting(const cJSON *settings, const char *key, size_t key_length)
+/* The type of the setting with this key when it is an address of the
+ * user's - a server ("url") or a whole link - and -1 otherwise. */
+static int address_setting(const cJSON *settings, const char *key, size_t key_length)
 {
     const cJSON *setting;
     cJSON_ArrayForEach(setting, settings)
     {
-        if (setting_type(setting) != APP_SETTING_URL) {
+        int type = setting_type(setting);
+        if (type != APP_SETTING_URL && type != APP_SETTING_LINK) {
             continue;
         }
         const char *its_key = cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring;
         if (strlen(its_key) == key_length && memcmp(its_key, key, key_length) == 0) {
-            return true;
+            return type;
         }
     }
-    return false;
+    return -1;
 }
 static bool is_printable(const char *text);
 
@@ -347,6 +353,8 @@ static bool fits_type(const cJSON *setting, int type, const char *value)
         return strcmp(value, "0") == 0 || strcmp(value, "1") == 0;
     case APP_SETTING_URL:
         return is_a_server(value);
+    case APP_SETTING_LINK:
+        return is_a_link(value);
     case APP_SETTING_CHOICE: {
         const cJSON *option;
         cJSON_ArrayForEach(option, cJSON_GetObjectItemCaseSensitive(setting, "options"))
@@ -407,7 +415,8 @@ bool app_manifest_is_server_setting(const char *json, const char *key)
     {
         const cJSON *named = cJSON_GetObjectItemCaseSensitive(setting, "key");
         if (cJSON_IsString(named) && strcmp(named->valuestring, key) == 0) {
-            is_server = setting_type(setting) == APP_SETTING_URL;
+            is_server = setting_type(setting) == APP_SETTING_URL ||
+                        setting_type(setting) == APP_SETTING_LINK;
             break;
         }
     }
@@ -531,6 +540,22 @@ static bool is_a_server(const char *value)
 {
     host_t host;
     return host_in_url(value, &host) && strpbrk(strstr(value, "://") + 3, "/?#") == NULL;
+}
+
+/* A whole address: http or https, a host to be sure of, and nothing in it
+ * that is not a printable character - no space, no line break. */
+static bool is_a_link(const char *value)
+{
+    host_t host;
+    if (!host_in_url(value, &host)) {
+        return false;
+    }
+    for (const char *at = value; *at != '\0'; at++) {
+        if (*at <= ' ' || *at > '~') {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool app_manifest_allows_url(const char *json, const char *url,
@@ -777,7 +802,7 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"hosts\" must be a list of at most 4 host names";
     case APP_MANIFEST_BAD_SETTING:
         return "\"settings\" must be a list of at most 8, each with a key, a type "
-               "(text, secret, number, choice, toggle, place) and a title; a place names two "
+               "(text, secret, number, choice, toggle, place, url, link) and a title; a place names two "
                "number settings as its \"latitude\" and \"longitude\"";
     case APP_MANIFEST_BAD_INTENT:
         return "\"intents\" must be a list of time_changed, network_up, started";

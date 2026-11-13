@@ -64,7 +64,7 @@ SETTING_OPTIONS_MAX = LIMITS["SETTING_OPTIONS_MAX"]
 SETTING_OPTION_MAX = LIMITS["SETTING_OPTION_MAX"]
 FILE_NAME_MAX = LIMITS["FILE_NAME_MAX"]
 INTENTS = ("time_changed", "network_up", "started")
-SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url")
+SETTING_TYPES = ("text", "secret", "number", "choice", "toggle", "place", "url", "link")
 FILES_MAX_BYTES = LIMITS["FILES_MAX_BYTES"]
 MODULE_MAX_BYTES = LIMITS["MODULE_MAX_BYTES"]
 HEADER_NAME_MAX = LIMITS["HEADER_NAME_MAX"]
@@ -195,7 +195,7 @@ SECTION_CODE = 10
 # weather, 28 for HA Companion, 35 for Settings.
 INTERPRETER_BASE_BYTES = 11 * 1024
 INTERPRETER_BYTES_PER_CODE_BYTE = 4
-INTERPRETER_ROOM_BYTES = 48 * 1024
+INTERPRETER_ROOM_BYTES = 64 * 1024
 
 
 def measure(wasm_path):
@@ -310,7 +310,7 @@ def check_poll(path, number, poll, servers):
             or not (url.startswith(("http://", "https://"))
                     or names_a_server(url, servers) is not None)):
         sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes, or begin with "
-                 "{{key}} of a setting of the \"url\" type" % (where, URL_MAX))
+                 "{{key}} of a setting of the \"url\" or \"link\" type" % (where, URL_MAX))
     every = poll.get("every")
     if (isinstance(every, bool) or not isinstance(every, (int, float))
             or not POLL_EVERY_MIN_S <= every <= POLL_EVERY_MAX_S):
@@ -428,14 +428,16 @@ def check_manifest(app_dir):
     # The settings first: a host and a poll may name the server one of them holds.
     check_settings(path, manifest.get("settings", []))
     servers = [setting["key"] for setting in manifest.get("settings", [])
-               if setting["type"] == "url"]
+               if setting["type"] in ("url", "link")]
+    links = [setting["key"] for setting in manifest.get("settings", [])
+             if setting["type"] == "link"]
     hosts = manifest.get("hosts", [])
     if (not isinstance(hosts, list) or len(hosts) > HOSTS_MAX
             or any(not isinstance(host, str) or not 0 < len(host.encode()) <= HOST_MAX
                    or (host.startswith("{{") and names_a_server(host, servers) != "")
                    for host in hosts)):
         sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes, "
-                 "or {{key}} of a setting of the \"url\" type" % (path, HOSTS_MAX, HOST_MAX))
+                 "or {{key}} of a setting of the \"url\" or \"link\" type" % (path, HOSTS_MAX, HOST_MAX))
     intents = manifest.get("intents", [])
     if not isinstance(intents, list) or any(intent not in INTENTS for intent in intents):
         sys.exit("%s: \"intents\" must be a list of %s" % (path, ", ".join(INTENTS)))
@@ -444,6 +446,10 @@ def check_manifest(app_dir):
         sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))
     for number, poll in enumerate(polls):
         check_poll(path, number, poll, servers)
+        # A link is the whole address: nothing stands after it.
+        if isinstance(poll, dict) and names_a_server(poll.get("url", ""), links) not in (None, ""):
+            sys.exit("%s: poll %d: a setting of the \"link\" type is the whole \"url\""
+                     % (path, number))
     abi = manifest.get("abi")
     # True == 1 in Python, and the device wants a number.
     if isinstance(abi, bool) or abi != host_api_version():

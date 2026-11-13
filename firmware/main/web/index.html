@@ -672,11 +672,12 @@ function settingField(app, setting) {
       input.placeholder = value ? "Unchanged" : "Not set";
     } else {
       input.inputMode = setting.type === "number" ? "decimal" : "text";
-      if (setting.type === "url") {
-        /* A server of the user's own, with no path after it. */
+      if (setting.type === "url" || setting.type === "link") {
+        /* A server of the user's own with no path after it, or a whole address. */
         input.type = "url";
         input.placeholder = "https://";
       }
+      if (setting.type === "link") input.maxLength = 255;
       input.value = value;
     }
   }
@@ -976,6 +977,9 @@ byId("app-settings").addEventListener("submit", async event => {
   }
   for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
     if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
+    /* A calendar's address is often given as webcal://, which is https. */
+    else if (input.dataset.type === "link")
+      settings[input.dataset.key] = input.value.trim().replace(/^webcals?:\/\//i, "https://");
     else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
   }
   const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);

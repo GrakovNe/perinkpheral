@@ -267,7 +267,7 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
     while (length >= 0) {
         total += (size_t)length;
         int next_length = length == HOST_DATA_CHUNK_MAX ? read_piece(client, next) : 0;
-        if (next_length < 0 || total > ANSWER_MAX_BYTES) {
+        if (next_length < 0 || total > HOST_ANSWER_PIECES_MAX) {
             break;
         }
         if (next_length == 0) {
@@ -285,7 +285,7 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         length = next_length;
     }
     hand_over_piece(app_name, poll_number,
-                    total > ANSWER_MAX_BYTES ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER, NULL,
+                    total > HOST_ANSWER_PIECES_MAX ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER, NULL,
                     NULL, 0, HOST_DATA_FAILED);
 }
 

@@ -220,7 +220,8 @@ static bool names_another_server(const char *manifest, const char *app_name, con
     const cJSON *value;
     cJSON_ArrayForEach(value, wanted)
     {
-        if (app_manifest_setting_type(manifest, value->string) != APP_SETTING_URL) {
+        int type = app_manifest_setting_type(manifest, value->string);
+        if (type != APP_SETTING_URL && type != APP_SETTING_LINK) {
             continue;
         }
         char stored[APP_SETTING_VALUE_MAX + 1];

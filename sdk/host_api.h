@@ -156,10 +156,13 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 #define HOST_FAILED_TIMEOUT     (-5) /* the server was reached and did not answer in time */
 #define HOST_FAILED_NOT_TRUSTED (-6) /* https, and the server's certificate is not one the device
                                         trusts: its own making, expired, or for another name */
-#define HOST_FAILED_TOO_LARGE   (-7) /* the answer is over HOST_ANSWER_MAX bytes */
+#define HOST_FAILED_TOO_LARGE   (-7) /* the answer is over HOST_ANSWER_MAX bytes, or
+                                        HOST_ANSWER_PIECES_MAX in pieces */
 #define HOST_FAILED_NO_MEMORY   (-8) /* the device has no room for the request just now */
-/* The largest answer the host reads, picked apart or handed on in pieces. */
-#define HOST_ANSWER_MAX (256 * 1024)
+/* The largest answer the host reads to pick it apart, and the largest it
+ * hands on in pieces: a calendar of some years is a megabyte or two. */
+#define HOST_ANSWER_MAX        (256 * 1024)
+#define HOST_ANSWER_PIECES_MAX (4 * 1024 * 1024)
 APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, int32_t length,
                                          int32_t flags, int32_t http_status));
 

@@ -21,8 +21,10 @@ extern "C" {
  * the heaviest there is, 11 KB of code - 35 KB. The interpreter has about
  * 11 KB of its own and turns the code it runs into a form of its own,
  * about two bytes for a byte, so this, and not the size of a module's
- * file, is what an application has to fit. */
-#define M3_AREA_WORKING_BYTES (48 * 1024)
+ * file, is what an application has to fit. 48 KB until 2026-11-13, when
+ * the calendar - 12 KB of code, most of it a reader of calendars - was
+ * measured at 53 KB with all of it run; the owner gave applications 64. */
+#define M3_AREA_WORKING_BYTES (64 * 1024)
 #define M3_AREA_BYTES         (M3_AREA_PAGE_BYTES + M3_AREA_WORKING_BYTES)
 
 /* Takes the area from the heap, once, for as long as the device runs.

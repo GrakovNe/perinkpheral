@@ -197,7 +197,7 @@ static const char *server_setting;
 static bool setting_value(void *context, const char *key, char *value, size_t value_size)
 {
     (void)context;
-    if (strcmp(key, "server") != 0 || server_setting == NULL) {
+    if ((strcmp(key, "server") != 0 && strcmp(key, "feed") != 0) || server_setting == NULL) {
         return false;
     }
     snprintf(value, value_size, "%s", server_setting);
@@ -238,6 +238,28 @@ static void test_a_server_of_the_users_own(void)
     char secrets[APP_SETTINGS_MAX][APP_SETTING_KEY_MAX + 1];
     CHECK(app_manifest_secret_keys(manifest, secrets, APP_SETTINGS_MAX) == 1);
     CHECK_STR(secrets[0], "token");
+
+    /* a link is a whole address the user was given, and the whole of a poll's */
+    static const char CALENDAR[] =
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+        "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"Calendar\"}],"
+        "\"hosts\":[\"{{feed}}\"],\"polls\":[{\"url\":\"{{feed}}\",\"every\":900}]}";
+    CHECK(parse(CALENDAR) == APP_MANIFEST_OK);
+    CHECK(app_manifest_accepts_setting(CALENDAR, "feed",
+                                       "https://calendar.example.org/ical/me/private-1a2b/basic.ics?x=1",
+                                       NULL));
+    CHECK(!app_manifest_accepts_setting(CALENDAR, "feed", "webcal://calendar.example.org/a.ics", NULL));
+    CHECK(!app_manifest_accepts_setting(CALENDAR, "feed", "https://me:pw@example.org/a.ics", NULL));
+    CHECK(!app_manifest_accepts_setting(CALENDAR, "feed", "https://example.org/a b.ics", NULL));
+    CHECK(app_manifest_is_server_setting(CALENDAR, "feed")); /* the user's to write */
+    server_setting = "https://calendar.example.org/ical/me/basic.ics";
+    CHECK(app_manifest_allows_url(CALENDAR, "https://calendar.example.org/ical/me/basic.ics",
+                                  setting_value, NULL));
+    CHECK(!app_manifest_allows_url(CALENDAR, "https://evil.example/ical", setting_value, NULL));
+    server_setting = NULL;
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+                "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"C\"}],"
+                "\"polls\":[{\"url\":\"{{feed}}/more\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 
     /* a poll or a host may begin with a setting only when it is a server's */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
