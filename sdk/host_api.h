@@ -224,6 +224,8 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
  * measures and is handed. Every size has all of printable ASCII, and a
  * character the device has no glyph for is drawn as '?' - an application
  * passes text on as it came and does not cut it by bytes (gfx_text_fit).
+ * The degree sign ("\xC2\xB0") is the one character beyond ASCII that is
+ * drawn, in every size.
  *
  * A font is a size, not a typeface: the typeface is the user's choice, in
  * the device's settings - a monospaced one or one whose letters have their

@@ -545,7 +545,7 @@ function showPane(name) {
 
 /* ---- apps ---- */
 
-let installed = [], sources = [], offered = [];
+let installed = [], sources = [], offered = [], removed = [];
 
 /* Photon: a search of OpenStreetMap made for typing, in any language the name has. */
 const PLACES_URL = "https://photon.komoot.io/api/?limit=8&lang=en&layer=city&q=";
@@ -851,10 +851,13 @@ function addTile() {
 }
 
 function openStore() {
-  const rows = available().map(offer => {
+  /* What was here before comes first: it returns with its settings. */
+  const kept = offer => removed.includes(offer.app.name);
+  const rows = available().sort((a, b) => kept(b) - kept(a)).map(offer => {
     const row = make("div", { className: "offer" }), text = make("div");
     text.append(make("b", { textContent: offer.app.title }),
-                make("small", { textContent: offer.app.version }));
+                make("small", { textContent: offer.app.version +
+                                             (kept(offer) ? " - settings kept" : "") }));
     const button = make("button", { textContent: "Install" });
     button.addEventListener("click", async () => {
       await install(button, offer);
@@ -875,6 +878,7 @@ function drawTiles() {
 
 async function loadApps() {
   installed = await ask("/api/apps");
+  removed = await ask("/api/apps/removed").catch(() => []);
   drawTiles();
   drawDefaultApp();
   openInside(wantedInside);

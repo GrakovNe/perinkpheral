@@ -99,6 +99,28 @@ static bool is_left_behind(const char *namespace)
     return stat(folder, &entry) != 0;
 }
 
+int app_kv_left_behind(char names[][APP_NAME_MAX + 1], int capacity)
+{
+    int            count = 0;
+    nvs_iterator_t entry = NULL;
+    esp_err_t      err = nvs_entry_find(PARTITION, NULL, NVS_TYPE_BLOB, &entry);
+    while (err == ESP_OK && count < capacity) {
+        nvs_entry_info_t info;
+        nvs_entry_info(entry, &info);
+        const char *name = info.namespace_name + sizeof NAMESPACE_PREFIX - 1;
+        bool        is_new = is_left_behind(info.namespace_name) && strlen(name) <= APP_NAME_MAX;
+        for (int i = 0; i < count && is_new; i++) {
+            is_new = strcmp(names[i], name) != 0;
+        }
+        if (is_new) {
+            strlcpy(names[count++], name, APP_NAME_MAX + 1);
+        }
+        err = nvs_entry_next(&entry);
+    }
+    nvs_release_iterator(entry);
+    return count;
+}
+
 /* The stores used to live among the host's settings: what is still there
  * is brought over, a value at a time, and removed. */
 static void bring_over_from_the_settings(void)

@@ -20,6 +20,8 @@ extern "C" {
  *                                   application told, its polls fetched again
  *   POST /api/apps/remove?app=<name>     its files; what it stored stays for when
  *                                   it comes back, unless &forget=1
+ *   GET  /api/apps/removed          the names of removed applications whose
+ *                                   settings are kept
  *   GET  /api/sources               the catalogs the device installs from
  *   POST /api/sources               {"sources": ["https://...", ...]}
  *   GET  /api/catalog?source=<n>    the index of source number n, passed on as it comes
@@ -30,7 +32,7 @@ extern "C" {
  */
 void web_apps_register(httpd_handle_t server);
 
-#define WEB_APPS_ROUTES 7
+#define WEB_APPS_ROUTES 8
 
 #ifdef __cplusplus
 }

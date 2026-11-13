@@ -279,6 +279,27 @@ static void test_text_font(void)
     CHECK(count_black() == 7);
 }
 
+/* The degree sign is the one character beyond ASCII that is drawn: a
+ * square with a hole at the top of the capitals. */
+static void test_degree_sign(void)
+{
+    const gfx_font_t *font = gfx_font_system();
+    int digits = gfx_text_font_width(font, "21");
+    int with_sign = gfx_text_font_width(font, "21\xC2\xB0");
+    int with_unit = gfx_text_font_width(font, "21\xC2\xB0" "C");
+    CHECK(with_sign == digits + 2 + 6);          /* a gap and the sign, nothing after */
+    CHECK(with_unit == with_sign + 2 + gfx_text_font_width(font, "C"));
+    CHECK(gfx_text_font_width(font, "21\xC3\xA9") == digits + gfx_text_font_width(font, "?"));
+
+    fresh();
+    int baseline = H, capitals = gfx_font_cap_height(font);
+    gfx_text_font(&g, 0, baseline, font, "\xC2\xB0", true);
+    CHECK(gfx_get(&g, 2, baseline - capitals));         /* its corner */
+    CHECK(!gfx_get(&g, 2 + 2, baseline - capitals + 2)); /* its hole */
+    CHECK(gfx_get(&g, 2 + 5, baseline - capitals + 5));
+    CHECK(!gfx_get(&g, 2 + 6, baseline - capitals));
+}
+
 static void test_text_fit(void)
 {
     const gfx_font_t *font = gfx_font_system();
@@ -334,6 +355,7 @@ static void test_digits_in_columns(void)
 int main(void)
 {
     test_digits_in_columns();
+    test_degree_sign();
     test_text_fit();
     test_clear_and_pixel();
     test_fill_frame();

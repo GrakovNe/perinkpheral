@@ -309,6 +309,24 @@ static esp_err_t handle_settings(httpd_req_t *request)
                         strcmp(command.status, "200 OK") == 0 ? "ok" : "error", command.message);
 }
 
+/* ---- what was here before ---- */
+
+#define REMOVED_LISTED_MAX 16
+
+static esp_err_t handle_removed(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char   names[REMOVED_LISTED_MAX][APP_NAME_MAX + 1];
+    int    count = app_kv_left_behind(names, REMOVED_LISTED_MAX);
+    cJSON *list = cJSON_CreateArray();
+    for (int i = 0; i < count; i++) {
+        cJSON_AddItemToArray(list, cJSON_CreateString(names[i]));
+    }
+    return send_json(request, "200 OK", list);
+}
+
 /* ---- where applications come from ---- */
 
 static esp_err_t handle_sources(httpd_req_t *request)
@@ -697,6 +715,7 @@ void web_apps_register(httpd_handle_t server)
     static const httpd_uri_t ROUTES[WEB_APPS_ROUTES] = {
         { .uri = "/api/apps", .method = HTTP_GET, .handler = handle_list },
         { .uri = "/api/apps/settings", .method = HTTP_POST, .handler = handle_settings },
+        { .uri = "/api/apps/removed", .method = HTTP_GET, .handler = handle_removed },
         { .uri = "/api/apps/remove", .method = HTTP_POST, .handler = handle_remove },
         { .uri = "/api/apps/install", .method = HTTP_POST, .handler = handle_install },
         { .uri = "/api/catalog", .method = HTTP_GET, .handler = handle_catalog },

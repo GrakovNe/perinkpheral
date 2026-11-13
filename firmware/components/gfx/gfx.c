@@ -388,6 +388,28 @@ static int glyph_room(const gfx_glyph_t *gl, uint32_t cp, int cell, int *inset)
     return cell;
 }
 
+/* The one sign that is not ASCII and is drawn all the same: a temperature
+ * is nothing without its degree. No font has it; it is a square with a
+ * hole at the top of the capitals, sized by them. Returns what it takes of
+ * the line; nothing stands after it at the end of one. */
+#define DEGREE_SIGN 0xB0
+
+static int draw_degree(gfx_t *g, int x, int y, const gfx_font_t *font, bool black, bool is_last)
+{
+    int capitals = gfx_font_cap_height(font);
+    int size = capitals >= 70 ? 20 : capitals >= 40 ? 14 : capitals >= 24 ? 10 : capitals >= 12 ? 6 : 4;
+    int stroke = size >= 20 ? 6 : size >= 14 ? 4 : size >= 10 ? 3 : size >= 6 ? 2 : 1;
+    int gap = size >= 20 ? 8 : size >= 14 ? 6 : size >= 10 ? 3 : 2;
+    if (g != NULL) {
+        int left = x + gap, top = y - capitals;
+        gfx_fill(g, left, top, size, stroke, black);
+        gfx_fill(g, left, top + size - stroke, size, stroke, black);
+        gfx_fill(g, left, top, stroke, size, black);
+        gfx_fill(g, left + size - stroke, top, stroke, size, black);
+    }
+    return gap + size + (is_last ? 0 : gap);
+}
+
 static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black,
                      int cell)
 {
@@ -396,6 +418,10 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
     const char *s = utf8;
     while (*s != '\0') {
         uint32_t cp = next_cp(&s);
+        if (cp == DEGREE_SIGN) {
+            x += draw_degree(g, x, y, font, black, *s == '\0');
+            continue;
+        }
         const gfx_glyph_t *gl = font_glyph(font, cp);
         if (gl == NULL) {
             continue;
