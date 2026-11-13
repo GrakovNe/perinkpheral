@@ -11,6 +11,21 @@
 #define PROJECT_SLUG "perinkpheral"
 #define PROJECT_NAME "Perinkpheral"
 
+const appconf_language_t *appconf_languages(int *count)
+{
+    static const appconf_language_t LANGUAGES[] = {
+        { "en", "English" },   { "ru", "Russian" },    { "uk", "Ukrainian" }, { "be", "Belarusian" },
+        { "sr", "Serbian" },   { "bg", "Bulgarian" },  { "kk", "Kazakh" },    { "el", "Greek" },
+        { "de", "German" },    { "fr", "French" },     { "es", "Spanish" },   { "it", "Italian" },
+        { "pt", "Portuguese" }, { "nl", "Dutch" },     { "pl", "Polish" },    { "cs", "Czech" },
+        { "sk", "Slovak" },    { "hu", "Hungarian" },  { "ro", "Romanian" },  { "tr", "Turkish" },
+        { "sv", "Swedish" },   { "da", "Danish" },     { "no", "Norwegian" }, { "fi", "Finnish" },
+        { "lt", "Lithuanian" }, { "lv", "Latvian" },   { "et", "Estonian" },
+    };
+    *count = (int)(sizeof LANGUAGES / sizeof LANGUAGES[0]);
+    return LANGUAGES;
+}
+
 static bool str_fits(const char *s, size_t cap)
 {
     return s != NULL && strnlen(s, cap + 1) <= cap;
@@ -129,6 +144,7 @@ void appconf_defaults(appconf_t *c, const char device_id[5])
     c->time_auto = 1;
     c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;
     c->menu_idle_min = APPCONF_MENU_IDLE_MIN_DEFAULT;
+    strcpy(c->language, "en");
     appconf_derive(c, device_id);
 }
 
@@ -222,6 +238,17 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     }
     if (c->header_clock > 1) {
         BAD("Clock in header must be 0 or 1.");
+    }
+    {
+        int  count;
+        bool is_known = false;
+        const appconf_language_t *languages = appconf_languages(&count);
+        for (int i = 0; i < count && !is_known; i++) {
+            is_known = strcmp(languages[i].code, c->language) == 0;
+        }
+        if (!is_known) {
+            BAD("Unknown language.");
+        }
     }
     if (c->font >= APPCONF_FONT_COUNT) {
         BAD("Unknown font.");

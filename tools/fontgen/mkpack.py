@@ -38,20 +38,16 @@ FACES = [
 DEGREE = 0x00B0  # the host draws its own, sized for every font
 
 
-def span(first, last):
-    return list(range(first, last + 1))
+def packs():
+    """The packs and their code points, from the one place they are written."""
+    import json
+    with open(os.path.join(ROOT, "sdk", "languages.json")) as f:
+        ranges = json.load(f)["packs"]
+    return {name: [cp for first, last in spans for cp in range(first, last + 1) if cp != DEGREE]
+            for name, spans in ranges.items()}
 
 
-PACKS = {
-    # Every Latin letter with a mark, and the signs a careful typist uses.
-    "latin": [cp for cp in span(0x00A1, 0x017F) if cp != DEGREE]
-             + [0x2013, 0x2014, 0x2018, 0x2019, 0x201A, 0x201C, 0x201D, 0x201E, 0x2026, 0x20AC],
-    # Russian, Ukrainian, Belarusian, Serbian, Macedonian, Kazakh.
-    "cyrillic": span(0x0400, 0x045F)
-                + [0x0490, 0x0491, 0x0492, 0x0493, 0x049A, 0x049B, 0x04A2, 0x04A3, 0x04AE, 0x04AF,
-                   0x04B0, 0x04B1, 0x04BA, 0x04BB, 0x04D8, 0x04D9, 0x04E8, 0x04E9, 0x2116],
-    "greek": span(0x0386, 0x03CE),
-}
+PACKS = packs()
 
 # Letters a face has under another code: the Kazakh schwa is the shape of the
 # Latin one, which Departure Mono has drawn.

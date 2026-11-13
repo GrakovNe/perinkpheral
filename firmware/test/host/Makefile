@@ -48,6 +48,7 @@ endif
 
 test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
+	@python3 check_languages.py ../../../sdk/languages.json ../../components/appconf/appconf.c
 
 test_appconf: test_appconf.c tinytest.h $(APPCONF)/appconf.c $(APPCONF)/include/appconf.h
 	$(CC) $(CFLAGS) -I$(APPCONF)/include -o $@ test_appconf.c $(APPCONF)/appconf.c

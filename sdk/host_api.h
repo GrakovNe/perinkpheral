@@ -202,6 +202,45 @@ HOST_IMPORT(data_response, int32_t data_response(host_response_t *response));
  * write this itself. */
 APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
 
+/* ---- Strings in the user's language ----
+ *
+ * What an application says, it says in the language the device is set to.
+ * The translations are the developer's: a folder `strings` beside the
+ * manifest, a file a language - en.json, ru.json - each an object of the
+ * same keys:
+ *
+ *     { "no_events": "No events", "starts_in": "In {0} min" }
+ *
+ * tools/mkapp makes of them strings.h for the code - STR_NO_EVENTS,
+ * STR_STARTS_IN, and app_string(id), the text itself - with English
+ * built into the module, and a table for every other language beside it.
+ * When the application is loaded the host puts the table of the device's
+ * language where the English one was; app_string() costs nothing after
+ * that. A language the application has no table for is English. The
+ * build fails on a language the system does not know (sdk/languages.json),
+ * on a translation that lacks a key or has one too many, and on a letter
+ * the language's glyphs do not have.
+ *
+ * The table, as the host and mkapp agree on it: 16 bits of how many bytes
+ * the buffer has, 16 bits of how many strings, an offset of 16 bits for
+ * each from the table's start, and the strings, terminated. */
+APP_EXPORT(app_strings_buffer, uint8_t *app_strings_buffer(void));
+
+/* A string with something put into it: "{0}", "{1}" in `pattern` are
+ * replaced by the arguments of those numbers - in whatever order the
+ * language wants them. An argument is a text, or with `text` NULL a
+ * number. Writes at most `capacity` bytes, cut between characters, no
+ * terminator; returns the length. */
+typedef struct host_text_argument {
+    int32_t     number;
+    const char *text;
+    int32_t     length;
+} host_text_argument_t;
+#define HOST_TEXT_ARGUMENTS_MAX 4
+HOST_IMPORT(text_fill, int32_t text_fill(const char *pattern, int32_t pattern_length,
+                                         const host_text_argument_t *arguments, int32_t count,
+                                         char *text, int32_t capacity));
+
 /* The user changed the application's settings on the device's web page.
  * The settings are declared in the manifest; each is text in the store
  * under its key, read with kv_get(). Called on the screen and off it,

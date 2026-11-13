@@ -51,6 +51,7 @@ static const char *TAG = "settings";
 #define KEY_DEFAULT_APP    "default_app"
 #define KEY_MENU_IDLE      "menu_idle"
 #define KEY_HEADER_CLOCK   "header_clock"
+#define KEY_LANGUAGE       "language"
 
 void settings_nvs_init(void)
 {
@@ -126,6 +127,7 @@ static void load(appconf_t *c, const char device_id[5])
     get_str(h, KEY_DEFAULT_APP, c->default_app, sizeof c->default_app);
     nvs_get_u8(h, KEY_MENU_IDLE, &c->menu_idle_min);
     nvs_get_u8(h, KEY_HEADER_CLOCK, &c->header_clock);
+    get_str(h, KEY_LANGUAGE, c->language, sizeof c->language);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -169,6 +171,7 @@ static esp_err_t save(const appconf_t *c)
     PUT(nvs_set_str(h, KEY_DEFAULT_APP, c->default_app));
     PUT(nvs_set_u8(h, KEY_MENU_IDLE, c->menu_idle_min));
     PUT(nvs_set_u8(h, KEY_HEADER_CLOCK, c->header_clock));
+    PUT(nvs_set_str(h, KEY_LANGUAGE, c->language));
     PUT(nvs_commit(h));
 #undef PUT
 

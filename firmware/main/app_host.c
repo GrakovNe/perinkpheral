@@ -19,6 +19,7 @@
 #include "host_api.h"
 #include "net_time.h"
 #include "poller.h"
+#include "settings.h"
 #include "wifi.h"
 #include "timers.h"
 
@@ -273,6 +274,16 @@ static bool dithers(void)
     return s_dithers;
 }
 
+/* The language applications speak: the host's setting. */
+static const char *language(void)
+{
+    static char code[APPCONF_LANGUAGE_MAX + 1];
+    appconf_t   settings;
+    settings_read(&settings);
+    strlcpy(code, settings.language, sizeof code);
+    return code;
+}
+
 const app_services_t *app_host_services(void)
 {
     static const app_services_t SERVICES = {
@@ -293,6 +304,7 @@ const app_services_t *app_host_services(void)
         .alarm_set_every = alarm_set_every,
         .header_status = header_status,
         .notify = host_notify,
+        .language = language,
         .file_size = file_size,
         .file_read = file_read,
         .file_write = file_write,

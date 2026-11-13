@@ -200,6 +200,8 @@
     <input id="device_name" maxlength="32" autocomplete="off" required>
     <label for="hostname">Hostname</label>
     <input id="hostname" disabled>
+    <label for="language">Language</label>
+    <select id="language"></select>
     <label for="default_app">Default app</label>
     <select id="default_app"></select>
     <label for="menu_idle_min">Idle timeout</label>
@@ -1184,6 +1186,9 @@ async function loadSettings() {
 /* None, and every application there is; one that was removed stays in the
  * list while it is the choice, so that saving the form does not change it. */
 function drawDefaultApp() {
+  byId("language").replaceChildren(...(settings.languages || []).map(
+    language => make("option", { value: language.code, textContent: language.name })));
+  byId("language").value = settings.language;
   const select = byId("default_app");
   const chosen = settings.default_app || "";
   const apps = installed.map(have => ({ value: have.name, textContent: have.title }));
@@ -1206,6 +1211,7 @@ function saveSettings(formId, read) {
 
 saveSettings("general", () => ({ device_name: byId("device_name").value,
                                  default_app: byId("default_app").value,
+                                 language: byId("language").value,
                                  menu_idle_min: Number(byId("menu_idle_min").value) }));
 saveSettings("time", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value,
                               time_auto: byId("time_auto").checked }));

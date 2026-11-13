@@ -58,6 +58,16 @@ extern "C" {
 #define APPCONF_POWER_SAVING  1 /* always: light sleep; the radio on for a poll and after a press */
 #define APPCONF_POWER_AUTO    2 /* the same whenever no computer is on the USB cable */
 
+#define APPCONF_LANGUAGE_MAX 7
+
+/* The languages the system knows - the same as sdk/languages.json, which a
+ * test holds it to. */
+typedef struct {
+    const char *code;
+    const char *name;
+} appconf_language_t;
+const appconf_language_t *appconf_languages(int *count);
+
 typedef struct {
     char device_name[APPCONF_NAME_MAX + 1];
     char wifi_ssid[APPCONF_SSID_MAX + 1];
@@ -82,6 +92,9 @@ typedef struct {
     char    default_app[APPCONF_APP_NAME_MAX + 1];
     uint8_t menu_idle_min;
     uint8_t header_clock; /* 1: the header shows the time where the date stands */
+    /* The language applications speak, as its code ("en", "ru"): one of
+     * appconf_languages(). */
+    char    language[APPCONF_LANGUAGE_MAX + 1];
 
     char hostname[APPCONF_HOST_MAX + 1]; /* derived, never stored */
 } appconf_t;

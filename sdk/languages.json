@@ -1,0 +1,218 @@
+{
+  "_": "The languages the system knows and the glyph packs each needs; the code points of a pack as ranges, both ends in. One place: tools/fontgen/mkpack.py makes the packs of it, tools/mkapp checks translations against it, the firmware's list is checked against it by a test.",
+  "packs": {
+    "latin": [
+      [161, 175],
+      [177, 383],
+      [8211, 8212],
+      [8216, 8218],
+      [8220, 8222],
+      [8230, 8230],
+      [8364, 8364]
+    ],
+    "cyrillic": [
+      [1024, 1119],
+      [1168, 1171],
+      [1178, 1179],
+      [1186, 1187],
+      [1198, 1201],
+      [1210, 1211],
+      [1240, 1241],
+      [1256, 1257],
+      [8470, 8470]
+    ],
+    "greek": [
+      [902, 974]
+    ]
+  },
+  "languages": [
+    {
+      "code": "en",
+      "name": "English",
+      "packs": []
+    },
+    {
+      "code": "ru",
+      "name": "Russian",
+      "packs": [
+        "cyrillic"
+      ]
+    },
+    {
+      "code": "uk",
+      "name": "Ukrainian",
+      "packs": [
+        "cyrillic"
+      ]
+    },
+    {
+      "code": "be",
+      "name": "Belarusian",
+      "packs": [
+        "cyrillic"
+      ]
+    },
+    {
+      "code": "sr",
+      "name": "Serbian",
+      "packs": [
+        "cyrillic",
+        "latin"
+      ]
+    },
+    {
+      "code": "bg",
+      "name": "Bulgarian",
+      "packs": [
+        "cyrillic"
+      ]
+    },
+    {
+      "code": "kk",
+      "name": "Kazakh",
+      "packs": [
+        "cyrillic"
+      ]
+    },
+    {
+      "code": "el",
+      "name": "Greek",
+      "packs": [
+        "greek"
+      ]
+    },
+    {
+      "code": "de",
+      "name": "German",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "fr",
+      "name": "French",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "es",
+      "name": "Spanish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "it",
+      "name": "Italian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "pt",
+      "name": "Portuguese",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "nl",
+      "name": "Dutch",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "pl",
+      "name": "Polish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "cs",
+      "name": "Czech",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "sk",
+      "name": "Slovak",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "hu",
+      "name": "Hungarian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "ro",
+      "name": "Romanian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "tr",
+      "name": "Turkish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "sv",
+      "name": "Swedish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "da",
+      "name": "Danish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "no",
+      "name": "Norwegian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "fi",
+      "name": "Finnish",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "lt",
+      "name": "Lithuanian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "lv",
+      "name": "Latvian",
+      "packs": [
+        "latin"
+      ]
+    },
+    {
+      "code": "et",
+      "name": "Estonian",
+      "packs": [
+        "latin"
+      ]
+    }
+  ]
+}

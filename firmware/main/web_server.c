@@ -499,6 +499,19 @@ static esp_err_t handle_settings(httpd_req_t *request)
     cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
     cJSON_AddNumberToObject(json, "power_saving", settings.power_saving);
     cJSON_AddStringToObject(json, "default_app", settings.default_app);
+    cJSON_AddStringToObject(json, "language", settings.language);
+    {
+        int    count;
+        cJSON *languages = cJSON_CreateArray();
+        const appconf_language_t *known = appconf_languages(&count);
+        for (int i = 0; i < count; i++) {
+            cJSON *language = cJSON_CreateObject();
+            cJSON_AddStringToObject(language, "code", known[i].code);
+            cJSON_AddStringToObject(language, "name", known[i].name);
+            cJSON_AddItemToArray(languages, language);
+        }
+        cJSON_AddItemToObject(json, "languages", languages);
+    }
     cJSON_AddNumberToObject(json, "menu_idle_min", settings.menu_idle_min);
     return send_json(request, "200 OK", json);
 }
@@ -553,6 +566,7 @@ static bool edit_settings(const cJSON *json, appconf_t *wanted)
         take_flag(json, "time_auto", &wanted->time_auto) &&
         take_number(json, "power_saving", UINT8_MAX, &power_saving) &&
         take_string(json, "default_app", wanted->default_app, sizeof wanted->default_app) &&
+        take_string(json, "language", wanted->language, sizeof wanted->language) &&
         take_number(json, "menu_idle_min", UINT8_MAX, &menu_idle_min);
     wanted->power_saving = (uint8_t)power_saving;
     wanted->menu_idle_min = (uint8_t)menu_idle_min;

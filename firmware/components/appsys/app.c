@@ -1151,6 +1151,60 @@ HOST_FUNCTION(host_notify)
     m3ApiReturn(HOST_OK);
 }
 
+/* text_fill(): "{0}" and "{1}" of a pattern replaced by its arguments. */
+HOST_FUNCTION(host_text_fill)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, pattern_offset);
+    m3ApiGetArg(int32_t, pattern_length);
+    m3ApiGetArg(uint32_t, arguments_offset);
+    m3ApiGetArg(int32_t, count);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    char pattern[HOST_TEXT_MAX + 1];
+    char filled[HOST_TEXT_MAX + 1];
+    /* An argument as the application's memory has it: three words of 32 bits. */
+    enum { ARGUMENT_BYTES = 12 };
+    if (count < 0 || count > HOST_TEXT_ARGUMENTS_MAX || capacity < 0 ||
+        !copy_text(runtime, _mem, pattern_offset, pattern_length, pattern)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    const uint8_t *arguments =
+        count > 0 ? in_app_memory(runtime, _mem, arguments_offset, count * ARGUMENT_BYTES) : NULL;
+    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    if ((count > 0 && arguments == NULL) || text == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    size_t used = 0;
+    for (const char *at = pattern; *at != '\0' && used < HOST_TEXT_MAX;) {
+        int number = at[0] == '{' && at[1] >= '0' && at[1] <= '9' && at[2] == '}' ? at[1] - '0' : -1;
+        if (number < 0 || number >= count) {
+            filled[used++] = *at++;
+            continue;
+        }
+        at += 3;
+        uint32_t words[3];
+        memcpy(words, arguments + number * ARGUMENT_BYTES, sizeof words);
+        char piece[HOST_TEXT_MAX + 1];
+        if (words[1] == 0) {
+            snprintf(piece, sizeof piece, "%d", (int)(int32_t)words[0]);
+        } else if (!copy_text(runtime, _mem, words[1], (int32_t)words[2], piece)) {
+            m3ApiReturn(HOST_ERR_ARGUMENT);
+        }
+        size_t length = strlen(piece);
+        if (length > HOST_TEXT_MAX - used) {
+            length = gfx_text_cut(piece, HOST_TEXT_MAX - used);
+        }
+        memcpy(filled + used, piece, length);
+        used += length;
+    }
+    filled[used] = '\0';
+    size_t length = gfx_text_cut(filled, (size_t)capacity);
+    memcpy(text, filled, length);
+    m3ApiReturn((int32_t)length);
+}
+
 HOST_FUNCTION(host_request_focus)
 {
     APP_OF(runtime)->focus_requested = true;
@@ -1960,6 +2014,7 @@ static const struct {
     { "request_redraw", "v(i)", host_request_redraw },
     { "request_focus", "v()", host_request_focus },
     { "notify", "i(*)", host_notify },
+    { "text_fill", "i(*i*i*i)", host_text_fill },
     { "request_exit", "v()", host_request_exit },
     { "header_text", "i(i*i)", host_header_text },
     { "timer_set", "i(ii)", host_timer_set },
@@ -2230,6 +2285,72 @@ static void find_data_buffer(app_t *app)
     app->data_buffer_offset = offset;
 }
 
+/* The table of the device's language, in place of the English one the
+ * module came with - when the application has strings, has a table for
+ * that language among its files, and the table is sound and fits. Else
+ * the application speaks English. */
+#define STRINGS_HEADER_BYTES 4
+static bool is_a_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
+{
+    if (bytes < STRINGS_HEADER_BYTES + 2 * (size_t)count || table[bytes - 1] != '\0' ||
+        (uint32_t)(table[2] | table[3] << 8) != count) {
+        return false;
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        size_t offset = (size_t)(table[4 + 2 * i] | table[5 + 2 * i] << 8);
+        if (offset < STRINGS_HEADER_BYTES + 2 * (size_t)count || offset >= bytes) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void load_strings(app_t *app)
+{
+    IM3Function strings_buffer = find_export(app, "app_strings_buffer");
+    const char *language = app->services->language != NULL ? app->services->language() : "en";
+    uint32_t    offset = 0;
+    if (strings_buffer == NULL || strcmp(language, "en") == 0 || app->services->file_size == NULL ||
+        app->services->file_read == NULL) {
+        return;
+    }
+    start_budget(app->services);
+    M3Result result = m3_CallV(strings_buffer);
+    stop_budget();
+    if (result != m3Err_none) {
+        note_result(app, result);
+        return;
+    }
+    uint32_t memory_size = m3_GetMemorySize(app->runtime);
+    uint8_t *memory = m3_GetMemory(app->runtime, NULL, 0);
+    if (m3_GetResultsV(strings_buffer, &offset) != m3Err_none || memory == NULL ||
+        offset > memory_size || memory_size - offset < STRINGS_HEADER_BYTES) {
+        return;
+    }
+    uint8_t *english = memory + offset;
+    uint32_t capacity = (uint32_t)(english[0] | english[1] << 8);
+    uint32_t count = (uint32_t)(english[2] | english[3] << 8);
+    if (capacity > memory_size - offset) {
+        return;
+    }
+    char file[HOST_FILE_NAME_MAX + 1];
+    snprintf(file, sizeof file, "strings.%.7s", language);
+    int32_t bytes = app->services->file_size(app->name, file);
+    if (bytes < STRINGS_HEADER_BYTES || (uint32_t)bytes > capacity) {
+        return; /* no such language, or a table that would not fit */
+    }
+    uint8_t *table = malloc((size_t)bytes);
+    if (table == NULL) {
+        return;
+    }
+    if (app->services->file_read(app->name, file, 0, table, bytes) == bytes &&
+        is_a_strings_table(table, (size_t)bytes, count)) {
+        /* The buffer's own size stays what the module said it is. */
+        memcpy(english + 2, table + 2, (size_t)bytes - 2);
+    }
+    free(table);
+}
+
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
                            bool with_system, const app_services_t *services, app_t **loaded)
 {
@@ -2263,6 +2384,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_intent = find_export(app, "app_on_intent");
     app->on_alarm = find_export(app, "app_on_alarm");
     find_data_buffer(app);
+    load_strings(app);
     CALL_HANDLER(app, find_export(app, "app_init"));
     app->exit_requested = false;
 
