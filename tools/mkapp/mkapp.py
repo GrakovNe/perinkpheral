@@ -95,6 +95,7 @@ MKPICTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mkpi
 # ---- strings in the user's language ----
 
 STRINGS_HEADER = 4  # the buffer's size and how many strings, 16 bits each
+STRINGS_MAX_BYTES = 8 * 1024  # what the host takes: app.c says the same
 BUILT_STRINGS = {}  # language code -> its table, for main() to put beside the module
 
 
@@ -221,8 +222,9 @@ def make_strings(app_dir, scratch):
     # One buffer holds any of them: as large as the largest, to a multiple of four.
     sizes = [len(strings_table([texts[key] for key in keys], 0)) for texts in translations.values()]
     capacity = (max(sizes) + 3) // 4 * 4
-    if capacity > 0xFFFF:
-        sys.exit("%s: %d bytes of strings in one language, and a table holds 65535" % (folder, capacity))
+    if capacity > STRINGS_MAX_BYTES:
+        sys.exit("%s: %d bytes of strings in one language, and the device takes %d"
+                 % (folder, capacity, STRINGS_MAX_BYTES))
     tables = {code: strings_table([texts[key] for key in keys], capacity)
               for code, texts in translations.items()}
     english = tables.pop("en")

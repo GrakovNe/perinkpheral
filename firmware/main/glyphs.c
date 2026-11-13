@@ -167,12 +167,20 @@ bool glyphs_install(const uint8_t *pack, size_t size)
     if (name[0] == '\0') {
         return false;
     }
-    glyphs_remove(name); /* a newer one takes its place */
+    /* A newer one takes the place of one of the same name - after it is
+     * written, when there is room for both; before, when there is not. */
+    int old = sector_of(name);
     int sector = free_run(sectors_of(size));
+    if (sector < 0 && old >= 0) {
+        glyphs_remove(name);
+        old = -1;
+        sector = free_run(sectors_of(size));
+    }
     if (sector < 0) {
         ESP_LOGW(TAG, "no room for \"%s\"", name);
         return false;
     }
+    size_t old_bytes = old >= 0 ? pack_at(old) : 0;
     gfx_packs_clear();
     size_t start = (size_t)sector * SECTOR_BYTES;
     bool   is_stored =
@@ -181,6 +189,10 @@ bool glyphs_install(const uint8_t *pack, size_t size)
         esp_partition_write(s_partition, start + MAGIC_BYTES, pack + MAGIC_BYTES,
                             size - MAGIC_BYTES) == ESP_OK &&
         esp_partition_write(s_partition, start, pack, MAGIC_BYTES) == ESP_OK;
+    if (is_stored && old >= 0) {
+        esp_partition_erase_range(s_partition, (size_t)old * SECTOR_BYTES,
+                                  (size_t)sectors_of(old_bytes) * SECTOR_BYTES);
+    }
     give_to_the_fonts();
     ESP_LOGI(TAG, "\"%s\", %u bytes: %s", name, (unsigned)size,
              is_stored ? "installed" : "could not be written");

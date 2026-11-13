@@ -1200,6 +1200,13 @@ HOST_FUNCTION(host_text_fill)
         memcpy(filled + used, piece, length);
         used += length;
     }
+    /* Full to the brim: the last character may be only half there. */
+    while (used > 0 && used == HOST_TEXT_MAX && ((unsigned char)filled[used - 1] & 0x80) != 0) {
+        bool is_first_byte = ((unsigned char)filled[--used] & 0xC0) != 0x80;
+        if (is_first_byte) {
+            break;
+        }
+    }
     filled[used] = '\0';
     size_t length = gfx_text_cut(filled, (size_t)capacity);
     memcpy(text, filled, length);
@@ -1707,10 +1714,7 @@ HOST_FUNCTION(host_time_text)
         break;
     }
     }
-    size_t length = strlen(line);
-    if (length > (size_t)capacity) {
-        length = (size_t)capacity;
-    }
+    size_t length = gfx_text_cut(line, (size_t)capacity);
     memcpy(text, line, length);
     m3ApiReturn((int32_t)length);
 }
@@ -2288,6 +2292,9 @@ static void find_data_buffer(app_t *app)
  * that language among its files, and the table is sound and fits. Else
  * the application speaks English. */
 #define STRINGS_HEADER_BYTES 4
+/* What the host will take into its own memory, for a moment, on an
+ * application's word: tools/mkapp holds a table to the same. */
+#define STRINGS_MAX_BYTES    (8 * 1024)
 static bool is_a_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
 {
     if (bytes < STRINGS_HEADER_BYTES + 2 * (size_t)count || table[bytes - 1] != '\0' ||
@@ -2334,7 +2341,7 @@ static void load_strings(app_t *app)
     char file[HOST_FILE_NAME_MAX + 1];
     snprintf(file, sizeof file, "strings.%.7s", language);
     int32_t bytes = app->services->file_size(app->name, file);
-    if (bytes < STRINGS_HEADER_BYTES || (uint32_t)bytes > capacity) {
+    if (bytes < STRINGS_HEADER_BYTES || (uint32_t)bytes > capacity || bytes > STRINGS_MAX_BYTES) {
         return; /* no such language, or a table that would not fit */
     }
     uint8_t *table = malloc((size_t)bytes);

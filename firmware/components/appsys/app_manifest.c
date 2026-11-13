@@ -139,19 +139,13 @@ uint32_t app_manifest_pace_seconds(const char *text)
     while (*text == ' ') {
         text++;
     }
-    switch (*text) {
-    case '\0':
-    case 's':
-        return number;
-    case 'm':
-        return number * 60;
-    case 'h':
-        return number * 3600;
-    case 'd':
-        return number * 86400;
-    default:
-        return 0;
-    }
+    uint32_t unit = *text == '\0' || *text == 's' ? 1
+                    : *text == 'm'               ? 60
+                    : *text == 'h'               ? 3600
+                    : *text == 'd'               ? 86400
+                                                 : 0;
+    /* More than a day is not a pace anybody is given, and would not fit. */
+    return unit == 0 || number > APP_POLL_EVERY_MAX_S / unit ? 0 : number * unit;
 }
 
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting

@@ -10,6 +10,8 @@
 #include "esp_private/system_internal.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
+#include "hal/gpio_ll.h"
+#include "soc/gpio_struct.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -24,7 +26,9 @@ static const char *TAG = "buttons";
 #define SAMPLE_MS 5
 
 /* Active low; the module has its own pull-ups. */
-static const int s_gpio[BUTTONS_COUNT] = {
+/* In RAM: the way out below reads it from an interrupt that runs while the
+ * flash cannot be read. */
+static DRAM_ATTR const int s_gpio[BUTTONS_COUNT] = {
     CONFIG_APP_BTN1_GPIO, CONFIG_APP_BTN2_GPIO,
     CONFIG_APP_BTN3_GPIO, CONFIG_APP_BTN4_GPIO,
 };
@@ -72,25 +76,38 @@ static void set_press_interrupts(bool enabled)
 static esp_timer_handle_t s_rescue_timer;
 static int                s_rescue_looks;
 
+/* This runs in the timer's interrupt, which is taken even while the flash
+ * is being written and its cache is off: everything it touches is in RAM -
+ * the pins through the hardware layer's inline calls, not the driver's. */
+static bool IRAM_ATTR rescue_is_down(int button)
+{
+    return gpio_ll_get_level(&GPIO, (uint32_t)s_gpio[button]) == 0;
+}
+
 static void IRAM_ATTR rescue_look(void *arg)
 {
     (void)arg;
-    bool both_down = gpio_get_level(s_gpio[RESCUE_FIRST_BUTTON]) == 0 &&
-                     gpio_get_level(s_gpio[RESCUE_LAST_BUTTON]) == 0;
+    bool both_down = rescue_is_down(RESCUE_FIRST_BUTTON) && rescue_is_down(RESCUE_LAST_BUTTON);
     s_rescue_looks = both_down ? s_rescue_looks + 1 : 0;
     if (s_rescue_looks >= RESCUE_HOLD_LOOKS) {
+        /* Not in RAM itself: at the one moment in many when the flash is
+         * being written this ends in the fault handler, which restarts
+         * the device all the same. */
         esp_restart_noos();
     }
     bool all_up = true;
     for (int i = 0; i < BUTTONS_COUNT; i++) {
-        all_up = all_up && gpio_get_level(s_gpio[i]) != 0;
+        all_up = all_up && !rescue_is_down(i);
     }
     if (all_up) {
         /* Nothing to count until the next press, which is an interrupt
          * again - armed here too, in case the task that arms it is the
          * one that hangs. */
         esp_timer_stop(s_rescue_timer);
-        set_press_interrupts(true);
+        for (int i = 0; i < BUTTONS_COUNT; i++) {
+            gpio_ll_clear_intr_status(&GPIO, 1u << s_gpio[i]);
+            gpio_ll_intr_enable_on_core(&GPIO, 0, (uint32_t)s_gpio[i]);
+        }
     }
 }
 

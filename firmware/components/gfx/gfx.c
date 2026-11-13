@@ -401,6 +401,7 @@ static const gfx_glyph_t *glyph_among(const gfx_glyph_t *glyphs, int count, uint
  * form, somewhere that stays put - a partition of flash, mapped. */
 #define PACK_MAGIC   0x594C4750u /* "PGLY" */
 #define PACK_VERSION 1
+#define GLYPH_SIDE_MAX 64
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -441,7 +442,8 @@ size_t gfx_pack_bytes(const void *data, size_t available)
     const pack_header_t *header = data;
     if (available < sizeof *header || header->magic != PACK_MAGIC ||
         header->version != PACK_VERSION || header->bytes > available ||
-        header->bytes < sizeof *header) {
+        header->bytes < sizeof *header ||
+        memchr(header->name, '\0', sizeof header->name) == NULL) {
         return 0;
     }
     /* Every face has to lie inside the pack, whole. */
@@ -460,7 +462,10 @@ size_t gfx_pack_bytes(const void *data, size_t available)
         const gfx_glyph_t *glyphs = (const gfx_glyph_t *)((const uint8_t *)data + at);
         for (int g = 0; g < face->glyph_count; g++) {
             size_t glyph_bytes = (size_t)((glyphs[g].w + 7) / 8) * glyphs[g].h;
-            if (glyphs[g].offset > face->bits_bytes ||
+            /* A glyph the size of the screen would make a line of text a
+             * minute's work: no face here is drawn larger than this. */
+            if (glyphs[g].w > GLYPH_SIDE_MAX || glyphs[g].h > GLYPH_SIDE_MAX ||
+                glyphs[g].offset > face->bits_bytes ||
                 glyph_bytes > face->bits_bytes - glyphs[g].offset ||
                 (g > 0 && glyphs[g].cp <= glyphs[g - 1].cp)) {
                 return 0;

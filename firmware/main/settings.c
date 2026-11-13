@@ -323,7 +323,9 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
         *needs_restart = strcmp(wanted->device_name, s_live.device_name) != 0 ||
                          strcmp(wanted->ntp_server, s_live.ntp_server) != 0 ||
                          strcmp(wanted->wifi_ssid, s_live.wifi_ssid) != 0 ||
-                         strcmp(wanted->wifi_password, s_live.wifi_password) != 0;
+                         strcmp(wanted->wifi_password, s_live.wifi_password) != 0 ||
+                         /* The system applications take their titles at start. */
+                         strcmp(wanted->language, s_live.language) != 0;
     }
     publish(wanted);
 
