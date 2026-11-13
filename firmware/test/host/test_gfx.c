@@ -329,6 +329,54 @@ static void test_in_latin(void)
     CHECK_STR(fitted, "\xD0\x9C\xD0\xBE...");
 }
 
+/* A glyph pack adds letters to a face; without it they are spelled. */
+static void test_glyph_pack(void)
+{
+    /* One face, one glyph: U+0416 as a block 2 wide and 3 tall, advance 4. */
+    static const union {
+        uint32_t aligned;
+        uint8_t  bytes[24 + 8 + 12 + 4];
+    } PACK = { .bytes = {
+        'P', 'G', 'L', 'Y', 1, 0, 1, 0, 48, 0, 0, 0, 't', 'e', 's', 't', 0, 0, 0, 0, 0, 0, 0, 0,
+        GFX_FACE_DEPARTURE_11, 0, 1, 0, 3, 0, 0, 0,
+        0x16, 0x04, 2, 3, 0, 3, 4, 0, 0, 0, 0, 0,
+        0xC0, 0xC0, 0xC0, 0x00,
+    } };
+    const gfx_font_t *font = gfx_font_system(); /* Departure Mono, two pixels a dot */
+    const char       *zhe = "\xD0\x96";
+    gfx_packs_clear();
+    CHECK(gfx_text_font_width(font, zhe) == gfx_text_font_width(font, "Zh"));
+
+    CHECK(gfx_pack_bytes(PACK.bytes, sizeof PACK.bytes) == sizeof PACK.bytes);
+    CHECK(gfx_pack_bytes(PACK.bytes, sizeof PACK.bytes - 1) == 0); /* cut short */
+    CHECK(gfx_pack_add(PACK.bytes, sizeof PACK.bytes));
+    CHECK_STR(gfx_pack_name(PACK.bytes), "test");
+    CHECK(gfx_text_font_width(font, zhe) == 4 * font->scale);
+    fresh();
+    gfx_text_font(&g, 0, 8, font, zhe, true);
+    CHECK(count_black() == 2 * 3 * font->scale * font->scale);
+    /* another family's faces do not take it */
+    gfx_font_use(GFX_FAMILY_JERSEY);
+    const gfx_font_t *jersey = gfx_font_system();
+    CHECK(gfx_text_font_width(jersey, zhe) == gfx_text_font_width(jersey, "Zh"));
+    gfx_font_use(GFX_FAMILY_DEPARTURE_MONO);
+
+    gfx_packs_clear();
+    CHECK(gfx_text_font_width(font, zhe) == gfx_text_font_width(font, "Zh"));
+
+    /* what is not a sound pack is not taken: a glyph that points past the bitmaps */
+    union {
+        uint32_t aligned;
+        uint8_t  bytes[sizeof PACK.bytes];
+    } broken;
+    memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
+    broken.bytes[24 + 8 + 8] = 200;
+    CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
+    memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
+    broken.bytes[0] = 'X';
+    CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
+}
+
 static void test_text_fit(void)
 {
     const gfx_font_t *font = gfx_font_system();
@@ -387,6 +435,7 @@ int main(void)
     test_picture();
     test_degree_sign();
     test_in_latin();
+    test_glyph_pack();
     test_text_fit();
     test_clear_and_pixel();
     test_fill_frame();

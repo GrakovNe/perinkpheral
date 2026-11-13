@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "../font_square.h"
+#include "spelling.h"
 
 void gfx_init(gfx_t *g, uint8_t *bits, int w, int h)
 {
@@ -375,14 +376,14 @@ int gfx_text_sq_width(const char *utf8, int scale)
 
 /* ---- bitmap fonts from tools/fontgen ---- */
 
-static const gfx_glyph_t *font_glyph(const gfx_font_t *font, uint32_t cp)
+static const gfx_glyph_t *glyph_among(const gfx_glyph_t *glyphs, int count, uint32_t cp)
 {
-    int lo = 0, hi = font->count - 1;
+    int lo = 0, hi = count - 1;
     while (lo <= hi) {
         int mid = (lo + hi) / 2;
-        uint32_t c = font->glyphs[mid].cp;
+        uint32_t c = glyphs[mid].cp;
         if (c == cp) {
-            return &font->glyphs[mid];
+            return &glyphs[mid];
         }
         if (c < cp) {
             lo = mid + 1;
@@ -390,7 +391,132 @@ static const gfx_glyph_t *font_glyph(const gfx_font_t *font, uint32_t cp)
             hi = mid - 1;
         }
     }
-    return cp == '?' ? NULL : font_glyph(font, '?');
+    return NULL;
+}
+
+/* ---- glyph packs ----
+ *
+ * The fonts in the firmware are ASCII. Letters of other alphabets come in
+ * packs the user adds: for a face of a font, more glyphs in the font's own
+ * form, somewhere that stays put - a partition of flash, mapped. */
+#define PACK_MAGIC   0x594C4750u /* "PGLY" */
+#define PACK_VERSION 1
+typedef struct {
+    uint32_t magic;
+    uint16_t version;
+    uint8_t  face_count;
+    uint8_t  reserved;
+    uint32_t bytes; /* the whole pack */
+    char     name[GFX_PACK_NAME_MAX + 1];
+} pack_header_t;
+typedef struct {
+    uint8_t  face; /* a gfx_face_t */
+    uint8_t  reserved;
+    uint16_t glyph_count;
+    uint32_t bits_bytes;
+} pack_face_t;
+_Static_assert(sizeof(pack_header_t) == 24 && sizeof(pack_face_t) == 8 && sizeof(gfx_glyph_t) == 12,
+               "a pack is read in place: its records are the structures");
+
+static struct {
+    uint8_t            face;
+    const gfx_glyph_t *glyphs;
+    int                count;
+    const uint8_t     *bits;
+} s_packs[GFX_PACK_FACES_MAX];
+static int s_pack_count;
+
+void gfx_packs_clear(void)
+{
+    s_pack_count = 0;
+}
+
+static size_t padded(size_t bytes)
+{
+    return (bytes + 3) & ~(size_t)3;
+}
+
+size_t gfx_pack_bytes(const void *data, size_t available)
+{
+    const pack_header_t *header = data;
+    if (available < sizeof *header || header->magic != PACK_MAGIC ||
+        header->version != PACK_VERSION || header->bytes > available ||
+        header->bytes < sizeof *header) {
+        return 0;
+    }
+    /* Every face has to lie inside the pack, whole. */
+    size_t at = sizeof *header;
+    for (int i = 0; i < header->face_count; i++) {
+        const pack_face_t *face = (const pack_face_t *)((const uint8_t *)data + at);
+        if (at + sizeof *face > header->bytes) {
+            return 0;
+        }
+        size_t glyphs_bytes = (size_t)face->glyph_count * sizeof(gfx_glyph_t);
+        at += sizeof *face;
+        if (glyphs_bytes > header->bytes - at ||
+            padded(face->bits_bytes) > header->bytes - at - glyphs_bytes) {
+            return 0;
+        }
+        const gfx_glyph_t *glyphs = (const gfx_glyph_t *)((const uint8_t *)data + at);
+        for (int g = 0; g < face->glyph_count; g++) {
+            size_t glyph_bytes = (size_t)((glyphs[g].w + 7) / 8) * glyphs[g].h;
+            if (glyphs[g].offset > face->bits_bytes ||
+                glyph_bytes > face->bits_bytes - glyphs[g].offset ||
+                (g > 0 && glyphs[g].cp <= glyphs[g - 1].cp)) {
+                return 0;
+            }
+        }
+        at += glyphs_bytes + padded(face->bits_bytes);
+    }
+    return header->bytes;
+}
+
+bool gfx_pack_add(const void *data, size_t available)
+{
+    const pack_header_t *header = data;
+    if (((uintptr_t)data & 3) != 0 || gfx_pack_bytes(data, available) == 0 ||
+        s_pack_count + header->face_count > GFX_PACK_FACES_MAX) {
+        return false;
+    }
+    size_t at = sizeof *header;
+    for (int i = 0; i < header->face_count; i++) {
+        const pack_face_t *face = (const pack_face_t *)((const uint8_t *)data + at);
+        at += sizeof *face;
+        s_packs[s_pack_count].face = face->face;
+        s_packs[s_pack_count].glyphs = (const gfx_glyph_t *)((const uint8_t *)data + at);
+        s_packs[s_pack_count].count = face->glyph_count;
+        at += (size_t)face->glyph_count * sizeof(gfx_glyph_t);
+        s_packs[s_pack_count].bits = (const uint8_t *)data + at;
+        at += padded(face->bits_bytes);
+        s_pack_count++;
+    }
+    return true;
+}
+
+const char *gfx_pack_name(const void *data)
+{
+    return ((const pack_header_t *)data)->name;
+}
+
+/* The glyph of a character and the bitmaps it points into: the font's
+ * own, or a pack's for the font's face; NULL when nobody has it. */
+static const gfx_glyph_t *glyph_of(const gfx_font_t *font, uint32_t cp, const uint8_t **bits)
+{
+    const gfx_glyph_t *glyph = glyph_among(font->glyphs, font->count, cp);
+    *bits = font->bits;
+    for (int i = 0; glyph == NULL && cp >= 0x80 && i < s_pack_count; i++) {
+        if (s_packs[i].face == font->face) {
+            glyph = glyph_among(s_packs[i].glyphs, s_packs[i].count, cp);
+            *bits = s_packs[i].bits;
+        }
+    }
+    return glyph;
+}
+
+static const gfx_glyph_t *font_glyph(const gfx_font_t *font, uint32_t cp)
+{
+    const gfx_glyph_t *glyph = glyph_among(font->glyphs, font->count, cp);
+    return glyph != NULL || cp == '?' ? glyph : glyph_among(font->glyphs, font->count, '?');
 }
 
 static bool is_digit(uint32_t cp)
@@ -446,48 +572,23 @@ static int draw_degree(gfx_t *g, int x, int y, const gfx_font_t *font, bool blac
     return gap + size + (is_last ? 0 : gap);
 }
 
-/* The fonts are ASCII, and names come in other alphabets: what has an
- * honest spelling in Latin letters is drawn in them - Russian, and the
- * punctuation a careful typist uses - and only the rest as "?". Returns
- * the letters to draw for a character, or NULL when it is drawn as it is. */
-static const char *in_latin(uint32_t cp, char capital[4])
+/* What no font and no pack has is spelled in ASCII where a table says how
+ * (spelling.h: Latin letters with marks, Cyrillic, Greek, a careful
+ * typist's punctuation), and is "?" where none does. Returns the letters
+ * to draw, or NULL when there is no spelling. */
+static const char *in_latin(uint32_t cp)
 {
-    static const char *const CYRILLIC[] = {
-        "a", "b", "v", "g", "d", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p",
-        "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya",
-    };
-    if (cp < 0x80) {
-        return NULL;
-    }
-    if (cp >= 0x430 && cp <= 0x44F) {
-        return CYRILLIC[cp - 0x430];
-    }
-    if (cp >= 0x410 && cp <= 0x42F) {
-        /* A capital is its first letter raised. */
-        const char *small = CYRILLIC[cp - 0x410];
-        size_t      length = strlen(small);
-        memcpy(capital, small, length + 1);
-        if (length > 0) {
-            capital[0] = (char)(capital[0] - 'a' + 'A');
+    for (size_t i = 0; i < sizeof SPELLINGS / sizeof SPELLINGS[0]; i++) {
+        if (cp >= SPELLINGS[i].first && cp <= SPELLINGS[i].last) {
+            return SPELLINGS[i].spelled[cp - SPELLINGS[i].first];
         }
-        return capital;
     }
-    switch (cp) {
-    case 0x451: return "e";
-    case 0x401: return "E";
-    case 0xA0:  return " ";
-    case 0x2013:
-    case 0x2014: return "-";
-    case 0x2018:
-    case 0x2019: return "'";
-    case 0xAB:
-    case 0xBB:
-    case 0x201C:
-    case 0x201D:
-    case 0x201E: return "\"";
-    case 0x2026: return "...";
-    default:     return NULL;
+    for (size_t i = 0; i < sizeof SPELLING_SINGLES / sizeof SPELLING_SINGLES[0]; i++) {
+        if (SPELLING_SINGLES[i].cp == cp) {
+            return SPELLING_SINGLES[i].spelled;
+        }
     }
+    return NULL;
 }
 
 static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black,
@@ -497,23 +598,29 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
     int scale = font->scale;
     const char *s = utf8;
     const char *spelled = NULL; /* the Latin letters of a character being spelled out */
-    char        capital[4];
     while (*s != '\0' || (spelled != NULL && *spelled != '\0')) {
-        uint32_t cp;
+        uint32_t           cp;
+        const uint8_t     *bits = font->bits;
+        const gfx_glyph_t *gl = NULL;
         if (spelled != NULL && *spelled != '\0') {
             cp = (uint8_t)*spelled++;
         } else {
             cp = next_cp(&s);
-            if (cp == DEGREE_SIGN) {
+            /* Its own glyph, in the font or in a pack, comes before all else. */
+            gl = glyph_of(font, cp, &bits);
+            if (gl == NULL && cp == DEGREE_SIGN) {
                 x += draw_degree(g, x, y, font, black, *s == '\0');
                 continue;
             }
-            spelled = in_latin(cp, capital);
+            spelled = gl == NULL && cp >= 0x80 ? in_latin(cp) : NULL;
             if (spelled != NULL) {
                 continue; /* its letters come next, or nothing: a sign with no sound */
             }
         }
-        const gfx_glyph_t *gl = font_glyph(font, cp);
+        if (gl == NULL) {
+            bits = font->bits;
+            gl = font_glyph(font, cp);
+        }
         if (gl == NULL) {
             continue;
         }
@@ -521,7 +628,7 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
         int room = glyph_room(gl, cp, cell, &inset);
         if (g != NULL) {
             int stride = (gl->w + 7) / 8;
-            const uint8_t *bits = font->bits + gl->offset;
+            bits += gl->offset;
             for (int row = 0; row < gl->h; row++) {
                 for (int col = 0; col < gl->w; col++) {
                     if (bits[row * stride + (col >> 3)] & (0x80 >> (col & 7))) {
@@ -597,15 +704,17 @@ int gfx_font_cap_height(const gfx_font_t *font)
         .ascent = departure_11_ascent, .descent = departure_11_descent,             \
         .glyphs = departure_11_glyphs, .count = departure_11_count,                 \
         .bits = departure_11_bits, .scale = (pixels_per_dot),                       \
+        .face = GFX_FACE_DEPARTURE_11,                                              \
     }
 
 /* One of the Jersey faces - each is drawn for capitals of so many pixels,
  * which is its number - with a dot so many pixels large. */
-#define JERSEY(face, pixels_per_dot)                                                \
+#define JERSEY(drawn, pixels_per_dot)                                               \
     {                                                                               \
-        .ascent = jersey_##face##_ascent, .descent = jersey_##face##_descent,       \
-        .glyphs = jersey_##face##_glyphs, .count = jersey_##face##_count,           \
-        .bits = jersey_##face##_bits, .scale = (pixels_per_dot),                    \
+        .ascent = jersey_##drawn##_ascent, .descent = jersey_##drawn##_descent,     \
+        .glyphs = jersey_##drawn##_glyphs, .count = jersey_##drawn##_count,         \
+        .bits = jersey_##drawn##_bits, .scale = (pixels_per_dot),                   \
+        .face = GFX_FACE_JERSEY_##drawn,                                            \
     }
 
 /* A family has every size. Departure Mono is one bitmap at whole

@@ -116,7 +116,33 @@ typedef struct {
     int                count;
     const uint8_t     *bits;
     uint8_t            scale; /* pixels per dot, at least 1 */
+    uint8_t            face;  /* a gfx_face_t: whose glyphs a pack adds to */
 } gfx_font_t;
+
+/* The drawings the fonts are made of: every size of a family is one of
+ * them at some scale. A glyph pack carries more glyphs for some of them. */
+typedef enum {
+    GFX_FACE_DEPARTURE_11,
+    GFX_FACE_JERSEY_10,
+    GFX_FACE_JERSEY_15,
+    GFX_FACE_JERSEY_20,
+    GFX_FACE_JERSEY_25,
+    GFX_FACE_COUNT,
+} gfx_face_t;
+
+/* Glyph packs (tools/fontgen/mkpack.py): letters beyond ASCII, added to
+ * the fonts while the device runs. A pack is used where it lies - it must
+ * stay there, at an address that is a multiple of 4 - and holds glyphs for
+ * one or several faces. What neither a font nor a pack has is spelled in
+ * ASCII by a table, or drawn as "?". */
+#define GFX_PACK_NAME_MAX  11
+#define GFX_PACK_FACES_MAX 12
+/* The size of the pack at `data` if it is a sound one within `available`
+ * bytes, else 0. */
+size_t gfx_pack_bytes(const void *data, size_t available);
+bool   gfx_pack_add(const void *data, size_t available);
+const char *gfx_pack_name(const void *data);
+void   gfx_packs_clear(void);
 
 /* UTF-8 text with the baseline at y; code points the font lacks draw as
  * '?'. Returns the advance in pixels. */
