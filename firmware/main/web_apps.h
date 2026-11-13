@@ -22,6 +22,9 @@ extern "C" {
  *                                   it comes back, unless &forget=1
  *   GET  /api/apps/removed          the names of removed applications whose
  *                                   settings are kept
+ *   GET  /api/glyphs                the glyph packs on the device and the room left
+ *   POST /api/glyphs                a pack as the body: installed, in place of one of its name
+ *   POST /api/glyphs/remove?name=<pack>
  *   GET  /api/sources               the catalogs the device installs from
  *   POST /api/sources               {"sources": ["https://...", ...]}
  *   GET  /api/catalog?source=<n>    the index of source number n, passed on as it comes
@@ -32,7 +35,7 @@ extern "C" {
  */
 void web_apps_register(httpd_handle_t server);
 
-#define WEB_APPS_ROUTES 8
+#define WEB_APPS_ROUTES 11
 
 #ifdef __cplusplus
 }

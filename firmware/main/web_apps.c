@@ -21,6 +21,7 @@
 #include "events.h"
 #include "app_code.h"
 #include "gfx_icons.h"
+#include "glyphs.h"
 #include "host.h"
 #include "launcher.h"
 #include "power.h"
@@ -326,6 +327,97 @@ static esp_err_t handle_removed(httpd_req_t *request)
         cJSON_AddItemToArray(list, cJSON_CreateString(names[i]));
     }
     return send_json(request, "200 OK", list);
+}
+
+/* ---- glyph packs: letters beyond ASCII ---- */
+
+static esp_err_t handle_glyphs(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    glyphs_pack_t packs[GLYPHS_PACKS_MAX];
+    int           count = glyphs_list(packs);
+    cJSON        *list = cJSON_CreateArray();
+    for (int i = 0; i < count; i++) {
+        cJSON *pack = cJSON_CreateObject();
+        cJSON_AddStringToObject(pack, "name", packs[i].name);
+        cJSON_AddNumberToObject(pack, "bytes", (double)packs[i].bytes);
+        cJSON_AddItemToArray(list, pack);
+    }
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddItemToObject(json, "packs", list);
+    cJSON_AddNumberToObject(json, "free", (double)glyphs_free_bytes());
+    return send_json(request, "200 OK", json);
+}
+
+typedef struct {
+    const uint8_t *pack; /* to install; NULL: `name` is to be removed */
+    size_t         size;
+    const char    *name;
+    bool           is_done;
+} glyphs_command_t;
+
+/* In the host loop: the fonts are its, and the picture is another. */
+static void change_glyphs(void *argument)
+{
+    glyphs_command_t *command = argument;
+    command->is_done = command->pack != NULL ? glyphs_install(command->pack, command->size)
+                                             : glyphs_remove(command->name);
+    host_redraw();
+}
+
+/* POST /api/glyphs, the body a pack as tools/fontgen/mkpack.py makes it. */
+static esp_err_t handle_glyphs_install(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    if (request->content_len < 1 || request->content_len > GLYPHS_PACK_MAX_BYTES) {
+        return send_message(request, "400 Bad Request", "error", "Invalid pack.");
+    }
+    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
+        return ESP_OK;
+    }
+    uint8_t *pack = malloc(request->content_len);
+    if (pack == NULL) {
+        return httpd_resp_send_500(request);
+    }
+    size_t received = 0;
+    while (received < request->content_len) {
+        int count = httpd_req_recv(request, (char *)pack + received,
+                                   request->content_len - received);
+        if (count <= 0) {
+            free(pack);
+            return ESP_FAIL;
+        }
+        received += (size_t)count;
+    }
+    glyphs_command_t command = { .pack = pack, .size = received };
+    bool             is_asked = events_call(change_glyphs, &command);
+    free(pack);
+    if (!is_asked) {
+        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+    }
+    return command.is_done ? send_message(request, "200 OK", "ok", "Installed.")
+                           : send_message(request, "400 Bad Request", "error", "Invalid pack.");
+}
+
+static esp_err_t handle_glyphs_remove(httpd_req_t *request)
+{
+    if (web_server_refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    char name[GFX_PACK_NAME_MAX + 1] = "", query[QUERY_MAX];
+    if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
+        httpd_query_key_value(query, "name", name, sizeof name);
+    }
+    glyphs_command_t command = { .name = name };
+    if (!events_call(change_glyphs, &command)) {
+        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+    }
+    return command.is_done ? send_message(request, "200 OK", "ok", "Removed.")
+                           : send_message(request, "404 Not Found", "error", "Not installed.");
 }
 
 /* ---- where applications come from ---- */
@@ -717,6 +809,9 @@ void web_apps_register(httpd_handle_t server)
         { .uri = "/api/apps", .method = HTTP_GET, .handler = handle_list },
         { .uri = "/api/apps/settings", .method = HTTP_POST, .handler = handle_settings },
         { .uri = "/api/apps/removed", .method = HTTP_GET, .handler = handle_removed },
+        { .uri = "/api/glyphs", .method = HTTP_GET, .handler = handle_glyphs },
+        { .uri = "/api/glyphs", .method = HTTP_POST, .handler = handle_glyphs_install },
+        { .uri = "/api/glyphs/remove", .method = HTTP_POST, .handler = handle_glyphs_remove },
         { .uri = "/api/apps/remove", .method = HTTP_POST, .handler = handle_remove },
         { .uri = "/api/apps/install", .method = HTTP_POST, .handler = handle_install },
         { .uri = "/api/catalog", .method = HTTP_GET, .handler = handle_catalog },

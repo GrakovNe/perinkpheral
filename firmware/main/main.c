@@ -13,6 +13,7 @@
 #include "sdkconfig.h"
 
 #include "app_code.h"
+#include "glyphs.h"
 #include "app_host.h"
 #include "app_system.h"
 #include "m3_area.h"
@@ -162,6 +163,7 @@ void app_main(void)
     sysinfo_start(cfg->device_name);
     storage_start();
     app_code_start();
+    glyphs_start();
 
     wifi_config_in_t wifi = {
         .ssid = cfg->wifi_ssid,

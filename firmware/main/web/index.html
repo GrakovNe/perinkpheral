@@ -190,6 +190,7 @@
     <button data-pane="time">Time</button>
     <button data-pane="display">Display</button>
     <button data-pane="network">Network</button>
+    <button data-pane="language">Language</button>
   </div>
 
   <form class="pane" id="general">
@@ -261,6 +262,10 @@
     <input id="password" type="password" maxlength="64" autocomplete="off">
     <button>Connect</button>
   </form>
+
+  <div class="pane" id="language">
+    <div class="offers" id="glyph-rows"></div>
+  </div>
 </section>
 
 <section id="about">
@@ -498,14 +503,16 @@ function afterRestart() {
 
 /* ---- sections ---- */
 
-/* "#settings" is a section; "#apps:weather" is the section with the settings of an
+/* "#settings" is a section, "#settings:language" a tab of it; "#apps:weather" is the section with the settings of an
  * application open in it, and "#apps:catalogs" with the list of catalogs: a link can
  * lead straight to either. */
 function showSection() {
   const [wanted, ...rest] = (location.hash.slice(1) || "apps").split(":");
   const inside = rest.join(":");
-  openInside(inside);
   const name = byId(wanted) && byId(wanted).tagName === "SECTION" ? wanted : "apps";
+  /* "#settings:language" is a tab of the settings. */
+  if (name === "settings") showPane(byId(inside) ? inside : "general");
+  else openInside(inside);
   for (const section of document.querySelectorAll("section"))
     section.classList.toggle("current", section.id === name);
   for (const link of document.querySelectorAll("nav a"))
@@ -902,7 +909,45 @@ async function loadCatalogs() {
   }
   offered = found;
   drawTiles();
+  loadGlyphs();
   for (const source of silent) toast("Source unavailable: " + source, "error");
+}
+
+/* ---- letters beyond ASCII: glyph packs ----
+ *
+ * The device's fonts are ASCII; an alphabet is a pack the user adds. The
+ * official catalog lists them, the browser fetches one and hands it to
+ * the device. Without a pack its letters are spelled in Latin ones. */
+async function loadGlyphs() {
+  const rows = byId("glyph-rows");
+  let have, offers;
+  try {
+    have = await ask("/api/glyphs");
+    offers = await (await fetch(sources[0] + "/glyphs/index.json")).json();
+  } catch (error) {
+    rows.textContent = "Catalog unavailable.";
+    return;
+  }
+  rows.replaceChildren(...offers.map(offer => {
+    const row = make("div", { className: "offer" }), text = make("div");
+    const is_there = have.packs.some(pack => pack.name === offer.name);
+    text.append(make("b", { textContent: offer.title }),
+                make("small", { textContent: offer.languages }));
+    const button = make("button", { textContent: is_there ? "Remove" : "Install" });
+    if (is_there) button.className = "quiet";
+    button.addEventListener("click", () => busy(button, async () => {
+      if (is_there) {
+        await ask("/api/glyphs/remove?name=" + offer.name, { method: "POST" });
+      } else {
+        const pack = await (await fetch(sources[0] + "/glyphs/" + offer.file)).arrayBuffer();
+        await ask("/api/glyphs", { method: "POST", body: pack });
+      }
+      await loadGlyphs();
+    }));
+    text.style.flex = "1";
+    row.append(text, button);
+    return row;
+  }));
 }
 
 /* A link to a repository as people paste it, read as the catalog folder in it. */
@@ -1195,8 +1240,8 @@ async function loadAll() {
 }
 
 window.addEventListener("hashchange", showSection);
-showSection();
 showPane("general");
+showSection();
 loadAll().catch(() => { byId("tiles").textContent = "Device unreachable."; afterRestart(); });
 </script>
 </body>
