@@ -400,8 +400,8 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
  * the right. An application may put its own there - a place, a title - in
  * the host's font and size; one that does not fit is cut with "...", and
  * the two never run into each other. A length of 0 gives a side back to
- * the host; a text of one space leaves it empty. Call it whenever the text changes; it is forgotten when the
- * application leaves the screen. */
+ * the host; a text of one space leaves it empty. It is not a drawing call: from any
+ * handler, whenever the text changes; it is forgotten when the application leaves the screen. */
 #define HOST_HEADER_LEFT     0
 #define HOST_HEADER_RIGHT    1
 #define HOST_HEADER_TEXT_MAX 63
