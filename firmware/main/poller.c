@@ -758,6 +758,10 @@ void poller_hurry(const char *app_name)
                                        pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll],
                                        &is_another);
             unlock();
+            if (is_another) {
+                ESP_LOGI(TAG, "%s/%d: every %u s by its setting", app_name, poll,
+                         (unsigned)(pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll]));
+            }
         }
     }
     lock();

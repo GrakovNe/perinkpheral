@@ -187,8 +187,10 @@ static void add_settings(cJSON *app, const char *app_name)
                                        key->valuestring));
         char value[APP_SETTING_VALUE_MAX + 1];
         stored_value(app_name, key->valuestring, value);
-        if (strcmp(type->valuestring, "secret") == 0) {
-            /* A secret goes one way: the page learns only whether there is one. */
+        if (strcmp(type->valuestring, "secret") == 0 || strcmp(type->valuestring, "link") == 0) {
+            /* A secret goes one way: the page learns only whether there is one.
+             * A link is one too - whoever has a calendar's address reads the
+             * calendar. */
             cJSON_AddBoolToObject(values, key->valuestring, value[0] != '\0');
         } else {
             cJSON_AddStringToObject(values, key->valuestring, value);

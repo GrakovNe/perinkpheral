@@ -681,10 +681,11 @@ function settingField(app, setting) {
       input.checked = value === "1";
       label.className = "check";
       label.prepend(input);
-    } else if (setting.type === "secret") {
-      input.type = "password";
-      /* The device does not give a secret back: an empty field keeps the one it has. */
-      input.placeholder = value ? "Unchanged" : "Not set";
+    } else if (setting.type === "secret" || setting.type === "link") {
+      /* The device does not give a secret back: an empty field keeps the one it has.
+       * A link - a calendar's address - is a secret too, though it is typed in the open. */
+      input.type = setting.type === "secret" ? "password" : "url";
+      input.placeholder = value ? "Unchanged" : setting.type === "link" ? "https://" : "Not set";
     } else {
       input.inputMode = setting.type === "number" ? "decimal" : "text";
       if (setting.type === "url" || setting.type === "link") {
@@ -752,7 +753,7 @@ window.addEventListener("message", event => {
   if (said.perinkpheral === "ready") {
     const app = companion.app, values = {};
     for (const setting of app.settings)
-      if (setting.type !== "secret") values[setting.key] = app.values[setting.key];
+      if (setting.type !== "secret" && setting.type !== "link") values[setting.key] = app.values[setting.key];
     companion.page.postMessage({ perinkpheral: "app", name: app.name, title: app.title,
                                  settings: app.settings, values }, companion.origin);
   } else if (said.perinkpheral === "settings" && said.values && typeof said.values === "object") {
@@ -820,6 +821,11 @@ const pace = seconds => seconds % 3600 === 0 ? seconds / 3600 + " h"
 /* The host of an address; "{{server}}" is wherever the user said the server is. */
 function hostOf(app, address) {
   const key = (address.match(/^\{\{(\w+)\}\}/) || [])[1];
+  /* An address the device keeps to itself - a calendar's - is named, not shown. */
+  if (key && typeof app.values[key] !== "string") {
+    const kept = app.settings.find(have => have.key === key);
+    return (kept ? kept.title : key) + (app.values[key] ? "" : " (not set)");
+  }
   const whole = key ? address.replace("{{" + key + "}}", app.values[key] || "") : address;
   try {
     return new URL(whole.includes("://") ? whole : "http://" + whole).host;
@@ -834,7 +840,7 @@ function appFacts(app) {
                             .map(address => hostOf(app, address)))];
   const updates = (app.polls || []).map(poll => "Every " + pace(poll.every));
   const stores = app.settings.map(setting => setting.title +
-                                             (setting.type === "secret" ? " (secret)" : ""));
+                                             (setting.type === "secret" || setting.type === "link" ? " (secret)" : ""));
   return [
     ["Name", app.name],
     ["Version", app.version || "-"],
@@ -1031,8 +1037,10 @@ byId("app-settings").addEventListener("submit", async event => {
   for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
     if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
     /* A calendar's address is often given as webcal://, which is https. */
-    else if (input.dataset.type === "link")
-      settings[input.dataset.key] = input.value.trim().replace(/^webcals?:\/\//i, "https://");
+    else if (input.dataset.type === "link") {
+      if (input.value.trim())
+        settings[input.dataset.key] = input.value.trim().replace(/^webcals?:\/\//i, "https://");
+    }
     else if (input.dataset.type !== "secret" || input.value) settings[input.dataset.key] = input.value;
   }
   const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
