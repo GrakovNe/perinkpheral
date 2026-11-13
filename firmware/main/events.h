@@ -66,7 +66,7 @@ bool events_call(events_call_fn run, void *argument);
 void events_call_patiently(events_call_fn run, void *argument);
 
 /* For the host loop: marks the task that is one, and answers a call. */
-void events_this_is_the_host_loop(void);
+void events_set_host_loop_task(void);
 void events_answer_call(void *call);
 
 /* Something happened that applications may have asked to be told of (a

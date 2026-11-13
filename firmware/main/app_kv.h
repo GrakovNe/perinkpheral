@@ -37,7 +37,7 @@ void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
 
 /* The names of applications that are not on the device and left a store
  * behind: what would come back with its settings. Returns how many. */
-int app_kv_left_behind(char names[][APP_NAME_MAX + 1], int capacity);
+int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity);
 
 /* Forgets everything the application stored: it is being removed. */
 void app_kv_erase(const char *app_name);

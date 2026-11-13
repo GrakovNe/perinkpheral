@@ -32,7 +32,7 @@ static bool               s_is_awake_for_user; /* the while after a press */
  * not through every poll. */
 static void (*s_reachable_changed)(bool is_reachable);
 static bool s_was_reachable;
-static bool s_reachable_is_told;
+static bool s_reachable_reported;
 
 void power_on_reachable(void (*changed)(bool is_reachable))
 {
@@ -43,8 +43,8 @@ void power_on_reachable(void (*changed)(bool is_reachable))
 static void tell_reachable(void)
 {
     bool is_reachable = !s_is_saving || s_is_awake_for_user;
-    if (s_reachable_changed != NULL && (!s_reachable_is_told || is_reachable != s_was_reachable)) {
-        s_reachable_is_told = true;
+    if (s_reachable_changed != NULL && (!s_reachable_reported || is_reachable != s_was_reachable)) {
+        s_reachable_reported = true;
         s_was_reachable = is_reachable;
         s_reachable_changed(is_reachable);
     }
@@ -108,15 +108,15 @@ static void stay_up(bool wanted)
  * takes its USB off the bus and puts it back on waking, and a restart
  * does not touch that part of the chip at all - what was left wrong in it
  * stays wrong through any number of restarts. So it is written out. */
-static void put_usb_back(void)
+static void restore_usb(void)
 {
-    const usb_serial_jtag_pull_override_vals_t on_the_bus = { .dp_pu = true };
+    const usb_serial_jtag_pull_override_vals_t usb_attached = { .dp_pu = true };
     PERIPH_RCC_ATOMIC()
     {
         usb_serial_jtag_ll_enable_bus_clock(true);
     }
     usb_serial_jtag_ll_phy_enable_pad(true);
-    usb_serial_jtag_ll_phy_enable_pull_override(&on_the_bus);
+    usb_serial_jtag_ll_phy_enable_pull_override(&usb_attached);
     usb_serial_jtag_ll_phy_disable_pull_override();
 }
 
@@ -132,13 +132,13 @@ static void show_to_the_computer(void)
     if (usb_serial_jtag_is_connected()) {
         return;
     }
-    const usb_serial_jtag_pull_override_vals_t off_the_bus = { 0 };
-    usb_serial_jtag_ll_phy_enable_pull_override(&off_the_bus);
+    const usb_serial_jtag_pull_override_vals_t usb_detached = { 0 };
+    usb_serial_jtag_ll_phy_enable_pull_override(&usb_detached);
     vTaskDelay(pdMS_TO_TICKS(OFF_THE_BUS_MS));
-    put_usb_back();
+    restore_usb();
 }
 
-void power_awake_is_over(void)
+void power_awake_period_ended(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_is_awake_for_user = false;
@@ -165,7 +165,7 @@ static bool is_to_save(power_mode_t mode)
     return mode == POWER_ALWAYS || (mode == POWER_AUTO && !usb_serial_jtag_is_connected());
 }
 
-static void look_again_later(void)
+static void retry_later(void)
 {
     if (s_mode == POWER_AUTO) {
         deadlines_set_in(DEADLINE_POWER_LOOK, 0, 0, LOOK_EVERY_MS);
@@ -208,10 +208,10 @@ void power_start(power_mode_t mode)
     xSemaphoreGive(s_lock);
     apply_sleep();
     tell_reachable();
-    look_again_later();
+    retry_later();
     /* Not a knock: whether a computer is there is not known this early,
      * and one that is would lose the console at every start. */
-    put_usb_back();
+    restore_usb();
     ESP_LOGI(TAG, "%s", s_is_saving ? "saving power" : "not saving power");
 }
 
@@ -222,7 +222,7 @@ void power_set_mode(power_mode_t mode)
     }
     s_mode = mode;
     set_saving(is_to_save(mode));
-    look_again_later();
+    retry_later();
     show_to_the_computer();
 }
 
@@ -232,7 +232,7 @@ bool power_look(void)
         return false;
     }
     bool changed = set_saving(is_to_save(POWER_AUTO));
-    look_again_later();
+    retry_later();
     return changed;
 }
 

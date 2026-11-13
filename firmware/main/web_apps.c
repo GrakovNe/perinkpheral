@@ -270,7 +270,7 @@ typedef struct {
 } app_settings_command_t;
 
 /* Whether the request puts another server where one was set. */
-static bool names_another_server(const char *manifest, const char *app_name, const cJSON *wanted)
+static bool references_other_server(const char *manifest, const char *app_name, const cJSON *wanted)
 {
     const cJSON *value;
     cJSON_ArrayForEach(value, wanted)
@@ -291,7 +291,7 @@ static bool names_another_server(const char *manifest, const char *app_name, con
 /* The token was given for the server that was there. Whoever points the
  * application at another one - anybody on the network can - does not get
  * the token sent to it: what is not given anew goes. */
-static void forget_secrets_not_given(const char *manifest, const char *app_name,
+static void clear_stale_secrets(const char *manifest, const char *app_name,
                                      const cJSON *wanted)
 {
     char keys[APP_SETTINGS_MAX][APP_SETTING_KEY_MAX + 1];
@@ -318,8 +318,8 @@ static void change_app_settings(void *argument)
     } else {
         const cJSON *value;
         bool         stored = true;
-        if (names_another_server(manifest, command->app_name, command->wanted)) {
-            forget_secrets_not_given(manifest, command->app_name, command->wanted);
+        if (references_other_server(manifest, command->app_name, command->wanted)) {
+            clear_stale_secrets(manifest, command->app_name, command->wanted);
         }
         cJSON_ArrayForEach(value, command->wanted)
         {
@@ -375,7 +375,7 @@ static esp_err_t handle_removed(httpd_req_t *request)
         return ESP_OK;
     }
     char   names[REMOVED_LISTED_MAX][APP_NAME_MAX + 1];
-    int    count = app_kv_left_behind(names, REMOVED_LISTED_MAX);
+    int    count = app_kv_orphaned(names, REMOVED_LISTED_MAX);
     cJSON *list = cJSON_CreateArray();
     for (int i = 0; i < count; i++) {
         cJSON_AddItemToArray(list, cJSON_CreateString(names[i]));
@@ -712,7 +712,7 @@ typedef struct {
     bool         is_done;
 } install_command_t;
 
-static void put_in_place(void *argument)
+static void commit_install(void *argument)
 {
     install_command_t *command = argument;
     command->is_done = app_store_commit_all(STORAGE_APPS_ROOT, command->app_name);
@@ -725,7 +725,7 @@ typedef struct {
     bool        is_done;
 } remove_command_t;
 
-static void take_away(void *argument)
+static void remove_command(void *argument)
 {
     remove_command_t *command = argument;
     command->is_done = launcher_remove(command->app_name, command->forgets);
@@ -816,7 +816,7 @@ static esp_err_t handle_install(httpd_req_t *request)
      * do unasked - reset the device, forget its network: installing one is
      * asked about like those. */
     if (problem == NULL && asks_for_system) {
-        host_answer_t answer = host_ask_at_the_device(word(WORD_INSTALL), word(WORD_INSTALL_SYSTEM_APP),
+        host_answer_t answer = host_confirm_on_device(word(WORD_INSTALL), word(WORD_INSTALL_SYSTEM_APP),
                                                       GFX_ICON_GEAR, word(WORD_INSTALL));
         problem = answer == HOST_ANSWER_CONFIRMED ? NULL
                   : answer == HOST_ANSWER_BUSY    ? "Device busy."
@@ -824,7 +824,7 @@ static esp_err_t handle_install(httpd_req_t *request)
     }
     if (problem == NULL) {
         install_command_t command = { .app_name = app_name, .files = files };
-        if (!events_call(put_in_place, &command)) {
+        if (!events_call(commit_install, &command)) {
             problem = "Device busy.";
         } else if (!command.is_done) {
             problem = "Storage error.";
@@ -836,7 +836,7 @@ static esp_err_t handle_install(httpd_req_t *request)
          * application's folder goes, an installed one stays as it was. */
         if (!was_installed) {
             remove_command_t undo = { .app_name = app_name };
-            events_call(take_away, &undo);
+            events_call(remove_command, &undo);
         }
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
         /* Whose fault: the device's being busy, its storage's, or the
@@ -867,7 +867,7 @@ static esp_err_t handle_remove(httpd_req_t *request)
         httpd_query_key_value(query, "forget", forget, sizeof forget);
     }
     remove_command_t command = { .app_name = app_name, .forgets = strcmp(forget, "1") == 0 };
-    if (!events_call(take_away, &command)) {
+    if (!events_call(remove_command, &command)) {
         return send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
     if (!command.is_done) {

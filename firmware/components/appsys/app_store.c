@@ -296,8 +296,8 @@ void app_store_recover(const char *root)
             continue;
         }
         struct stat found;
-        bool        was_being_put_in_place = stat(mark, &found) == 0;
-        if (settle_incoming(folder, was_being_put_in_place) && was_being_put_in_place) {
+        bool        was_commit_interrupted = stat(mark, &found) == 0;
+        if (settle_incoming(folder, was_commit_interrupted) && was_commit_interrupted) {
             remove(mark);
         }
     }

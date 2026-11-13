@@ -106,7 +106,7 @@ static int address_setting(const cJSON *settings, const char *key, size_t key_le
 
 /* The page that sets the application up from a browser: somewhere a
  * browser will take a secret from, so https and nothing else. */
-static bool is_a_companion(const cJSON *companion)
+static bool is_companion_url(const cJSON *companion)
 {
     static const char SCHEME[] = "https://";
     if (!cJSON_IsString(companion)) {
@@ -125,7 +125,7 @@ static bool is_a_companion(const cJSON *companion)
     return true;
 }
 
-uint32_t app_manifest_pace_seconds(const char *text)
+uint32_t app_manifest_interval_seconds(const char *text)
 {
     uint32_t number = 0;
     int      digits = 0;
@@ -151,7 +151,7 @@ uint32_t app_manifest_pace_seconds(const char *text)
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting
  * of the "url" type - the server the user named - or of the "link" type,
  * which is the whole address and has nothing after it. */
-static bool begins_with_a_server(const cJSON *settings, const char *text, const char **rest)
+static bool starts_with_server_setting(const cJSON *settings, const char *text, const char **rest)
 {
     if (!starts_with(text, "{{")) {
         return false;
@@ -176,7 +176,7 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
     const char *after_server;
     if (!read_string(poll, "url", parsed->url, sizeof parsed->url) ||
         !(starts_with(parsed->url, "http://") || starts_with(parsed->url, "https://") ||
-          begins_with_a_server(settings, parsed->url, &after_server))) {
+          starts_with_server_setting(settings, parsed->url, &after_server))) {
         return false;
     }
     const cJSON *every = cJSON_GetObjectItemCaseSensitive(poll, "every");
@@ -203,7 +203,7 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
             }
             is_found = true;
             const cJSON *preset = cJSON_GetObjectItemCaseSensitive(setting, "default");
-            uint32_t     pace = cJSON_IsString(preset) ? app_manifest_pace_seconds(preset->valuestring)
+            uint32_t     pace = cJSON_IsString(preset) ? app_manifest_interval_seconds(preset->valuestring)
                                                        : 0;
             if (pace >= APP_POLL_EVERY_MIN_S && pace <= APP_POLL_EVERY_MAX_S) {
                 parsed->every_s = pace;
@@ -307,8 +307,8 @@ static int setting_type(const cJSON *setting)
 }
 
 static bool fits_type(const cJSON *setting, int type, const char *value);
-static bool is_a_server(const char *value);
-static bool is_a_link(const char *value);
+static bool is_server_value(const char *value);
+static bool is_link_value(const char *value);
 
 /* The type of the setting with this key when it is an address of the
  * user's - a server ("url") or a whole link - and -1 otherwise. */
@@ -423,9 +423,9 @@ static bool fits_type(const cJSON *setting, int type, const char *value)
     case APP_SETTING_TOGGLE:
         return strcmp(value, "0") == 0 || strcmp(value, "1") == 0;
     case APP_SETTING_URL:
-        return is_a_server(value);
+        return is_server_value(value);
     case APP_SETTING_LINK:
-        return is_a_link(value);
+        return is_link_value(value);
     case APP_SETTING_CHOICE: {
         const cJSON *option;
         cJSON_ArrayForEach(option, cJSON_GetObjectItemCaseSensitive(setting, "options"))
@@ -512,7 +512,7 @@ static bool are_sound_hosts(const cJSON *hosts, const cJSON *settings)
         /* "{{server}}": wherever the user said the server is. */
         const char *rest;
         if (starts_with(host->valuestring, "{{") &&
-            !(begins_with_a_server(settings, host->valuestring, &rest) && rest[0] == '\0')) {
+            !(starts_with_server_setting(settings, host->valuestring, &rest) && rest[0] == '\0')) {
             return false;
         }
     }
@@ -607,7 +607,7 @@ bool app_manifest_is_same_host(const char *url, const char *other_url)
 /* A server and nothing more: "https://ha.example.org",
  * "http://192.168.1.10:32400". No path, no query, nobody's name and
  * password in front of the host. */
-static bool is_a_server(const char *value)
+static bool is_server_value(const char *value)
 {
     host_t host;
     return host_in_url(value, &host) && strpbrk(strstr(value, "://") + 3, "/?#") == NULL;
@@ -615,7 +615,7 @@ static bool is_a_server(const char *value)
 
 /* A whole address: http or https, a host to be sure of, and nothing in it
  * that is not a printable character - no space, no line break. */
-static bool is_a_link(const char *value)
+static bool is_link_value(const char *value)
 {
     host_t host;
     if (!host_in_url(value, &host)) {
@@ -764,7 +764,7 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
     }
 
     const cJSON *companion = cJSON_GetObjectItemCaseSensitive(root, "companion");
-    if (companion != NULL && !is_a_companion(companion)) {
+    if (companion != NULL && !is_companion_url(companion)) {
         return APP_MANIFEST_BAD_FIELD;
     }
 

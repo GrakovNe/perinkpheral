@@ -75,15 +75,15 @@ static bool find_namespace(const char *partition, bool (*is_wanted)(const char *
     return is_found;
 }
 
-static bool is_an_applications(const char *namespace)
+static bool is_app_namespace(const char *namespace)
 {
     return strncmp(namespace, NAMESPACE_PREFIX, sizeof NAMESPACE_PREFIX - 1) == 0;
 }
 
 /* A store left by an application that is not on the device any more. */
-static bool is_left_behind(const char *namespace)
+static bool is_orphaned(const char *namespace)
 {
-    if (!is_an_applications(namespace) ||
+    if (!is_app_namespace(namespace) ||
         strncmp(namespace, SYSTEM_PREFIX, sizeof SYSTEM_PREFIX - 1) == 0) {
         return false;
     }
@@ -99,7 +99,7 @@ static bool is_left_behind(const char *namespace)
     return stat(folder, &entry) != 0;
 }
 
-int app_kv_left_behind(char names[][APP_NAME_MAX + 1], int capacity)
+int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity)
 {
     int            count = 0;
     nvs_iterator_t entry = NULL;
@@ -108,7 +108,7 @@ int app_kv_left_behind(char names[][APP_NAME_MAX + 1], int capacity)
         nvs_entry_info_t info;
         nvs_entry_info(entry, &info);
         const char *name = info.namespace_name + sizeof NAMESPACE_PREFIX - 1;
-        bool        is_new = is_left_behind(info.namespace_name) && strlen(name) <= APP_NAME_MAX;
+        bool        is_new = is_orphaned(info.namespace_name) && strlen(name) <= APP_NAME_MAX;
         for (int i = 0; i < count && is_new; i++) {
             is_new = strcmp(names[i], name) != 0;
         }
@@ -123,11 +123,11 @@ int app_kv_left_behind(char names[][APP_NAME_MAX + 1], int capacity)
 
 /* The stores used to live among the host's settings: what is still there
  * is brought over, a value at a time, and removed. */
-static void bring_over_from_the_settings(void)
+static void migrate_from_settings_partition(void)
 {
     static uint8_t value[HOST_KV_VALUE_MAX];
     char namespace[NVS_NS_NAME_MAX_SIZE];
-    while (find_namespace(NVS_DEFAULT_PART_NAME, is_an_applications, namespace)) {
+    while (find_namespace(NVS_DEFAULT_PART_NAME, is_app_namespace, namespace)) {
         nvs_handle_t from, to;
         if (nvs_open(namespace, NVS_READONLY, &from) == ESP_OK) {
             bool is_open = nvs_open_from_partition(PARTITION, namespace, NVS_READWRITE, &to) == ESP_OK;
@@ -167,7 +167,7 @@ void app_kv_start(void)
         ESP_LOGE(TAG, "the stores cannot be opened: %s", esp_err_to_name(err));
         return;
     }
-    bring_over_from_the_settings();
+    migrate_from_settings_partition();
 }
 
 void app_kv_erase_all(void)
@@ -267,10 +267,10 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
     int32_t result = write_value(app_name, key, value, value_length, &err);
     /* Full: what the applications that were removed left behind goes
      * first, one at a time, for as long as that helps. */
-    char left_behind[NVS_NS_NAME_MAX_SIZE];
-    while (is_full(err) && find_namespace(PARTITION, is_left_behind, left_behind)) {
-        ESP_LOGW(TAG, "full: forgetting what %s kept", left_behind + sizeof NAMESPACE_PREFIX - 1);
-        erase_namespace(PARTITION, left_behind);
+    char orphaned[NVS_NS_NAME_MAX_SIZE];
+    while (is_full(err) && find_namespace(PARTITION, is_orphaned, orphaned)) {
+        ESP_LOGW(TAG, "full: forgetting what %s kept", orphaned + sizeof NAMESPACE_PREFIX - 1);
+        erase_namespace(PARTITION, orphaned);
         result = write_value(app_name, key, value, value_length, &err);
     }
     if (is_full(err)) {

@@ -69,7 +69,7 @@ static bool       s_is_up;
  * of another site can make its own name resolve to the device's address
  * (DNS rebinding), and then its Origin and its Host agree with each other -
  * but not with any of these. */
-static bool is_sent_to_the_device(const char *host)
+static bool is_addressed_to_device(const char *host)
 {
     size_t name_length = strcspn(host, ":"); /* without the port */
     wifi_status_t wifi;
@@ -100,7 +100,7 @@ bool web_server_refuses_cross_site(httpd_req_t *request)
     const char *scheme_end = has_origin ? strstr(origin, "://") : NULL;
     bool is_own_page = !has_origin ||
                        (has_host && scheme_end != NULL && strcmp(scheme_end + 3, host) == 0);
-    if (is_own_page && has_host && is_sent_to_the_device(host)) {
+    if (is_own_page && has_host && is_addressed_to_device(host)) {
         return false;
     }
     ESP_LOGW(TAG, "refused a request from another site");
@@ -142,10 +142,10 @@ static esp_err_t send_error(httpd_req_t *request, const char *message);
 
 /* What cannot be taken back is done only when somebody at the device says
  * so. False, with the answer sent, when nobody did. */
-static bool is_confirmed_at_the_device(httpd_req_t *request, const char *first,
+static bool is_confirmed_on_device(httpd_req_t *request, const char *first,
                                        const char *second, int icon, const char *action)
 {
-    switch (host_ask_at_the_device(first, second, icon, action)) {
+    switch (host_confirm_on_device(first, second, icon, action)) {
     case HOST_ANSWER_CONFIRMED:
         return true;
     case HOST_ANSWER_BUSY:
@@ -425,7 +425,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
         char         second[QUESTION_MAX + 1];
         snprintf(second, sizeof second, confirmation->second_format,
                  cJSON_IsString(named) ? named->valuestring : "");
-        if (!is_confirmed_at_the_device(request, confirmation->first, second, confirmation->icon,
+        if (!is_confirmed_on_device(request, confirmation->first, second, confirmation->icon,
                                         confirmation->action)) {
             cJSON_Delete(json);
             return ESP_OK;
@@ -608,7 +608,7 @@ static esp_err_t handle_reset(httpd_req_t *request)
     if (web_server_refuses_cross_site(request)) {
         return ESP_OK;
     }
-    if (!is_confirmed_at_the_device(request, word(WORD_FACTORY), word(WORD_FACTORY_RESET), GFX_ICON_WARNING,
+    if (!is_confirmed_on_device(request, word(WORD_FACTORY), word(WORD_FACTORY_RESET), GFX_ICON_WARNING,
                                     word(WORD_RESET))) {
         return ESP_OK;
     }
@@ -656,7 +656,7 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
         return send_error(request, "Invalid request.");
     }
 
-    if (!is_confirmed_at_the_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
+    if (!is_confirmed_on_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
                                     GFX_ICON_UPDATE, word(WORD_UPDATE))) {
         return ESP_OK;
     }
@@ -692,7 +692,7 @@ static esp_err_t handle_ota(httpd_req_t *request)
     if (request->content_len == 0) {
         return send_error(request, "No image.");
     }
-    if (!is_confirmed_at_the_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
+    if (!is_confirmed_on_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
                                     GFX_ICON_UPDATE, word(WORD_UPDATE))) {
         return ESP_OK;
     }

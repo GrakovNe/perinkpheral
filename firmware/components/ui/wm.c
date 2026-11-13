@@ -16,7 +16,7 @@ static void mark_changed(wm_t *wm, wm_change_t change)
     }
 }
 
-static void give_screen_to(wm_t *wm, scene_t *next)
+static void switch_to_scene(wm_t *wm, scene_t *next)
 {
     /* The scene that is there already stays - unless it was suspended:
      * then it has to enter again. */
@@ -83,7 +83,7 @@ static void push(wm_t *wm, scene_t *scene)
 
 static void show_top(wm_t *wm)
 {
-    give_screen_to(wm, top(wm));
+    switch_to_scene(wm, top(wm));
 }
 
 static void open_over_current(wm_t *wm, scene_t *scene)
@@ -232,7 +232,7 @@ void wm_open(wm_t *wm, scene_t *scene)
     open_over_current(wm, scene);
 }
 
-void wm_open_anew(wm_t *wm, scene_t *scene)
+void wm_open_from_home(wm_t *wm, scene_t *scene)
 {
     open_from(wm, wm->home, scene);
 }

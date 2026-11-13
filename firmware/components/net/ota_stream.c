@@ -43,7 +43,7 @@ static bool head_is_ours(const ota_stream_t *stream)
 }
 
 /* Whether the image was built for the partition table this device has. */
-static bool head_fits_the_device(const ota_stream_t *stream)
+static bool is_header_compatible(const ota_stream_t *stream)
 {
     const uint8_t *layout = stream->head + LAYOUT_OFFSET;
     return read_u32_le(layout) == OTA_LAYOUT_MAGIC &&
@@ -93,20 +93,20 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
     stream->received += length;
 
     if (already < OTA_HEAD_BYTES) {
-        size_t into_head = OTA_HEAD_BYTES - already;
-        if (into_head > length) {
-            into_head = length;
+        size_t head_bytes = OTA_HEAD_BYTES - already;
+        if (head_bytes > length) {
+            head_bytes = length;
         }
-        memcpy(stream->head + already, data, into_head);
-        data += into_head;
-        length -= into_head;
-        if (already + into_head < OTA_HEAD_BYTES) {
+        memcpy(stream->head + already, data, head_bytes);
+        data += head_bytes;
+        length -= head_bytes;
+        if (already + head_bytes < OTA_HEAD_BYTES) {
             return true; /* still not enough to judge */
         }
         if (!head_is_ours(stream)) {
             return fail(stream, "Invalid image.");
         }
-        if (!head_fits_the_device(stream)) {
+        if (!is_header_compatible(stream)) {
             return fail(stream, "Image is for another partition table. Flash over USB.");
         }
         if (!stream->writer->begin(stream->writer_context, stream->image_size)) {

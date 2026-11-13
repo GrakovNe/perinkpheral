@@ -61,7 +61,7 @@ void power_release_radio(void);
 void power_note_press(void);
 
 /* DEADLINE_AWAKE_WINDOW has come: the while after a press is over. */
-void power_awake_is_over(void);
+void power_awake_period_ended(void);
 
 #ifdef __cplusplus
 }

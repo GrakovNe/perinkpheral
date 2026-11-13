@@ -69,7 +69,7 @@ struct app {
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
-    bool        told_not_drawing; /* once an instance: a mistake every beginner makes */
+    bool        not_drawing_logged; /* once an instance: a mistake every beginner makes */
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
     bool        exit_requested;
     bool        focus_requested;
@@ -194,8 +194,8 @@ static int32_t not_drawing(app_t *app)
 {
     static const char TOLD[] = "a drawing call outside app_on_draw() draws nothing: "
                                "change the state and call request_redraw()";
-    if (!app->told_not_drawing && app->services != NULL && app->services->log != NULL) {
-        app->told_not_drawing = true;
+    if (!app->not_drawing_logged && app->services != NULL && app->services->log != NULL) {
+        app->not_drawing_logged = true;
         app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
     }
     return HOST_ERR_NOT_DRAWING;
@@ -435,7 +435,7 @@ HOST_FUNCTION(host_gfx_picture)
     m3ApiReturn(HOST_OK);
 }
 
-static bool is_an_icon(int32_t icon)
+static bool is_valid_icon(int32_t icon)
 {
     return icon >= 0 && icon < GFX_ICON_COUNT;
 }
@@ -453,13 +453,13 @@ static bool read_list(IM3Runtime runtime, void *memory, uint32_t offset, list_t 
     }
     host_list_t asked;
     memcpy(&asked, given, sizeof asked);
-    bool is_a_list = asked.count >= 0 && asked.count <= LIST_ROWS_MAX && asked.selected >= -1 &&
+    bool is_valid_list = asked.count >= 0 && asked.count <= LIST_ROWS_MAX && asked.selected >= -1 &&
                      asked.selected <= LIST_ROWS_MAX && asked.first >= -LIST_ROWS_MAX &&
                      asked.first <= LIST_ROWS_MAX && is_drawable(asked.top) && asked.top >= 0 &&
                      is_drawable(asked.height) && asked.height >= 0;
     *list = (list_t){ .count = asked.count, .selected = asked.selected, .top = asked.top,
                       .height = asked.height, .first = asked.first };
-    return is_a_list;
+    return is_valid_list;
 }
 
 HOST_FUNCTION(host_ui_list_visible)
@@ -511,7 +511,7 @@ HOST_FUNCTION(host_ui_list_row)
     char label[HOST_TEXT_MAX + 1];
     char value[HOST_TEXT_MAX + 1];
     if (!read_list(runtime, _mem, list_offset, &list) ||
-        (icon != HOST_ICON_NONE && !is_an_icon(icon)) ||
+        (icon != HOST_ICON_NONE && !is_valid_icon(icon)) ||
         !copy_text(runtime, _mem, label_offset, label_length, label) ||
         !copy_text(runtime, _mem, value_offset, value_length, value)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -554,7 +554,7 @@ HOST_FUNCTION(host_ui_notice)
     }
     host_notice_t asked;
     memcpy(&asked, given, sizeof asked);
-    if ((asked.icon != HOST_ICON_NONE && !is_an_icon(asked.icon)) || asked.first[0] == '\0') {
+    if ((asked.icon != HOST_ICON_NONE && !is_valid_icon(asked.icon)) || asked.first[0] == '\0') {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     notice_t notice = {
@@ -671,7 +671,7 @@ HOST_FUNCTION(host_ui_icon)
     if (app->surface == NULL) {
         m3ApiReturn(not_drawing(APP_OF(runtime)));
     }
-    if (!is_drawable(x) || !is_drawable(y) || !is_an_icon(icon) || size < HOST_UI_ICON_SMALL ||
+    if (!is_drawable(x) || !is_drawable(y) || !is_valid_icon(icon) || size < HOST_UI_ICON_SMALL ||
         size > HOST_UI_ICON_LARGE) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -978,11 +978,11 @@ HOST_FUNCTION(host_ui_date)
     }
     host_date_t asked;
     memcpy(&asked, given, sizeof asked);
-    bool is_a_date = asked.year >= 0 && asked.year <= DATE_YEAR_MAX && asked.month >= 1 &&
+    bool is_valid_date = asked.year >= 0 && asked.year <= DATE_YEAR_MAX && asked.month >= 1 &&
                      asked.month <= 12 && asked.day >= 1 && asked.day <= 31 && asked.hour >= 0 &&
                      asked.hour <= 23 && asked.minute >= 0 && asked.minute <= 59;
     bool has_any = (asked.has & (HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE)) != 0;
-    if (!is_a_date || !has_any || asked.selected < HOST_DATE_HOUR ||
+    if (!is_valid_date || !has_any || asked.selected < HOST_DATE_HOUR ||
         asked.selected > HOST_DATE_NONE) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -1153,8 +1153,8 @@ HOST_FUNCTION(host_header_status)
     m3ApiGetArg(int32_t, length);
     app_t *app = APP_OF(runtime);
     char text[HOST_TEXT_MAX + 1];
-    bool is_an_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
-    if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || !is_an_icon ||
+    bool is_valid_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
+    if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || !is_valid_icon ||
         length > HOST_STATUS_TEXT_MAX ||
         !copy_text(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -1177,9 +1177,9 @@ HOST_FUNCTION(host_notify)
     }
     host_notice_t asked;
     memcpy(&asked, given, sizeof asked);
-    bool is_an_icon = asked.icon == HOST_ICON_NONE || (asked.icon >= 0 && asked.icon < GFX_ICON_COUNT);
+    bool is_valid_icon = asked.icon == HOST_ICON_NONE || (asked.icon >= 0 && asked.icon < GFX_ICON_COUNT);
     const char *first = notice_text(asked.first, sizeof asked.first);
-    if (!is_an_icon || first == NULL) {
+    if (!is_valid_icon || first == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (app->services->notify == NULL ||
@@ -2217,11 +2217,11 @@ static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, bo
             }
             /* The system API without having asked for it is not a matter
              * of versions; neither is another module's function. */
-            bool is_the_hosts = module_length == sizeof HOST_MODULE - 1 &&
+            bool is_host_module = module_length == sizeof HOST_MODULE - 1 &&
                                 memcmp(module_name, HOST_MODULE, module_length) == 0;
             bool is_system = is_offered(module_name, module_length, field_name, field_length,
                                         true);
-            return is_the_hosts && !is_system ? APP_ERR_OTHER_API : APP_ERR_BAD_MODULE;
+            return is_host_module && !is_system ? APP_ERR_OTHER_API : APP_ERR_BAD_MODULE;
         }
         return reader.failed ? APP_ERR_BAD_MODULE : APP_OK;
     }
@@ -2335,7 +2335,7 @@ static void find_data_buffer(app_t *app)
 /* What the host will take into its own memory, for a moment, on an
  * application's word: tools/mkapp holds a table to the same. */
 #define STRINGS_MAX_BYTES    (8 * 1024)
-static bool is_a_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
+static bool is_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
 {
     if (bytes < STRINGS_HEADER_BYTES + 2 * (size_t)count || table[bytes - 1] != '\0' ||
         (uint32_t)(table[2] | table[3] << 8) != count) {
@@ -2389,7 +2389,7 @@ static void load_strings(app_t *app)
         return;
     }
     if (app->services->file_read(app->name, file, 0, table, bytes) == bytes &&
-        is_a_strings_table(table, (size_t)bytes, count)) {
+        is_strings_table(table, (size_t)bytes, count)) {
         /* The buffer's own size stays what the module said it is. */
         memcpy(english + 2, table + 2, (size_t)bytes - 2);
     }

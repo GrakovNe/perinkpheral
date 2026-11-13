@@ -42,12 +42,12 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
 }
 static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
 static bool no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return false; }
-static bool no_alarm(const char *app, int id, int64_t when, bool is_a_time)
+static bool no_alarm(const char *app, int id, int64_t when, bool is_absolute)
 {
     (void)app;
     (void)id;
     (void)when;
-    (void)is_a_time;
+    (void)is_absolute;
     return false;
 }
 static int32_t no_file_write(const char *app, const char *file, int32_t offset, const void *bytes,
@@ -284,7 +284,7 @@ static void test_a_press_in_the_middle_of_an_answer(void)
     CHECK(wm.suspended && state.in_background == probe);
     /* the user presses something: the scene is back to take it */
     app_abandoned_t abandoned;
-    app_delivery_give_way(&state, &wm, 0, &abandoned);
+    app_delivery_abort(&state, &wm, 0, &abandoned);
     CHECK(!wm.suspended && state.in_background == NULL && !state.is_mid_answer);
     /* whoever asked is told whose answer was cut short */
     CHECK(abandoned.owner == probe && abandoned.request == 1);
@@ -299,7 +299,7 @@ static void test_a_press_in_the_middle_of_an_answer(void)
     CHECK(wm.suspended && state.in_background == probe);
     /* with no answer being taken a press gives way to nothing */
     start_on(&menu.scene);
-    app_delivery_give_way(&state, &wm, 0, &abandoned);
+    app_delivery_abort(&state, &wm, 0, &abandoned);
     CHECK(!wm.suspended && wm.current == &menu.scene && abandoned.owner == NULL);
 }
 

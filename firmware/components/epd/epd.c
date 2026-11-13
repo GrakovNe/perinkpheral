@@ -43,7 +43,7 @@ static bool         s_is_awake;
  * runs slower. The controller asks for 25 ns of each half of the clock. */
 #define EMPTY_INSTRUCTION() __asm__ __volatile__("nop")
 
-static inline __attribute__((always_inline)) void wait_a_moment(void)
+static inline __attribute__((always_inline)) void short_delay(void)
 {
     EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION();
     EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION(); EMPTY_INSTRUCTION();
@@ -65,15 +65,15 @@ static void tx(const uint8_t *d, size_t n)
         set_pin(cs, 0);
         for (int bit = 7; bit >= 0; bit--) {
             set_pin(mosi, byte >> bit & 1);
-            wait_a_moment();
+            short_delay();
             set_pin(clock, 1);
-            wait_a_moment();
+            short_delay();
             set_pin(clock, 0);
         }
-        wait_a_moment();
+        short_delay();
         set_pin(cs, 1);
         /* CS stays high for four of them between two bytes. */
-        wait_a_moment(); wait_a_moment(); wait_a_moment(); wait_a_moment();
+        short_delay(); short_delay(); short_delay(); short_delay();
     }
 }
 

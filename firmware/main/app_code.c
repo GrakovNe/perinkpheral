@@ -93,7 +93,7 @@ const uint8_t *app_code_find(const char *app_name, size_t *size)
     return (const uint8_t *)header_of(slot) + sizeof(slot_header_t);
 }
 
-void app_code_forget_all(void)
+void app_code_erase_all(void)
 {
     for (int slot = 0; slot < s_slot_count; slot++) {
         if (is_taken(slot)) {
@@ -139,7 +139,7 @@ static bool store(const char *app_name, const char *path)
 }
 
 /* A slot whose application has no folder any more is nobody's. */
-static void forget_the_removed(const char *apps_root)
+static void erase_orphan_slots(const char *apps_root)
 {
     for (int slot = 0; slot < s_slot_count; slot++) {
         char        path[APP_STORE_PATH_MAX];
@@ -160,7 +160,7 @@ void app_code_adopt(const char *apps_root)
     if (s_partition == NULL) {
         return;
     }
-    forget_the_removed(apps_root);
+    erase_orphan_slots(apps_root);
     DIR *directory = opendir(apps_root);
     if (directory == NULL) {
         return;

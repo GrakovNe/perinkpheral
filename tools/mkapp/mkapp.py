@@ -472,7 +472,7 @@ def unique_keys(pairs):
     return dict(pairs)
 
 
-def names_a_server(text, servers):
+def references_server(text, servers):
     """Whether the text begins with {{key}} of a setting of the "url" type: the server
     the user named. Returns what follows it, or None."""
     for key in servers:
@@ -496,7 +496,7 @@ def check_poll(path, number, poll, servers, settings):
     url = poll.get("url")
     if (not isinstance(url, str) or len(url.encode()) > URL_MAX
             or not (url.startswith(("http://", "https://"))
-                    or names_a_server(url, servers) is not None)):
+                    or references_server(url, servers) is not None)):
         sys.exit("%s: \"url\" must be an http(s) URL of at most %d bytes, or begin with "
                  "{{key}} of a setting of the \"url\" or \"link\" type" % (where, URL_MAX))
     every = poll.get("every")
@@ -632,7 +632,7 @@ def check_manifest(app_dir):
     hosts = manifest.get("hosts", [])
     if (not isinstance(hosts, list) or len(hosts) > HOSTS_MAX
             or any(not isinstance(host, str) or not 0 < len(host.encode()) <= HOST_MAX
-                   or (host.startswith("{{") and names_a_server(host, servers) != "")
+                   or (host.startswith("{{") and references_server(host, servers) != "")
                    for host in hosts)):
         sys.exit("%s: \"hosts\" must be a list of at most %d host names of 1-%d bytes, "
                  "or {{key}} of a setting of the \"url\" or \"link\" type" % (path, HOSTS_MAX, HOST_MAX))
@@ -645,7 +645,7 @@ def check_manifest(app_dir):
     for number, poll in enumerate(polls):
         check_poll(path, number, poll, servers, manifest.get("settings", []))
         # A link is the whole address: nothing stands after it.
-        if isinstance(poll, dict) and names_a_server(poll.get("url", ""), links) not in (None, ""):
+        if isinstance(poll, dict) and references_server(poll.get("url", ""), links) not in (None, ""):
             sys.exit("%s: poll %d: a setting of the \"link\" type is the whole \"url\""
                      % (path, number))
     abi = manifest.get("abi")

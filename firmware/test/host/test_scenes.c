@@ -56,10 +56,10 @@ static void test_menu_back_and_long(void)
     CHECK(press(menu, SCENE_BUTTON_BACK).kind == SCENE_BACK);
 
     /* with a default application BACK is the way to it */
-    scene_menu_set_way_back(&second_target);
+    scene_menu_set_back_target(&second_target);
     scene_reaction_t back = press(menu, SCENE_BUTTON_BACK);
     CHECK(back.kind == SCENE_OPEN && back.open == &second_target);
-    scene_menu_set_way_back(NULL);
+    scene_menu_set_back_target(NULL);
     CHECK(press(menu, SCENE_BUTTON_BACK).kind == SCENE_BACK);
 
     /* a long press means nothing in the menu and moves nothing */

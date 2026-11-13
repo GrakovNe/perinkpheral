@@ -34,7 +34,7 @@ static int key_index(const char *keys, char key)
 }
 
 /* What GET /api/log would send, between two marker lines. */
-static void print_kept_log(void)
+static void print_log_ring(void)
 {
     static char log[LOG_CAPTURE_BYTES + 1];
     log_capture_read(log, sizeof log, NULL);
@@ -57,7 +57,7 @@ static void handle_key(char key)
         event_t event = { .kind = EVENT_DUMP_FRAME };
         events_post(&event);
     } else if (key == LOG_KEY) {
-        print_kept_log();
+        print_log_ring();
     } else if (key == MEMORY_KEY) {
         /* The host loop is the main task: applications run on its stack. */
         printf("MEMORY free %u least %u host-stack-least %u\n",

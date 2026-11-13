@@ -116,10 +116,10 @@ static app_delivery_state_t delivery_state;
 /* An application taking an answer off the screen, piece by piece, gives
  * way to what the screen is needed for now. The rest of that answer is
  * dropped; when it was a poll's, the poll is asked again in a while. */
-static void give_way_to_the_screen(void)
+static void abort_background_delivery(void)
 {
     app_abandoned_t abandoned;
-    app_delivery_give_way(&delivery_state, &wm, esp_timer_get_time() / 1000, &abandoned);
+    app_delivery_abort(&delivery_state, &wm, esp_timer_get_time() / 1000, &abandoned);
     if (abandoned.owner != NULL) {
         const char *app_name = launcher_app_name(abandoned.owner);
         if (app_name != NULL) {
@@ -131,9 +131,9 @@ static void give_way_to_the_screen(void)
 /* For whoever changes what is on the screen from outside the host's own
  * handlers - the development tools: an application taking an answer off
  * the screen is loaded where the next one would be, and has to go first. */
-void host_give_way(void)
+void host_abort_background_delivery(void)
 {
-    give_way_to_the_screen();
+    abort_background_delivery();
 }
 
 /* The scene whose picture the panel shows: what a person pressing a
@@ -193,10 +193,10 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
-    give_way_to_the_screen();
+    abort_background_delivery();
     /* The long press on BACK is the user's own way out of anything. */
-    bool is_way_out = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
-    if (!is_way_out && !is_press_for(wm->current, index, press)) {
+    bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
+    if (!is_home_press && !is_press_for(wm->current, index, press)) {
         return;
     }
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
@@ -208,7 +208,7 @@ static uint32_t s_frames_shown;
 
 /* A wait shorter than this is the panel's own pace, not news. */
 #define TOLD_WAIT_FROM_MS 2000
-static bool s_told_of_the_wait;
+static bool s_wait_logged;
 
 
 /* Puts the frame together and offers it to the display if anything
@@ -230,13 +230,13 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     if (too_soon_ms > 0) {
         /* Said once a frame: whoever writes an application takes a
          * picture that waits its minute for one that never came. */
-        if (!s_told_of_the_wait && too_soon_ms > TOLD_WAIT_FROM_MS) {
-            s_told_of_the_wait = true;
+        if (!s_wait_logged && too_soon_ms > TOLD_WAIT_FROM_MS) {
+            s_wait_logged = true;
             ESP_LOGI(TAG, "a redraw waits %u s: the refresh policy", (unsigned)(too_soon_ms / 1000));
         }
         return too_soon_ms;
     }
-    s_told_of_the_wait = false;
+    s_wait_logged = false;
     wm_draw(wm, screen);
     switch (display_show(s_frame, reason)) {
     case DISPLAY_DEFERRED:
@@ -259,7 +259,7 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
 static void format_storage(void)
 {
     storage_format();
-    app_code_forget_all(); /* the code of applications that are no more */
+    app_code_erase_all(); /* the code of applications that are no more */
     host_stop_soon(HOST_STOP_RESTART);
 }
 
@@ -419,7 +419,7 @@ static struct {
     SemaphoreHandle_t answered;
     bool              is_open;  /* the host loop's */
     bool              is_confirmed;
-    bool              is_to_put_away; /* answered: the screen goes back once the handler returned */
+    bool              is_dismissed; /* answered: the screen goes back once the handler returned */
     scene_t          *scene;
     char              first[CONFIRM_TEXT_MAX + 1];  /* the question, in two lines */
     char              second[CONFIRM_TEXT_MAX + 1];
@@ -441,7 +441,7 @@ static void on_confirm_answer(bool is_confirmed)
     }
     s_confirm.is_open = false;
     s_confirm.is_confirmed = is_confirmed;
-    s_confirm.is_to_put_away = true;
+    s_confirm.is_dismissed = true;
     deadlines_cancel(DEADLINE_CONFIRM, 0, 0);
     ESP_LOGW(TAG, "\"%s %s\" %s", s_confirm.first, s_confirm.second,
              is_confirmed ? "confirmed" : "not confirmed");
@@ -452,10 +452,10 @@ static void on_confirm_answer(bool is_confirmed)
  * screen, set aside for an answer in pieces, or under the menu that was
  * opened over it. It comes out, and what was under it is there again. Not
  * from inside a scene's own handler. */
-static void put_question_away(void)
+static void dismiss_question(void)
 {
-    s_confirm.is_to_put_away = false;
-    give_way_to_the_screen();
+    s_confirm.is_dismissed = false;
+    abort_background_delivery();
     wm_close(&wm, s_confirm.scene);
 }
 
@@ -463,9 +463,9 @@ static void open_confirm(void *argument)
 {
     (void)argument;
     /* An application taking an answer off the screen gives way, as to a press. */
-    give_way_to_the_screen();
+    abort_background_delivery();
     s_confirm.is_open = true;
-    s_confirm.is_to_put_away = false;
+    s_confirm.is_dismissed = false;
     s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
                                     s_confirm.action, on_confirm_answer);
     wm_open(&wm, s_confirm.scene);
@@ -520,13 +520,13 @@ static const char *line_or_none(const char *text)
 
 /* After every event: the one that was dismissed leaves, and the next one
  * that waits is shown. Never from inside a scene's own handler. */
-static void tend_the_notices(void)
+static void process_notifications(void)
 {
     if (s_notices.is_seen) {
         s_notices.is_seen = false;
         if (s_notices.is_open) {
             s_notices.is_open = false;
-            give_way_to_the_screen();
+            abort_background_delivery();
             wm_close(&wm, s_notices.scene);
             memmove(&s_notices.waiting[0], &s_notices.waiting[1],
                     (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
@@ -543,7 +543,7 @@ static void tend_the_notices(void)
     }
     if (!s_notices.is_open && s_notices.count > 0 && !s_is_delivering) {
         const told_t *told = &s_notices.waiting[0];
-        give_way_to_the_screen();
+        abort_background_delivery();
         s_notices.scene = scene_notify(line_or_none(told->first), line_or_none(told->second),
                                        line_or_none(told->detail), told->icon, on_notice_seen);
         s_notices.is_open = true;
@@ -560,7 +560,7 @@ static void close_unanswered_confirm(void)
     }
 }
 
-host_answer_t host_ask_at_the_device(const char *first, const char *second, int icon,
+host_answer_t host_confirm_on_device(const char *first, const char *second, int icon,
                                      const char *action)
 {
     if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
@@ -587,11 +587,11 @@ static scene_t *s_working; /* in the stack while it is; NULL otherwise */
 static void open_working(void *argument)
 {
     const char *const *lines = argument;
-    give_way_to_the_screen();
+    abort_background_delivery();
     /* The question that led here is put away first: it is not what the
      * screen goes back to. */
-    if (s_confirm.is_to_put_away) {
-        put_question_away();
+    if (s_confirm.is_dismissed) {
+        dismiss_question();
     }
     s_working = scene_working(lines[0], lines[1]);
     wm_open(&wm, s_working);
@@ -605,7 +605,7 @@ static void close_working(void *argument)
     }
     /* One instance at a time: an application taking an answer off the
      * screen goes before the one that had the screen is loaded again. */
-    give_way_to_the_screen();
+    abort_background_delivery();
     wm_close(&wm, s_working);
     s_working = NULL;
 }
@@ -637,21 +637,21 @@ void host_work_is_over(void)
 
 /* Whether the host loop was told that some deadlines have come and has not
  * looked yet: one event says it for all of them. */
-static volatile bool s_deadlines_are_told;
+static volatile bool s_deadline_event_pending;
 
 /* From the timer's task. */
 static bool tell_of_deadlines(void)
 {
-    if (s_deadlines_are_told) {
+    if (s_deadline_event_pending) {
         return true;
     }
     /* Said before it is posted: the host loop may answer at once. */
-    s_deadlines_are_told = true;
+    s_deadline_event_pending = true;
     event_t event = { .kind = EVENT_DEADLINES };
     if (!events_post(&event)) {
-        s_deadlines_are_told = false;
+        s_deadline_event_pending = false;
     }
-    return s_deadlines_are_told;
+    return s_deadline_event_pending;
 }
 
 void host_deadlines_start(void)
@@ -682,11 +682,11 @@ static void ring_alarm(uint32_t app_id, int alarm_number)
  * is set anew every time it fires. */
 #define DEADLINES_IN_A_ROW 8
 
-static void leave_the_idle_menu(void);
+static void on_menu_idle_timeout(void);
 
 static void answer_deadlines(void)
 {
-    s_deadlines_are_told = false;
+    s_deadline_event_pending = false;
     deadline_id_t due;
     for (int answered = 0; answered < DEADLINES_IN_A_ROW; answered++) {
         if (!deadlines_take_due(&due)) {
@@ -700,7 +700,7 @@ static void answer_deadlines(void)
             ring_alarm(due.owner, due.number);
             break;
         case DEADLINE_AWAKE_WINDOW:
-            power_awake_is_over();
+            power_awake_period_ended();
             break;
         case DEADLINE_MEMORY_LOOK:
             memory_look();
@@ -732,14 +732,14 @@ static void answer_deadlines(void)
             close_unanswered_confirm();
             break;
         case DEADLINE_MENU_IDLE:
-            leave_the_idle_menu();
+            on_menu_idle_timeout();
             break;
         case DEADLINE_STOP:
             stop(s_stop_reason);
             break;
         }
     }
-    deadlines_look_again();
+    deadlines_reschedule();
 }
 
 /* The menu left alone gives the screen to the default application. Only
@@ -747,10 +747,10 @@ static void answer_deadlines(void)
  * something to tell and stays until the user closes it. */
 static bool s_menu_is_watched;
 
-static void watch_the_idle_menu(bool was_touched)
+static void update_menu_idle_timer(bool was_touched)
 {
     scene_t *chosen = default_scene();
-    scene_menu_set_way_back(chosen);
+    scene_menu_set_back_target(chosen);
     if (wm.current != s_menu || chosen == NULL) {
         if (s_menu_is_watched) {
             deadlines_cancel(DEADLINE_MENU_IDLE, 0, 0);
@@ -766,19 +766,19 @@ static void watch_the_idle_menu(bool was_touched)
     }
 }
 
-static void leave_the_idle_menu(void)
+static void on_menu_idle_timeout(void)
 {
     s_menu_is_watched = false;
     scene_t *chosen = default_scene();
     if (wm.current == s_menu && chosen != NULL) {
         /* An application may be taking an answer off the screen just now. */
-        give_way_to_the_screen();
-        wm_open_anew(&wm, chosen);
+        abort_background_delivery();
+        wm_open_from_home(&wm, chosen);
     }
 }
 
 /* The alarms of applications that are no more go with them. */
-static void forget_alarms_of_the_removed(void)
+static void remove_orphan_alarms(void)
 {
     int count;
     const app_manifest_t *installed = launcher_installed(&count);
@@ -808,7 +808,7 @@ void host_reload_apps(void)
      * poller for something. */
     launcher_reload(drop_app_scene, &context);
     poller_reload();
-    forget_alarms_of_the_removed();
+    remove_orphan_alarms();
     int count;
     const menu_entry_t *entries = launcher_entries(&count);
     scene_menu(entries, count);
@@ -879,7 +879,7 @@ void host_run(void)
     app_host_tell_started();
 
     app_delivery_init(&delivery_state);
-    events_this_is_the_host_loop();
+    events_set_host_loop_task();
     poller_start();
 
     int events_since_shown = 0;
@@ -932,10 +932,10 @@ void host_run(void)
 #endif
             break;
         }
-        if (s_confirm.is_to_put_away) {
-            put_question_away();
+        if (s_confirm.is_dismissed) {
+            dismiss_question();
         }
-        tend_the_notices();
+        process_notifications();
         if (s_reload_is_due) {
             /* Asked for from inside a handler, which has returned by now. */
             s_reload_is_due = false;
@@ -944,6 +944,6 @@ void host_run(void)
         if (wm.current != scene_before) {
             remember_current_app(&wm);
         }
-        watch_the_idle_menu(event.kind == EVENT_BUTTON || wm.current != scene_before);
+        update_menu_idle_timer(event.kind == EVENT_BUTTON || wm.current != scene_before);
     }
 }

@@ -157,9 +157,9 @@ void appconf_derive(appconf_t *c, const char device_id[5])
 static bool is_app_name_or_empty(const char *name)
 {
     for (; *name != '\0'; name++) {
-        bool is_of_a_name = (*name >= 'a' && *name <= 'z') || (*name >= '0' && *name <= '9') ||
+        bool is_name_char = (*name >= 'a' && *name <= 'z') || (*name >= '0' && *name <= '9') ||
                             *name == '-' || *name == '_';
-        if (!is_of_a_name) {
+        if (!is_name_char) {
             return false;
         }
     }

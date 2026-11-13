@@ -212,10 +212,10 @@ static bool fake_poll_set_interval(const char *app_name, int poll, uint32_t ever
 
 static int     alarm_number = -1;
 static int64_t alarm_time;
-static bool fake_alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
+static bool fake_alarm_set(const char *app_name, int alarm, int64_t when, bool is_absolute)
 {
     (void)app_name;
-    if (is_a_time) {
+    if (is_absolute) {
         alarm_time = when;
     } else {
         alarm_number = alarm;

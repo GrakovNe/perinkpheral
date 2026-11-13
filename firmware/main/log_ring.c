@@ -44,11 +44,11 @@ size_t log_ring_read(const log_ring_t *ring, char *text, size_t text_size)
     }
     size_t first = 0;
     size_t room = text_size - 1;
-    bool lost_the_beginning = ring->length == ring->capacity || ring->length > room;
+    bool is_truncated = ring->length == ring->capacity || ring->length > room;
     if (ring->length > room) {
         first = ring->length - room;
     }
-    if (lost_the_beginning) {
+    if (is_truncated) {
         /* What is left starts in the middle of a line: begin after it. */
         while (first < ring->length && byte_at(ring, first) != '\n') {
             first++;

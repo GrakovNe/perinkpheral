@@ -11,7 +11,7 @@
 #   wasi-sdk  the WASI_SDK_PATH environment variable, -DWASI_SDK_PATH=,
 #             /opt/wasi-sdk, ~/opt/wasi-sdk
 
-function(first_that_is_there out what marker)
+function(find_first_existing out what marker)
     foreach(candidate ${ARGN})
         if(candidate AND EXISTS "${candidate}/${marker}")
             file(TO_CMAKE_PATH "${candidate}" candidate)
@@ -29,9 +29,9 @@ else()
     set(home "$ENV{HOME}")
 endif()
 
-first_that_is_there(IDF_PATH "ESP-IDF" "tools/cmake/project.cmake"
+find_first_existing(IDF_PATH "ESP-IDF" "tools/cmake/project.cmake"
                     "$ENV{IDF_PATH}" "${IDF_PATH}" "${home}/esp/esp-idf")
-first_that_is_there(WASI_SDK_PATH "wasi-sdk" "bin/clang"
+find_first_existing(WASI_SDK_PATH "wasi-sdk" "bin/clang"
                     "$ENV{WASI_SDK_PATH}" "${WASI_SDK_PATH}" "/opt/wasi-sdk" "${home}/opt/wasi-sdk")
 set(IDF_PATH "${IDF_PATH}" CACHE PATH "ESP-IDF")
 set(WASI_SDK_PATH "${WASI_SDK_PATH}" CACHE PATH "wasi-sdk")

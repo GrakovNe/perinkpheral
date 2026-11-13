@@ -53,7 +53,7 @@ static poll_schedule_t   s_schedule;
  * so that nothing here looks at a list another task is rewriting. An
  * application is its id everywhere below. */
 static app_manifest_t    s_known[LAUNCHER_INSTALLED_MAX];
-static uint32_t pace_the_user_chose(const app_manifest_t *known, int poll);
+static uint32_t user_interval_seconds(const app_manifest_t *known, int poll);
 static int               s_known_count;
 /* The schedule is changed from other tasks too: an application asks for a
  * poll, the web page saves settings. */
@@ -178,12 +178,12 @@ static int app_number(const char *app_name)
 
 /* The task's alone: the nearest of the moments its last look at things
  * found worth coming back for. */
-static int64_t s_look_again_in_ms;
+static int64_t s_recheck_in_ms;
 
-static void look_again_in(int64_t milliseconds)
+static void schedule_recheck(int64_t milliseconds)
 {
-    if (milliseconds < s_look_again_in_ms) {
-        s_look_again_in_ms = milliseconds > 0 ? milliseconds : 0;
+    if (milliseconds < s_recheck_in_ms) {
+        s_recheck_in_ms = milliseconds > 0 ? milliseconds : 0;
     }
 }
 
@@ -194,12 +194,12 @@ static volatile bool s_is_resting;
  * asked to look again comes. */
 static void rest(void)
 {
-    if (s_look_again_in_ms == NEVER) {
+    if (s_recheck_in_ms == NEVER) {
         deadlines_cancel(DEADLINE_POLLER_LOOK, 0, 0);
     } else {
-        deadlines_set_in(DEADLINE_POLLER_LOOK, 0, 0, s_look_again_in_ms);
+        deadlines_set_in(DEADLINE_POLLER_LOOK, 0, 0, s_recheck_in_ms);
     }
-    s_is_resting = s_look_again_in_ms == NEVER;
+    s_is_resting = s_recheck_in_ms == NEVER;
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     s_is_resting = false;
 }
@@ -335,7 +335,7 @@ static bool fail_request_without_network(void)
             s_pending[i].is_waiting = false;
             found = name_of(s_pending[i].app, app_name);
         } else {
-            look_again_in(RADIO_WAIT_MS - waited_ms + 1);
+            schedule_recheck(RADIO_WAIT_MS - waited_ms + 1);
         }
     }
     unlock();
@@ -463,7 +463,7 @@ void poller_network_is_back(void)
 
 static int s_memory_looks;
 
-static bool has_memory_for_a_session(void)
+static bool has_memory_for_session(void)
 {
     if (memory_has(MEMORY_FOR_A_SESSION)) {
         s_memory_looks = 0;
@@ -500,15 +500,15 @@ static bool s_is_holding_radio; /* the task's alone: it asked for the radio and 
  * is a poll's least distance away. */
 static void keep_radio_for_work(void)
 {
-    static int64_t held_since_ms, try_again_at_ms;
+    static int64_t held_since_ms, retry_at_ms;
     bool wanted = power_is_saving() && wants_network();
     if (wanted && !s_is_holding_radio) {
-        if (uptime_ms() >= try_again_at_ms) {
+        if (uptime_ms() >= retry_at_ms) {
             power_hold_radio();
             s_is_holding_radio = true;
             held_since_ms = uptime_ms();
         } else {
-            look_again_in(try_again_at_ms - uptime_ms());
+            schedule_recheck(retry_at_ms - uptime_ms());
         }
     } else if (s_is_holding_radio && !wanted) {
         power_release_radio();
@@ -520,9 +520,9 @@ static void keep_radio_for_work(void)
             ESP_LOGW(TAG, "no network in %d s: the radio is given back", RADIO_WAIT_MS / 1000);
             power_release_radio();
             s_is_holding_radio = false;
-            try_again_at_ms = uptime_ms() + (int64_t)POWER_SAVING_POLL_MIN_S * MS_PER_SECOND;
+            retry_at_ms = uptime_ms() + (int64_t)POWER_SAVING_POLL_MIN_S * MS_PER_SECOND;
         } else {
-            look_again_in(RADIO_WAIT_MS - waited_ms + 1);
+            schedule_recheck(RADIO_WAIT_MS - waited_ms + 1);
         }
     }
 }
@@ -545,9 +545,9 @@ static bool run_wanted_poll(void)
     }
     bool has_network = wifi_is_online();
     int  why_not = has_network ? 0 : HOST_FAILED_NO_NETWORK;
-    if (has_network && !has_memory_for_a_session()) {
+    if (has_network && !has_memory_for_session()) {
         if (!has_waited_for_memory_enough()) {
-            look_again_in(MEMORY_LOOK_AGAIN_MS);
+            schedule_recheck(MEMORY_LOOK_AGAIN_MS);
             return false;
         }
         why_not = HOST_FAILED_NO_MEMORY;
@@ -555,7 +555,7 @@ static bool run_wanted_poll(void)
     if (!has_network && s_is_holding_radio) {
         /* The radio is being brought up for this: woken when it is, and
          * looked at again if it never is. */
-        look_again_in(RADIO_WAIT_MS);
+        schedule_recheck(RADIO_WAIT_MS);
         return false;
     }
     if (is_installed) {
@@ -588,7 +588,7 @@ static void poller_task(void *arg)
 {
     (void)arg;
     for (;;) {
-        s_look_again_in_ms = NEVER;
+        s_recheck_in_ms = NEVER;
         keep_radio_for_work();
         /* Somebody is waiting for this one: before the polls. */
         if (run_fetch_job()) {
@@ -596,7 +596,7 @@ static void poller_task(void *arg)
         }
         bool has_network = wifi_is_online();
         if (has_network && has_pending_request()) {
-            if (has_memory_for_a_session()) {
+            if (has_memory_for_session()) {
                 run_pending_request(0);
                 continue;
             }
@@ -604,7 +604,7 @@ static void poller_task(void *arg)
                 run_pending_request(HOST_FAILED_NO_MEMORY);
                 continue;
             }
-            look_again_in(MEMORY_LOOK_AGAIN_MS);
+            schedule_recheck(MEMORY_LOOK_AGAIN_MS);
         }
         if (fail_request_without_network()) {
             continue;
@@ -654,7 +654,7 @@ static int schedule_installed(void)
             }
             /* The pace the application asked for before the restart, if it
              * asked for one: the first fetch is at once all the same. */
-            uint32_t kept_s = pace_the_user_chose(&s_known[i], poll);
+            uint32_t kept_s = user_interval_seconds(&s_known[i], poll);
             if (kept_s == 0) {
                 kept_s = app_kv_poll_pace(s_known[i].name, poll);
             }
@@ -720,7 +720,7 @@ void poller_start(void)
 
 /* The pace of a poll that the manifest leaves to a setting: what the user
  * chose there, or 0 when the poll has no such setting or nothing is chosen. */
-static uint32_t pace_the_user_chose(const app_manifest_t *known, int poll)
+static uint32_t user_interval_seconds(const app_manifest_t *known, int poll)
 {
     if (known->poll_every_key[poll][0] == '\0') {
         return 0;
@@ -732,7 +732,7 @@ static uint32_t pace_the_user_chose(const app_manifest_t *known, int poll)
         return 0;
     }
     chosen[length] = '\0';
-    return app_manifest_pace_seconds(chosen);
+    return app_manifest_interval_seconds(chosen);
 }
 
 /* The settings of an application were changed: its polls are fetched at
@@ -751,7 +751,7 @@ void poller_hurry(const char *app_name)
             if (s_known[i].poll_every_key[poll][0] == '\0') {
                 continue;
             }
-            uint32_t pace_s = pace_the_user_chose(&s_known[i], poll);
+            uint32_t pace_s = user_interval_seconds(&s_known[i], poll);
             bool     is_another;
             lock();
             poll_schedule_set_interval(&s_schedule, app, poll,

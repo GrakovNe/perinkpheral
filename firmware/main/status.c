@@ -26,7 +26,7 @@
 #define SECONDS_PER_MINUTE   60
 
 static SemaphoreHandle_t s_lock;
-static status_t          s_last_told; /* what the host was last told about */
+static status_t          s_last_reported; /* what the host was last told about */
 
 /* The user may have the time where the date stands. */
 static bool shows_clock(void)
@@ -90,8 +90,8 @@ void status_check(void)
     /* Whoever calls this may have set the clock or the zone. */
     expect_next_day();
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool changed = memcmp(&now, &s_last_told, sizeof now) != 0;
-    s_last_told = now;
+    bool changed = memcmp(&now, &s_last_reported, sizeof now) != 0;
+    s_last_reported = now;
     xSemaphoreGive(s_lock);
     if (changed) {
         event_t event = { .kind = EVENT_STATUS_CHANGED };
@@ -103,6 +103,6 @@ void status_start(void)
 {
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
-    status_read(&s_last_told);
+    status_read(&s_last_reported);
     expect_next_day();
 }

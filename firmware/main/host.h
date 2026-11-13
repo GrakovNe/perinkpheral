@@ -36,7 +36,7 @@ void host_redraw(void);
 /* Ends an answer an application is taking off the screen, before the
  * screen is given to somebody: there is room for one application. In the
  * host loop. */
-void host_give_way(void);
+void host_abort_background_delivery(void);
 
 /* What an application keeps on a side of the header (0 left, 1 right)
  * while it is away: an icon of the host's set (or -1) and a line. Both
@@ -59,7 +59,7 @@ typedef enum {
     HOST_ANSWER_BUSY,
 } host_answer_t;
 
-host_answer_t host_ask_at_the_device(const char *first, const char *second, int icon,
+host_answer_t host_confirm_on_device(const char *first, const char *second, int icon,
                                      const char *action);
 
 /* The device is busy with something that takes a while and must not be

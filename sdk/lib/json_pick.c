@@ -343,7 +343,7 @@ static void between(json_pick_t *pick, char character)
     }
 }
 
-static bool ends_a_literal(char character)
+static bool is_literal_end(char character)
 {
     return character == ',' || character == '}' || character == ']' || character == ' ' ||
            character == '\t' || character == '\n' || character == '\r';
@@ -359,7 +359,7 @@ bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length)
             in_string(pick, character);
             break;
         case JSON_PICK_IN_LITERAL:
-            if (ends_a_literal(character)) {
+            if (is_literal_end(character)) {
                 value_ended(pick);
                 between(pick, character);
             } else {

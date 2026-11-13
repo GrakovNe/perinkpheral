@@ -33,7 +33,7 @@ static size_t pack_at(int sector)
 }
 
 /* Every pack in the partition, to the fonts anew. */
-static void give_to_the_fonts(void)
+static void register_glyph_packs(void)
 {
     gfx_packs_clear();
     for (int sector = 0; sector < s_sectors;) {
@@ -68,7 +68,7 @@ void glyphs_start(void)
     }
     s_mapped = mapped;
     s_sectors = (int)(s_partition->size / SECTOR_BYTES);
-    give_to_the_fonts();
+    register_glyph_packs();
     glyphs_pack_t packs[GLYPHS_PACKS_MAX];
     ESP_LOGI(TAG, "%d packs, %u bytes free", glyphs_list(packs), (unsigned)glyphs_free_bytes());
 }
@@ -150,11 +150,11 @@ bool glyphs_remove(const char *name)
     /* The fonts let go of it before it is gone. */
     gfx_packs_clear();
     size_t bytes = pack_at(sector);
-    bool   is_gone = esp_partition_erase_range(s_partition, (size_t)sector * SECTOR_BYTES,
+    bool   is_erased = esp_partition_erase_range(s_partition, (size_t)sector * SECTOR_BYTES,
                                                (size_t)sectors_of(bytes) * SECTOR_BYTES) == ESP_OK;
-    give_to_the_fonts();
-    ESP_LOGI(TAG, "\"%s\" %s", name, is_gone ? "removed" : "could not be removed");
-    return is_gone;
+    register_glyph_packs();
+    ESP_LOGI(TAG, "\"%s\" %s", name, is_erased ? "removed" : "could not be removed");
+    return is_erased;
 }
 
 bool glyphs_install(const uint8_t *pack, size_t size)
@@ -193,7 +193,7 @@ bool glyphs_install(const uint8_t *pack, size_t size)
         esp_partition_erase_range(s_partition, (size_t)old * SECTOR_BYTES,
                                   (size_t)sectors_of(old_bytes) * SECTOR_BYTES);
     }
-    give_to_the_fonts();
+    register_glyph_packs();
     ESP_LOGI(TAG, "\"%s\", %u bytes: %s", name, (unsigned)size,
              is_stored ? "installed" : "could not be written");
     return is_stored && sector_of(name) >= 0;

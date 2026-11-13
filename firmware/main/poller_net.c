@@ -321,7 +321,7 @@ static bool is_redirect(int http_status)
 /* Closes the connection on an answer nobody wants: what the client read
  * of its body along with the headers would otherwise come out in front of
  * the next answer. */
-static void forget_answer(esp_http_client_handle_t client)
+static void discard_answer(esp_http_client_handle_t client)
 {
     esp_http_client_clear_response_buffer(client);
     esp_http_client_close(client);
@@ -361,7 +361,7 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
             esp_http_client_delete_header(client, request->poll.headers[i].name);
         }
     }
-    forget_answer(client);
+    discard_answer(client);
     return REDIRECT_FOLLOWED;
 }
 
@@ -573,7 +573,7 @@ bool poller_net_fetch(const char *url, size_t max_bytes, poller_net_take_fn take
         if (!is_redirect(*http_status) || esp_http_client_set_redirection(client) != ESP_OK) {
             break;
         }
-        forget_answer(client);
+        discard_answer(client);
     }
     bool   is_ok = *http_status >= HTTP_OK_FIRST && *http_status <= HTTP_OK_LAST;
     size_t total = 0;

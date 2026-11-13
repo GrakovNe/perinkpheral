@@ -48,7 +48,7 @@ void app_code_adopt(const char *apps_root);
  * time app_code_adopt() runs - not while an instance may still be running
  * from it. This erases every slot: the applications' partition was
  * formatted. */
-void app_code_forget_all(void);
+void app_code_erase_all(void);
 
 #ifdef __cplusplus
 }

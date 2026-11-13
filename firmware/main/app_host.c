@@ -67,9 +67,9 @@ static void log_from_app(int level, const char *text, int length)
 static int32_t kv_set(const char *app_name, const char *key, const void *value, int32_t length)
 {
     char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    bool  is_the_users = manifest != NULL && app_manifest_is_server_setting(manifest, key);
+    bool  is_user_owned = manifest != NULL && app_manifest_is_server_setting(manifest, key);
     free(manifest);
-    if (is_the_users) {
+    if (is_user_owned) {
         ESP_LOGW(TAG, "%s: \"%s\" is the user's to set", app_name, key);
         return HOST_ERR_ARGUMENT;
     }
@@ -170,7 +170,7 @@ static recurring_t *recurring_of(uint32_t app_id, int alarm)
     return NULL;
 }
 
-static void forget_recurrence(uint32_t app_id, int alarm)
+static void clear_recurrence(uint32_t app_id, int alarm)
 {
     recurring_t *recurring = recurring_of(app_id, alarm);
     if (recurring != NULL) {
@@ -256,8 +256,8 @@ static void header_status(const char *app_name, int side, int icon, const char *
 
 /* The application's alarm: a deadline like any other, under the
  * application's id. `when` is seconds from now, 0 taking the alarm back,
- * or - `is_a_time` - a moment in unix seconds. */
-static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_time)
+ * or - `is_absolute` - a moment in unix seconds. */
+static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_absolute)
 {
     int count;
     const app_manifest_t *installed = launcher_installed(&count);
@@ -266,8 +266,8 @@ static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_a_t
             continue;
         }
         uint32_t app_id = installed[i].id;
-        forget_recurrence(app_id, alarm); /* set another way: once */
-        if (is_a_time) {
+        clear_recurrence(app_id, alarm); /* set another way: once */
+        if (is_absolute) {
             return deadlines_set_at(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
         }
         if (when == 0) {

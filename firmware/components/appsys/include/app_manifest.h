@@ -174,7 +174,7 @@ bool app_manifest_is_server_setting(const char *json, const char *key);
 
 /* A pace as a person writes it - "15 min", "1 h", "3 hours", "30 s", or
  * seconds as a number - in seconds; 0 when the text is not one. */
-uint32_t app_manifest_pace_seconds(const char *text);
+uint32_t app_manifest_interval_seconds(const char *text);
 
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret);

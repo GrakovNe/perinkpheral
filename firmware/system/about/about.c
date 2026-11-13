@@ -34,7 +34,7 @@
 #define MINUTES_PER_HOUR  60
 
 /* Every start is at the mark: the splash is this page. */
-static bool shows_the_state;
+static bool is_state_page;
 
 static void draw_centered(int32_t top, int32_t font, const char *text)
 {
@@ -77,12 +77,12 @@ void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
         /* Round and round; memory and uptime are read anew each time. */
-        shows_the_state = !shows_the_state;
+        is_state_page = !is_state_page;
         request_redraw(HOST_REDRAW_NORMAL);
     }
 }
 
-static void draw_the_mark(void)
+static void draw_logo_page(void)
 {
     sys_logo((gfx_width() - sys_logo_width(LOGO_SCALE)) / 2, LOGO_TOP, LOGO_SCALE);
 
@@ -103,7 +103,7 @@ static void draw_the_mark(void)
     draw_centered(CREDITS_TOP + CREDITS_STEP, HOST_FONT_SMALL, "MIT License");
 }
 
-static void draw_the_state(void)
+static void draw_state_page(void)
 {
     char value[VALUE_MAX + 1];
     int32_t row = 0;
@@ -148,9 +148,9 @@ static void draw_the_state(void)
 
 void app_on_draw(void)
 {
-    if (shows_the_state) {
-        draw_the_state();
+    if (is_state_page) {
+        draw_state_page();
     } else {
-        draw_the_mark();
+        draw_logo_page();
     }
 }

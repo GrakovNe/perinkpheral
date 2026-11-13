@@ -750,12 +750,12 @@ static void draw_list(page_t page, int32_t selected)
         char value[TEXT_MAX + 1];
         describe_row(page, row, label, value);
         /* What OK does to an application here, said by a picture. */
-        bool is_an_app = page == PAGE_APPS && app_title_at(row, value);
-        if (is_an_app) {
+        bool is_app_row = page == PAGE_APPS && app_title_at(row, value);
+        if (is_app_row) {
             value[0] = '\0';
         }
         ui_list_row(&list, row, label, app_text_length(label), value,
-                    app_text_length(value), is_an_app ? HOST_ICON_TRASH : HOST_ICON_NONE);
+                    app_text_length(value), is_app_row ? HOST_ICON_TRASH : HOST_ICON_NONE);
     }
 }
 

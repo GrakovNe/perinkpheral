@@ -274,10 +274,10 @@ static void test_a_server_of_the_users_own(void)
                 "\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\"}") != APP_MANIFEST_OK);
 
     /* a poll's pace may be the user's choice in a setting */
-    CHECK(app_manifest_pace_seconds("15 min") == 900 && app_manifest_pace_seconds("1 h") == 3600);
-    CHECK(app_manifest_pace_seconds("3 hours") == 10800 && app_manifest_pace_seconds("30 s") == 30);
-    CHECK(app_manifest_pace_seconds("900") == 900 && app_manifest_pace_seconds("Off") == 0);
-    CHECK(app_manifest_pace_seconds("5 parsecs") == 0 && app_manifest_pace_seconds("") == 0);
+    CHECK(app_manifest_interval_seconds("15 min") == 900 && app_manifest_interval_seconds("1 h") == 3600);
+    CHECK(app_manifest_interval_seconds("3 hours") == 10800 && app_manifest_interval_seconds("30 s") == 30);
+    CHECK(app_manifest_interval_seconds("900") == 900 && app_manifest_interval_seconds("Off") == 0);
+    CHECK(app_manifest_interval_seconds("5 parsecs") == 0 && app_manifest_interval_seconds("") == 0);
     {
         static const char PACED[] =
             "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"

@@ -92,7 +92,7 @@ void wm_resume(wm_t *wm);
 void wm_open(wm_t *wm, scene_t *scene);
 
 /* Gives `scene` the screen as the menu would: the stack is this scene. */
-void wm_open_anew(wm_t *wm, scene_t *scene);
+void wm_open_from_home(wm_t *wm, scene_t *scene);
 
 /* One step down the stack, as BACK does. */
 void wm_back(wm_t *wm);

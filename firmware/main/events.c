@@ -63,7 +63,7 @@ typedef struct {
 
 static TaskHandle_t s_host_loop;
 
-void events_this_is_the_host_loop(void)
+void events_set_host_loop_task(void)
 {
     s_host_loop = xTaskGetCurrentTaskHandle();
 }

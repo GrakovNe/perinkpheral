@@ -122,7 +122,7 @@ bool deadlines_take_due(deadline_id_t *id)
     return is_due;
 }
 
-void deadlines_look_again(void)
+void deadlines_reschedule(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     aim_timer();

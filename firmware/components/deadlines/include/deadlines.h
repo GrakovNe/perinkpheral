@@ -65,7 +65,7 @@ bool deadlines_has(deadline_kind_t kind, uint32_t owner, int number);
 bool deadlines_take_due(deadline_id_t *id);
 
 /* Whoever takes them stopped before there was none: tell again. */
-void deadlines_look_again(void);
+void deadlines_reschedule(void);
 
 /* The one place the clock is set: the deadlines "in so long" move with
  * it in the same breath. False when the clock would not be set. Returns

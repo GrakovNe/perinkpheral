@@ -86,15 +86,15 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
         /* What a URL begins with is the server - "https://ha.example.org",
          * a setting of the type that is one - and goes in as it is. Anywhere
          * else a value is a part of a path or of a query, and is encoded. */
-        bool is_the_server = for_url && opening == template_text;
+        bool is_server_prefix = for_url && opening == template_text;
         if (!value_of(context, key, filled + used, filled_size - used)) {
             return false;
         }
         /* A value that goes in as it is - into a header, or as the server -
          * must not bring a line break along: that would be a header of its
          * own making. Whatever wrote the value, it is looked at here. */
-        bool goes_in_as_it_is = !for_url || is_the_server;
-        if (goes_in_as_it_is ? !is_printable(filled + used)
+        bool is_verbatim = !for_url || is_server_prefix;
+        if (is_verbatim ? !is_printable(filled + used)
                              : !encode_in_place(filled + used, filled_size - used)) {
             return false;
         }

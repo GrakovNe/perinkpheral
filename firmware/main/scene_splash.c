@@ -24,7 +24,7 @@ typedef struct {
     scenes_set_timer_fn set_timer;
     scene_t            *picture;
     scenes_is_shown_fn  picture_is_shown;
-    bool                was_set_aside;
+    bool                was_suspended;
 } splash_scene_t;
 
 /* Any press is enough to leave it: move on now. */
@@ -49,14 +49,14 @@ static void splash_enter(scene_t *scene)
     if (splash->picture->ops->enter != NULL) {
         splash->picture->ops->enter(splash->picture);
     }
-    bool lingers = splash->picture_is_shown(splash->picture) && !splash->was_set_aside;
+    bool lingers = splash->picture_is_shown(splash->picture) && !splash->was_suspended;
     splash->set_timer(BOOT_TIMER, lingers ? BOOT_LINGER_MS : NO_PICTURE_MS);
 }
 
 static void splash_leave(scene_t *scene)
 {
     splash_scene_t *splash = (splash_scene_t *)scene;
-    splash->was_set_aside = true;
+    splash->was_suspended = true;
     splash->set_timer(BOOT_TIMER, 0);
     if (splash->picture->ops->leave != NULL) {
         splash->picture->ops->leave(splash->picture);

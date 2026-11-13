@@ -36,13 +36,13 @@ static void call_handler(app_t *app, const app_delivery_t *delivery)
 
 static void call(app_t *app, const app_delivery_t *delivery)
 {
-    bool is_an_answer = delivery->kind == APP_DELIVERY_PIECE ||
+    bool is_answer = delivery->kind == APP_DELIVERY_PIECE ||
                         delivery->kind == APP_DELIVERY_VALUES;
-    if (is_an_answer) {
+    if (is_answer) {
         app_answer_begins(app, delivery->response, delivery->http_status);
     }
     call_handler(app, delivery);
-    if (is_an_answer) {
+    if (is_answer) {
         app_answer_ends(app);
     }
 }
@@ -75,7 +75,7 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     }
 }
 
-void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
+void app_delivery_abort(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
                            app_abandoned_t *abandoned)
 {
     abandoned->owner = NULL;
@@ -127,9 +127,9 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     /* A piece that is not the first, for an application that is not taking
      * the answer: the instance that took the start gave way to a press, or
      * was replaced. The rest of that answer is nobody's. */
-    bool is_a_start = delivery->kind != APP_DELIVERY_PIECE ||
+    bool is_first_piece = delivery->kind != APP_DELIVERY_PIECE ||
                       (delivery->flags & (HOST_DATA_FIRST | HOST_DATA_FAILED)) != 0;
-    if (!is_a_start && state->in_background != owner) {
+    if (!is_first_piece && state->in_background != owner) {
         return;
     }
     app_t *app;

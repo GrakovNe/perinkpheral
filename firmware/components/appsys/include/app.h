@@ -60,9 +60,9 @@ typedef struct {
     /* Another pace for a poll; false when there is no such poll. */
     bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
     /* The alarm numbered `alarm` of the application: `when` is seconds from
-     * now, 0 taking the alarm back, or - `is_a_time` - a moment in unix
+     * now, 0 taking the alarm back, or - `is_absolute` - a moment in unix
      * seconds. False when there is no room for one more. */
-    bool (*alarm_set)(const char *app_name, int alarm, int64_t when, bool is_a_time);
+    bool (*alarm_set)(const char *app_name, int alarm, int64_t when, bool is_absolute);
     /* The same alarm every so many seconds, the first in `first_in_s`, until
      * it is set another way. */
     bool (*alarm_set_every)(const char *app_name, int alarm, int32_t every_s, int32_t first_in_s);

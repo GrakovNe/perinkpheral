@@ -84,7 +84,7 @@ typedef struct {
     int      request;
 } app_abandoned_t;
 
-void app_delivery_give_way(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
+void app_delivery_abort(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
                            app_abandoned_t *abandoned);
 
 /* `owner` is the scene of the application the answer is for. */

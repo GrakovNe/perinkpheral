@@ -93,7 +93,7 @@ static const ota_writer_t SLOT_WRITER = { slot_begin, slot_write, slot_finish, s
 /* NULL when the stream is content, its error otherwise - and then the
  * upload is over. */
 /* The upload is over without an image: the device is free to sleep again. */
-static void give_up_upload(void)
+static void abort_upload(void)
 {
     if (s_upload.in_progress) {
         s_upload.in_progress = false;
@@ -112,7 +112,7 @@ static const char *upload_result(bool ok)
     if (ok) {
         return NULL;
     }
-    give_up_upload();
+    abort_upload();
     ESP_LOGW(TAG, "upload: %s", ota_stream_error(&s_upload.stream));
     return ota_stream_error(&s_upload.stream);
 }
@@ -163,7 +163,7 @@ void ota_upload_abort(void)
 {
     if (s_upload.in_progress) {
         ota_stream_abort(&s_upload.stream);
-        give_up_upload();
+        abort_upload();
     }
 }
 
