@@ -18,17 +18,22 @@
 static const char *TAG = "app_code";
 
 #define PARTITION_LABEL   "appcode"
-#define PARTITION_SUBTYPE 0x40
-#define SLOT_MAGIC        0x50414b50u /* "PKAP" */
+#define PARTITION_SUBTYPE 0x40 /* the "appcode" type of partitions.csv: one of the application's own */
+/* The first four bytes of a slot that holds a module: "PKAP" as they lie
+ * in the flash. An erased slot begins with 0xFFFFFFFF, and a slot whose
+ * writing was cut short has no mark: the mark is written last. */
+#define SLOT_MAGIC        0x50414b50u
 #define COPY_CHUNK_BYTES  1024
 
 /* The first bytes of a slot. Written last, so that a slot that was being
  * written when the power went is not taken for a module. */
+#define SLOT_HEADER_BYTES 32
+
 typedef struct {
     uint32_t magic;
     uint32_t size;
     char     name[APP_NAME_MAX + 1];
-    uint8_t  unused[32 - 8 - (APP_NAME_MAX + 1)];
+    uint8_t  unused[SLOT_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1)];
 } slot_header_t;
 _Static_assert(sizeof(slot_header_t) == APP_CODE_SLOT_BYTES - APP_CODE_MODULE_BYTES,
                "the header is what a slot has over a module");

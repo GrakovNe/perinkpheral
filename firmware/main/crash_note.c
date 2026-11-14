@@ -15,7 +15,7 @@
 #include "riscv/rvruntime-frames.h"
 #include "soc/soc.h"
 
-#define CRASH_NOTE_MAGIC   0x43524E31u /* "CRN1" */
+#define CRASH_NOTE_MAGIC   0x314E5243u /* "CRN1" as the bytes lie in memory, like the project's other marks */
 #define CRASH_STACK_WORDS  256         /* stack words scanned for code addresses */
 #define CRASH_ADDRESSES    24
 #define CRASH_TEXT_BYTES   24

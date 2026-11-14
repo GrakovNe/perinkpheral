@@ -13,6 +13,8 @@
 
 static const char *TAG = "reset";
 
+/* Left in RTC memory by a request for a factory reset and found by the
+ * next start. Not a word: a pattern that memory does not hold by chance. */
 #define FR_MAGIC 0xA5C3F00Du
 
 RTC_NOINIT_ATTR static uint32_t s_fr_magic;
