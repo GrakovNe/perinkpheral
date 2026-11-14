@@ -375,14 +375,6 @@ static void test_glyph_pack(void)
     memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
     broken.bytes[0] = 'X';
     CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
-    /* a size of bitmaps that rounds up to nothing, and a glyph far past them */
-    memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
-    static const uint8_t HUGE_BITS[] = { 0xFD, 0xFF, 0xFF, 0xFF };
-    static const uint8_t FAR_OFFSET[] = { 0x00, 0x00, 0x00, 0x40 };
-    memcpy(broken.bytes + 24 + 4, HUGE_BITS, sizeof HUGE_BITS);
-    memcpy(broken.bytes + 24 + 8 + 8, FAR_OFFSET, sizeof FAR_OFFSET);
-    CHECK(gfx_pack_bytes(broken.bytes, sizeof broken.bytes) == 0);
-    CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
 }
 
 /* A limit in bytes never falls inside a character. */

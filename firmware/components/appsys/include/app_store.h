@@ -110,11 +110,6 @@ app_write_result_t app_store_write_file(const char *root, const char *name, cons
  * when the name is not an application's or something could not go. */
 bool app_store_remove(const char *root, const char *name);
 
-/* What the application's data files take, counted in whole blocks, but for
- * the ones named in `replaced`: what stays of them through an update. */
-long app_store_data_bytes_kept(const char *root, const char *name, const char *const *replaced,
-                               int replaced_count);
-
 /* How long a file of an application is; negative when there is none. */
 long app_store_file_size(const char *root, const char *name, const char *file);
 

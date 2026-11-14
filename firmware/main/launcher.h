@@ -73,9 +73,6 @@ const app_manifest_t *launcher_installed(int *count);
  * name. */
 scene_t *launcher_app_scene(const char *app_name);
 
-/* The id of the installed application of that name; 0 when there is none. */
-uint32_t launcher_app_id(const char *app_name);
-
 /* The name of the application this scene is; NULL for the host's own. */
 const char *launcher_app_name(const scene_t *scene);
 

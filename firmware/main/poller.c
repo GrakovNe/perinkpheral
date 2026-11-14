@@ -98,23 +98,18 @@ void poller_look(void)
  * that long. */
 typedef struct {
     const char           *app_name;
-    uint32_t              app_id;
     const app_delivery_t *delivery;
 } handed_t;
-
-/* The application, by id, whose request the poller's task is making: the
- * version that asked. Set by that task alone, before it asks the network. */
-static uint32_t s_fetching_for;
 
 static void deliver_in_host_loop(void *argument)
 {
     const handed_t *handed = argument;
-    host_deliver(handed->app_name, handed->app_id, handed->delivery);
+    host_deliver(handed->app_name, handed->delivery);
 }
 
 static void hand_over(const char *app_name, const app_delivery_t *delivery)
 {
-    handed_t handed = { .app_name = app_name, .app_id = s_fetching_for, .delivery = delivery };
+    handed_t handed = { .app_name = app_name, .delivery = delivery };
     events_call_patiently(deliver_in_host_loop, &handed);
 }
 
@@ -253,7 +248,6 @@ static bool run_pending_request(int why_not)
         is_installed = name_of(taken.app, app_name);
     }
     unlock();
-    s_fetching_for = (uint32_t)taken.app;
     if (is_installed) {
         poller_ask_t ask = {
             .number = taken.number, .method = taken.method, .url = taken.url,
@@ -325,7 +319,6 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
  * told there is none, and decides what to show. */
 static bool fail_request_without_network(void)
 {
-    uint32_t owner = 0;
     if (wifi_is_online()) {
         return false;
     }
@@ -342,14 +335,12 @@ static bool fail_request_without_network(void)
             number = s_pending[i].number;
             s_pending[i].is_waiting = false;
             found = name_of(s_pending[i].app, app_name);
-            owner = (uint32_t)s_pending[i].app;
         } else {
             schedule_recheck(RADIO_WAIT_MS - waited_ms + 1);
         }
     }
     unlock();
     if (found) {
-        s_fetching_for = owner;
         ESP_LOGW(TAG, "%s/%d: no network", app_name, number);
         note_network_use(false);
         poller_net_tell_failure(app_name, number, HOST_FAILED_NO_NETWORK);
@@ -568,7 +559,6 @@ static bool run_wanted_poll(void)
         schedule_recheck(RADIO_WAIT_MS);
         return false;
     }
-    s_fetching_for = (uint32_t)app;
     if (is_installed) {
         if (why_not == 0) {
             poller_net_poll(name, poll);

@@ -82,7 +82,7 @@ void host_reload_apps(void);
 void host_reload_apps_later(void);
 
 /* Gives the application what is for it, on the screen or off it. */
-void host_deliver(const char *app_name, uint32_t app_id, const app_delivery_t *delivery);
+void host_deliver(const char *app_name, const app_delivery_t *delivery);
 
 /* Takes the application off the screen and out of the stack, its last
  * handlers run, before its files go: what it saves in app_on_terminate()

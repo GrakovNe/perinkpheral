@@ -381,30 +381,6 @@ static long data_bytes(const char *root, const char *name, const char *except)
     return total;
 }
 
-long app_store_data_bytes_kept(const char *root, const char *name, const char *const *replaced,
-                                int replaced_count)
-{
-    char folder[PATH_MAX_BYTES];
-    snprintf(folder, sizeof folder, "%s/%s", root, name);
-    DIR *directory = opendir(folder);
-    if (directory == NULL) {
-        return 0;
-    }
-    long total = 0;
-    struct dirent *entry;
-    while ((entry = readdir(directory)) != NULL) {
-        bool is_replaced = false;
-        for (int i = 0; i < replaced_count && !is_replaced; i++) {
-            is_replaced = strcmp(entry->d_name, replaced[i]) == 0;
-        }
-        if (entry->d_name[0] != '.' && is_data_file(entry->d_name) && !is_replaced) {
-            total += taken_by(app_store_file_size(root, name, entry->d_name));
-        }
-    }
-    closedir(directory);
-    return total;
-}
-
 app_write_result_t app_store_write_file(const char *root, const char *name, const char *file,
                                         long offset, const void *bytes, size_t length)
 {

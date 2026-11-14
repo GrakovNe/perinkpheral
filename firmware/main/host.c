@@ -680,7 +680,7 @@ static void ring_alarm(uint32_t app_id, int alarm_number)
         if (installed[i].id == app_id) {
             app_host_alarm_rang(app_id, alarm_number);
             app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-            host_deliver(installed[i].name, app_id, &alarm);
+            host_deliver(installed[i].name, &alarm);
             return;
         }
     }
@@ -860,13 +860,8 @@ void host_reload_apps_later(void)
     s_reload_is_due = true;
 }
 
-void host_deliver(const char *app_name, uint32_t app_id, const app_delivery_t *delivery)
+void host_deliver(const char *app_name, const app_delivery_t *delivery)
 {
-    /* An answer to what an earlier version asked is not the new one's: it
-     * asks again by itself. */
-    if (app_id == 0 || launcher_app_id(app_name) != app_id) {
-        return;
-    }
     scene_t *owner = launcher_app_scene(app_name);
     if (owner != NULL) {
         s_is_delivering = true;
@@ -892,7 +887,7 @@ static void broadcast(int intent)
     }
     app_delivery_t news = { .kind = APP_DELIVERY_INTENT, .request = intent };
     for (int i = 0; i < asked; i++) {
-        host_deliver(names[i], launcher_app_id(names[i]), &news);
+        host_deliver(names[i], &news);
     }
 }
 
