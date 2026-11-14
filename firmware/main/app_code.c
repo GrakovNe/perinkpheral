@@ -27,13 +27,11 @@ static const char *TAG = "app_code";
 
 /* The first bytes of a slot. Written last, so that a slot that was being
  * written when the power went is not taken for a module. */
-#define SLOT_HEADER_BYTES 32
-
 typedef struct {
     uint32_t magic;
     uint32_t size;
     char     name[APP_NAME_MAX + 1];
-    uint8_t  unused[SLOT_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1)];
+    uint8_t  unused[APP_CODE_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1)];
 } slot_header_t;
 _Static_assert(sizeof(slot_header_t) == APP_CODE_SLOT_BYTES - APP_CODE_MODULE_BYTES,
                "the header is what a slot has over a module");

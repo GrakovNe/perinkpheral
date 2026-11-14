@@ -26,7 +26,8 @@ extern "C" {
  * page of the chip's memory mapping, and five, until 2026-11-13; the
  * partition is mapped whole, so a slot need not be a page. */
 #define APP_CODE_SLOT_BYTES   0xD000
-#define APP_CODE_MODULE_BYTES (APP_CODE_SLOT_BYTES - 32)
+#define APP_CODE_HEADER_BYTES 32 /* the slot's mark, the module's size and name */
+#define APP_CODE_MODULE_BYTES (APP_CODE_SLOT_BYTES - APP_CODE_HEADER_BYTES)
 
 /* Once, before anything asks. Without the partition - a device flashed
  * for an older layout - nothing is ever found here, and applications run

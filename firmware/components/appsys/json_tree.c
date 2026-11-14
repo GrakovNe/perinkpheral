@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "json_tree.h"
+#include "units.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -501,7 +502,7 @@ static void put_string(writer_t *writer, const char *text)
 
 static void put_number(writer_t *writer, int64_t number)
 {
-    char     digits[24];
+    char     digits[INT64_TEXT_BYTES];
     char    *at = digits + sizeof digits;
     uint64_t magnitude = number < 0 ? 0 - (uint64_t)number : (uint64_t)number;
     do {

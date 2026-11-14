@@ -240,6 +240,7 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum)
 #define CHART_LABEL_GAP  6 /* between the captions and the plot */
 #define CHART_LINE_WIDTH 2
 #define CHART_MARK_SIDE  7
+#define CHART_LABEL_BYTES 16 /* a number of 32 bits, its sign, its point and the end */
 #define CHART_WIDE_BAR   8 /* a bar's room, in pixels, from which two of them are a gap */
 #define CHART_NARROW_BAR 3 /* and from which one is; narrower bars touch */
 
@@ -299,7 +300,7 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
     int left = chart->left, width = chart->width;
     if (chart->flags & KIT_CHART_RANGE) {
         const gfx_font_t *font = kit_font(KIT_CAPTION);
-        char              most[16], least[16];
+        char              most[CHART_LABEL_BYTES], least[CHART_LABEL_BYTES];
         chart_label(most, sizeof most, high, chart->decimals);
         chart_label(least, sizeof least, low, chart->decimals);
         int most_width = gfx_text_font_width(font, most);
@@ -480,6 +481,8 @@ typedef struct {
     kit_date_part_t part; /* KIT_DATE_NONE: not something to set - the colon */
 } date_piece_t;
 
+#define DATE_PART_BYTES 8 /* the widest part, a year of four digits, its sign and room */
+
 /* A line of parts in the middle of the width, the one being set framed. */
 static void draw_parts(gfx_t *g, int baseline, const gfx_font_t *font, const date_piece_t *pieces,
                        int count, int gap, kit_date_part_t selected)
@@ -512,7 +515,7 @@ void kit_date(gfx_t *g, const kit_date_t *date)
     int top = (body - height) / 2;
 
     if (date->has_time) {
-        char hour[8], minute[8];
+        char hour[DATE_PART_BYTES], minute[DATE_PART_BYTES];
         snprintf(hour, sizeof hour, "%02d", date->hour % 100);
         snprintf(minute, sizeof minute, "%02d", date->minute % 100);
         const date_piece_t pieces[PARTS_MAX] = { { hour, KIT_DATE_HOUR },
@@ -522,7 +525,7 @@ void kit_date(gfx_t *g, const kit_date_t *date)
         top += time_cap + LINES_GAP;
     }
     if (date->has_date) {
-        char day[8], year[8];
+        char day[DATE_PART_BYTES], year[DATE_PART_BYTES];
         snprintf(day, sizeof day, "%02d", date->day % 100);
         snprintf(year, sizeof year, "%d", date->year % 10000);
         int month = date->month >= 1 && date->month <= 12 ? date->month : 1;

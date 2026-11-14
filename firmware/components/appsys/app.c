@@ -851,7 +851,7 @@ HOST_FUNCTION(host_ui_reason)
     if (status >= 200 && status < 300) {
         m3ApiReturn(0); /* an answer came: what is wrong, if anything, is the application's to say */
     }
-    char     code[32];
+    char     code[sizeof(((host_notice_t *)0)->detail)]; /* shown as the detail of a notice */
     notice_t notice = { .first = word(WORD_NO_ANSWER), .detail = code, .icon = GFX_ICON_WARNING };
     snprintf(code, sizeof code, "%s %d", word(WORD_CODE), (int)status);
     for (size_t i = 0; i < sizeof REASONS / sizeof REASONS[0]; i++) {
@@ -1803,6 +1803,9 @@ HOST_FUNCTION(host_time_local_at)
 }
 
 /* A moment in words. Whole days are counted on the user's calendar. */
+/* The longest moment in words, in any language: two bytes a letter. */
+#define TIME_TEXT_BYTES 64
+
 HOST_FUNCTION(host_time_text)
 {
     m3ApiReturnType(int32_t);
@@ -1826,8 +1829,8 @@ HOST_FUNCTION(host_time_text)
     const char *weekday_short = word((word_t)(WORD_SUN + at.weekday));
     const char *month = word((word_t)(WORD_JANUARY + at.month - 1));
     const char *month_short = word((word_t)(WORD_JAN + at.month - 1));
-    char line[64];
-    char clock[8];
+    char line[TIME_TEXT_BYTES];
+    char clock[sizeof "00:00" + 2]; /* and room the compiler asks for: an hour is an int */
     snprintf(clock, sizeof clock, "%02d:%02d", (int)at.hour, (int)at.minute);
     switch (style) {
     case HOST_TIME_CLOCK:
@@ -2325,7 +2328,7 @@ static void note_duration(app_t *app, const char *handler, int64_t took_ms)
     }
     app->slow_logged = true;
     const char *name = strrchr(handler, '>');
-    char        told[96];
+    char        told[HOST_LOG_TEXT_MAX + 1];
     int         length = snprintf(told, sizeof told,
                                   "slow handler: %s took %d ms; the device waits for it",
                                   name != NULL ? name + 1 : handler, (int)took_ms);

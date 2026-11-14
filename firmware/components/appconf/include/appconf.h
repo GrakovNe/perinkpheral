@@ -117,6 +117,9 @@ void appconf_hostname(const char *device_name, const char device_id[APPCONF_DEVI
 
 void appconf_derive(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]);
 
+/* Room for what appconf_validate() and settings_change() say is wrong. */
+#define APPCONF_PROBLEM_MAX 128
+
 bool appconf_validate(const appconf_t *c, char *err, size_t err_sz);
 
 #ifdef __cplusplus

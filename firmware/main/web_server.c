@@ -330,6 +330,8 @@ void web_server_register(httpd_handle_t server, const web_route_t *routes, size_
     }
 }
 
+#define LOG_QUERY_MAX 48 /* "since=" and a number */
+
 static esp_err_t handle_log(httpd_req_t *request)
 {
     char *log = malloc(LOG_CAPTURE_BYTES + 1);
@@ -341,7 +343,7 @@ static esp_err_t handle_log(httpd_req_t *request)
     /* "?since=<where the last answer ended>" gives only what came after:
      * the log can be followed without reading it whole every time. What
      * was logged and already pushed out by newer lines is simply missing. */
-    char   query[48], since_text[16];
+    char   query[LOG_QUERY_MAX], since_text[INT32_TEXT_BYTES];
     size_t skipped = 0;
     if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK &&
         httpd_query_key_value(query, "since", since_text, sizeof since_text) == ESP_OK) {
@@ -349,7 +351,7 @@ static esp_err_t handle_log(httpd_req_t *request)
         uint32_t fresh = end - since; /* the counter wraps, and so does this */
         skipped = fresh < length ? length - fresh : 0;
     }
-    char end_text[16];
+    char end_text[INT32_TEXT_BYTES];
     snprintf(end_text, sizeof end_text, "%" PRIu32, end);
     httpd_resp_set_hdr(request, "X-Log-End", end_text);
     httpd_resp_set_type(request, "text/plain; charset=utf-8");

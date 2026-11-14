@@ -26,6 +26,7 @@
 #include "sysinfo.h"
 #include "wifi.h"
 #include "wifi_qr.h"
+#include "units.h"
 
 _Static_assert(SYS_REFRESH_FULL_NEVER == APPCONF_REFRESH_FULL_NEVER,
                "an application says \"never\" with the number the settings keep");
@@ -37,7 +38,7 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     sysinfo_t     info;
     wifi_status_t wifi;
     const char   *known;
-    char          number[12];
+    char          number[INT32_TEXT_BYTES];
     char          join_code[WIFI_QR_TEXT_MAX];
     appconf_t     settings;
     switch (what) {
@@ -153,7 +154,7 @@ int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t 
  * now, by their owner. */
 static int32_t change(const appconf_t *wanted)
 {
-    char problem[64];
+    char problem[APPCONF_PROBLEM_MAX];
     switch (settings_change(wanted, problem, sizeof problem, NULL)) {
     case SETTINGS_CHANGED:
         return HOST_OK;

@@ -30,6 +30,7 @@
 #include "settings.h"
 #include "storage.h"
 #include "web_server.h"
+#include "units.h"
 
 static const char *TAG = "web_apps";
 
@@ -260,7 +261,7 @@ typedef struct {
     const char  *app_name;
     const json_t *wanted;
     const char  *status;      /* of the answer to the page */
-    char         message[64];
+    char         message[WEB_MESSAGE_MAX];
 } app_settings_command_t;
 
 /* Whether the request puts another server where one was set. */
@@ -512,7 +513,7 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
 /* The source the request names by its number, as an address. */
 static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MAX + 1])
 {
-    char query[QUERY_MAX], number[4];
+    char query[QUERY_MAX], number[INT32_TEXT_BYTES];
     if (httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
         httpd_query_key_value(query, "source", number, sizeof number) != ESP_OK) {
         return false;
@@ -556,7 +557,7 @@ static esp_err_t handle_catalog(httpd_req_t *request)
     bool      is_whole = poller_fetch(url, CATALOG_INDEX_MAX_BYTES, pass_on, &passing,
                                       &http_status);
     if (!passing.has_started) {
-        char message[64];
+        char message[WEB_MESSAGE_MAX];
         snprintf(message, sizeof message, "Source unavailable (HTTP %d).",
                  http_status);
         return send_message(request, "502 Bad Gateway", "error", message);
@@ -814,7 +815,7 @@ static esp_err_t handle_install(httpd_req_t *request)
  * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)
 {
-    char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[4] = "";
+    char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[INT32_TEXT_BYTES] = "";
     if (!asked_app(request, app_name)) {
         return send_message(request, "404 Not Found", "error", "App not found.");
     }

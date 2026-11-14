@@ -132,7 +132,7 @@ static void load(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
     nvs_close(h);
 
     appconf_derive(c, device_id);
-    char why[128];
+    char why[APPCONF_PROBLEM_MAX];
     if (!appconf_validate(c, why, sizeof why)) {
         ESP_LOGW(TAG, "stored settings invalid (%s), using factory defaults", why);
         appconf_defaults(c, device_id);
@@ -196,7 +196,7 @@ void settings_load_last_app(char *name, size_t name_size)
 
 void settings_save_last_app(const char *name)
 {
-    char stored[32];
+    char stored[APPCONF_APP_NAME_MAX + 1];
     settings_load_last_app(stored, sizeof stored);
     if (strcmp(stored, name) == 0) {
         return; /* nothing to wear the flash for */

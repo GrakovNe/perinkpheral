@@ -15,4 +15,8 @@
 #define MS_PER_MINUTE      (SECONDS_PER_MINUTE * MS_PER_SECOND)
 
 #define BITS_PER_BYTE 8
+
+/* Room for a number written out in decimal, its sign and the end of the text. */
+#define INT32_TEXT_BYTES 12 /* "-2147483648" */
+#define INT64_TEXT_BYTES 21 /* "-9223372036854775808" */
 #define KB            1024

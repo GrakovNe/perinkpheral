@@ -30,6 +30,9 @@ void web_server_start(void);
 
 bool web_server_is_up(void);
 
+/* Room for a message the page is answered with: "Invalid value: <key>.". */
+#define WEB_MESSAGE_MAX 64
+
 /* A route of the web server: an address, and what is checked before its
  * handler runs. The checks are the table's and not the handler's, so a
  * handler cannot be written without them. */

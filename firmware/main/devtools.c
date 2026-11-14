@@ -377,7 +377,7 @@ static esp_err_t handle_kv(httpd_req_t *http)
  * interrupt watchdog fires. */
 static esp_err_t handle_crash(httpd_req_t *http)
 {
-    char query[32], kind[8] = "";
+    char query[QUERY_MAX], kind[QUERY_VALUE_MAX] = "";
     if (httpd_req_get_url_query_str(http, query, sizeof query) == ESP_OK) {
         httpd_query_key_value(query, "kind", kind, sizeof kind);
     }

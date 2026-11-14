@@ -23,6 +23,7 @@
 
 static const char *TAG = "wifi";
 
+#define BSSID_BYTES 6 /* the access point's address on the radio */
 #define PASSWORD_MAX            64
 #define ACCESS_POINT_CHANNEL    1
 #define ACCESS_POINT_CLIENTS    4
@@ -43,7 +44,7 @@ static struct {
     /* What other tasks may ask about, under the lock. */
     SemaphoreHandle_t lock;
     wifi_phase_t      phase;
-    char              address[16];
+    char              address[sizeof "255.255.255.255"];
     bool              is_radio_off;
     bool              was_reached;
 } s_wifi;
@@ -71,7 +72,7 @@ static void post(wifi_plan_event_t event)
  * for a poll, which on a battery is most of what a poll costs. */
 static struct {
     bool    is_known;
-    uint8_t access_point[6];
+    uint8_t access_point[BSSID_BYTES];
     uint8_t channel;
     char    ssid[WIFI_SSID_MAX + 1];
 } s_found_at;
