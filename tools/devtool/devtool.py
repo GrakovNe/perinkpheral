@@ -328,6 +328,45 @@ def command_open(device, options):
         save_shot(rows, options.shot)
 
 
+SIMULATOR_DIR = os.path.join(TOOLS, "simulator")
+
+
+def simulator_binary(given):
+    """The simulator: as given, or built here from the firmware's sources."""
+    if given:
+        return given
+    binary = os.path.join(SIMULATOR_DIR, "build", "perinkpheral-sim")
+    made = subprocess.run(["make", "-s", "-C", SIMULATOR_DIR])
+    if made.returncode != 0 or not os.path.isfile(binary):
+        sys.exit("the simulator could not be built: it needs a C compiler and libcurl")
+    return binary
+
+
+def command_sim(options):
+    """Builds the application and runs it in the simulator, which answers on
+    localhost as the device does: every other command works against it with
+    --host 127.0.0.1:<port>."""
+    with open(os.path.join(options.app_dir, "manifest.json")) as manifest:
+        name = json.load(manifest)["name"]
+    state = options.state or os.path.join(os.path.expanduser("~"), ".perinkpheral", "simulator", name)
+    apps = os.path.join(state, "apps")
+    shutil.rmtree(os.path.join(apps, name), ignore_errors=True)
+    built = subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"), options.app_dir,
+                            "--out", os.path.join(apps, name)])
+    if built.returncode != 0:
+        sys.exit(built.returncode)
+    command = [simulator_binary(options.binary), "--apps", apps, "--app", name,
+               "--state", state, "--port", str(options.port), "--language", options.language,
+               "--font", options.font]
+    for flag, value in (("--glyphs", options.glyphs), ("--mocks", options.mocks)):
+        if value:
+            command += [flag, value]
+    if options.clock:
+        command.append("--clock")
+    sys.stdout.flush()
+    os.execv(command[0], command)
+
+
 def upload_app(device, app_dir):
     """Builds the application and puts its two files on the device; returns its name."""
     with open(os.path.join(app_dir, "manifest.json")) as manifest:
@@ -397,6 +436,18 @@ def main():
     log.add_argument("--app", action="store_true", help="only what applications log")
     log.set_defaults(run=command_log)
 
+    sim = commands.add_parser("sim")
+    sim.add_argument("app_dir")
+    sim.add_argument("--port", type=int, default=8401)
+    sim.add_argument("--language", default="en")
+    sim.add_argument("--font", choices=("departure", "jersey"), default="departure")
+    sim.add_argument("--glyphs", help="a folder of glyph packs (*.glyphs)")
+    sim.add_argument("--mocks", help="a JSON file: address (a trailing * matches the rest) to answer")
+    sim.add_argument("--clock", action="store_true", help="the time in the header, not the date")
+    sim.add_argument("--state", help="where the simulated device keeps what it stores")
+    sim.add_argument("--binary", help="the simulator to run; built from the sources when not given")
+    sim.set_defaults(run=command_sim)
+
     serve = commands.add_parser("serve")
     serve.add_argument("app_dir", nargs="?", help="an application the page can build and run")
     serve.add_argument("--port", type=int, default=8400)
@@ -441,6 +492,8 @@ def main():
     options = parser.parse_args()
     if options.command == "new":
         return command_new(options)  # needs no device
+    if options.command == "sim":
+        return command_sim(options)  # is the device
     if not options.host:
         sys.exit("which device? give --host <address> or set PERINKPHERAL_HOST")
     try:
