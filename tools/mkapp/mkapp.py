@@ -218,6 +218,7 @@ def make_strings(app_dir, scratch):
         if not re.fullmatch(r"[a-z][a-z0-9_]*", key):
             sys.exit("%s/en.json: a key is a-z, 0-9 and '_', beginning with a letter: \"%s\""
                      % (folder, key))
+    unused_names(app_dir, ["STR_" + key.upper() for key in keys], "strings")
     for code, texts in translations.items():
         missing, extra = [k for k in keys if k not in texts], [k for k in texts if k not in keys]
         if missing or extra:
@@ -270,6 +271,8 @@ def make_pictures(app_dir, scratch):
                            os.path.join(scratch, "pictures.h")], capture_output=True, text=True)
     if made.returncode != 0:
         sys.exit(made.stderr.strip() or "%s: no pictures made" % pictures_dir)
+    with open(os.path.join(scratch, "pictures.h")) as f:
+        unused_names(app_dir, re.findall(r"\b(PICTURE_[A-Z0-9_]+)\[\]", f.read()), "pictures")
     return True
 
 
@@ -330,6 +333,106 @@ class Reader:
         text = self.data[self.at:self.at + length].decode("utf-8")
         self.at += length
         return text
+
+
+SECTION_EXPORT = 7
+EXPORT_KIND_FUNCTION = 0
+
+
+def exported_functions(wasm_path):
+    """The names of the functions the module exports."""
+    with open(wasm_path, "rb") as f:
+        reader = Reader(f.read())
+    reader.at = 8
+    names = []
+    while reader.at < len(reader.data):
+        section = reader.byte()
+        section_end = reader.unsigned() + reader.at
+        if section == SECTION_EXPORT:
+            for _ in range(reader.unsigned()):
+                name = reader.name()
+                kind = reader.byte()
+                reader.unsigned()
+                if kind == EXPORT_KIND_FUNCTION:
+                    names.append(name)
+        reader.at = section_end
+    return names
+
+
+def known_handlers():
+    """The exports the host calls, as sdk/host_api.h names them."""
+    with open(os.path.join(SDK, "host_api.h")) as f:
+        return set(re.findall(r"\bapp_(?:on_[a-z]+|init|data_buffer)\b", f.read()))
+
+
+# A call that asks for something to come later, and the handler it comes to.
+ANSWERED_BY = {
+    "timer_set": "app_on_timer",
+    "alarm_set": "app_on_alarm",
+    "alarm_set_at": "app_on_alarm",
+    "alarm_set_every": "app_on_alarm",
+    "http_request": "app_on_data",
+}
+
+
+def misspelled_handlers(app_dir):
+    """A function named like a handler that is none: the build drops it without a word."""
+    known = known_handlers()
+    for path in sorted(glob.glob(os.path.join(app_dir, "*.c"))):
+        with open(path) as f:
+            for name in re.findall(r"^[A-Za-z_][\w \t\*]*?\b(app_on_\w+)\s*\(", f.read(), re.M):
+                if name not in known:
+                    sys.exit("%s: %s() is not a handler the host calls. Its handlers: %s"
+                             % (path, name, ", ".join(sorted(known))))
+
+
+def check_handlers(wasm_path, imports, manifest):
+    """What the module asks for has to have somewhere to arrive: a request without
+    its handler, a poll nobody takes and a handler's name misspelled are mistakes
+    the device would only show as a screen that never changes."""
+    exports = set(exported_functions(wasm_path))
+    known = known_handlers()
+    for name in sorted(exports):
+        if name.startswith("app_") and name not in known and name != "app_strings_buffer":
+            sys.exit("%s exports %s(), which the host never calls: its handlers are %s"
+                     % (wasm_path, name, ", ".join(sorted(known))))
+    called = {name for module, name in imports if module == HOST_MODULE}
+    for call, handler in sorted(ANSWERED_BY.items()):
+        if call in called and handler not in exports:
+            sys.exit("%s calls %s() and has no %s() for what comes of it"
+                     % (wasm_path, call, handler))
+    for number, poll in enumerate(manifest.get("polls", [])):
+        handler = "app_on_values" if poll.get("pick") else "app_on_data"
+        if handler not in exports:
+            sys.exit("%s: poll %d of the manifest %s, and the module has no %s()"
+                     % (wasm_path, number,
+                        "has \"pick\"" if poll.get("pick") else "has no \"pick\"", handler))
+    if "app_on_data" in exports and "app_data_buffer" not in exports:
+        sys.exit("%s has app_on_data() and no app_data_buffer(): link sdk/lib/app_data.c or "
+                 "export a buffer of HOST_DATA_CHUNK_MAX bytes" % wasm_path)
+    if manifest.get("intents") and "app_on_intent" not in exports:
+        sys.exit("%s: the manifest asks for intents and the module has no app_on_intent()"
+                 % wasm_path)
+    if any(name.startswith(("gfx_", "ui_")) for name in called) and "app_on_draw" not in exports:
+        sys.exit("%s draws and has no app_on_draw(): drawing calls work only there" % wasm_path)
+
+
+def unused_names(app_dir, names, what):
+    """Strings and pictures the code never names are bytes of the module for nothing."""
+    code = ""
+    for path in sorted(glob.glob(os.path.join(app_dir, "*.[ch]"))):
+        with open(path) as f:
+            code += f.read()
+    # One of a numbered row - STR_DAY_0, STR_DAY_1 - is used when the row is: the code
+    # may reach the others by counting from the first.
+    def is_used(name):
+        row = re.sub(r"\d+$", "", name)
+        return re.search(r"\b%s\b" % re.escape(name), code) or (
+            row != name and re.search(r"\b%s\d+\b" % re.escape(row), code))
+    unused = [name for name in names if not is_used(name)]
+    if unused:
+        sys.exit("%s: %s never used in the code: %s. Remove them - each is bytes of the "
+                 "module, and of every translation" % (app_dir, what, ", ".join(unused)))
 
 
 def inspect(wasm_path):
@@ -698,8 +801,18 @@ def main():
     wasm_path = os.path.join(options.out, "app.wasm")
     memory_end = build(options.app_dir, wasm_path)
     with open(manifest_path) as f:
-        asks_for_system = json.load(f).get("system", False)
-    imports = check(wasm_path, asks_for_system)
+        manifest = json.load(f)
+    imports = check(wasm_path, manifest.get("system", False))
+    # A module that fails a check is not left behind: a build that stopped here must
+    # not look done to whoever only asks whether app.wasm is there.
+    built = wasm_path
+    try:
+        misspelled_handlers(options.app_dir)
+        check_handlers(wasm_path, imports, manifest)
+        built = None
+    finally:
+        if built is not None and os.path.exists(built):
+            os.remove(built)
     module_bytes = os.path.getsize(wasm_path)
     if module_bytes > MODULE_MAX_BYTES:
         sys.exit("%s: the module is %d bytes, at most %d fit on the device"

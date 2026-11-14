@@ -242,16 +242,17 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum)
 
 static void chart_label(char *text, size_t size, int32_t value, int decimals)
 {
-    long long magnitude = value < 0 ? -(long long)value : value;
-    long long scale = 1;
-    for (int i = 0; i < decimals && i < 9; i++) {
+    /* Numbers of 32 bits and their plain formats: the firmware's printf is the small one. */
+    unsigned long magnitude = value < 0 ? 0ul - (unsigned long)value : (unsigned long)value;
+    unsigned long scale = 1;
+    int           digits = decimals < 9 ? decimals : 9;
+    for (int i = 0; i < digits; i++) {
         scale *= 10;
     }
     if (scale == 1) {
-        snprintf(text, size, "%s%lld", value < 0 ? "-" : "", magnitude);
+        snprintf(text, size, "%s%lu", value < 0 ? "-" : "", magnitude);
     } else {
-        int digits = decimals < 9 ? decimals : 9;
-        snprintf(text, size, "%s%lld.%0*lld", value < 0 ? "-" : "", magnitude / scale, digits,
+        snprintf(text, size, "%s%lu.%0*lu", value < 0 ? "-" : "", magnitude / scale, digits,
                  magnitude % scale);
     }
 }

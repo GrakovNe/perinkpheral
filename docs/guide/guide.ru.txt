@@ -2494,3 +2494,51 @@ History of one value. Changes with the data
 
 Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value
 График из <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) и <code>count</code> чисел (1 - 128), от старых к новым. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (линия основания), <code>_FROM_ZERO</code> (шкала включает 0), <code>_RANGE</code> (наибольшее и наименьшее значение подписями, с <code>decimals</code> знаками после запятой), <code>_MARK_LAST</code> (отметка на последнем значении). <code>HOST_CHART_NO_VALUE</code> - разрыв. Шкала охватывает наименьшее и наибольшее значение
+
+a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;
+функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у хоста нет;
+
+the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_request()</code> and lacks the handler that receives the result;
+код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_request()</code> и не содержит обработчика, который получает результат;
+
+the manifest declares a poll or intents and the code lacks <code>app_on_values()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;
+манифест объявляет опрос или интенты, а в коде нет <code>app_on_values()</code>, <code>app_on_data()</code> или <code>app_on_intent()</code>;
+
+the code draws and lacks <code>app_on_draw()</code>;
+код рисует и не содержит <code>app_on_draw()</code>;
+
+a string of <code>strings/</code> or a picture of <code>pictures/</code> is not used in the code.
+строка из <code>strings/</code> или картинка из <code>pictures/</code> не используется в коде.
+
+a translation does not match <code>en.json</code> (section 12);
+перевод не соответствует <code>en.json</code> (раздел 12);
+
+The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.
+Журнал сообщает о двух состояниях работающего приложения, один раз на экземпляр или в минуту: обработчик выполняется дольше 400 мс (<code>slow handler: on_draw took 520 ms</code>), и более 12 записей в хранилище за минуту. Каждая запись в хранилище - запись во флеш: состояние сохраняется в <code>app_on_terminate()</code>.
+
+app_draw.h, app_state.h: strings, state, settings
+app_draw.h, app_state.h: строки, состояние, настройки
+
+always null-terminated
+всегда с завершающим нулём
+
+null-terminated text; inside app_on_draw()
+текст с завершающим нулём; внутри app_on_draw()
+
+returns the width
+возвращает ширину
+
+the store, by null-terminated key
+хранилище, ключ с завершающим нулём
+
+first field: int32_t version
+первое поле: int32_t version
+
+one flash write
+одна запись во флеш
+
+length; 0: not set
+длина; 0: не задано
+
+toggle: true unless "0"
+toggle: true, кроме "0"

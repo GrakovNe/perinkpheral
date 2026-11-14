@@ -70,6 +70,7 @@ struct app {
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
     bool        not_drawing_logged; /* once an instance: a mistake every beginner makes */
+    bool        slow_logged;        /* once an instance: a handler that took too long */
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
     bool        exit_requested;
     bool        focus_requested;
@@ -105,9 +106,16 @@ static void start_budget(const app_services_t *services)
     s_running.yields = 0;
 }
 
-static void stop_budget(void)
+/* A handler this long is felt: the device does nothing else meanwhile. */
+#define HANDLER_SLOW_MS 400
+
+static int64_t stop_budget(void)
 {
+    int64_t took_ms = s_running.services != NULL
+                          ? s_running.services->uptime_ms() - (s_running.deadline_ms - HANDLER_BUDGET_MS)
+                          : 0;
     s_running.services = NULL;
+    return took_ms;
 }
 
 /* ---- the host API as the application sees it ---- */
@@ -1361,6 +1369,34 @@ HOST_FUNCTION(host_kv_get)
     m3ApiReturn(app->services->kv_get(app->name, key, value, capacity));
 }
 
+/* Every write of the store is a write of the flash. More than this many
+ * in a minute is said in the log, once a minute. */
+#define KV_WRITES_PER_MINUTE 12
+
+static void note_store_write(app_t *app)
+{
+    static struct {
+        char    name[APP_NAME_MAX + 1];
+        int64_t since_ms;
+        int     count;
+        bool    is_told;
+    } writes;
+    int64_t now_ms = app->services->uptime_ms();
+    if (strncmp(writes.name, app->name, sizeof writes.name) != 0 ||
+        now_ms - writes.since_ms >= 60 * 1000) {
+        strncpy(writes.name, app->name, sizeof writes.name - 1);
+        writes.since_ms = now_ms;
+        writes.count = 0;
+        writes.is_told = false;
+    }
+    if (++writes.count > KV_WRITES_PER_MINUTE && !writes.is_told && app->services->log != NULL) {
+        static const char TOLD[] = "the store is written more than 12 times a minute: every "
+                                   "write wears the flash; save in app_on_terminate()";
+        writes.is_told = true;
+        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
+    }
+}
+
 HOST_FUNCTION(host_kv_set)
 {
     m3ApiReturnType(int32_t);
@@ -1376,6 +1412,7 @@ HOST_FUNCTION(host_kv_set)
         !copy_key(runtime, _mem, key_offset, key_length, key)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
+    note_store_write(app);
     m3ApiReturn(app->services->kv_set(app->name, key, value, length));
 }
 
@@ -2318,12 +2355,28 @@ static void note_result(app_t *app, M3Result result)
     }
 }
 
+/* A slow handler says itself in the log, once an instance: the developer
+ * sees it beside the application's own lines. */
+static void note_duration(app_t *app, const char *handler, int64_t took_ms)
+{
+    if (took_ms < HANDLER_SLOW_MS || app->slow_logged || app->services->log == NULL) {
+        return;
+    }
+    app->slow_logged = true;
+    const char *name = strrchr(handler, '>');
+    char        told[96];
+    int         length = snprintf(told, sizeof told,
+                                  "slow handler: %s took %d ms; the device waits for it",
+                                  name != NULL ? name + 1 : handler, (int)took_ms);
+    app->services->log(HOST_LOG_WARN, told, length < (int)sizeof told ? length : (int)sizeof told - 1);
+}
+
 #define CALL_HANDLER(app, handler, ...)                                  \
     do {                                                                 \
         if ((app)->stop_reason == NULL && (handler) != NULL) {           \
             start_budget((app)->services);                               \
             note_result((app), m3_CallV((handler), ##__VA_ARGS__));      \
-            stop_budget();                                               \
+            note_duration((app), #handler, stop_budget());               \
         }                                                                \
     } while (0)
 

@@ -30,6 +30,12 @@ with open(os.path.join(out_dir, "every_call.c"), "w") as f:
     f.write("};\n\nstatic volatile call_t taken;\n\n")
     f.write("void app_on_timer(int32_t id)\n{\n")
     f.write("    taken = CALLS[(uint32_t)id %% %d];\n}\n" % len(calls))
+    # The handlers the build asks of a module that imports the calls they answer.
+    f.write("\nvoid app_on_alarm(int32_t id)\n{\n    (void)id;\n}\n")
+    f.write("\nvoid app_on_draw(void)\n{\n}\n")
+    f.write("\nvoid app_on_data(int32_t request, const uint8_t *data, int32_t length, "
+            "int32_t flags, int32_t http_status)\n{\n    (void)request;\n    (void)data;\n"
+            "    (void)length;\n    (void)flags;\n    (void)http_status;\n}\n")
 with open(os.path.join(out_dir, "manifest.json"), "w") as f:
     json.dump({"name": os.path.basename(os.path.normpath(out_dir)), "title": "Every call", "abi": 2, "system": True}, f)
 with open(os.path.join(out_dir, "count.h"), "w") as f:

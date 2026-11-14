@@ -365,13 +365,19 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">code</td><td>Code size and the estimated interpreter memory needed to run all of it. <b>The scarcest resource</b>: one byte of code uses four bytes of memory</td><td>See "Memory" in section 13</td></tr>
   <tr><td class="c">memory</td><td>The 64 KB page: stack, static data, and the remainder for the arena</td><td>Allocate large buffers with <code>app_alloc()</code> under a mark. Read files in parts</td></tr>
 </table>
+<p>The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.</p>
 <p>The build also fails in these cases:</p>
 <ul>
   <li>the module imports a function that <code>host_api.h</code> does not declare;</li>
   <li>the code contains a floating-point operation (the report names it);</li>
   <li>the code calls a <code>sys_*</code> function and the manifest lacks <code>"system": true</code>;</li>
   <li>the manifest exceeds a limit;</li>
-  <li>a translation does not match <code>en.json</code> (section 12).</li>
+  <li>a translation does not match <code>en.json</code> (section 12);</li>
+  <li>a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;</li>
+  <li>the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_request()</code> and lacks the handler that receives the result;</li>
+  <li>the manifest declares a poll or intents and the code lacks <code>app_on_values()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;</li>
+  <li>the code draws and lacks <code>app_on_draw()</code>;</li>
+  <li>a string of <code>strings/</code> or a picture of <code>pictures/</code> is not used in the code.</li>
 </ul>
 
 <h1 id="package">5. Package</h1>
@@ -1015,8 +1021,24 @@ void    app_text_start(app_text_t *text, char *buffer, int32_t buffer_size);
 void    app_text_add(app_text_t *text, const char *more);   /* excess text is dropped at a character boundary */
 void    app_text_add_number(app_text_t *text, int32_t value);               /* decimal, "-" when negative */
 void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);          /* 7, 2 -> "07" */
-int32_t app_text_length(const char *text);                  /* length of any null-terminated text */</pre>
+int32_t app_text_length(const char *text);                  /* length of any null-terminated text */
+void    app_text_copy(char *to, int32_t size, const char *from);                    /* always null-terminated */</pre>
 <p>The buffer is always null-terminated and stays within its size. The text is complete after each call.</p>
+<h2 id="lib-draw">app_draw.h, app_state.h: strings, state, settings</h2>
+<pre>#include "app_draw.h"                                        /* null-terminated text; inside app_on_draw() */
+int32_t app_text_width(int32_t font, const char *text);
+int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);        /* returns the width */
+void    app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text);
+void    app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
+
+#include "app_state.h"                                       /* the store, by null-terminated key */
+bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);  /* first field: int32_t version */
+void    app_state_save(const char *key, const void *state, int32_t size);             /* one flash write */
+void    app_state_forget(const char *key);
+int32_t app_setting(const char *key, char *text, int32_t text_size);                  /* length; 0: not set */
+bool    app_setting_is(const char *key, const char *wanted);
+bool    app_setting_is_on(const char *key);                                           /* toggle: true unless "0" */
+bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);</pre>
 <h2 id="lib-values">app_values.h: what the host picked</h2>
 <pre>bool app_value_text(int32_t index, char *text, int32_t text_size);        /* false: value absent or buffer too small */
 bool app_value_number(int32_t index, int32_t decimals, int32_t *number);  /* "-3.46", 1 -> -35; false: value absent */

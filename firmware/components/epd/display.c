@@ -111,12 +111,12 @@ static refresh_kind_t refresh_panel(const uint8_t *frame, refresh_reason_t why, 
     expect_keepalive();
 
     const char *kind_name = kind == REFRESH_FULL ? "full" : "partial";
-    long long took_ms = (long long)(finished_ms - started_ms);
+    int took_ms = (int)(finished_ms - started_ms);
     if (*err == ESP_OK) {
-        ESP_LOGI(TAG, "%s refresh, %d bytes, %lld ms", kind_name, window.columns * window.rows,
+        ESP_LOGI(TAG, "%s refresh, %d bytes, %d ms", kind_name, window.columns * window.rows,
                  took_ms);
     } else {
-        ESP_LOGW(TAG, "%s refresh: %s after %lld ms", kind_name, esp_err_to_name(*err), took_ms);
+        ESP_LOGW(TAG, "%s refresh: %s after %d ms", kind_name, esp_err_to_name(*err), took_ms);
         /* What the panel holds is half a picture: the next refresh is a
          * full one, as the first after power-up is. */
         refresh_policy_init(&s_policy);

@@ -12,6 +12,7 @@
  */
 #include <stdbool.h>
 
+#include "app_draw.h"
 #include "app_text.h"
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/mkapp */
@@ -38,17 +39,14 @@ static bool is_state_page;
 
 static void draw_centered(int32_t top, int32_t font, const char *text)
 {
-    int32_t length = app_text_length(text);
-    gfx_text((gfx_width() - gfx_text_width(font, text, length)) / 2, top, font, text, length);
+    app_draw_centered(gfx_width() / 2, top, font, text);
 }
 
 static void draw_row(int32_t row, const char *label, const char *value)
 {
     int32_t top = (row + 1) * ROW_HEIGHT - gfx_font_ascent(HOST_FONT_TEXT);
-    int32_t value_length = app_text_length(value);
-    gfx_text(MARGIN, top, HOST_FONT_TEXT, label, app_text_length(label));
-    gfx_text(gfx_width() - MARGIN - gfx_text_width(HOST_FONT_TEXT, value, value_length), top,
-             HOST_FONT_TEXT, value, value_length);
+    app_draw_text(MARGIN, top, HOST_FONT_TEXT, label);
+    app_draw_right(gfx_width() - MARGIN, top, HOST_FONT_TEXT, value);
 }
 
 /* What the host knows under `what`, as a string; empty when it is not

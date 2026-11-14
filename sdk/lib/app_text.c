@@ -80,3 +80,10 @@ int32_t app_text_length(const char *text)
     }
     return length;
 }
+
+void app_text_copy(char *to, int32_t size, const char *from)
+{
+    app_text_t text;
+    app_text_start(&text, to, size);
+    app_text_add(&text, from);
+}
