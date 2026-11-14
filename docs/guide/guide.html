@@ -294,6 +294,7 @@
 tools/devtool/devtool.py run my-app                      # build, upload, restart into the application
 tools/devtool/devtool.py serve my-app                    # local page: live screen, buttons, log, Run</pre>
 <p><code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.</p>
+<p>The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.</p>
 <p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.</p>
 
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.</p>
@@ -425,7 +426,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 <table>
   <tr><th style="width:13%">Field</th><th style="width:30%">Format</th><th>Description</th></tr>
   <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required</td></tr>
-  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice</td></tr>
+  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token</td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
 </table>
@@ -1050,7 +1051,7 @@ const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL
 #include "strings.h"      /* generated from strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
 #include "pictures.h"     /* generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
 <p><code>strings.h</code> and <code>pictures.h</code> are generated for each application. The build places them first on the include path, so a system header with the same name is not used.</p>
-<p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform.</p>
+<p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform. They are declared in no SDK header: the code that calls one directly declares its prototype. <code>app_text_length()</code> of <code>app_text.h</code> replaces <code>strlen</code>.</p>
 
 <h1 id="ref-limits">24. Limits</h1>
 <table>

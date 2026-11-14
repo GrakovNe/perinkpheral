@@ -763,8 +763,8 @@ Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code
 10 to 86400 seconds, or <code>"{{key}}"</code> of a setting
 от 10 до 86400 секунд либо <code>"{{key}}"</code> настройки
 
-Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice
-Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется хостом
+Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it
+Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется хостом. Пока пользователь не выбрал, интервал равен <code>default</code> настройки, а без него - 15 минутам; приложение не сохраняет для него значение
 
 up to 4; a value up to 255 bytes
 до 4; значение до 255 байт
@@ -2052,8 +2052,8 @@ generated from strings/: enum { STR_NO_EVENTS, ... }; const char *app_string(int
 generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits };
 генерируется из pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits };
 
-<code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform.
-<code>memcpy</code>, <code>memmove</code>, <code>memset</code> и <code>strlen</code> предоставляются, потому что компилятор генерирует их вызовы. Это вся библиотека C платформы.
+<code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform. They are declared in no SDK header: the code that calls one directly declares its prototype. <code>app_text_length()</code> of <code>app_text.h</code> replaces <code>strlen</code>.
+<code>memcpy</code>, <code>memmove</code>, <code>memset</code> и <code>strlen</code> предоставляются, потому что компилятор генерирует их вызовы. Это вся библиотека C платформы. Они не объявлены ни в одном заголовке SDK: код, который вызывает их напрямую, объявляет прототип сам. <code>app_text_length()</code> из <code>app_text.h</code> заменяет <code>strlen</code>.
 
 24. Limits
 24. Лимиты
@@ -2152,6 +2152,9 @@ Loaded by the host
 <code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.
 <code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.
 <code>run</code> собирает приложение, загружает его и перезапускает устройство в него. Это занимает около десяти секунд. Прошивка не перезаписывается.
+
+The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.
+Сборка считает предупреждения компилятора ошибками (<code>-Wall -Wextra -Werror</code>). Неиспользуемый параметр помечается <code>(void)name;</code>.
 
 BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.
 BACK здесь обрабатывается хостом: короткое нажатие BACK закрывает приложение, у которого нет экспорта <code>app_on_back()</code>.
