@@ -10,7 +10,7 @@ description serves all four faces.
     glyphs(render) -> {code point: (width, height, left, top, advance, rows)}
 
 `render(code point)` is fontgen.render for the face: the same tuple, or None.
-Covers Russian, Ukrainian and Belarusian.
+Covers Russian, Ukrainian, Belarusian, Serbian, Macedonian, Bulgarian and Kazakh.
 """
 
 
@@ -181,6 +181,84 @@ class _Face:
         _fill(out, 0, len(rows) - stem, width, stem)
         _fill(out, width - stem, len(rows), stem, depth)
         return out, len(rows)
+
+    def tick(self, rows):
+        """A descending tick at the right foot of a letter: Қ, Ң."""
+        stem = self.stem
+        over = max(1, stem - 1)
+        depth = max(2, stem - 1)
+        out = _canvas(len(rows[0]) + over, len(rows) + depth)
+        _blit(out, rows, 0, 0)
+        _fill(out, len(rows[0]) - stem, len(rows) - stem, stem + over, stem)
+        _fill(out, len(out[0]) - stem, len(rows), stem, depth)
+        return out, len(rows)
+
+    def tick_under(self, rows):
+        """A tick under the middle: Џ."""
+        stem = self.stem
+        depth = max(2, stem - 1)
+        out = _canvas(len(rows[0]), len(rows) + depth)
+        _blit(out, rows, 0, 0)
+        _fill(out, (len(rows[0]) - stem) // 2, len(rows), stem, depth)
+        return out, len(rows)
+
+    def with_bowl(self, rows, soft):
+        """A letter with the bowl of Ь on its right stem: Љ, Њ."""
+        return _beside(rows, _columns(soft, self.stem))
+
+    def stroke(self, rows, x, width, row=None):
+        """A bar across a stem, standing out `over` on both sides."""
+        stem = self.stem
+        over = max(1, stem - 1)
+        out = _canvas(len(rows[0]) + (over if x == 0 else 0), len(rows))
+        shift = over if x == 0 else 0
+        _blit(out, rows, shift, 0)
+        if row is None:
+            row = (len(rows) - stem) // 2
+        _fill(out, x + shift - over, row, width + 2 * over, max(1, stem - 1))
+        return out
+
+    def tshe(self, with_hook):
+        """Ћ: h under a bar; Ђ: its leg goes on under the line and turns in."""
+        stem = self.stem
+        over = max(2, stem)
+        body, _ = self.latin("h")
+        depth = max(2, stem - 1) if with_hook else 0
+        rows = _canvas(len(body[0]) + over, len(body) + depth)
+        _blit(rows, body, over, 0)
+        _fill(rows, 0, 0, over + stem + (len(body[0]) - stem) // 2, stem)
+        if with_hook:
+            _fill(rows, len(rows[0]) - stem, len(body), stem, depth)
+            _fill(rows, len(rows[0]) - stem - max(1, stem - 1), len(body) + depth - max(1, stem - 1),
+                  stem, max(1, stem - 1))
+        return rows, len(body)
+
+    def schwa(self, source):
+        """Ә: a round letter open at the upper left, a bar across its middle."""
+        rows = _copy(source)
+        stem, height, width = self.stem, len(rows), len(rows[0])
+        middle = (height - stem) // 2
+        _fill(rows, 0, stem + (1 if stem > 2 else 0), stem + 1, middle - stem, ink=False)
+        _fill(rows, 0, middle, width, stem)
+        return rows
+
+    def barred_o(self, source):
+        rows = _copy(source)
+        stem = self.stem
+        _fill(rows, stem, (len(rows) - max(1, stem - 1)) // 2, len(rows[0]) - 2 * stem, max(1, stem - 1))
+        return rows
+
+    def numero(self, capital_n, small_o):
+        stem = self.stem
+        gap = max(1, stem - 1)
+        height = len(capital_n)
+        rows = _canvas(len(capital_n[0]) + gap + len(small_o[0]), height)
+        _blit(rows, capital_n, 0, 0)
+        left = len(capital_n[0]) + gap
+        ring = _squash(small_o, max(len(small_o) - stem, 2 * stem + 1))
+        _blit(rows, ring, left, 0)
+        _fill(rows, left, height - max(1, stem - 1), len(small_o[0]), max(1, stem - 1))
+        return rows
 
     # ---- letters, at a height: capitals and small ones are built alike ----
 
@@ -377,13 +455,54 @@ def glyphs(render):
         letter("Ээ", face.e_reversed(round_c))
         letter("Єє", face.ie_ukrainian(round_c))
         letter("Юю", face.yu(round_o))
+        # Serbian and Macedonian
+        acute = ("é", "e") if is_small else ("É", "E")
+        grave = ("è", "e") if is_small else ("È", "E")
+        letter("Ѓѓ", *face.accent(ghe, *acute))
+        letter("Ќќ", *face.accent(source["K"], *acute))
+        letter("Ѝѝ", *face.accent(i_cyrillic, *grave))
+        letter("Љљ", face.with_bowl(face.el(height), soft))
+        letter("Њњ", face.with_bowl(source["H"], soft))
+        letter("Џџ", *face.tick_under(face.tse_body(height)))
+        # Kazakh
+        letter("Ғғ", face.stroke(ghe, 0, stem))
+        letter("Ққ", *face.tick(source["K"]))
+        letter("Ңң", *face.tick(source["H"]))
+        letter("Өө", face.barred_o(round_o))
         if not is_small:
             put("Б", face.be(soft))
+            same("Ѐ", "È")
+            put("Ћ", *face.tshe(False))
+            put("Ђ", *face.tshe(True))
+            same("Һ", "h")
+            same("Ү", "Y")
+            y_capital = latin("Y")[0]
+            stem_at = (len(y_capital[0]) - stem) // 2
+            put("Ұ", face.stroke(y_capital, stem_at, stem, cap - 2 * stem))
+            put("Ә", face.schwa(source["O"]))
+            put("№", face.numero(source["N"], o_small))
             put("Ф", face.ef(cap - 2 * (stem - 1), source["O"], stem - 1, stem - 1)[0])
             put("У", latin("y")[0])
             put("Ў", *face.accent(latin("y")[0], "Ŭ", "U"))
         else:
             put("в", source["B"])
+            same("ѐ", "è")
+            same("һ", "h")
+            barred = render(0x0127)  # h with a stroke
+            if barred is not None:
+                face.out[ord("ћ")] = barred
+                hooked, hooked_top = face.tshe(True)
+                face.out[ord("ђ")] = (len(hooked[0]), len(hooked), face.left, hooked_top,
+                                      face.left + len(hooked[0]) + face.right, hooked)
+            else:
+                put("ћ", *face.tshe(False))
+                put("ђ", *face.tshe(True))
+            # A small Y that goes under the line, as the Latin y does.
+            tall = _squash(latin("Y")[0], small + face.descent)
+            put("ү", tall, small)
+            stem_at = (len(tall[0]) - stem) // 2
+            put("ұ", face.stroke(tall, stem_at, stem, len(tall) - 2 * stem), small)
+            put("ә", _turned(latin("e")[0]))
             put("к", source["K"])
             put("м", source["M"])
             put("н", source["H"])
