@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cJSON.h"
+#include "json_tree.h"
 #include "esp_log.h"
 #include "mbedtls/sha256.h"
 
@@ -40,10 +40,10 @@ static const char *TAG = "web_apps";
 /* 500 applications of a few hundred bytes each. */
 #define CATALOG_INDEX_MAX_BYTES (512 * 1024)
 
-static esp_err_t send_json(httpd_req_t *request, const char *status, cJSON *json)
+static esp_err_t send_json(httpd_req_t *request, const char *status, json_t *json)
 {
-    char *text = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);
+    char *text = json_print(json);
+    json_free(json);
     if (text == NULL) {
         return httpd_resp_send_500(request);
     }
@@ -57,8 +57,8 @@ static esp_err_t send_json(httpd_req_t *request, const char *status, cJSON *json
 static esp_err_t send_message(httpd_req_t *request, const char *status, const char *field,
                               const char *message)
 {
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, field, message);
+    json_t *json = json_new_object();
+    json_add_string(json, field, message);
     return send_json(request, status, json);
 }
 
@@ -100,7 +100,7 @@ static void stored_value(const char *app_name, const char *key,
 }
 
 /* What the application says of itself in the device's language, or NULL. */
-static cJSON *translation_of(const char *app_name)
+static json_t *translation_of(const char *app_name)
 {
     appconf_t settings;
     settings_read(&settings);
@@ -108,7 +108,7 @@ static cJSON *translation_of(const char *app_name)
         return NULL;
     }
     char  *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
-    cJSON *translation = text != NULL ? cJSON_Parse(text) : NULL;
+    json_t *translation = text != NULL ? json_parse(text) : NULL;
     free(text);
     return translation;
 }
@@ -116,89 +116,89 @@ static cJSON *translation_of(const char *app_name)
 /* A setting as the page shows it: its title and help in the device's
  * language, and for a choice a label beside every option - the options
  * themselves stay what is stored and what the application compares. */
-static void translate_setting(cJSON *setting, const cJSON *translated)
+static void translate_setting(json_t *setting, const json_t *translated)
 {
     static const char *const WORDS[] = { "title", "help" };
     for (size_t i = 0; i < sizeof WORDS / sizeof WORDS[0]; i++) {
-        const cJSON *text = cJSON_GetObjectItemCaseSensitive(translated, WORDS[i]);
-        if (cJSON_IsString(text) && text->valuestring[0] != '\0') {
-            cJSON_DeleteItemFromObjectCaseSensitive(setting, WORDS[i]);
-            cJSON_AddStringToObject(setting, WORDS[i], text->valuestring);
+        const json_t *text = json_get(translated, WORDS[i]);
+        if (json_is_string(text) && text->text[0] != '\0') {
+            json_remove(setting, WORDS[i]);
+            json_add_string(setting, WORDS[i], text->text);
         }
     }
-    const cJSON *names = cJSON_GetObjectItemCaseSensitive(translated, "options");
-    const cJSON *options = cJSON_GetObjectItemCaseSensitive(setting, "options");
-    if (!cJSON_IsObject(names) || !cJSON_IsArray(options)) {
+    const json_t *names = json_get(translated, "options");
+    const json_t *options = json_get(setting, "options");
+    if (!json_is_object(names) || !json_is_array(options)) {
         return;
     }
-    cJSON       *labels = cJSON_CreateArray();
-    const cJSON *option;
-    cJSON_ArrayForEach(option, options)
+    json_t       *labels = json_new_array();
+    const json_t *option;
+    json_for_each(option, options)
     {
-        const cJSON *label = cJSON_IsString(option)
-                                 ? cJSON_GetObjectItemCaseSensitive(names, option->valuestring)
+        const json_t *label = json_is_string(option)
+                                 ? json_get(names, option->text)
                                  : NULL;
-        cJSON_AddItemToArray(labels, cJSON_CreateString(cJSON_IsString(label) ? label->valuestring
-                                                        : cJSON_IsString(option) ? option->valuestring
+        json_array_add(labels, json_new_string(json_is_string(label) ? label->text
+                                                        : json_is_string(option) ? option->text
                                                                                  : ""));
     }
-    cJSON_AddItemToObject(setting, "labels", labels);
+    json_add_item(setting, "labels", labels);
 }
 
 /* The manifest's "settings" as they are, and beside them what is set. */
-static void add_settings(cJSON *app, const char *app_name)
+static void add_settings(json_t *app, const char *app_name)
 {
     char  *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    cJSON *manifest = manifest_text != NULL ? cJSON_Parse(manifest_text) : NULL;
+    json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
     free(manifest_text);
-    cJSON *settings = cJSON_DetachItemFromObjectCaseSensitive(manifest, "settings");
-    cJSON *icon = cJSON_DetachItemFromObjectCaseSensitive(manifest, "icon");
-    cJSON *companion = cJSON_DetachItemFromObjectCaseSensitive(manifest, "companion");
+    json_t *settings = json_detach(manifest, "settings");
+    json_t *icon = json_detach(manifest, "icon");
+    json_t *companion = json_detach(manifest, "companion");
     /* What the application is and reaches, for the page to say in words. */
     static const char *const FACTS[] = { "hosts", "polls", "intents", "system", "fullscreen" };
     for (size_t i = 0; i < sizeof FACTS / sizeof FACTS[0]; i++) {
-        cJSON *fact = cJSON_DetachItemFromObjectCaseSensitive(manifest, FACTS[i]);
+        json_t *fact = json_detach(manifest, FACTS[i]);
         if (fact != NULL) {
-            cJSON_AddItemToObject(app, FACTS[i], fact);
+            json_add_item(app, FACTS[i], fact);
         }
     }
-    cJSON_Delete(manifest);
+    json_free(manifest);
     if (companion != NULL) {
-        cJSON_AddItemToObject(app, "companion", companion);
+        json_add_item(app, "companion", companion);
     }
     if (icon != NULL) {
-        cJSON_AddItemToObject(app, "icon", icon);
+        json_add_item(app, "icon", icon);
     }
     if (settings == NULL) {
-        settings = cJSON_CreateArray();
+        settings = json_new_array();
     }
-    cJSON *values = cJSON_CreateObject();
-    cJSON *translation = translation_of(app_name);
-    cJSON *setting;
-    cJSON_ArrayForEach(setting, settings)
+    json_t *values = json_new_object();
+    json_t *translation = translation_of(app_name);
+    json_t *setting;
+    json_for_each(setting, settings)
     {
-        const cJSON *key = cJSON_GetObjectItemCaseSensitive(setting, "key");
-        const cJSON *type = cJSON_GetObjectItemCaseSensitive(setting, "type");
-        if (!cJSON_IsString(key) || !cJSON_IsString(type)) {
+        const json_t *key = json_get(setting, "key");
+        const json_t *type = json_get(setting, "type");
+        if (!json_is_string(key) || !json_is_string(type)) {
             continue;
         }
-        translate_setting(setting, cJSON_GetObjectItemCaseSensitive(
-                                       cJSON_GetObjectItemCaseSensitive(translation, "settings"),
-                                       key->valuestring));
+        translate_setting(setting, json_get(
+                                       json_get(translation, "settings"),
+                                       key->text));
         char value[APP_SETTING_VALUE_MAX + 1];
-        stored_value(app_name, key->valuestring, value);
-        if (strcmp(type->valuestring, "secret") == 0 || strcmp(type->valuestring, "link") == 0) {
+        stored_value(app_name, key->text, value);
+        if (strcmp(type->text, "secret") == 0 || strcmp(type->text, "link") == 0) {
             /* A secret goes one way: the page learns only whether there is one.
              * A link is one too - whoever has a calendar's address reads the
              * calendar. */
-            cJSON_AddBoolToObject(values, key->valuestring, value[0] != '\0');
+            json_add_bool(values, key->text, value[0] != '\0');
         } else {
-            cJSON_AddStringToObject(values, key->valuestring, value);
+            json_add_string(values, key->text, value);
         }
     }
-    cJSON_Delete(translation);
-    cJSON_AddItemToObject(app, "settings", settings);
-    cJSON_AddItemToObject(app, "values", values);
+    json_free(translation);
+    json_add_item(app, "settings", settings);
+    json_add_item(app, "values", values);
 }
 
 static esp_err_t handle_list(httpd_req_t *request)
@@ -211,14 +211,14 @@ static esp_err_t handle_list(httpd_req_t *request)
     }
     int                   count = read_installed();
     const app_manifest_t *installed = s_installed;
-    cJSON                *apps = cJSON_CreateArray();
+    json_t                *apps = json_new_array();
     for (int i = 0; i < count; i++) {
-        cJSON *app = cJSON_CreateObject();
-        cJSON_AddStringToObject(app, "name", installed[i].name);
-        cJSON_AddStringToObject(app, "title", installed[i].title);
-        cJSON_AddStringToObject(app, "version", installed[i].version);
+        json_t *app = json_new_object();
+        json_add_string(app, "name", installed[i].name);
+        json_add_string(app, "title", installed[i].title);
+        json_add_string(app, "version", installed[i].version);
         add_settings(app, installed[i].name);
-        cJSON_AddItemToArray(apps, app);
+        json_array_add(apps, app);
     }
     return send_json(request, "200 OK", apps);
 }
@@ -246,14 +246,14 @@ static char *read_body(httpd_req_t *request)
 
 /* A form is checked as a whole before any of it is stored: one value
  * that does not fit refuses all of them. `problem` names it. */
-static bool are_acceptable(const char *manifest, const cJSON *wanted, const char **problem)
+static bool are_acceptable(const char *manifest, const json_t *wanted, const char **problem)
 {
-    const cJSON *value;
-    cJSON_ArrayForEach(value, wanted)
+    const json_t *value;
+    json_for_each(value, wanted)
     {
-        if (!cJSON_IsString(value) ||
-            !app_manifest_accepts_setting(manifest, value->string, value->valuestring, NULL)) {
-            *problem = value->string;
+        if (!json_is_string(value) ||
+            !app_manifest_accepts_setting(manifest, value->name, value->text, NULL)) {
+            *problem = value->name;
             return false;
         }
     }
@@ -264,24 +264,24 @@ static bool are_acceptable(const char *manifest, const cJSON *wanted, const char
  * writing there itself. */
 typedef struct {
     const char  *app_name;
-    const cJSON *wanted;
+    const json_t *wanted;
     const char  *status;      /* of the answer to the page */
     char         message[64];
 } app_settings_command_t;
 
 /* Whether the request puts another server where one was set. */
-static bool references_other_server(const char *manifest, const char *app_name, const cJSON *wanted)
+static bool references_other_server(const char *manifest, const char *app_name, const json_t *wanted)
 {
-    const cJSON *value;
-    cJSON_ArrayForEach(value, wanted)
+    const json_t *value;
+    json_for_each(value, wanted)
     {
-        int type = app_manifest_setting_type(manifest, value->string);
+        int type = app_manifest_setting_type(manifest, value->name);
         if (type != APP_SETTING_URL && type != APP_SETTING_LINK) {
             continue;
         }
         char stored[APP_SETTING_VALUE_MAX + 1];
-        stored_value(app_name, value->string, stored);
-        if (stored[0] != '\0' && strcmp(stored, value->valuestring) != 0) {
+        stored_value(app_name, value->name, stored);
+        if (stored[0] != '\0' && strcmp(stored, value->text) != 0) {
             return true;
         }
     }
@@ -292,13 +292,13 @@ static bool references_other_server(const char *manifest, const char *app_name, 
  * application at another one - anybody on the network can - does not get
  * the token sent to it: what is not given anew goes. */
 static void clear_stale_secrets(const char *manifest, const char *app_name,
-                                     const cJSON *wanted)
+                                     const json_t *wanted)
 {
     char keys[APP_SETTINGS_MAX][APP_SETTING_KEY_MAX + 1];
     int  count = app_manifest_secret_keys(manifest, keys, APP_SETTINGS_MAX);
     for (int i = 0; i < count; i++) {
-        const cJSON *given = cJSON_GetObjectItemCaseSensitive(wanted, keys[i]);
-        if (!cJSON_IsString(given) || given->valuestring[0] == '\0') {
+        const json_t *given = json_get(wanted, keys[i]);
+        if (!json_is_string(given) || given->text[0] == '\0') {
             app_kv_set(app_name, keys[i], "", 0);
         }
     }
@@ -309,23 +309,23 @@ static void change_app_settings(void *argument)
     app_settings_command_t *command = argument;
     char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, command->app_name);
     const char *problem = NULL;
-    if (!cJSON_IsObject(command->wanted) || manifest == NULL) {
+    if (!json_is_object(command->wanted) || manifest == NULL) {
         command->status = "400 Bad Request";
         snprintf(command->message, sizeof command->message, "Invalid request.");
     } else if (!are_acceptable(manifest, command->wanted, &problem)) {
         command->status = "400 Bad Request";
         snprintf(command->message, sizeof command->message, "Invalid value: %s.", problem);
     } else {
-        const cJSON *value;
+        const json_t *value;
         bool         stored = true;
         if (references_other_server(manifest, command->app_name, command->wanted)) {
             clear_stale_secrets(manifest, command->app_name, command->wanted);
         }
-        cJSON_ArrayForEach(value, command->wanted)
+        json_for_each(value, command->wanted)
         {
             /* An empty value takes the setting back: kv_set removes the key. */
-            stored = app_kv_set(command->app_name, value->string, value->valuestring,
-                                (int32_t)strlen(value->valuestring)) == HOST_OK &&
+            stored = app_kv_set(command->app_name, value->name, value->text,
+                                (int32_t)strlen(value->text)) == HOST_OK &&
                      stored;
         }
         if (stored) {
@@ -353,11 +353,11 @@ static esp_err_t handle_settings(httpd_req_t *request)
         return send_message(request, "404 Not Found", "error", "App not found.");
     }
     char  *body = read_body(request);
-    cJSON *wanted = body != NULL ? cJSON_Parse(body) : NULL;
+    json_t *wanted = body != NULL ? json_parse(body) : NULL;
     free(body);
     app_settings_command_t command = { .app_name = app_name, .wanted = wanted };
     bool is_asked = events_call(change_app_settings, &command);
-    cJSON_Delete(wanted);
+    json_free(wanted);
     if (!is_asked) {
         return send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
@@ -376,9 +376,9 @@ static esp_err_t handle_removed(httpd_req_t *request)
     }
     char   names[REMOVED_LISTED_MAX][APP_NAME_MAX + 1];
     int    count = app_kv_orphaned(names, REMOVED_LISTED_MAX);
-    cJSON *list = cJSON_CreateArray();
+    json_t *list = json_new_array();
     for (int i = 0; i < count; i++) {
-        cJSON_AddItemToArray(list, cJSON_CreateString(names[i]));
+        json_array_add(list, json_new_string(names[i]));
     }
     return send_json(request, "200 OK", list);
 }
@@ -392,16 +392,16 @@ static esp_err_t handle_glyphs(httpd_req_t *request)
     }
     glyphs_pack_t packs[GLYPHS_PACKS_MAX];
     int           count = glyphs_list(packs);
-    cJSON        *list = cJSON_CreateArray();
+    json_t        *list = json_new_array();
     for (int i = 0; i < count; i++) {
-        cJSON *pack = cJSON_CreateObject();
-        cJSON_AddStringToObject(pack, "name", packs[i].name);
-        cJSON_AddNumberToObject(pack, "bytes", (double)packs[i].bytes);
-        cJSON_AddItemToArray(list, pack);
+        json_t *pack = json_new_object();
+        json_add_string(pack, "name", packs[i].name);
+        json_add_number(pack, "bytes", (int64_t)packs[i].bytes);
+        json_array_add(list, pack);
     }
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddItemToObject(json, "packs", list);
-    cJSON_AddNumberToObject(json, "free", (double)glyphs_free_bytes());
+    json_t *json = json_new_object();
+    json_add_item(json, "packs", list);
+    json_add_number(json, "free", (int64_t)glyphs_free_bytes());
     return send_json(request, "200 OK", json);
 }
 
@@ -486,14 +486,14 @@ static esp_err_t handle_sources(httpd_req_t *request)
         return httpd_resp_send_500(request);
     }
     settings_load_sources(sources, CATALOG_SOURCES_TEXT_MAX);
-    cJSON *list = cJSON_CreateArray();
+    json_t *list = json_new_array();
     char   source[CATALOG_SOURCE_URL_MAX + 1];
     for (int i = 0; catalog_source_at(sources, i, source, sizeof source); i++) {
-        cJSON_AddItemToArray(list, cJSON_CreateString(source));
+        json_array_add(list, json_new_string(source));
     }
     free(sources);
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddItemToObject(json, "sources", list);
+    json_t *json = json_new_object();
+    json_add_item(json, "sources", list);
     return send_json(request, "200 OK", json);
 }
 
@@ -503,21 +503,21 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
         return ESP_OK;
     }
     char  *body = read_body(request);
-    cJSON *json = body != NULL ? cJSON_Parse(body) : NULL;
+    json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
-    const cJSON *list = cJSON_GetObjectItemCaseSensitive(json, "sources");
+    const json_t *list = json_get(json, "sources");
     char        *sources = calloc(1, CATALOG_SOURCES_TEXT_MAX + 1);
-    bool         fits = cJSON_IsArray(list) && sources != NULL;
+    bool         fits = json_is_array(list) && sources != NULL;
     size_t       used = 0;
-    const cJSON *source;
-    cJSON_ArrayForEach(source, list)
+    const json_t *source;
+    json_for_each(source, list)
     {
-        size_t length = cJSON_IsString(source) ? strlen(source->valuestring) : 0;
+        size_t length = json_is_string(source) ? strlen(source->text) : 0;
         fits = fits && length > 0 && used + length + 1 <= CATALOG_SOURCES_TEXT_MAX;
         /* The official source is there anyway: it is not stored with the rest. */
-        bool is_official = fits && strcmp(source->valuestring, CATALOG_OFFICIAL_SOURCE) == 0;
+        bool is_official = fits && strcmp(source->text, CATALOG_OFFICIAL_SOURCE) == 0;
         if (fits && !is_official) {
-            memcpy(sources + used, source->valuestring, length);
+            memcpy(sources + used, source->text, length);
             sources[used + length] = '\n';
             used += length + 1;
         }
@@ -534,7 +534,7 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
     } else {
         result = send_message(request, "200 OK", "ok", "Saved.");
     }
-    cJSON_Delete(json);
+    json_free(json);
     free(sources);
     return result;
 }
@@ -637,21 +637,21 @@ static bool read_hash(const char *hex, uint8_t hash[SHA256_BYTES])
 /* One file of the application from the source to its place on the
  * device, taken only if it is what the index said it would be. The
  * manifest is also read: the device installs nothing it would not list. */
-static const char *install_file(const char *source, const char *app_name, const cJSON *entry,
+static const char *install_file(const char *source, const char *app_name, const json_t *entry,
                                 bool *asks_for_system)
 {
-    const cJSON *name = cJSON_GetObjectItemCaseSensitive(entry, "name");
-    const cJSON *size = cJSON_GetObjectItemCaseSensitive(entry, "size");
-    const cJSON *sha256 = cJSON_GetObjectItemCaseSensitive(entry, "sha256");
+    const json_t *name = json_get(entry, "name");
+    const json_t *size = json_get(entry, "size");
+    const json_t *sha256 = json_get(entry, "sha256");
     uint8_t      wanted_hash[SHA256_BYTES], hash[SHA256_BYTES];
     char         url[CATALOG_URL_MAX + 1], path[APP_STORE_PATH_MAX];
-    if (!cJSON_IsString(name) || !cJSON_IsNumber(size) || !cJSON_IsString(sha256) ||
-        !app_store_is_file_name(name->valuestring) || !read_hash(sha256->valuestring, wanted_hash) ||
-        size->valuedouble < 1 || size->valuedouble > app_store_file_max_bytes(name->valuestring) ||
-        !catalog_url(source, app_name, name->valuestring, url, sizeof url)) {
+    if (!json_is_string(name) || !json_is_number(size) || !json_is_string(sha256) ||
+        !app_store_is_file_name(name->text) || !read_hash(sha256->text, wanted_hash) ||
+        size->number < 1 || size->number > app_store_file_max_bytes(name->text) ||
+        !catalog_url(source, app_name, name->text, url, sizeof url)) {
         return "Invalid catalog entry.";
     }
-    if (!app_store_begin_file(STORAGE_APPS_ROOT, app_name, name->valuestring, path)) {
+    if (!app_store_begin_file(STORAGE_APPS_ROOT, app_name, name->text, path)) {
         return "Storage error.";
     }
     download_t download = { .file = fopen(path, "wb") };
@@ -661,7 +661,7 @@ static const char *install_file(const char *source, const char *app_name, const 
     mbedtls_sha256_init(&download.hash);
     mbedtls_sha256_starts(&download.hash, 0);
     int  http_status;
-    bool fetched = poller_fetch(url, (size_t)size->valuedouble, store_piece, &download,
+    bool fetched = poller_fetch(url, (size_t)size->number, store_piece, &download,
                                 &http_status);
     mbedtls_sha256_finish(&download.hash, hash);
     mbedtls_sha256_free(&download.hash);
@@ -669,10 +669,10 @@ static const char *install_file(const char *source, const char *app_name, const 
     const char *problem = NULL;
     if (!fetched || !stored) {
         problem = "Download failed.";
-    } else if (download.received != (size_t)size->valuedouble ||
+    } else if (download.received != (size_t)size->number ||
                memcmp(hash, wanted_hash, SHA256_BYTES) != 0) {
         problem = "Checksum mismatch.";
-    } else if (strcmp(name->valuestring, APP_FILE_MANIFEST) == 0) {
+    } else if (strcmp(name->text, APP_FILE_MANIFEST) == 0) {
         /* Still under its temporary name: read it there. */
         char          *text = malloc(download.received + 1);
         FILE          *incoming = text != NULL ? fopen(path, "rb") : NULL;
@@ -708,7 +708,7 @@ static const char *install_file(const char *source, const char *app_name, const 
  * nothing of the host looking at the folder meanwhile. */
 typedef struct {
     const char  *app_name;
-    const cJSON *files;
+    const json_t *files;
     bool         is_done;
 } install_command_t;
 
@@ -735,34 +735,34 @@ static void remove_command(void *argument)
 
 /* The files as the page read them from the index: the module first, the
  * manifest last, and both there. */
-static bool is_sound_file_list(const cJSON *files)
+static bool is_sound_file_list(const json_t *files)
 {
-    int count = cJSON_IsArray(files) ? cJSON_GetArraySize(files) : 0;
+    int count = json_is_array(files) ? json_count(files) : 0;
     if (count < 2 || count > CATALOG_APP_FILES_MAX) {
         return false;
     }
-    const cJSON *first = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, 0), "name");
-    const cJSON *last =
-        cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, count - 1), "name");
-    if (!cJSON_IsString(first) || strcmp(first->valuestring, APP_FILE_MODULE) != 0 ||
-        !cJSON_IsString(last) || strcmp(last->valuestring, APP_FILE_MANIFEST) != 0) {
+    const json_t *first = json_get(json_at(files, 0), "name");
+    const json_t *last =
+        json_get(json_at(files, count - 1), "name");
+    if (!json_is_string(first) || strcmp(first->text, APP_FILE_MODULE) != 0 ||
+        !json_is_string(last) || strcmp(last->text, APP_FILE_MANIFEST) != 0) {
         return false;
     }
     /* What lies between them is the application's files, and all of them
      * together have a share, each counted as the whole blocks it takes: a
      * catalog cannot bring more than an application may write. */
-    double taken = 0;
+    long taken = 0;
     for (int i = 1; i < count - 1; i++) {
-        const cJSON *size = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(files, i), "size");
+        const json_t *size = json_get(json_at(files, i), "size");
         /* Bounded before it is made a whole number: a size beyond any
          * number cannot be one. */
-        if (!cJSON_IsNumber(size) || size->valuedouble < 0 ||
-            size->valuedouble > APP_FILES_MAX_BYTES) {
+        if (!json_is_number(size) || size->number < 0 ||
+            size->number > APP_FILES_MAX_BYTES) {
             return false;
         }
-        long blocks = ((long)size->valuedouble + MANIFEST_FILE_BLOCK_BYTES - 1) /
+        long blocks = ((long)size->number + MANIFEST_FILE_BLOCK_BYTES - 1) /
                       MANIFEST_FILE_BLOCK_BYTES;
-        taken += (double)blocks * MANIFEST_FILE_BLOCK_BYTES;
+        taken += blocks * MANIFEST_FILE_BLOCK_BYTES;
     }
     return taken <= APP_FILES_MAX_BYTES;
 }
@@ -789,22 +789,22 @@ static esp_err_t handle_install(httpd_req_t *request)
                             "No free slots.");
     }
     char  *body = read_body(request);
-    cJSON *json = body != NULL ? cJSON_Parse(body) : NULL;
+    json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
-    const cJSON *files = cJSON_GetObjectItemCaseSensitive(json, "files");
+    const json_t *files = json_get(json, "files");
     if (!is_sound_file_list(files)) {
-        cJSON_Delete(json);
+        json_free(json);
         return send_message(request, "400 Bad Request", "error",
                             "Invalid request.");
     }
     const char  *problem = NULL;
-    const cJSON *entry;
+    const json_t *entry;
     bool         asks_for_system = false;
     /* What an install that failed left behind is not this one's. */
     app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
     /* The device stays on the network until the last file is here. */
     power_hold_radio();
-    cJSON_ArrayForEach(entry, files)
+    json_for_each(entry, files)
     {
         problem = install_file(source, app_name, entry, &asks_for_system);
         if (problem != NULL) {
@@ -830,7 +830,7 @@ static esp_err_t handle_install(httpd_req_t *request)
             problem = "Storage error.";
         }
     }
-    cJSON_Delete(json);
+    json_free(json);
     if (problem != NULL) {
         /* What was fetched and not put in place is nothing: a new
          * application's folder goes, an installed one stays as it was. */

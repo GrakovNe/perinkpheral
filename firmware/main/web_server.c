@@ -5,13 +5,14 @@
 #include "words.h"
 #include "web_server.h"
 #include "crash_note.h"
+#include "delay_guard.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
-#include "cJSON.h"
+#include "json_tree.h"
 #include "esp_heap_caps.h"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
@@ -110,10 +111,10 @@ bool web_server_refuses_cross_site(httpd_req_t *request)
     return true;
 }
 
-static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON *json)
+static esp_err_t send_json(httpd_req_t *request, const char *http_status, json_t *json)
 {
-    char *text = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);
+    char *text = json_print(json);
+    json_free(json);
     if (text == NULL) {
         return httpd_resp_send_500(request);
     }
@@ -132,8 +133,8 @@ static esp_err_t send_json(httpd_req_t *request, const char *http_status, cJSON 
 
 static esp_err_t send_failure(httpd_req_t *request, const char *http_status, const char *message)
 {
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "error", message);
+    json_t *json = json_new_object();
+    json_add_string(json, "error", message);
     return send_json(request, http_status, json);
 }
 
@@ -179,8 +180,8 @@ static esp_err_t send_error(httpd_req_t *request, const char *message)
 
 static esp_err_t send_ok(httpd_req_t *request, const char *message)
 {
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "ok", message);
+    json_t *json = json_new_object();
+    json_add_string(json, "ok", message);
     return send_json(request, "200 OK", json);
 }
 
@@ -218,51 +219,52 @@ static esp_err_t handle_status(httpd_req_t *request)
     appconf_t settings;
     settings_read(&settings);
 
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "name", settings.device_name);
-    cJSON_AddStringToObject(json, "firmware", esp_app_get_description()->version);
-    cJSON_AddStringToObject(json, "slot", running != NULL ? running->label : "?");
-    cJSON_AddBoolToObject(json, "on_probation", ota_is_on_probation());
-    cJSON_AddStringToObject(json, "wifi", phase_name(wifi.phase));
-    cJSON_AddStringToObject(json, "ssid", wifi.ssid);
-    cJSON_AddStringToObject(json, "address", wifi.address);
-    cJSON_AddStringToObject(json, "tz", settings.tz);
+    json_t *json = json_new_object();
+    json_add_string(json, "name", settings.device_name);
+    json_add_string(json, "firmware", esp_app_get_description()->version);
+    json_add_string(json, "slot", running != NULL ? running->label : "?");
+    json_add_bool(json, "on_probation", ota_is_on_probation());
+    json_add_string(json, "wifi", phase_name(wifi.phase));
+    json_add_string(json, "ssid", wifi.ssid);
+    json_add_string(json, "address", wifi.address);
+    json_add_string(json, "tz", settings.tz);
     if (net_time_is_known()) {
         char   local_time[LOCAL_TIME_MAX];
         time_t now = (time_t)net_time_now();
         struct tm local;
         localtime_r(&now, &local);
         strftime(local_time, sizeof local_time, "%a %d %b %H:%M", &local);
-        cJSON_AddStringToObject(json, "time", local_time);
+        json_add_string(json, "time", local_time);
     }
-    cJSON_AddStringToObject(json, "hostname", settings.hostname);
-    cJSON_AddStringToObject(json, "idf", esp_app_get_description()->idf_ver);
-    cJSON_AddStringToObject(json, "built", esp_app_get_description()->date);
-    cJSON_AddNumberToObject(json, "uptime_s", (double)(esp_timer_get_time() / 1000000));
-    cJSON_AddNumberToObject(json, "free_memory", esp_get_free_heap_size());
-    cJSON_AddNumberToObject(json, "least_free_memory", esp_get_minimum_free_heap_size());
+    json_add_string(json, "hostname", settings.hostname);
+    json_add_string(json, "idf", esp_app_get_description()->idf_ver);
+    json_add_string(json, "built", esp_app_get_description()->date);
+    json_add_number(json, "uptime_s", (int64_t)(esp_timer_get_time() / 1000000));
+    json_add_number(json, "free_memory", esp_get_free_heap_size());
+    json_add_number(json, "least_free_memory", esp_get_minimum_free_heap_size());
     /* Why the device started this time: a number of esp_reset_reason_t - 1 power, 3 a restart
      * asked for, 4 a fault, 5-7 a watchdog, 9 the supply sagged. */
-    cJSON_AddNumberToObject(json, "reset_reason", esp_reset_reason());
+    json_add_number(json, "reset_reason", esp_reset_reason());
+    json_add_number(json, "delays_cut", delay_guard_shortened());
     static char crash[320];
     if (crash_note_text(crash, sizeof crash)) {
-        cJSON_AddStringToObject(json, "last_panic", crash);
+        json_add_string(json, "last_panic", crash);
     }
     /* Of the application area, the most the application loaded now has had. */
-    cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
-    cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);
-    cJSON_AddBoolToObject(json, "storage_ok", storage_is_mounted());
+    json_add_number(json, "app_area_used", (int64_t)m3_area_most_used());
+    json_add_number(json, "app_area", M3_AREA_BYTES);
+    json_add_bool(json, "storage_ok", storage_is_mounted());
     size_t storage_used = 0, storage_total = 0;
     storage_usage(&storage_used, &storage_total);
-    cJSON_AddNumberToObject(json, "storage_used", (double)storage_used);
-    cJSON_AddNumberToObject(json, "storage_total", (double)storage_total);
-    cJSON_AddNumberToObject(json, "largest_free_block",
+    json_add_number(json, "storage_used", (int64_t)storage_used);
+    json_add_number(json, "storage_total", (int64_t)storage_total);
+    json_add_number(json, "largest_free_block",
                             heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
-    cJSON_AddBoolToObject(json, "usb_host", usb_serial_jtag_is_connected());
+    json_add_bool(json, "usb_host", usb_serial_jtag_is_connected());
     memory_counts_t memory;
     memory_read(&memory);
-    cJSON_AddNumberToObject(json, "memory_refusals", memory.refusals);
-    cJSON_AddNumberToObject(json, "failed_allocations", memory.failed_allocations);
+    json_add_number(json, "memory_refusals", memory.refusals);
+    json_add_number(json, "failed_allocations", memory.failed_allocations);
     return send_json(request, "200 OK", json);
 }
 
@@ -363,16 +365,16 @@ static bool read_body(httpd_req_t *request, char *body, size_t body_size)
 
 /* False when the field is there and is not a string that fits. A missing
  * field leaves the value as it is. */
-static bool take_string(const cJSON *json, const char *field, char *value, size_t value_size)
+static bool take_string(const json_t *json, const char *field, char *value, size_t value_size)
 {
-    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    const json_t *item = json_get(json, field);
     if (item == NULL) {
         return true;
     }
-    if (!cJSON_IsString(item) || strlen(item->valuestring) >= value_size) {
+    if (!json_is_string(item) || strlen(item->text) >= value_size) {
         return false;
     }
-    strcpy(value, item->valuestring);
+    strcpy(value, item->text);
     return true;
 }
 
@@ -383,10 +385,10 @@ static bool take_string(const cJSON *json, const char *field, char *value, size_
  * panel if the panel is busy. */
 
 /* Puts what the page sent into `wanted`; false when a field does not fit. */
-typedef bool (*settings_edit_fn)(const cJSON *json, appconf_t *wanted);
+typedef bool (*settings_edit_fn)(const json_t *json, appconf_t *wanted);
 
 typedef struct {
-    const cJSON       *json;
+    const json_t       *json;
     settings_edit_fn   edit;
     bool               fits;
     settings_outcome_t outcome;
@@ -420,25 +422,25 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
     }
-    cJSON *json = cJSON_Parse(body);
+    json_t *json = json_parse(body);
     if (json == NULL) {
         return send_error(request, "Invalid request.");
     }
     if (confirmation != NULL) {
         /* What is asked about is named by the request itself. */
-        const cJSON *named = cJSON_GetObjectItemCaseSensitive(json, confirmation->named_by);
+        const json_t *named = json_get(json, confirmation->named_by);
         char         second[QUESTION_MAX + 1];
         snprintf(second, sizeof second, confirmation->second_format,
-                 cJSON_IsString(named) ? named->valuestring : "");
+                 json_is_string(named) ? named->text : "");
         if (!is_confirmed_on_device(request, confirmation->first, second, confirmation->icon,
                                         confirmation->action)) {
-            cJSON_Delete(json);
+            json_free(json);
             return ESP_OK;
         }
     }
     settings_command_t command = { .json = json, .edit = edit };
     bool is_asked = events_call(change_settings, &command);
-    cJSON_Delete(json);
+    json_free(json);
     if (!is_asked) {
         return send_failure(request, STATUS_BUSY, "Device busy.");
     }
@@ -460,7 +462,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     return send_ok(request, command.needs_restart ? "Saved. Restart to apply." : "Saved.");
 }
 
-static bool edit_network(const cJSON *json, appconf_t *wanted)
+static bool edit_network(const json_t *json, appconf_t *wanted)
 {
     return take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
            take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
@@ -475,9 +477,9 @@ static esp_err_t handle_wifi(httpd_req_t *request)
 
 /* The time zone takes effect at once: the header and the applications
  * read local time anew whenever they draw. */
-static bool edit_time_zone(const cJSON *json, appconf_t *wanted)
+static bool edit_time_zone(const json_t *json, appconf_t *wanted)
 {
-    return cJSON_GetObjectItemCaseSensitive(json, "tz") != NULL &&
+    return json_get(json, "tz") != NULL &&
            take_string(json, "tz", wanted->tz, sizeof wanted->tz);
 }
 
@@ -495,70 +497,69 @@ static esp_err_t handle_settings(httpd_req_t *request)
     }
     appconf_t settings;
     settings_read(&settings);
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "device_name", settings.device_name);
-    cJSON_AddStringToObject(json, "hostname", settings.hostname);
-    cJSON_AddStringToObject(json, "wifi_ssid", settings.wifi_ssid);
-    cJSON_AddStringToObject(json, "ntp_server", settings.ntp_server);
-    cJSON_AddStringToObject(json, "tz", settings.tz);
-    cJSON_AddNumberToObject(json, "refresh_min_data_s", settings.refresh_min_data_s);
-    cJSON_AddNumberToObject(json, "refresh_full_every", settings.refresh_full_every);
-    cJSON_AddNumberToObject(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
-    cJSON_AddBoolToObject(json, "dither", settings.dither != 0);
-    cJSON_AddNumberToObject(json, "font", settings.font);
-    cJSON_AddBoolToObject(json, "refresh_fast", settings.refresh_fast != 0);
-    cJSON_AddBoolToObject(json, "header_clock", settings.header_clock != 0);
-    cJSON_AddBoolToObject(json, "time_auto", settings.time_auto != 0);
-    cJSON_AddNumberToObject(json, "power_saving", settings.power_saving);
-    cJSON_AddStringToObject(json, "default_app", settings.default_app);
-    cJSON_AddStringToObject(json, "language", settings.language);
+    json_t *json = json_new_object();
+    json_add_string(json, "device_name", settings.device_name);
+    json_add_string(json, "hostname", settings.hostname);
+    json_add_string(json, "wifi_ssid", settings.wifi_ssid);
+    json_add_string(json, "ntp_server", settings.ntp_server);
+    json_add_string(json, "tz", settings.tz);
+    json_add_number(json, "refresh_min_data_s", settings.refresh_min_data_s);
+    json_add_number(json, "refresh_full_every", settings.refresh_full_every);
+    json_add_number(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
+    json_add_bool(json, "dither", settings.dither != 0);
+    json_add_number(json, "font", settings.font);
+    json_add_bool(json, "refresh_fast", settings.refresh_fast != 0);
+    json_add_bool(json, "header_clock", settings.header_clock != 0);
+    json_add_bool(json, "time_auto", settings.time_auto != 0);
+    json_add_number(json, "power_saving", settings.power_saving);
+    json_add_string(json, "default_app", settings.default_app);
+    json_add_string(json, "language", settings.language);
     {
         int    count;
-        cJSON *languages = cJSON_CreateArray();
+        json_t *languages = json_new_array();
         const appconf_language_t *known = appconf_languages(&count);
         for (int i = 0; i < count; i++) {
-            cJSON *language = cJSON_CreateObject();
-            cJSON_AddStringToObject(language, "code", known[i].code);
-            cJSON_AddStringToObject(language, "name", known[i].name);
-            cJSON_AddItemToArray(languages, language);
+            json_t *language = json_new_object();
+            json_add_string(language, "code", known[i].code);
+            json_add_string(language, "name", known[i].name);
+            json_array_add(languages, language);
         }
-        cJSON_AddItemToObject(json, "languages", languages);
+        json_add_item(json, "languages", languages);
     }
-    cJSON_AddNumberToObject(json, "menu_idle_min", settings.menu_idle_min);
+    json_add_number(json, "menu_idle_min", settings.menu_idle_min);
     return send_json(request, "200 OK", json);
 }
 
 
 /* A number that is there has to be a whole one from 0 to `most`; one that
  * is not leaves the value as it was. */
-static bool take_number(const cJSON *json, const char *field, uint32_t most, uint32_t *value)
+static bool take_number(const json_t *json, const char *field, uint32_t most, uint32_t *value)
 {
-    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    const json_t *item = json_get(json, field);
     if (item == NULL) {
         return true;
     }
-    if (!cJSON_IsNumber(item) || item->valuedouble < 0 || item->valuedouble > most ||
-        item->valuedouble != (double)(uint32_t)item->valuedouble) {
+    if (!json_is_number(item) || !item->is_whole || item->number < 0 || item->number > most) {
         return false;
     }
-    *value = (uint32_t)item->valuedouble;
+    *value = (uint32_t)item->number;
     return true;
 }
 
-static bool take_flag(const cJSON *json, const char *field, uint8_t *value)
+static bool take_flag(const json_t *json, const char *field, uint8_t *value)
 {
-    const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, field);
+    const json_t *item = json_get(json, field);
     if (item == NULL) {
         return true;
     }
-    if (!cJSON_IsBool(item)) {
+    if (!json_is_bool(item)) {
         return false;
     }
-    *value = cJSON_IsTrue(item) ? 1 : 0;
+    *value = json_is_true(item) ? 1 : 0;
     return true;
 }
 
-static bool edit_settings(const cJSON *json, appconf_t *wanted)
+static bool edit_settings(const json_t *json, appconf_t *wanted)
 {
     uint32_t power_saving = wanted->power_saving, menu_idle_min = wanted->menu_idle_min;
     uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
@@ -645,18 +646,18 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
     }
-    cJSON *json = cJSON_Parse(body);
-    const cJSON *url = cJSON_GetObjectItemCaseSensitive(json, "url");
-    const cJSON *size = cJSON_GetObjectItemCaseSensitive(json, "size");
+    json_t *json = json_parse(body);
+    const json_t *url = json_get(json, "url");
+    const json_t *size = json_get(json, "size");
     char   address[RELEASE_URL_MAX + 1] = "";
     size_t image_size = 0;
-    if (cJSON_IsString(url) && strlen(url->valuestring) <= RELEASE_URL_MAX &&
-        strncmp(url->valuestring, RELEASE_URL_PREFIX, strlen(RELEASE_URL_PREFIX)) == 0 &&
-        cJSON_IsNumber(size) && size->valuedouble > 0) {
-        strcpy(address, url->valuestring);
-        image_size = (size_t)size->valuedouble;
+    if (json_is_string(url) && strlen(url->text) <= RELEASE_URL_MAX &&
+        strncmp(url->text, RELEASE_URL_PREFIX, strlen(RELEASE_URL_PREFIX)) == 0 &&
+        json_is_number(size) && size->number > 0) {
+        strcpy(address, url->text);
+        image_size = (size_t)size->number;
     }
-    cJSON_Delete(json);
+    json_free(json);
     if (address[0] == '\0') {
         return send_error(request, "Invalid request.");
     }

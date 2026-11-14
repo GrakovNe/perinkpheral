@@ -10,7 +10,7 @@
 
 #include "mbedtls/sha256.h"
 
-#include "cJSON.h"
+#include "json_tree.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -143,16 +143,16 @@ static void take_translated_title(app_manifest_t *manifest)
     char  *text = embedded == NULL ? app_store_read_translation(STORAGE_APPS_ROOT, manifest->name,
                                                                 settings.language)
                                    : NULL;
-    cJSON *translation = embedded != NULL ? cJSON_Parse((const char *)embedded)
-                         : text != NULL   ? cJSON_Parse(text)
+    json_t *translation = embedded != NULL ? json_parse((const char *)embedded)
+                         : text != NULL   ? json_parse(text)
                                           : NULL;
     free(text);
-    const cJSON *title = cJSON_GetObjectItemCaseSensitive(translation, "title");
-    if (cJSON_IsString(title) && title->valuestring[0] != '\0' &&
-        strlen(title->valuestring) < sizeof manifest->title) {
-        strcpy(manifest->title, title->valuestring);
+    const json_t *title = json_get(translation, "title");
+    if (json_is_string(title) && title->text[0] != '\0' &&
+        strlen(title->text) < sizeof manifest->title) {
+        strcpy(manifest->title, title->text);
     }
-    cJSON_Delete(translation);
+    json_free(translation);
 }
 
 /* Reads the store and makes a scene of every installed application. */

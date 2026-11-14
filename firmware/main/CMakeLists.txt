@@ -1,4 +1,4 @@
-set(srcs "main.c" "settings.c" "reset.c" "crash_note.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c" "glyphs.c"
+set(srcs "main.c" "settings.c" "reset.c" "crash_note.c" "delay_guard.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c" "glyphs.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
          "scene_menu.c" "scene_splash.c" "scene_storage.c" "scene_confirm.c" "scene_notify.c" "scene_working.c" "launcher.c" "poller.c" "poller_net.c" "image_layout.c" "power.c" "memory.c")
 if(CONFIG_APP_DEV_CONSOLE)
@@ -11,7 +11,7 @@ idf_component_register(SRCS ${srcs}
                        REQUIRES appconf appsys board deadlines epd gfx input net qr ui wasm3
                               nvs_flash esp_partition esp_hw_support esp_system esp_timer esp_pm
                               app_update esp_app_format esp_driver_usb_serial_jtag
-                              esp_http_server esp_http_client mbedtls json)
+                              esp_http_server esp_http_client mbedtls)
 
 # The page goes into the firmware packed - 17 KB of its 55 - and to the
 # browser as it is: every browser unpacks gzip.
@@ -42,6 +42,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${partitions_csv
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-u image_layout")
 # crash_note.c records a panic before the system handler runs.
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")
+# delay_guard.c cuts a busy wait that can only be a mistake.
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_rom_delay_us")
 
 # The applications in sdk/apps are built with the SDK and packed into the
 # image of the "apps" partition, which is flashed with the firmware.

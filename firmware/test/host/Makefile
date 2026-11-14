@@ -20,7 +20,7 @@ GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
+TESTS   := test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
 
 # The manifest is JSON; the parser comes with ESP-IDF.
 ifdef IDF_PATH
@@ -49,6 +49,9 @@ endif
 test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
 	@python3 check_languages.py ../../../sdk/languages.json ../../components/appconf/appconf.c
+
+test_json_tree: test_json_tree.c tinytest.h $(APPSYS)/json_tree.c $(APPSYS)/include/json_tree.h
+	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSYS)/json_tree.c
 
 test_appconf: test_appconf.c tinytest.h $(APPCONF)/appconf.c $(APPCONF)/include/appconf.h
 	$(CC) $(CFLAGS) -I$(APPCONF)/include -o $@ test_appconf.c $(APPCONF)/appconf.c
@@ -130,12 +133,9 @@ test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildca
 test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
 
-CJSON := $(IDF_PATH)/components/json/cJSON
-MANIFEST_SRCS := $(APPSYS)/app_manifest.c build/cJSON.o
-MANIFEST_FLAGS := -I$(APPSYS)/include -I$(CJSON) -I$(SDK) -I$(SDK_LIB)
+MANIFEST_SRCS := $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c
+MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
 
-build/cJSON.o: $(CJSON)/cJSON.c
-	@mkdir -p build
 	$(CC) -std=c11 -w -c -o $@ $<
 
 test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/include/app_manifest.h

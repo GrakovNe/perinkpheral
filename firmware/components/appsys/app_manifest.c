@@ -11,7 +11,7 @@ _Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
 #include <stdlib.h>
 #include <string.h>
 
-#include "cJSON.h"
+#include "json_tree.h"
 #include "host_api.h"
 
 static bool is_name_character(char character)
@@ -35,17 +35,17 @@ bool app_manifest_is_valid_name(const char *name)
 
 /* False when the field is there but is not a string that fits. A missing
  * field leaves `value` empty. */
-static bool read_string(const cJSON *root, const char *field, char *value, size_t value_size)
+static bool read_string(const json_t *root, const char *field, char *value, size_t value_size)
 {
     value[0] = '\0';
-    const cJSON *item = cJSON_GetObjectItemCaseSensitive(root, field);
+    const json_t *item = json_get(root, field);
     if (item == NULL) {
         return true;
     }
-    if (!cJSON_IsString(item) || strlen(item->valuestring) >= value_size) {
+    if (!json_is_string(item) || strlen(item->text) >= value_size) {
         return false;
     }
-    strcpy(value, item->valuestring);
+    strcpy(value, item->text);
     return true;
 }
 
@@ -56,63 +56,63 @@ static bool starts_with(const char *text, const char *prefix)
 
 /* The headers of a poll: an object of strings. A poll without the field
  * has none. */
-static bool read_headers(const cJSON *headers, app_poll_t *poll)
+static bool read_headers(const json_t *headers, app_poll_t *poll)
 {
     poll->header_count = 0;
     if (headers == NULL) {
         return true;
     }
-    if (!cJSON_IsObject(headers) || cJSON_GetArraySize(headers) > APP_HEADERS_MAX) {
+    if (!json_is_object(headers) || json_count(headers) > APP_HEADERS_MAX) {
         return false;
     }
-    const cJSON *header;
-    cJSON_ArrayForEach(header, headers)
+    const json_t *header;
+    json_for_each(header, headers)
     {
         app_header_t *parsed = &poll->headers[poll->header_count];
-        if (!cJSON_IsString(header) || header->string[0] == '\0' ||
-            strlen(header->string) > APP_HEADER_NAME_MAX ||
-            strlen(header->valuestring) > APP_HEADER_VALUE_MAX) {
+        if (!json_is_string(header) || header->name[0] == '\0' ||
+            strlen(header->name) > APP_HEADER_NAME_MAX ||
+            strlen(header->text) > APP_HEADER_VALUE_MAX) {
             return false;
         }
-        strcpy(parsed->name, header->string);
-        strcpy(parsed->value, header->valuestring);
+        strcpy(parsed->name, header->name);
+        strcpy(parsed->value, header->text);
         poll->header_count++;
     }
     return true;
 }
 
-static bool read_pick(const cJSON *pick, app_poll_t *poll)
+static bool read_pick(const json_t *pick, app_poll_t *poll)
 {
     poll->pick_count = 0;
     if (pick == NULL) {
         return true;
     }
-    if (!cJSON_IsArray(pick) || cJSON_GetArraySize(pick) > JSON_PICK_PATHS_MAX) {
+    if (!json_is_array(pick) || json_count(pick) > JSON_PICK_PATHS_MAX) {
         return false;
     }
-    const cJSON *path;
-    cJSON_ArrayForEach(path, pick)
+    const json_t *path;
+    json_for_each(path, pick)
     {
-        if (!cJSON_IsString(path) || path->valuestring[0] == '\0' ||
-            strlen(path->valuestring) > JSON_PICK_PATH_MAX) {
+        if (!json_is_string(path) || path->text[0] == '\0' ||
+            strlen(path->text) > JSON_PICK_PATH_MAX) {
             return false;
         }
-        strcpy(poll->pick[poll->pick_count++], path->valuestring);
+        strcpy(poll->pick[poll->pick_count++], path->text);
     }
     return true;
 }
 
-static int address_setting(const cJSON *settings, const char *key, size_t key_length);
+static int address_setting(const json_t *settings, const char *key, size_t key_length);
 
 /* The page that sets the application up from a browser: somewhere a
  * browser will take a secret from, so https and nothing else. */
-static bool is_companion_url(const cJSON *companion)
+static bool is_companion_url(const json_t *companion)
 {
     static const char SCHEME[] = "https://";
-    if (!cJSON_IsString(companion)) {
+    if (!json_is_string(companion)) {
         return false;
     }
-    const char *url = companion->valuestring;
+    const char *url = companion->text;
     size_t      length = strlen(url);
     if (length <= sizeof SCHEME - 1 || length > APP_URL_MAX || !starts_with(url, SCHEME)) {
         return false;
@@ -151,7 +151,7 @@ uint32_t app_manifest_interval_seconds(const char *text)
 /* "{{key}}" and nothing else before `rest`: the key, when it is a setting
  * of the "url" type - the server the user named - or of the "link" type,
  * which is the whole address and has nothing after it. */
-static bool starts_with_server_setting(const cJSON *settings, const char *text, const char **rest)
+static bool starts_with_server_setting(const json_t *settings, const char *text, const char **rest)
 {
     if (!starts_with(text, "{{")) {
         return false;
@@ -168,9 +168,9 @@ static bool starts_with_server_setting(const cJSON *settings, const char *text, 
 
 /* A poll goes to a server the manifest names, or to the one the user
  * named in a setting made for it. */
-static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *parsed)
+static bool read_poll(const json_t *poll, const json_t *settings, app_poll_t *parsed)
 {
-    if (!cJSON_IsObject(poll)) {
+    if (!json_is_object(poll)) {
         return false;
     }
     const char *after_server;
@@ -179,14 +179,14 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
           starts_with_server_setting(settings, parsed->url, &after_server))) {
         return false;
     }
-    const cJSON *every = cJSON_GetObjectItemCaseSensitive(poll, "every");
+    const json_t *every = json_get(poll, "every");
     parsed->every_key[0] = '\0';
-    if (cJSON_IsString(every)) {
+    if (json_is_string(every)) {
         /* "{{key}}": the pace is the user's choice in that setting, and
          * its default - or a quarter of an hour - until one is made. */
-        const char  *text = every->valuestring;
+        const char  *text = every->text;
         size_t       length = strlen(text);
-        const cJSON *setting;
+        const json_t *setting;
         bool         is_found = false;
         if (length < 5 || length - 4 > APP_SETTING_KEY_MAX || !starts_with(text, "{{") ||
             strcmp(text + length - 2, "}}") != 0) {
@@ -195,15 +195,15 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
         memcpy(parsed->every_key, text + 2, length - 4);
         parsed->every_key[length - 4] = '\0';
         parsed->every_s = APP_POLL_EVERY_UNSET_S;
-        cJSON_ArrayForEach(setting, settings)
+        json_for_each(setting, settings)
         {
-            const cJSON *key = cJSON_GetObjectItemCaseSensitive(setting, "key");
-            if (!cJSON_IsString(key) || strcmp(key->valuestring, parsed->every_key) != 0) {
+            const json_t *key = json_get(setting, "key");
+            if (!json_is_string(key) || strcmp(key->text, parsed->every_key) != 0) {
                 continue;
             }
             is_found = true;
-            const cJSON *preset = cJSON_GetObjectItemCaseSensitive(setting, "default");
-            uint32_t     pace = cJSON_IsString(preset) ? app_manifest_interval_seconds(preset->valuestring)
+            const json_t *preset = json_get(setting, "default");
+            uint32_t     pace = json_is_string(preset) ? app_manifest_interval_seconds(preset->text)
                                                        : 0;
             if (pace >= APP_POLL_EVERY_MIN_S && pace <= APP_POLL_EVERY_MAX_S) {
                 parsed->every_s = pace;
@@ -212,14 +212,14 @@ static bool read_poll(const cJSON *poll, const cJSON *settings, app_poll_t *pars
         if (!is_found) {
             return false;
         }
-    } else if (!cJSON_IsNumber(every) || every->valuedouble < APP_POLL_EVERY_MIN_S ||
-               every->valuedouble > APP_POLL_EVERY_MAX_S) {
+    } else if (!json_is_number(every) || every->number < APP_POLL_EVERY_MIN_S ||
+               every->number > APP_POLL_EVERY_MAX_S) {
         return false;
     } else {
-        parsed->every_s = (uint32_t)every->valuedouble;
+        parsed->every_s = (uint32_t)every->number;
     }
-    return read_headers(cJSON_GetObjectItemCaseSensitive(poll, "headers"), parsed) &&
-           read_pick(cJSON_GetObjectItemCaseSensitive(poll, "pick"), parsed);
+    return read_headers(json_get(poll, "headers"), parsed) &&
+           read_pick(json_get(poll, "pick"), parsed);
 }
 
 static const char *const SETTING_TYPES[] = {
@@ -230,34 +230,34 @@ static const char *const SETTING_TYPES[] = {
 };
 #define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
 
-static bool is_text_of(const cJSON *item, size_t min_length, size_t max_length)
+static bool is_text_of(const json_t *item, size_t min_length, size_t max_length)
 {
-    return cJSON_IsString(item) && strlen(item->valuestring) >= min_length &&
-           strlen(item->valuestring) <= max_length;
+    return json_is_string(item) && strlen(item->text) >= min_length &&
+           strlen(item->text) <= max_length;
 }
 
 /* A text a person reads: so many characters at most, and no more bytes
  * than letters of two bytes would take. */
-static bool is_words_of(const cJSON *item, size_t min_characters, size_t max_characters)
+static bool is_words_of(const json_t *item, size_t min_characters, size_t max_characters)
 {
-    if (!cJSON_IsString(item)) {
+    if (!json_is_string(item)) {
         return false;
     }
     size_t characters = 0;
-    for (const char *at = item->valuestring; *at != '\0'; at++) {
+    for (const char *at = item->text; *at != '\0'; at++) {
         characters += ((unsigned char)*at & 0xC0) != 0x80;
     }
     return characters >= min_characters && characters <= max_characters &&
-           strlen(item->valuestring) <= max_characters * MANIFEST_TEXT_BYTES_PER_CHARACTER;
+           strlen(item->text) <= max_characters * MANIFEST_TEXT_BYTES_PER_CHARACTER;
 }
 
 /* A kv key: what kv_get and kv_set take. */
-static bool is_setting_key(const cJSON *key)
+static bool is_setting_key(const json_t *key)
 {
     if (!is_text_of(key, 1, APP_SETTING_KEY_MAX)) {
         return false;
     }
-    for (const char *character = key->valuestring; *character != '\0'; character++) {
+    for (const char *character = key->text; *character != '\0'; character++) {
         if (*character < '!' || *character > '~') {
             return false;
         }
@@ -266,36 +266,36 @@ static bool is_setting_key(const cJSON *key)
 }
 
 /* The type of a setting, or -1 when it is not a sound one. */
-static int setting_type(const cJSON *setting)
+static int setting_type(const json_t *setting)
 {
-    const cJSON *type = cJSON_GetObjectItemCaseSensitive(setting, "type");
-    const cJSON *help = cJSON_GetObjectItemCaseSensitive(setting, "help");
-    if (!cJSON_IsObject(setting) || !cJSON_IsString(type) ||
-        !is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "key")) ||
-        !is_words_of(cJSON_GetObjectItemCaseSensitive(setting, "title"), 1,
+    const json_t *type = json_get(setting, "type");
+    const json_t *help = json_get(setting, "help");
+    if (!json_is_object(setting) || !json_is_string(type) ||
+        !is_setting_key(json_get(setting, "key")) ||
+        !is_words_of(json_get(setting, "title"), 1,
                      APP_SETTING_TITLE_MAX) ||
         (help != NULL && !is_words_of(help, 0, APP_SETTING_HELP_MAX))) {
         return -1;
     }
     for (int known = 0; known < SETTING_TYPE_COUNT; known++) {
-        if (strcmp(type->valuestring, SETTING_TYPES[known]) != 0) {
+        if (strcmp(type->text, SETTING_TYPES[known]) != 0) {
             continue;
         }
-        const cJSON *options = cJSON_GetObjectItemCaseSensitive(setting, "options");
+        const json_t *options = json_get(setting, "options");
         if (known == APP_SETTING_PLACE &&
-            (!is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "latitude")) ||
-             !is_setting_key(cJSON_GetObjectItemCaseSensitive(setting, "longitude")))) {
+            (!is_setting_key(json_get(setting, "latitude")) ||
+             !is_setting_key(json_get(setting, "longitude")))) {
             return -1;
         }
         if (known != APP_SETTING_CHOICE) {
             return options == NULL ? known : -1;
         }
-        int count = cJSON_IsArray(options) ? cJSON_GetArraySize(options) : 0;
+        int count = json_is_array(options) ? json_count(options) : 0;
         if (count < 1 || count > APP_SETTING_OPTIONS_MAX) {
             return -1;
         }
-        const cJSON *option;
-        cJSON_ArrayForEach(option, options)
+        const json_t *option;
+        json_for_each(option, options)
         {
             if (!is_words_of(option, 1, APP_SETTING_OPTION_MAX)) {
                 return -1;
@@ -306,22 +306,22 @@ static int setting_type(const cJSON *setting)
     return -1;
 }
 
-static bool fits_type(const cJSON *setting, int type, const char *value);
+static bool fits_type(const json_t *setting, int type, const char *value);
 static bool is_server_value(const char *value);
 static bool is_link_value(const char *value);
 
 /* The type of the setting with this key when it is an address of the
  * user's - a server ("url") or a whole link - and -1 otherwise. */
-static int address_setting(const cJSON *settings, const char *key, size_t key_length)
+static int address_setting(const json_t *settings, const char *key, size_t key_length)
 {
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, settings)
+    const json_t *setting;
+    json_for_each(setting, settings)
     {
         int type = setting_type(setting);
         if (type != APP_SETTING_URL && type != APP_SETTING_LINK) {
             continue;
         }
-        const char *its_key = cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring;
+        const char *its_key = json_get(setting, "key")->text;
         if (strlen(its_key) == key_length && memcmp(its_key, key, key_length) == 0) {
             return type;
         }
@@ -333,26 +333,26 @@ static bool is_printable(const char *text);
 /* What the page shows while nothing is set; the application has to mean
  * the same when it finds nothing in its store. A secret has none, and a
  * place is not a place without its numbers. */
-static bool has_sound_default(const cJSON *setting, int type)
+static bool has_sound_default(const json_t *setting, int type)
 {
-    const cJSON *value = cJSON_GetObjectItemCaseSensitive(setting, "default");
+    const json_t *value = json_get(setting, "default");
     if (value == NULL) {
         return true;
     }
     return type != APP_SETTING_SECRET && type != APP_SETTING_PLACE &&
-           is_text_of(value, 1, APP_SETTING_VALUE_MAX) && is_printable(value->valuestring) &&
-           fits_type(setting, type, value->valuestring);
+           is_text_of(value, 1, APP_SETTING_VALUE_MAX) && is_printable(value->text) &&
+           fits_type(setting, type, value->text);
 }
 
 /* Whether the settings have a number under the key that `named` holds. */
-static bool has_number_setting(const cJSON *settings, const cJSON *named)
+static bool has_number_setting(const json_t *settings, const json_t *named)
 {
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, settings)
+    const json_t *setting;
+    json_for_each(setting, settings)
     {
         if (setting_type(setting) == APP_SETTING_NUMBER &&
-            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring,
-                   named->valuestring) == 0) {
+            strcmp(json_get(setting, "key")->text,
+                   named->text) == 0) {
             return true;
         }
     }
@@ -360,24 +360,24 @@ static bool has_number_setting(const cJSON *settings, const cJSON *named)
 }
 
 /* A place fills two number settings: they have to be there, and be two. */
-static bool is_sound_place(const cJSON *settings, const cJSON *place)
+static bool is_sound_place(const json_t *settings, const json_t *place)
 {
-    const cJSON *latitude = cJSON_GetObjectItemCaseSensitive(place, "latitude");
-    const cJSON *longitude = cJSON_GetObjectItemCaseSensitive(place, "longitude");
-    return strcmp(latitude->valuestring, longitude->valuestring) != 0 &&
+    const json_t *latitude = json_get(place, "latitude");
+    const json_t *longitude = json_get(place, "longitude");
+    return strcmp(latitude->text, longitude->text) != 0 &&
            has_number_setting(settings, latitude) && has_number_setting(settings, longitude);
 }
 
-static bool are_sound_settings(const cJSON *settings)
+static bool are_sound_settings(const json_t *settings)
 {
     if (settings == NULL) {
         return true;
     }
-    if (!cJSON_IsArray(settings) || cJSON_GetArraySize(settings) > APP_SETTINGS_MAX) {
+    if (!json_is_array(settings) || json_count(settings) > APP_SETTINGS_MAX) {
         return false;
     }
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, settings)
+    const json_t *setting;
+    json_for_each(setting, settings)
     {
         int type = setting_type(setting);
         if (type < 0 || (type == APP_SETTING_PLACE && !is_sound_place(settings, setting)) ||
@@ -385,9 +385,9 @@ static bool are_sound_settings(const cJSON *settings)
             return false;
         }
         /* Two settings under one key would be one value with two forms. */
-        const char *key = cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring;
-        for (const cJSON *earlier = settings->child; earlier != setting; earlier = earlier->next) {
-            if (strcmp(cJSON_GetObjectItemCaseSensitive(earlier, "key")->valuestring, key) == 0) {
+        const char *key = json_get(setting, "key")->text;
+        for (const json_t *earlier = settings->child; earlier != setting; earlier = earlier->next) {
+            if (strcmp(json_get(earlier, "key")->text, key) == 0) {
                 return false;
             }
         }
@@ -411,7 +411,7 @@ static bool is_number_text(const char *text)
     return digits > 0 && points <= 1;
 }
 
-static bool fits_type(const cJSON *setting, int type, const char *value)
+static bool fits_type(const json_t *setting, int type, const char *value)
 {
     /* Empty is "not set", whatever the type. */
     if (value[0] == '\0') {
@@ -427,10 +427,10 @@ static bool fits_type(const cJSON *setting, int type, const char *value)
     case APP_SETTING_LINK:
         return is_link_value(value);
     case APP_SETTING_CHOICE: {
-        const cJSON *option;
-        cJSON_ArrayForEach(option, cJSON_GetObjectItemCaseSensitive(setting, "options"))
+        const json_t *option;
+        json_for_each(option, json_get(setting, "options"))
         {
-            if (strcmp(option->valuestring, value) == 0) {
+            if (strcmp(option->text, value) == 0) {
                 return true;
             }
         }
@@ -456,14 +456,14 @@ static bool is_printable(const char *text)
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret)
 {
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     bool   accepted = false;
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings"))
     {
         int type = setting_type(setting);
         if (type < 0 ||
-            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring, key) != 0) {
+            strcmp(json_get(setting, "key")->text, key) != 0) {
             continue;
         }
         accepted = strlen(value) <= APP_SETTING_VALUE_MAX && is_printable(value) &&
@@ -473,46 +473,46 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
         }
         break;
     }
-    cJSON_Delete(root);
+    json_free(root);
     return accepted;
 }
 
 bool app_manifest_is_server_setting(const char *json, const char *key)
 {
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     bool   is_server = false;
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings"))
     {
-        const cJSON *named = cJSON_GetObjectItemCaseSensitive(setting, "key");
-        if (cJSON_IsString(named) && strcmp(named->valuestring, key) == 0) {
+        const json_t *named = json_get(setting, "key");
+        if (json_is_string(named) && strcmp(named->text, key) == 0) {
             is_server = setting_type(setting) == APP_SETTING_URL ||
                         setting_type(setting) == APP_SETTING_LINK;
             break;
         }
     }
-    cJSON_Delete(root);
+    json_free(root);
     return is_server;
 }
 
-static bool are_sound_hosts(const cJSON *hosts, const cJSON *settings)
+static bool are_sound_hosts(const json_t *hosts, const json_t *settings)
 {
     if (hosts == NULL) {
         return true;
     }
-    if (!cJSON_IsArray(hosts) || cJSON_GetArraySize(hosts) > APP_HOSTS_MAX) {
+    if (!json_is_array(hosts) || json_count(hosts) > APP_HOSTS_MAX) {
         return false;
     }
-    const cJSON *host;
-    cJSON_ArrayForEach(host, hosts)
+    const json_t *host;
+    json_for_each(host, hosts)
     {
         if (!is_text_of(host, 1, APP_HOST_MAX)) {
             return false;
         }
         /* "{{server}}": wherever the user said the server is. */
         const char *rest;
-        if (starts_with(host->valuestring, "{{") &&
-            !(starts_with_server_setting(settings, host->valuestring, &rest) && rest[0] == '\0')) {
+        if (starts_with(host->text, "{{") &&
+            !(starts_with_server_setting(settings, host->text, &rest) && rest[0] == '\0')) {
             return false;
         }
     }
@@ -636,25 +636,25 @@ bool app_manifest_allows_url(const char *json, const char *url,
     if (!host_in_url(url, &host)) {
         return false;
     }
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     bool   allowed = false;
-    const cJSON *listed;
-    cJSON_ArrayForEach(listed, cJSON_GetObjectItemCaseSensitive(root, "hosts"))
+    const json_t *listed;
+    json_for_each(listed, json_get(root, "hosts"))
     {
-        if (!cJSON_IsString(listed)) {
+        if (!json_is_string(listed)) {
             continue;
         }
         host_t named;
         char   server[APP_SETTING_VALUE_MAX + 1];
-        if (starts_with(listed->valuestring, "{{")) {
+        if (starts_with(listed->text, "{{")) {
             /* Wherever the user said the server is: the host of that setting,
              * at the port it has there. */
             char   key[APP_SETTING_KEY_MAX + 1];
-            size_t key_length = strlen(listed->valuestring) - 4; /* without the braces */
+            size_t key_length = strlen(listed->text) - 4; /* without the braces */
             if (value_of == NULL || key_length > APP_SETTING_KEY_MAX) {
                 continue;
             }
-            memcpy(key, listed->valuestring + 2, key_length);
+            memcpy(key, listed->text + 2, key_length);
             key[key_length] = '\0';
             if (value_of(context, key, server, sizeof server) && host_in_url(server, &named) &&
                 is_same_name(&named, &host) && named.port == host.port) {
@@ -664,7 +664,7 @@ bool app_manifest_allows_url(const char *json, const char *url,
             continue;
         }
         /* A name listed without a port is the name at its scheme's own. */
-        named = host_of(listed->valuestring, strlen(listed->valuestring));
+        named = host_of(listed->text, strlen(listed->text));
         bool is_same_port = named.port == NO_PORT ? is_scheme_port(host.port)
                                                   : named.port == host.port;
         if (is_same_name(&named, &host) && is_same_port) {
@@ -672,7 +672,7 @@ bool app_manifest_allows_url(const char *json, const char *url,
             break;
         }
     }
-    cJSON_Delete(root);
+    json_free(root);
     return allowed;
 }
 
@@ -689,21 +689,21 @@ static const struct {
 
 /* A kind the host does not know is a mistake, not something to pass over:
  * the application would wait for news that never comes. */
-static bool read_intents(const cJSON *intents, uint32_t *asked)
+static bool read_intents(const json_t *intents, uint32_t *asked)
 {
     *asked = 0;
     if (intents == NULL) {
         return true;
     }
-    if (!cJSON_IsArray(intents)) {
+    if (!json_is_array(intents)) {
         return false;
     }
-    const cJSON *intent;
-    cJSON_ArrayForEach(intent, intents)
+    const json_t *intent;
+    json_for_each(intent, intents)
     {
         bool is_known = false;
-        for (size_t i = 0; cJSON_IsString(intent) && i < sizeof INTENTS / sizeof INTENTS[0]; i++) {
-            if (strcmp(intent->valuestring, INTENTS[i].name) == 0) {
+        for (size_t i = 0; json_is_string(intent) && i < sizeof INTENTS / sizeof INTENTS[0]; i++) {
+            if (strcmp(intent->text, INTENTS[i].name) == 0) {
                 *asked |= 1u << INTENTS[i].intent;
                 is_known = true;
             }
@@ -715,25 +715,25 @@ static bool read_intents(const cJSON *intents, uint32_t *asked)
     return true;
 }
 
-static bool read_icon(const cJSON *icon, app_manifest_t *manifest)
+static bool read_icon(const json_t *icon, app_manifest_t *manifest)
 {
     manifest->has_icon = false;
     if (icon == NULL) {
         return true;
     }
-    if (!cJSON_IsArray(icon) || cJSON_GetArraySize(icon) != APP_ICON_CELLS) {
+    if (!json_is_array(icon) || json_count(icon) != APP_ICON_CELLS) {
         return false;
     }
     int          row = 0;
-    const cJSON *line;
-    cJSON_ArrayForEach(line, icon)
+    const json_t *line;
+    json_for_each(line, icon)
     {
         if (!is_text_of(line, APP_ICON_CELLS, APP_ICON_CELLS)) {
             return false;
         }
         uint16_t cells = 0;
         for (int column = 0; column < APP_ICON_CELLS; column++) {
-            char cell = line->valuestring[column];
+            char cell = line->text[column];
             if (cell != '#' && cell != '.') {
                 return false;
             }
@@ -745,16 +745,16 @@ static bool read_icon(const cJSON *icon, app_manifest_t *manifest)
     return true;
 }
 
-static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *manifest)
+static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *manifest)
 {
-    if (!cJSON_IsObject(root)) {
+    if (!json_is_object(root)) {
         return APP_MANIFEST_NOT_JSON;
     }
     if (!read_string(root, "name", manifest->name, sizeof manifest->name) ||
         !app_manifest_is_valid_name(manifest->name)) {
         return APP_MANIFEST_BAD_NAME;
     }
-    if (!is_words_of(cJSON_GetObjectItemCaseSensitive(root, "title"), 0, APP_TITLE_MAX) ||
+    if (!is_words_of(json_get(root, "title"), 0, APP_TITLE_MAX) ||
         !read_string(root, "title", manifest->title, sizeof manifest->title) ||
         manifest->title[0] == '\0') {
         return APP_MANIFEST_BAD_TITLE;
@@ -763,50 +763,50 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_BAD_FIELD;
     }
 
-    const cJSON *companion = cJSON_GetObjectItemCaseSensitive(root, "companion");
+    const json_t *companion = json_get(root, "companion");
     if (companion != NULL && !is_companion_url(companion)) {
         return APP_MANIFEST_BAD_FIELD;
     }
 
-    const cJSON *fullscreen = cJSON_GetObjectItemCaseSensitive(root, "fullscreen");
-    if (fullscreen != NULL && !cJSON_IsBool(fullscreen)) {
+    const json_t *fullscreen = json_get(root, "fullscreen");
+    if (fullscreen != NULL && !json_is_bool(fullscreen)) {
         return APP_MANIFEST_BAD_FIELD;
     }
-    manifest->fullscreen = cJSON_IsTrue(fullscreen);
-    const cJSON *system = cJSON_GetObjectItemCaseSensitive(root, "system");
-    if (system != NULL && !cJSON_IsBool(system)) {
+    manifest->fullscreen = json_is_true(fullscreen);
+    const json_t *system = json_get(root, "system");
+    if (system != NULL && !json_is_bool(system)) {
         return APP_MANIFEST_BAD_FIELD;
     }
-    manifest->system = cJSON_IsTrue(system);
+    manifest->system = json_is_true(system);
 
-    const cJSON *abi = cJSON_GetObjectItemCaseSensitive(root, "abi");
-    if (!cJSON_IsNumber(abi) || abi->valuedouble != HOST_API_VERSION) {
+    const json_t *abi = json_get(root, "abi");
+    if (!json_is_number(abi) || !abi->is_whole || abi->number != HOST_API_VERSION) {
         return APP_MANIFEST_OTHER_ABI;
     }
 
-    if (!read_icon(cJSON_GetObjectItemCaseSensitive(root, "icon"), manifest)) {
+    if (!read_icon(json_get(root, "icon"), manifest)) {
         return APP_MANIFEST_BAD_FIELD;
     }
-    if (!are_sound_hosts(cJSON_GetObjectItemCaseSensitive(root, "hosts"),
-                         cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
+    if (!are_sound_hosts(json_get(root, "hosts"),
+                         json_get(root, "settings"))) {
         return APP_MANIFEST_BAD_HOSTS;
     }
-    if (!are_sound_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"))) {
+    if (!are_sound_settings(json_get(root, "settings"))) {
         return APP_MANIFEST_BAD_SETTING;
     }
-    if (!read_intents(cJSON_GetObjectItemCaseSensitive(root, "intents"), &manifest->intents)) {
+    if (!read_intents(json_get(root, "intents"), &manifest->intents)) {
         return APP_MANIFEST_BAD_INTENT;
     }
 
-    const cJSON *polls = cJSON_GetObjectItemCaseSensitive(root, "polls");
+    const json_t *polls = json_get(root, "polls");
     manifest->poll_count = 0;
     if (polls == NULL) {
         return APP_MANIFEST_OK;
     }
-    if (!cJSON_IsArray(polls) || cJSON_GetArraySize(polls) > APP_POLLS_MAX) {
+    if (!json_is_array(polls) || json_count(polls) > APP_POLLS_MAX) {
         return APP_MANIFEST_BAD_POLL;
     }
-    const cJSON *poll;
+    const json_t *poll;
     /* A poll in full is a few kilobytes: not for the stack of whoever reads
      * a manifest. */
     app_poll_t *parsed = malloc(sizeof *parsed);
@@ -814,9 +814,9 @@ static app_manifest_result_t read_fields(const cJSON *root, app_manifest_t *mani
         return APP_MANIFEST_BAD_POLL;
     }
     app_manifest_result_t result = APP_MANIFEST_OK;
-    cJSON_ArrayForEach(poll, polls)
+    json_for_each(poll, polls)
     {
-        if (!read_poll(poll, cJSON_GetObjectItemCaseSensitive(root, "settings"), parsed)) {
+        if (!read_poll(poll, json_get(root, "settings"), parsed)) {
             result = APP_MANIFEST_BAD_POLL;
             break;
         }
@@ -837,24 +837,24 @@ app_manifest_result_t app_manifest_parse(const char *json, app_manifest_t *manif
     if (strstr(json, ESCAPED_ZERO) != NULL) {
         return APP_MANIFEST_BAD_FIELD;
     }
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     app_manifest_result_t result = read_fields(root, manifest);
-    cJSON_Delete(root);
+    json_free(root);
     return result;
 }
 
 app_manifest_result_t app_manifest_parse_poll(const char *json, int poll, app_poll_t *parsed)
 {
-    cJSON *root = cJSON_Parse(json);
-    const cJSON *polls = cJSON_GetObjectItemCaseSensitive(root, "polls");
+    json_t *root = json_parse(json);
+    const json_t *polls = json_get(root, "polls");
     /* NULL for a number that is not there, and for no array at all. */
-    const cJSON *wanted = poll >= 0 ? cJSON_GetArrayItem(polls, poll) : NULL;
+    const json_t *wanted = poll >= 0 ? json_at(polls, poll) : NULL;
     app_manifest_result_t result =
         wanted != NULL &&
-                read_poll(wanted, cJSON_GetObjectItemCaseSensitive(root, "settings"), parsed)
+                read_poll(wanted, json_get(root, "settings"), parsed)
             ? APP_MANIFEST_OK
             : APP_MANIFEST_BAD_POLL;
-    cJSON_Delete(root);
+    json_free(root);
     return result;
 }
 
@@ -890,33 +890,33 @@ const char *app_manifest_result_text(app_manifest_result_t result)
 
 int app_manifest_setting_type(const char *json, const char *key)
 {
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     int    found = -1;
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings"))
     {
         int type = setting_type(setting);
         if (type >= 0 &&
-            strcmp(cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring, key) == 0) {
+            strcmp(json_get(setting, "key")->text, key) == 0) {
             found = type;
             break;
         }
     }
-    cJSON_Delete(root);
+    json_free(root);
     return found;
 }
 
 int app_manifest_secret_keys(const char *json, char keys[][APP_SETTING_KEY_MAX + 1], int capacity)
 {
-    cJSON *root = cJSON_Parse(json);
+    json_t *root = json_parse(json);
     int    count = 0;
-    const cJSON *setting;
-    cJSON_ArrayForEach(setting, cJSON_GetObjectItemCaseSensitive(root, "settings"))
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings"))
     {
         if (setting_type(setting) == APP_SETTING_SECRET && count < capacity) {
-            strcpy(keys[count++], cJSON_GetObjectItemCaseSensitive(setting, "key")->valuestring);
+            strcpy(keys[count++], json_get(setting, "key")->text);
         }
     }
-    cJSON_Delete(root);
+    json_free(root);
     return count;
 }
