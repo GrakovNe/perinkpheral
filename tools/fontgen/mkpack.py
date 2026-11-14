@@ -20,6 +20,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fontgen  # noqa: E402  (render, pack_rows, write_png)
+import jersey_cyrillic  # noqa: E402
 
 try:
     import freetype
@@ -33,7 +34,16 @@ FONTS = os.path.join(ROOT, "assets", "fonts")
 # sizes the firmware's own fonts were made at.
 FACES = [
     (0, "DepartureMono-Regular.otf", 11),
+    (1, "Jersey10-Regular.ttf", 18.6667),
+    (2, "Jersey15-Regular.ttf", 27),
+    (4, "Jersey25-Regular.ttf", 41),
 ]
+
+# Jersey 20 (face 3) is left out: the firmware uses it for the largest size
+# alone, and with it the packs do not fit their partition.
+
+# Jersey has no Cyrillic: its letters are made from its Latin ones.
+MADE = {"Jersey10-Regular.ttf", "Jersey15-Regular.ttf", "Jersey25-Regular.ttf"}
 
 DEGREE = 0x00B0  # the host draws its own, sized for every font
 
@@ -60,8 +70,11 @@ def face_part(number, font_file, px, code_points):
     face = freetype.Face(os.path.join(FONTS, font_file))
     face.set_char_size(0, round(px * 64), 72, 72)
     glyphs, bits, missing, drawn = [], bytearray(), [], {}
+    made = jersey_cyrillic.glyphs(lambda cp: fontgen.render(face, cp)) if font_file in MADE else {}
     for cp in sorted(set(code_points)):
         rendered = fontgen.render(face, cp)
+        if rendered is None:
+            rendered = made.get(cp)
         if rendered is None and cp in SAME_AS:
             rendered = fontgen.render(face, SAME_AS[cp])
         if rendered is None:
@@ -109,10 +122,12 @@ def main():
                 continue
             parts.append(part)
             if missing:
-                print("  %s lacks %s" % (font_file, " ".join("U+%04X" % cp for cp in missing)))
+                print("  %s lacks %d: %s" % (font_file, len(missing),
+                                             " ".join("U+%04X" % cp for cp in missing[:12])))
             if options.sheet:
                 os.makedirs(options.sheet, exist_ok=True)
-                sheet(os.path.join(options.sheet, "%s-face%d.png" % (name, number)), drawn, px)
+                sheet(os.path.join(options.sheet, "%s-face%d.png" % (name, number)), drawn,
+                      round(px))
         body = b"".join(parts)
         total = 24 + len(body)
         header = struct.pack("<IHBxI12s", MAGIC, VERSION, len(parts), total, name.encode())

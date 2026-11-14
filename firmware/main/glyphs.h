@@ -20,7 +20,7 @@ extern "C" {
  * removes them from the page. */
 
 #define GLYPHS_PACKS_MAX     8
-#define GLYPHS_PACK_MAX_BYTES (24 * 1024)
+#define GLYPHS_PACK_MAX_BYTES (32 * 1024)
 
 typedef struct {
     char   name[GFX_PACK_NAME_MAX + 1];
