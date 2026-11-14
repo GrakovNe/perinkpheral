@@ -203,12 +203,6 @@ static void add_settings(json_t *app, const char *app_name)
 
 static esp_err_t handle_list(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
-    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
-        return ESP_OK;
-    }
     int                   count = read_installed();
     const app_manifest_t *installed = s_installed;
     json_t                *apps = json_new_array();
@@ -345,9 +339,6 @@ static void change_app_settings(void *argument)
 
 static esp_err_t handle_settings(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char app_name[APP_NAME_BUFFER];
     if (!asked_app(request, app_name)) {
         return send_message(request, "404 Not Found", "error", "App not found.");
@@ -371,9 +362,6 @@ static esp_err_t handle_settings(httpd_req_t *request)
 
 static esp_err_t handle_removed(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char   names[REMOVED_LISTED_MAX][APP_NAME_MAX + 1];
     int    count = app_kv_orphaned(names, REMOVED_LISTED_MAX);
     json_t *list = json_new_array();
@@ -387,9 +375,6 @@ static esp_err_t handle_removed(httpd_req_t *request)
 
 static esp_err_t handle_glyphs(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     glyphs_pack_t packs[GLYPHS_PACKS_MAX];
     int           count = glyphs_list(packs);
     json_t        *list = json_new_array();
@@ -424,14 +409,8 @@ static void change_glyphs(void *argument)
 /* POST /api/glyphs, the body a pack as tools/fontgen/mkpack.py makes it. */
 static esp_err_t handle_glyphs_install(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     if (request->content_len < 1 || request->content_len > GLYPHS_PACK_MAX_BYTES) {
         return send_message(request, "400 Bad Request", "error", "Invalid pack.");
-    }
-    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
-        return ESP_OK;
     }
     uint8_t *pack = malloc(request->content_len);
     if (pack == NULL) {
@@ -459,9 +438,6 @@ static esp_err_t handle_glyphs_install(httpd_req_t *request)
 
 static esp_err_t handle_glyphs_remove(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char name[GFX_PACK_NAME_MAX + 1] = "", query[QUERY_MAX];
     if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
         httpd_query_key_value(query, "name", name, sizeof name);
@@ -478,9 +454,6 @@ static esp_err_t handle_glyphs_remove(httpd_req_t *request)
 
 static esp_err_t handle_sources(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char *sources = malloc(CATALOG_SOURCES_TEXT_MAX);
     if (sources == NULL) {
         return httpd_resp_send_500(request);
@@ -499,9 +472,6 @@ static esp_err_t handle_sources(httpd_req_t *request)
 
 static esp_err_t handle_set_sources(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char  *body = read_body(request);
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
@@ -576,12 +546,6 @@ static bool pass_on(void *context, const uint8_t *piece, size_t length)
 
 static esp_err_t handle_catalog(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
-    if (!web_server_has_memory(request, MEMORY_FOR_A_SESSION)) {
-        return ESP_OK;
-    }
     char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
     if (!asked_source(request, source) ||
         !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
@@ -769,12 +733,6 @@ static bool is_sound_file_list(const json_t *files)
 
 static esp_err_t handle_install(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
-    if (!web_server_has_memory(request, MEMORY_FOR_A_SESSION)) {
-        return ESP_OK;
-    }
     char query[QUERY_MAX], app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];
     if (!asked_source(request, source) ||
         httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
@@ -856,9 +814,6 @@ static esp_err_t handle_install(httpd_req_t *request)
  * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[4] = "";
     if (!asked_app(request, app_name)) {
         return send_message(request, "404 Not Found", "error", "App not found.");
@@ -879,20 +834,18 @@ static esp_err_t handle_remove(httpd_req_t *request)
 
 void web_apps_register(httpd_handle_t server)
 {
-    static const httpd_uri_t ROUTES[WEB_APPS_ROUTES] = {
-        { .uri = "/api/apps", .method = HTTP_GET, .handler = handle_list },
-        { .uri = "/api/apps/settings", .method = HTTP_POST, .handler = handle_settings },
-        { .uri = "/api/apps/removed", .method = HTTP_GET, .handler = handle_removed },
-        { .uri = "/api/glyphs", .method = HTTP_GET, .handler = handle_glyphs },
-        { .uri = "/api/glyphs", .method = HTTP_POST, .handler = handle_glyphs_install },
-        { .uri = "/api/glyphs/remove", .method = HTTP_POST, .handler = handle_glyphs_remove },
-        { .uri = "/api/apps/remove", .method = HTTP_POST, .handler = handle_remove },
-        { .uri = "/api/apps/install", .method = HTTP_POST, .handler = handle_install },
-        { .uri = "/api/catalog", .method = HTTP_GET, .handler = handle_catalog },
-        { .uri = "/api/sources", .method = HTTP_GET, .handler = handle_sources },
-        { .uri = "/api/sources", .method = HTTP_POST, .handler = handle_set_sources },
+    static const web_route_t ROUTES[WEB_APPS_ROUTES] = {
+        { "/api/apps", HTTP_GET, handle_list, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+        { "/api/apps/settings", HTTP_POST, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/apps/removed", HTTP_GET, handle_removed, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/glyphs", HTTP_GET, handle_glyphs, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/glyphs", HTTP_POST, handle_glyphs_install, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+        { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
+        { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
+        { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     };
-    for (int i = 0; i < WEB_APPS_ROUTES; i++) {
-        ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
-    }
+    web_server_register(server, ROUTES, WEB_APPS_ROUTES);
 }

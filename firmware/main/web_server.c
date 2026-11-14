@@ -91,7 +91,7 @@ static bool is_addressed_to_device(const char *host)
     return false;
 }
 
-bool web_server_refuses_cross_site(httpd_req_t *request)
+static bool refuses_cross_site(httpd_req_t *request)
 {
     /* A header too long for its buffer leaves the buffer as it was. */
     char origin[ORIGIN_HEADER_MAX] = "", host[HOST_HEADER_MAX] = "";
@@ -210,9 +210,6 @@ static const char *phase_name(wifi_phase_t phase)
 
 static esp_err_t handle_status(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     wifi_status_t wifi;
     wifi_get_status(&wifi);
     const esp_partition_t *running = esp_ota_get_running_partition();
@@ -311,14 +308,30 @@ bool web_server_has_memory(httpd_req_t *request, memory_need_t need)
     return false;
 }
 
+/* What every request passes before its handler: the checks of its route. */
+static esp_err_t answer_route(httpd_req_t *request)
+{
+    const web_route_t *route = request->user_ctx;
+    if (route->scope != WEB_OPEN && refuses_cross_site(request)) {
+        return ESP_OK;
+    }
+    if (route->memory != WEB_NO_MEMORY_NEED && !web_server_has_memory(request, route->memory)) {
+        return ESP_OK;
+    }
+    return route->handler(request);
+}
+
+void web_server_register(httpd_handle_t server, const web_route_t *routes, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        const httpd_uri_t uri = { .uri = routes[i].uri, .method = routes[i].method,
+                                  .handler = answer_route, .user_ctx = (void *)&routes[i] };
+        ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri));
+    }
+}
+
 static esp_err_t handle_log(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
-    if (!web_server_has_memory(request, MEMORY_FOR_A_PAGE)) {
-        return ESP_OK;
-    }
     char *log = malloc(LOG_CAPTURE_BYTES + 1);
     if (log == NULL) {
         return httpd_resp_send_500(request);
@@ -416,9 +429,6 @@ static void change_settings(void *argument)
 static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn edit,
                                           bool restarts, const confirmation_t *confirmation)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
@@ -493,9 +503,6 @@ static esp_err_t handle_time(httpd_req_t *request)
 
 static esp_err_t handle_settings(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     appconf_t settings;
     settings_read(&settings);
     json_t *json = json_new_object();
@@ -598,9 +605,6 @@ static esp_err_t handle_set_settings(httpd_req_t *request)
 
 static esp_err_t handle_restart(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     ESP_LOGW(TAG, "restart asked for");
     esp_err_t result = send_ok(request, "Restarting.");
     host_stop_soon(HOST_STOP_RESTART);
@@ -612,9 +616,6 @@ static esp_err_t handle_restart(httpd_req_t *request)
  * device comes back with its setup access point. */
 static esp_err_t handle_reset(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     if (!is_confirmed_on_device(request, word(WORD_FACTORY), word(WORD_FACTORY_RESET), GFX_ICON_WARNING,
                                     word(WORD_RESET))) {
         return ESP_OK;
@@ -640,9 +641,6 @@ static bool take_release_piece(void *context, const uint8_t *piece, size_t lengt
 
 static esp_err_t handle_ota_release(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     char body[SETTINGS_BODY_MAX];
     if (!read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
@@ -693,9 +691,6 @@ static esp_err_t handle_ota_release(httpd_req_t *request)
  *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
 static esp_err_t handle_ota(httpd_req_t *request)
 {
-    if (web_server_refuses_cross_site(request)) {
-        return ESP_OK;
-    }
     if (request->content_len == 0) {
         return send_error(request, "No image.");
     }
@@ -789,22 +784,20 @@ void web_server_start(void)
     }
     s_server = server;
     memory_on_pressure(close_connections);
-    static const httpd_uri_t ROUTES[OWN_ROUTES] = {
-        { .uri = "/", .method = HTTP_GET, .handler = handle_page },
-        { .uri = "/api/status", .method = HTTP_GET, .handler = handle_status },
-        { .uri = "/api/log", .method = HTTP_GET, .handler = handle_log },
-        { .uri = "/api/wifi", .method = HTTP_POST, .handler = handle_wifi },
-        { .uri = "/api/time", .method = HTTP_POST, .handler = handle_time },
-        { .uri = "/api/ota", .method = HTTP_POST, .handler = handle_ota },
-        { .uri = "/api/ota/release", .method = HTTP_POST, .handler = handle_ota_release },
-        { .uri = "/api/reset", .method = HTTP_POST, .handler = handle_reset },
-        { .uri = "/api/restart", .method = HTTP_POST, .handler = handle_restart },
-        { .uri = "/api/settings", .method = HTTP_GET, .handler = handle_settings },
-        { .uri = "/api/settings", .method = HTTP_POST, .handler = handle_set_settings },
+    static const web_route_t ROUTES[OWN_ROUTES] = {
+        { "/", HTTP_GET, handle_page, WEB_NO_MEMORY_NEED, WEB_OPEN },
+        { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+        { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/settings", HTTP_GET, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     };
-    for (size_t i = 0; i < sizeof ROUTES / sizeof ROUTES[0]; i++) {
-        ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
-    }
+    web_server_register(server, ROUTES, OWN_ROUTES);
     web_apps_register(server);
 #ifdef CONFIG_APP_DEV_CONSOLE
     devtools_register(server);

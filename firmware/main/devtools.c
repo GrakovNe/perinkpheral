@@ -187,9 +187,6 @@ static void bmp_header(uint8_t header[BMP_HEADER_BYTES])
 
 static esp_err_t handle_screen(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     request_t *request = new_request(REQUEST_SCREEN);
     if (request == NULL || !ask_host(request)) {
         return send_text(http, "503 Service Unavailable", "the host did not answer");
@@ -216,9 +213,6 @@ static esp_err_t handle_screen(httpd_req_t *http)
 
 static esp_err_t handle_button(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     static const char *const PRESSES[] = {
         [EVENT_PRESS_DOWN] = "down",
         [EVENT_PRESS_UP] = "up",
@@ -246,9 +240,6 @@ static esp_err_t handle_button(httpd_req_t *http)
 
 static esp_err_t handle_open(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     request_t *request = new_request(REQUEST_OPEN);
     if (request == NULL) {
         return send_text(http, "503 Service Unavailable", "no memory");
@@ -284,9 +275,6 @@ static bool receive_into(httpd_req_t *http, FILE *file)
 
 static esp_err_t handle_app_file(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     char name[QUERY_VALUE_MAX], file_name[QUERY_VALUE_MAX];
     if (!query_value(http, "name", name, sizeof name) ||
         !query_value(http, "file", file_name, sizeof file_name)) {
@@ -319,9 +307,6 @@ static esp_err_t handle_app_file(httpd_req_t *http)
  * it. Not in a build for release, as nothing here is. */
 static esp_err_t handle_flash(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     return web_server_take_firmware(http);
 }
 
@@ -330,9 +315,6 @@ static esp_err_t handle_flash(httpd_req_t *http)
  * last, and that is made to be this application. */
 static esp_err_t handle_run(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     char name[QUERY_VALUE_MAX];
     if (!query_value(http, "app", name, sizeof name) || !app_manifest_is_valid_name(name)) {
         return refuse(http, "app=<name> is missing or is not an application's name");
@@ -348,9 +330,6 @@ static esp_err_t handle_run(httpd_req_t *http)
  * how a setting is given to an application before there is a form for it. */
 static esp_err_t handle_kv(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     char app[QUERY_VALUE_MAX], key[QUERY_VALUE_MAX];
     static char value[HOST_KV_VALUE_MAX]; /* one handler runs at a time */
     if (!query_value(http, "app", app, sizeof app) || !query_value(http, "key", key, sizeof key) ||
@@ -396,9 +375,6 @@ static esp_err_t handle_crash(httpd_req_t *http)
 
 static esp_err_t handle_restart(httpd_req_t *http)
 {
-    if (web_server_refuses_cross_site(http)) {
-        return ESP_OK;
-    }
     ESP_LOGW(TAG, "restart asked for");
     esp_err_t err = send_text(http, "200 OK", "restarting");
     host_stop_soon(HOST_STOP_RESTART);
@@ -407,19 +383,17 @@ static esp_err_t handle_restart(httpd_req_t *http)
 
 void devtools_register(httpd_handle_t server)
 {
-    static const httpd_uri_t ROUTES[DEVTOOLS_ROUTES] = {
-        { .uri = "/api/dev/screen", .method = HTTP_GET, .handler = handle_screen },
-        { .uri = "/api/dev/button", .method = HTTP_POST, .handler = handle_button },
-        { .uri = "/api/dev/open", .method = HTTP_POST, .handler = handle_open },
-        { .uri = "/api/dev/app", .method = HTTP_POST, .handler = handle_app_file },
-        { .uri = "/api/dev/run", .method = HTTP_POST, .handler = handle_run },
-        { .uri = "/api/dev/flash", .method = HTTP_POST, .handler = handle_flash },
-        { .uri = "/api/dev/restart", .method = HTTP_POST, .handler = handle_restart },
-        { .uri = "/api/dev/kv", .method = HTTP_POST, .handler = handle_kv },
-        { .uri = "/api/dev/crash", .method = HTTP_POST, .handler = handle_crash },
+    static const web_route_t ROUTES[DEVTOOLS_ROUTES] = {
+        { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/open", HTTP_POST, handle_open, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/app", HTTP_POST, handle_app_file, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/run", HTTP_POST, handle_run, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/flash", HTTP_POST, handle_flash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     };
-    for (int i = 0; i < DEVTOOLS_ROUTES; i++) {
-        ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));
-    }
+    web_server_register(server, ROUTES, DEVTOOLS_ROUTES);
     ESP_LOGW(TAG, "development tools are on at /api/dev");
 }

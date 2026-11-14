@@ -114,6 +114,9 @@ build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
 	(echo "static const unsigned char wrongarg_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
+build/host_imports.inc: $(SDK)/host_api.h ../../../tools/hostapi/gen_imports.py
+	python3 ../../../tools/hostapi/gen_imports.py $(SDK)/host_api.h build
+
 build/src/every-call/every_call.c: gen_every_call.py $(SDK)/host_api.h
 	python3 gen_every_call.py $(SDK)/host_api.h build/src/every-call
 
@@ -123,7 +126,7 @@ build/every_call/app.wasm: build/src/every-call/every_call.c $(MKAPP)
 build/every_call_wasm.h: build/every_call/app.wasm
 	(echo "static const unsigned char every_call_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
-test_app: test_app.c tinytest.h build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
+test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
@@ -158,8 +161,8 @@ test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $
 		$(APPSYS)/poll_schedule.c -lm
 
 # mkdtemp and friends are POSIX, not C11.
-test_delivery: test_delivery.c tinytest.h build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(WASM3_OBJS) $(MANIFEST_SRCS)
-	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
+test_delivery: test_delivery.c tinytest.h build/host_imports.inc build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(WASM3_OBJS) $(MANIFEST_SRCS)
+	$(CC) $(CFLAGS) -Ibuild -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
 		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
 

@@ -30,9 +30,26 @@ void web_server_start(void);
 
 bool web_server_is_up(void);
 
-/* For every handler that changes something: true when the request was
- * made by a page of another site, and has been answered with a refusal. */
-bool web_server_refuses_cross_site(httpd_req_t *request);
+/* A route of the web server: an address, and what is checked before its
+ * handler runs. The checks are the table's and not the handler's, so a
+ * handler cannot be written without them. */
+typedef enum {
+    WEB_OWN_PAGE, /* refused to a page of another site, reading as well as changing */
+    WEB_OPEN,     /* answered to anybody: the page itself */
+} web_scope_t;
+
+#define WEB_NO_MEMORY_NEED MEMORY_NEEDS
+
+typedef struct {
+    const char     *uri;
+    httpd_method_t  method;
+    esp_err_t     (*handler)(httpd_req_t *request);
+    memory_need_t   memory; /* refused with "Not enough memory." without it; WEB_NO_MEMORY_NEED */
+    web_scope_t     scope;
+} web_route_t;
+
+/* Registers routes. `routes` must stay where it is: the server keeps the pointers. */
+void web_server_register(httpd_handle_t server, const web_route_t *routes, size_t count);
 
 /* The request's body is a firmware image: written into the spare slot,
  * answered, and the device restarts into it. Nobody is asked: whoever
