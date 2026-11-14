@@ -99,18 +99,6 @@ static void remember_where_found(void)
     s_found_at.is_known = true;
 }
 
-/* Whether the modem sleeps between beacons. Off when nothing is saved:
- * the radio's front end is then not turned off and on ten times a second,
- * which is where the interrupt watchdog caught the chip twice - the timer
- * of the system read wrong, inside phy_close_rf() and inside the handling
- * of a frame received (2026-11-14). */
-static volatile bool s_modem_sleeps = true;
-
-static void apply_modem_sleep(void)
-{
-    esp_wifi_set_ps(s_modem_sleeps ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
-}
-
 static void on_got_address(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
@@ -122,7 +110,6 @@ static void on_got_address(void *arg, esp_event_base_t base, int32_t id, void *d
     xSemaphoreGive(s_wifi.lock);
     s_is_looking_in_one_place = false;
     remember_where_found();
-    apply_modem_sleep(); /* the mode is the station's: set again once it has joined */
     post(WIFI_EVENT_CONNECTED);
 }
 
@@ -351,7 +338,6 @@ void wifi_start(const wifi_config_in_t *config)
     BaseType_t ok = xTaskCreate(wifi_task, "wifi", TASK_STACK_BYTES, NULL, PRIORITY_SERVER, NULL);
     configASSERT(ok == pdPASS);
     ESP_ERROR_CHECK(esp_wifi_start());
-    apply_modem_sleep();
 }
 
 void wifi_get_status(wifi_status_t *status)
@@ -369,14 +355,6 @@ void wifi_get_status(wifi_status_t *status)
     status->was_reached = s_wifi.was_reached;
     strlcpy(status->address, s_wifi.address, sizeof status->address);
     xSemaphoreGive(s_wifi.lock);
-}
-
-void wifi_set_modem_sleep(bool sleeps)
-{
-    s_modem_sleeps = sleeps;
-    if (s_wifi.events != NULL) {
-        apply_modem_sleep();
-    }
 }
 
 void wifi_set_radio(bool on)
