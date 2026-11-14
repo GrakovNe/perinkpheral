@@ -159,7 +159,9 @@ static json_t *read_number(reader_t *reader)
     uint64_t magnitude = 0;
     while (is_digit(*at)) {
         uint64_t digit = (uint64_t)(*at++ - '0');
-        if (magnitude > (INT64_MAX - digit) / 10) {
+        /* A negative number may be one further from zero than a positive one. */
+        uint64_t most = (uint64_t)INT64_MAX + (is_negative ? 1u : 0u);
+        if (magnitude > (most - digit) / 10) {
             return NULL; /* more than a number of 64 bits holds */
         }
         magnitude = magnitude * 10 + digit;
@@ -180,7 +182,7 @@ static json_t *read_number(reader_t *reader)
     }
     json_t *node = new_node(JSON_NUMBER);
     if (node != NULL) {
-        node->number = is_negative ? -(int64_t)magnitude : (int64_t)magnitude;
+        node->number = is_negative ? (int64_t)(0 - magnitude) : (int64_t)magnitude;
         node->is_whole = is_whole;
         reader->at = at;
     }

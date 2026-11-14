@@ -480,7 +480,8 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
 bool app_manifest_is_server_setting(const char *json, const char *key)
 {
     json_t *root = json_parse(json);
-    bool   is_server = false;
+    /* A manifest that does not parse - memory ran out - protects every key. */
+    bool   is_server = root == NULL;
     const json_t *setting;
     json_for_each(setting, json_get(root, "settings"))
     {

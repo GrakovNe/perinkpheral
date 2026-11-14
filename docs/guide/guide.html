@@ -199,7 +199,7 @@
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Store key</td><td class="n">1 - 15 characters</td><td>Characters <code>!</code> to <code>~</code></td></tr>
   <tr><td>Store value</td><td class="n">1024 bytes</td><td></td></tr>
-  <tr><td>Store total</td><td class="n">4096 bytes</td><td>Per application. Kept after removal and restored on reinstall</td></tr>
+  <tr><td>Store total</td><td class="n">4096 bytes</td><td>Per application, counted as stored: 64 bytes for a value plus its length rounded up to 32. Kept after removal and restored on reinstall</td></tr>
   <tr><td>Files total</td><td class="n">64 KB</td><td>Per application: packaged files and files written by the code. Each file counts as whole 4 KB blocks (16 blocks). Guaranteed for every installed application</td></tr>
   <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code></td></tr>
 </table>
@@ -1087,7 +1087,7 @@ const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL
   <tr><td class="c">MANIFEST_URL_MAX / _SETTING_VALUE_MAX</td><td>511 / 255 bytes</td><td>Poll URL; setting value</td></tr>
   <tr><td class="c">HOST_TEXT_MAX</td><td>127 bytes</td><td>Text per drawing or measuring call</td></tr>
   <tr><td class="c">HOST_HEADER_TEXT_MAX / HOST_STATUS_TEXT_MAX</td><td>63 / 31 bytes</td><td>Header text; header status text</td></tr>
-  <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 4096</td><td>Store key; value; total per application</td></tr>
+  <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 4096</td><td>Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)</td></tr>
   <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX</td><td>23 / 64 KB</td><td>File name; total file size per application</td></tr>
   <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>One piece of an answer</td></tr>
   <tr><td class="c">HOST_ANSWER_MAX / HOST_ANSWER_PIECES_MAX</td><td>256 KB / 4 MB</td><td>Answer with extracted values; streamed answer</td></tr>

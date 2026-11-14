@@ -11,6 +11,8 @@
 #include "host_api.h"
 #include "every_call_wasm.h"
 #include "probe_wasm.h"
+#include "wrongarg_wasm.h"
+#include "wrongret_wasm.h"
 #include "tinytest.h"
 
 /* A real module (apps/probe) in a real interpreter, with the device
@@ -523,6 +525,14 @@ static void test_bad_modules(void)
     app_t *app = NULL;
     static const uint8_t garbage[] = { 'n', 'o', 't', ' ', 'w', 'a', 's', 'm' };
     CHECK(app_load("x", garbage, sizeof garbage, false, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+
+    /* an export the host calls, declared otherwise than the contract has it: not run at all */
+    app = (app_t *)1;
+    CHECK(app_load("x", wrongret_wasm, sizeof wrongret_wasm, false, &SERVICES, &app) ==
+          APP_ERR_BAD_MODULE && app == NULL);
+    app = (app_t *)1;
+    CHECK(app_load("x", wrongarg_wasm, sizeof wrongarg_wasm, false, &SERVICES, &app) ==
+          APP_ERR_BAD_MODULE && app == NULL);
 
     /* a valid header and then nothing sensible */
     static const uint8_t truncated[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00, 0x05, 0x7F };

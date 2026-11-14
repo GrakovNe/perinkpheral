@@ -37,7 +37,8 @@ static void test_values(void)
                     "{\"a\":1,\"b\":[true,false,null],\"c\":\"x\"}"));
     CHECK(prints_as("[]", "[]") && prints_as("{}", "{}") && prints_as("\"\"", "\"\""));
     CHECK(prints_as("-0", "0") && prints_as("-12", "-12") &&
-          prints_as("9223372036854775807", "9223372036854775807"));
+          prints_as("9223372036854775807", "9223372036854775807") &&
+          prints_as("-9223372036854775808", "-9223372036854775808"));
     CHECK(prints_as("15.75", "15") && prints_as("-3.0", "-3"));
     /* escapes in, the plain text out; what must be escaped is, on the way back */
     CHECK(prints_as("\"a\\n\\t\\\"\\\\\\/b\"", "\"a\\u000a\\u0009\\\"\\\\/b\""));
@@ -52,7 +53,7 @@ static void test_refusals(void)
         "", " ", "{", "}", "[", "]", "[1,]", "[,1]", "{\"a\"}", "{\"a\":}", "{a:1}", "{\"a\":1,}",
         "{\"a\":1 \"b\":2}", "1 2", "[1] x", "tru", "nul", "01", "-", "1.", ".5", "1e3", "1E-2",
         "\"abc", "\"a\\x\"", "\"a\\u12\"", "\"a\\ud83d\"", "\"a\\ude00\"", "\"a\\u0000\"",
-        "\"line\nbreak\"", "99999999999999999999", "'a'", "[1 2]", "{\"a\":1}}", "\"\\",
+        "\"line\nbreak\"", "99999999999999999999", "9223372036854775808", "-9223372036854775809", "'a'", "[1 2]", "{\"a\":1}}", "\"\\",
     };
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         if (!is_refused(BAD[i])) {

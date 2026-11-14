@@ -102,6 +102,18 @@ build/probe_wasm.h: build/probe/app.wasm
 	(echo "static const unsigned char probe_wasm[] = {"; xxd -i < $<; \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
+build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(MKAPP)
+	$(MKAPP) apps/wrongret --out build/wrongret
+
+build/wrongret_wasm.h: build/wrongret/app.wasm
+	(echo "static const unsigned char wrongret_wasm[] = {"; xxd -i < $<; echo "};") > $@
+
+build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(MKAPP)
+	$(MKAPP) apps/wrongarg --out build/wrongarg
+
+build/wrongarg_wasm.h: build/wrongarg/app.wasm
+	(echo "static const unsigned char wrongarg_wasm[] = {"; xxd -i < $<; echo "};") > $@
+
 build/src/every-call/every_call.c: gen_every_call.py $(SDK)/host_api.h
 	python3 gen_every_call.py $(SDK)/host_api.h build/src/every-call
 
@@ -111,7 +123,7 @@ build/every_call/app.wasm: build/src/every-call/every_call.c $(MKAPP)
 build/every_call_wasm.h: build/every_call/app.wasm
 	(echo "static const unsigned char every_call_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
-test_app: test_app.c tinytest.h build/probe_wasm.h build/every_call_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
+test_app: test_app.c tinytest.h build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 

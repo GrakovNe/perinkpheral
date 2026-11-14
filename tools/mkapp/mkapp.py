@@ -380,7 +380,7 @@ def misspelled_handlers(app_dir):
     known = known_handlers()
     for path in sorted(glob.glob(os.path.join(app_dir, "*.c"))):
         with open(path) as f:
-            for name in re.findall(r"^[A-Za-z_][\w \t\*]*?\b(app_on_\w+)\s*\(", f.read(), re.M):
+            for name in re.findall(r"\b(app_on_\w+)\s*\([^;{}()]*\)\s*\{", f.read()):
                 if name not in known:
                     sys.exit("%s: %s() is not a handler the host calls. Its handlers: %s"
                              % (path, name, ", ".join(sorted(known))))
@@ -413,7 +413,9 @@ def check_handlers(wasm_path, imports, manifest):
     if manifest.get("intents") and "app_on_intent" not in exports:
         sys.exit("%s: the manifest asks for intents and the module has no app_on_intent()"
                  % wasm_path)
-    if any(name.startswith(("gfx_", "ui_")) for name in called) and "app_on_draw" not in exports:
+    measuring = re.compile(r"(_width|_height|_ascent|_fit|_visible|_first)$")
+    if (any(name.startswith(("gfx_", "ui_")) and not measuring.search(name) for name in called)
+            and "app_on_draw" not in exports):
         sys.exit("%s draws and has no app_on_draw(): drawing calls work only there" % wasm_path)
 
 
@@ -429,6 +431,9 @@ def unused_names(app_dir, names, what):
         row = re.sub(r"\d+$", "", name)
         return re.search(r"\b%s\b" % re.escape(name), code) or (
             row != name and re.search(r"\b%s\d+\b" % re.escape(row), code))
+    prefix = names[0].split("_")[0] + "_" if names else ""
+    if re.search(r"\b%s\s*##" % re.escape(prefix), code):
+        return  # the code makes the names itself: which ones, only the compiler knows
     unused = [name for name in names if not is_used(name)]
     if unused:
         sys.exit("%s: %s never used in the code: %s. Remove them - each is bytes of the "
@@ -799,6 +804,9 @@ def main():
     manifest_path = check_manifest(options.app_dir)
     os.makedirs(options.out, exist_ok=True)
     wasm_path = os.path.join(options.out, "app.wasm")
+    # Whatever an earlier build left: a build that fails must not look done.
+    if os.path.exists(wasm_path):
+        os.remove(wasm_path)
     memory_end = build(options.app_dir, wasm_path)
     with open(manifest_path) as f:
         manifest = json.load(f)

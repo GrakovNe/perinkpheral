@@ -8,7 +8,7 @@
 #include "app_values.h"
 #include "host_api.h"
 
-#define SETTING_TEXT_MAX 32 /* of a setting compared or read as a number */
+#define SETTING_TEXT_MAX 256 /* the longest value a setting may have, and its end */
 
 bool app_state_load(const char *key, void *state, int32_t size, int32_t version)
 {

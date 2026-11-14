@@ -234,6 +234,13 @@ bool glyphs_install(const uint8_t *pack, size_t size)
     int old = sector_of(name);
     int sector = free_run(sectors_of(size));
     if (sector < 0 && old >= 0) {
+        /* Only when its going makes room enough: or a pack too large to
+         * come would take away the one that is here. */
+        if (glyphs_free_bytes() + (size_t)sectors_of(pack_at(old)) * SECTOR_BYTES <
+            (size_t)sectors_of(size) * SECTOR_BYTES) {
+            ESP_LOGW(TAG, "no room for \"%s\"", name);
+            return false;
+        }
         glyphs_remove(name);
         old = -1;
         sector = free_run(sectors_of(size));

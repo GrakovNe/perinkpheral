@@ -783,7 +783,8 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * changed, for example in app_on_terminate(), not on every timer tick. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~' */
 #define HOST_KV_VALUE_MAX 1024
-#define HOST_KV_TOTAL_MAX 4096 /* all values of one application */
+#define HOST_KV_TOTAL_MAX 4096 /* all values of one application, as stored: 64 bytes for a
+                                  value and its length rounded up to 32 */
 
 /* Reads a value into `value`. Returns its length. */
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,

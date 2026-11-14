@@ -131,8 +131,10 @@ static void app_scene_leave(scene_t *scene)
         return;
     }
     app_blur(self->app);
-    cancel_timers(self->services);
     unload(self);
+    /* After its last handler: a timer set in app_on_terminate() would
+     * otherwise outlive the application and fire into another one. */
+    cancel_timers(self->services);
 }
 
 static bool is_running(const app_scene_t *self)
@@ -290,8 +292,8 @@ void app_scene_end_background(scene_t *scene)
     if (is_app_scene(scene) && self->module != NULL) {
         /* It never had the screen: no blur. A timer it set would fire into
          * whatever scene has the screen, which never set it. */
-        cancel_timers(self->services);
         unload(self);
+        cancel_timers(self->services);
     }
 }
 

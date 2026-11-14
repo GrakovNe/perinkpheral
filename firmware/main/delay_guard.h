@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-/* Number of busy waits of more than a second that were cut to a
+/* Number of busy waits of more than 100 ms that were cut to a
  * millisecond since the start. See delay_guard.c. */
 uint32_t delay_guard_shortened(void);
 

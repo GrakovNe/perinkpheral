@@ -67,7 +67,12 @@ static void log_from_app(int level, const char *text, int length)
 static int32_t kv_set(const char *app_name, const char *key, const void *value, int32_t length)
 {
     char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    bool  is_user_owned = manifest != NULL && app_manifest_is_server_setting(manifest, key);
+    /* A manifest that cannot be read does not make the setting the
+     * application's: only a system application, which has no file, goes
+     * on without one. */
+    bool is_system = strncmp(app_name, "sys.", 4) == 0;
+    bool is_user_owned = manifest != NULL ? app_manifest_is_server_setting(manifest, key)
+                                          : !is_system;
     free(manifest);
     if (is_user_owned) {
         ESP_LOGW(TAG, "%s: \"%s\" is the user's to set", app_name, key);

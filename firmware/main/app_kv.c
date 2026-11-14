@@ -202,8 +202,19 @@ int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t c
     return result;
 }
 
-/* What the application keeps now, in bytes of its values, the one under
- * `except_key` left out. */
+/* What a value takes of the partition: two entries of the storage for
+ * any, and one for every 32 bytes of it. Counted so, and not by the
+ * value's own length, or many small keys fill the partition all
+ * applications share while each is far under its share. */
+#define STORAGE_ENTRY_BYTES 32
+
+static size_t taken_by(size_t value_length)
+{
+    return (2 + (value_length + STORAGE_ENTRY_BYTES - 1) / STORAGE_ENTRY_BYTES) * STORAGE_ENTRY_BYTES;
+}
+
+/* What the application keeps now, as it lies in the storage, the value
+ * under `except_key` left out. */
 static size_t stored_bytes(nvs_handle_t store, const char *app_name, const char *except_key)
 {
     char namespace[NVS_NS_NAME_MAX_SIZE];
@@ -217,7 +228,7 @@ static size_t stored_bytes(nvs_handle_t store, const char *app_name, const char 
         size_t length = 0;
         if (strcmp(info.key, except_key) != 0 &&
             nvs_get_blob(store, info.key, NULL, &length) == ESP_OK) {
-            total += length;
+            total += taken_by(length);
         }
         err = nvs_entry_next(&entry);
     }
@@ -243,7 +254,7 @@ static int32_t write_value(const char *app_name, const char *key, const void *va
         return HOST_ERR_FAILED;
     }
     if (value_length > 0 &&
-        stored_bytes(store, app_name, key) + (size_t)value_length > HOST_KV_TOTAL_MAX) {
+        stored_bytes(store, app_name, key) + taken_by((size_t)value_length) > HOST_KV_TOTAL_MAX) {
         nvs_close(store);
         ESP_LOGW(TAG, "%s: \"%s\" is over what an application may keep", app_name, key);
         return HOST_ERR_NO_SPACE;

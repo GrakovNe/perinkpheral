@@ -71,6 +71,7 @@ struct app {
     bool        redraw_requested;
     bool        not_drawing_logged; /* once an instance: a mistake every beginner makes */
     bool        slow_logged;        /* once an instance: a handler that took too long */
+    bool        has_wrong_export;   /* a handler declared otherwise than the contract has it */
     int         redraw_flags;  /* HOST_REDRAW_*, of every request since the last take */
     bool        exit_requested;
     bool        focus_requested;
@@ -283,6 +284,20 @@ HOST_FUNCTION(host_gfx_text_fit)
     }
     char cut[HOST_TEXT_MAX + 1];
     gfx_text_fit(font, terminated, max_width, cut, sizeof cut);
+    /* Digits of equal width take more room than the font's own: the text
+     * is fitted again, narrower by what it runs over, until it fits as it
+     * will be drawn. */
+    if ((font_id & HOST_FONT_TABULAR) != 0) {
+        int32_t room = max_width;
+        for (int turn = 0; turn < 8 && cut[0] != '\0'; turn++) {
+            int32_t over = gfx_text_tabular_width(font, cut) - max_width;
+            if (over <= 0) {
+                break;
+            }
+            room = room > over ? room - over : 0;
+            gfx_text_fit(font, terminated, room, cut, sizeof cut);
+        }
+    }
     int32_t cut_length = (int32_t)strlen(cut);
     if (cut_length > capacity) {
         m3ApiReturn(HOST_ERR_NO_SPACE);
@@ -1669,7 +1684,9 @@ HOST_FUNCTION(host_alarm_set_at)
     m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int64_t, unix_time);
     app_t *app = APP_OF(runtime);
-    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0) {
+    /* Up to the end of the year 9999: beyond it the milliseconds the host
+     * counts in would not fit their 64 bits. */
+    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0 || unix_time > 253402300799LL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->alarm_set(app->name, id, unix_time, true) ? HOST_OK
@@ -2339,10 +2356,29 @@ static bool link_host_api(IM3Module module)
 
 /* ---- lifecycle ---- */
 
-static IM3Function find_export(app_t *app, const char *name)
+/* An export the host calls, when the module has it with the signature the
+ * contract gives it: so many i32 arguments and, with `has_result`, one i32
+ * result. The interpreter passes arguments and writes results by the
+ * module's own declaration, so an export declared otherwise would read
+ * arguments that are not there or write a result past the host's
+ * variable: such a module is not run at all (`has_wrong_export`). */
+static IM3Function find_export(app_t *app, const char *name, uint32_t arguments, bool has_result)
 {
     IM3Function function = NULL;
-    return m3_FindFunction(&function, app->runtime, name) == m3Err_none ? function : NULL;
+    if (m3_FindFunction(&function, app->runtime, name) != m3Err_none) {
+        return NULL;
+    }
+    bool is_as_agreed = m3_GetArgCount(function) == arguments &&
+                        m3_GetRetCount(function) == (has_result ? 1u : 0u) &&
+                        (!has_result || m3_GetRetType(function, 0) == c_m3Type_i32);
+    for (uint32_t i = 0; is_as_agreed && i < arguments; i++) {
+        is_as_agreed = m3_GetArgType(function, i) == c_m3Type_i32;
+    }
+    if (!is_as_agreed) {
+        app->has_wrong_export = true;
+        return NULL;
+    }
+    return function;
 }
 
 /* The one place a handler's result is looked at: a trap stops the
@@ -2409,7 +2445,7 @@ static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t was
  * simply gets none. */
 static void find_data_buffer(app_t *app)
 {
-    IM3Function data_buffer = find_export(app, "app_data_buffer");
+    IM3Function data_buffer = find_export(app, "app_data_buffer", 0, true);
     uint32_t offset = 0;
     if (data_buffer == NULL) {
         return;
@@ -2455,7 +2491,7 @@ static bool is_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
 
 static void load_strings(app_t *app)
 {
-    IM3Function strings_buffer = find_export(app, "app_strings_buffer");
+    IM3Function strings_buffer = find_export(app, "app_strings_buffer", 0, true);
     const char *language = app->services->language != NULL ? app->services->language() : "en";
     uint32_t    offset = 0;
     if (strings_buffer == NULL || strcmp(language, "en") == 0 || app->services->file_size == NULL ||
@@ -2519,21 +2555,28 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
         return result;
     }
 
-    app->on_focus = find_export(app, "app_on_focus");
-    app->on_blur = find_export(app, "app_on_blur");
-    app->on_terminate = find_export(app, "app_on_terminate");
-    app->on_back = find_export(app, "app_on_back");
-    app->on_button = find_export(app, "app_on_button");
-    app->on_timer = find_export(app, "app_on_timer");
-    app->on_draw = find_export(app, "app_on_draw");
-    app->on_data = find_export(app, "app_on_data");
-    app->on_values = find_export(app, "app_on_values");
-    app->on_settings = find_export(app, "app_on_settings");
-    app->on_intent = find_export(app, "app_on_intent");
-    app->on_alarm = find_export(app, "app_on_alarm");
-    find_data_buffer(app);
-    load_strings(app);
-    CALL_HANDLER(app, find_export(app, "app_init"));
+    app->on_focus = find_export(app, "app_on_focus", 0, false);
+    app->on_blur = find_export(app, "app_on_blur", 0, false);
+    app->on_terminate = find_export(app, "app_on_terminate", 0, false);
+    app->on_back = find_export(app, "app_on_back", 0, false);
+    app->on_button = find_export(app, "app_on_button", 1, false);
+    app->on_timer = find_export(app, "app_on_timer", 1, false);
+    app->on_draw = find_export(app, "app_on_draw", 0, false);
+    app->on_data = find_export(app, "app_on_data", 5, false);
+    app->on_values = find_export(app, "app_on_values", 2, false);
+    app->on_settings = find_export(app, "app_on_settings", 0, false);
+    app->on_intent = find_export(app, "app_on_intent", 1, false);
+    app->on_alarm = find_export(app, "app_on_alarm", 1, false);
+    IM3Function init = find_export(app, "app_init", 0, false);
+    if (!app->has_wrong_export) {
+        find_data_buffer(app);
+        load_strings(app);
+    }
+    if (app->has_wrong_export) {
+        app_unload(app);
+        return APP_ERR_BAD_MODULE;
+    }
+    CALL_HANDLER(app, init);
     app->exit_requested = false;
 
     *loaded = app;

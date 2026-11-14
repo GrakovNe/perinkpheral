@@ -2542,3 +2542,9 @@ length; 0: not set
 
 toggle: true unless "0"
 toggle: true, кроме "0"
+
+Per application, counted as stored: 64 bytes for a value plus its length rounded up to 32. Kept after removal and restored on reinstall
+На приложение, считается как хранится: 64 байта на значение плюс его длина, округлённая вверх до 32. Сохраняется после удаления и восстанавливается при переустановке
+
+Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)
+Ключ хранилища; значение; всего на приложение, как хранится (64 байта плюс длина, округлённая вверх до 32, на каждое значение)

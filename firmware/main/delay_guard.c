@@ -19,10 +19,13 @@
  * Wi-Fi task's modem sleep). Seen on the device three times in two days;
  * the record of 2026-11-14 (crash_note.c) names the place.
  *
- * Linked with --wrap=esp_rom_delay_us: a busy wait of more than a second
- * is nobody's intention, and is made a millisecond. */
+ * Linked with --wrap=esp_rom_delay_us: a busy wait of more than a tenth of
+ * a second is nobody's intention, and is made a millisecond. */
 
-#define DELAY_ABSURD_US  (1000 * 1000)
+/* The watchdog is 300 ms: a wait of half a second was caught by it with
+ * the first limit of a second in place (the timer had gone back by half
+ * a second, not by more). Nothing in the system busy-waits this long. */
+#define DELAY_ABSURD_US  (100 * 1000)
 #define DELAY_INSTEAD_US 1000
 
 static uint32_t s_shortened;
