@@ -6,6 +6,7 @@
 #include "kit.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "gfx_icons.h"
@@ -231,6 +232,171 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum)
     int room = width - 2 * (STROKE + BAR_INSET);
     gfx_fill(g, left + STROKE + BAR_INSET, top + STROKE + BAR_INSET,
              (int)((long long)room * value / maximum), BAR_HEIGHT - 2 * (STROKE + BAR_INSET), true);
+}
+
+/* ---- chart ---- */
+
+#define CHART_LABEL_GAP  6 /* between the captions and the plot */
+#define CHART_LINE_WIDTH 2
+#define CHART_MARK_SIDE  7
+
+static void chart_label(char *text, size_t size, int32_t value, int decimals)
+{
+    long long magnitude = value < 0 ? -(long long)value : value;
+    long long scale = 1;
+    for (int i = 0; i < decimals && i < 9; i++) {
+        scale *= 10;
+    }
+    if (scale == 1) {
+        snprintf(text, size, "%s%lld", value < 0 ? "-" : "", magnitude);
+    } else {
+        int digits = decimals < 9 ? decimals : 9;
+        snprintf(text, size, "%s%lld.%0*lld", value < 0 ? "-" : "", magnitude / scale, digits,
+                 magnitude % scale);
+    }
+}
+
+/* The row of a value: `high` at `top`, `low` at the last of `rows` rows. */
+static int chart_row(int32_t value, int32_t low, int32_t high, int top, int rows)
+{
+    long long span = (long long)high - low;
+    return top + rows - 1 - (int)(((long long)value - low) * (rows - 1) / span);
+}
+
+static void chart_column(gfx_t *g, int x, int y, int other_y, int width)
+{
+    int first = y < other_y ? y : other_y;
+    int last = y < other_y ? other_y : y;
+    gfx_fill(g, x, first, width, last - first + 1, true);
+}
+
+void kit_chart(gfx_t *g, const kit_chart_t *chart)
+{
+    if (chart == NULL || chart->values == NULL || chart->count <= 0 || chart->width <= 0 ||
+        chart->height <= CHART_LINE_WIDTH) {
+        return;
+    }
+    bool    has_value = false;
+    int32_t low = 0, high = 0;
+    int     last_index = -1;
+    for (int i = 0; i < chart->count; i++) {
+        int32_t value = chart->values[i];
+        if (value == KIT_CHART_NO_VALUE) {
+            continue;
+        }
+        low = !has_value || value < low ? value : low;
+        high = !has_value || value > high ? value : high;
+        has_value = true;
+        last_index = i;
+    }
+    if (!has_value) {
+        return;
+    }
+    int left = chart->left, width = chart->width;
+    if (chart->flags & KIT_CHART_RANGE) {
+        const gfx_font_t *font = kit_font(KIT_CAPTION);
+        char              most[16], least[16];
+        chart_label(most, sizeof most, high, chart->decimals);
+        chart_label(least, sizeof least, low, chart->decimals);
+        int most_width = gfx_text_font_width(font, most);
+        int least_width = gfx_text_font_width(font, least);
+        int column = most_width > least_width ? most_width : least_width;
+        /* Digits stand on the baseline: the captions touch the edges of the box. */
+        gfx_text_font(g, left + column - most_width, chart->top + gfx_font_cap_height(font), font,
+                      most, true);
+        gfx_text_font(g, left + column - least_width, chart->top + chart->height - 1, font, least,
+                      true);
+        left += column + CHART_LABEL_GAP;
+        width -= column + CHART_LABEL_GAP;
+        if (width <= 0) {
+            return;
+        }
+    }
+    if (chart->flags & KIT_CHART_FROM_ZERO) {
+        low = low > 0 ? 0 : low;
+        high = high < 0 ? 0 : high;
+    }
+    if (low == high) {
+        /* A flat series stands in the middle of the box. */
+        low = low > INT32_MIN ? low - 1 : low;
+        high = high < INT32_MAX ? high + 1 : high;
+    }
+    int axis_width = width;
+    if ((chart->flags & KIT_CHART_MARK_LAST) && chart->kind != KIT_CHART_BARS &&
+        width > CHART_MARK_SIDE) {
+        width -= CHART_MARK_SIDE / 2; /* the mark stays inside the box */
+    }
+    /* The line is CHART_LINE_WIDTH thick downwards: its room is kept. */
+    int     rows = chart->height - (CHART_LINE_WIDTH - 1);
+    int32_t base_value = low <= 0 && high >= 0 ? 0 : low;
+    int     base_row = chart_row(base_value, low, high, chart->top, rows);
+    uint8_t shade = g->shade;
+
+    if (chart->kind == KIT_CHART_BARS) {
+        for (int i = 0; i < chart->count; i++) {
+            if (chart->values[i] == KIT_CHART_NO_VALUE) {
+                continue;
+            }
+            int from = left + (int)((long long)i * width / chart->count);
+            int to = left + (int)((long long)(i + 1) * width / chart->count);
+            int slot = to - from;
+            int gap = slot >= 8 ? 2 : slot >= 3 ? 1 : 0;
+            int row = chart_row(chart->values[i], low, high, chart->top, rows);
+            chart_column(g, from, row, base_row + CHART_LINE_WIDTH - 1, slot - gap > 0 ? slot - gap : 1);
+        }
+    } else {
+        /* The area first, the line over it. */
+        for (int pass = chart->kind == KIT_CHART_AREA ? 0 : 1; pass < 2; pass++) {
+            bool has_previous = false;
+            int  previous_x = 0, previous_row = 0;
+            for (int i = 0; i < chart->count; i++) {
+                if (chart->values[i] == KIT_CHART_NO_VALUE) {
+                    has_previous = false;
+                    continue;
+                }
+                int x = chart->count > 1
+                            ? left + (int)((long long)i * (width - CHART_LINE_WIDTH) / (chart->count - 1))
+                            : left + width / 2;
+                int row = chart_row(chart->values[i], low, high, chart->top, rows);
+                bool is_alone = !has_previous && (i + 1 >= chart->count ||
+                                                  chart->values[i + 1] == KIT_CHART_NO_VALUE);
+                if (pass == 0) {
+                    g->shade = (uint8_t)(chart->fill_shade < 0 ? 0
+                                         : chart->fill_shade > GFX_SHADE_SOLID ? GFX_SHADE_SOLID
+                                         : chart->fill_shade);
+                    for (int at = has_previous ? previous_x : x; at <= x; at++) {
+                        int at_row = has_previous && x > previous_x
+                                         ? previous_row + (row - previous_row) * (at - previous_x) /
+                                                              (x - previous_x)
+                                         : row;
+                        chart_column(g, at, at_row, base_row, 1);
+                    }
+                    g->shade = shade;
+                } else if (is_alone) {
+                    gfx_fill(g, x - 1, row - 1, CHART_LINE_WIDTH + 2, CHART_LINE_WIDTH + 2, true);
+                } else if (has_previous && chart->kind == KIT_CHART_STEPS) {
+                    gfx_fill(g, previous_x, previous_row, x - previous_x + CHART_LINE_WIDTH,
+                             CHART_LINE_WIDTH, true);
+                    chart_column(g, x, previous_row, row + CHART_LINE_WIDTH - 1, CHART_LINE_WIDTH);
+                } else if (has_previous) {
+                    for (int thick = 0; thick < CHART_LINE_WIDTH; thick++) {
+                        gfx_line(g, previous_x, previous_row + thick, x, row + thick, true);
+                        gfx_line(g, previous_x + thick, previous_row, x + thick, row, true);
+                    }
+                }
+                if (pass == 1 && i == last_index && (chart->flags & KIT_CHART_MARK_LAST)) {
+                    gfx_fill(g, x - CHART_MARK_SIDE / 2, row - CHART_MARK_SIDE / 2, CHART_MARK_SIDE,
+                             CHART_MARK_SIDE, true);
+                }
+                has_previous = true;
+                previous_x = x;
+                previous_row = row;
+            }
+        }
+    }
+    if (chart->flags & KIT_CHART_AXIS) {
+        gfx_fill(g, left, base_row + CHART_LINE_WIDTH - 1, axis_width, 1, true);
+    }
 }
 
 /* The arrows of the icon set sit in the middle of their canvas: nine cells

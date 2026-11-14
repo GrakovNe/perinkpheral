@@ -260,6 +260,57 @@ int main(int argc, char **argv)
         }
     }
 
+    /* The chart in its four kinds, as the kit application shows them. */
+    start_screen(&online, &content);
+    {
+        static const int32_t SERIES[] = { 712, 715, 715, 721, 730, 728, 735, 741, 752, 760,
+                                          758, 771, 780, 779, 790, 802, 815, 811, 824, 840 };
+        static const int32_t DAILY[] = { 3, 0, 6, 9, 2, 7, 6, 11, 8, 4, 13, 9, 1, 11 };
+        static const char *const NAMES[] = { "LINE", "AREA", "BARS", "STEPS" };
+        int top = kit_title(&content, "Charts");
+        int column = (content.w - 3 * KIT_MARGIN) / 2;
+        int row = (content.h - top - 2 * KIT_MARGIN) / 2;
+        for (int i = 0; i < 4; i++) {
+            int left = KIT_MARGIN + i % 2 * (column + KIT_MARGIN);
+            int at = top + i / 2 * (row + KIT_MARGIN);
+            kit_text(&content, left, at, KIT_CAPTION, NAMES[i], 0);
+            const kit_chart_t chart = {
+                .left = left, .top = at + 16, .width = column, .height = row - 16,
+                .values = i == 2 ? DAILY : SERIES,
+                .count = i == 2 ? (int)(sizeof DAILY / sizeof DAILY[0])
+                                : (int)(sizeof SERIES / sizeof SERIES[0]),
+                .kind = (kit_chart_kind_t)i,
+                .flags = KIT_CHART_AXIS | (i == 0 ? KIT_CHART_RANGE | KIT_CHART_MARK_LAST : 0) |
+                         (i == 2 ? KIT_CHART_FROM_ZERO : 0),
+                .fill_shade = 4,
+            };
+            kit_chart(&content, &chart);
+        }
+    }
+    if (save(dir, "kit-charts")) {
+        return 1;
+    }
+
+    /* One chart as the picture of a screen: the value, and how it came to be. */
+    start_screen(&online, &content);
+    {
+        static const int32_t SERIES[] = { 712, 715, 715, 721, 730, 728, 735, 741, 752, 760,
+                                          758, 771, 780, 779, 790, 802, 815, 811, 824, 840 };
+        int top = kit_title(&content, "Stars");
+        kit_text(&content, KIT_MARGIN, top - 6, KIT_VALUE, "840", 0);
+        const kit_chart_t chart = {
+            .left = KIT_MARGIN, .top = top + 96, .width = content.w - 2 * KIT_MARGIN,
+            .height = content.h - top - 96 - KIT_MARGIN,
+            .values = SERIES, .count = (int)(sizeof SERIES / sizeof SERIES[0]),
+            .kind = KIT_CHART_AREA, .flags = KIT_CHART_AXIS | KIT_CHART_RANGE | KIT_CHART_MARK_LAST,
+            .fill_shade = 4,
+        };
+        kit_chart(&content, &chart);
+    }
+    if (save(dir, "kit-chart-screen")) {
+        return 1;
+    }
+
     /* What an application says when it has nothing to show, and a question
      * of its own: the host's notice under the header. */
     const notice_t not_set_up = { .first = "Not set up", .detail = "Open the page",

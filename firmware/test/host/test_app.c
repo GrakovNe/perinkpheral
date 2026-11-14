@@ -40,7 +40,7 @@
 static uint8_t bits[SURFACE_W / 8 * SURFACE_H];
 static gfx_t surface;
 
-static char logged[64];
+static char logged[256];
 static int  timer_set_id;
 static int  timer_set_ms;
 
@@ -82,7 +82,12 @@ static int64_t fake_uptime_ms(void)
 static void record_log(int level, const char *text, int length)
 {
     (void)level;
-    strncat(logged, text, (size_t)length);
+    size_t used = strlen(logged);
+    size_t room = sizeof logged - used - 2; /* the separator and the end */
+    if (used + 2 > sizeof logged) {
+        return;
+    }
+    strncat(logged, text, (size_t)length < room ? (size_t)length : room);
     strcat(logged, ";");
 }
 

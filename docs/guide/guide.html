@@ -549,6 +549,7 @@ drop:
   <tr><td class="c">ui_date</td><td>Time, date or both; one part is set at a time</td><td>Entry of a moment</td></tr>
   <tr><td class="c">ui_frame</td><td>Frame with arrows for the available directions</td><td>Marks the value that the buttons change</td></tr>
   <tr><td class="c">ui_bar</td><td>Filled portion of a total, from the left</td><td>Quantities. Changes with the data</td></tr>
+  <tr><td class="c">ui_chart</td><td>Series of integers as a line, an area, bars or steps, scaled to a box</td><td>History of one value. Changes with the data</td></tr>
   <tr><td class="c">ui_title, ui_text, ui_text_lines, ui_icon</td><td>Page title with a rule; text in four styles, on one line or wrapped; icons at three sizes</td><td>Basic page elements</td></tr>
 </table>
 <div class="screens">
@@ -946,6 +947,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">ui_cell(cell, picture)</td><td>Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none). Picture size: 88 px in a full-surface cell, 44 px otherwise</td></tr>
   <tr><td class="c">ui_cell_fit(cell, picture)</td><td>Returns the size class that fits the cell; 1 is the largest. Use the largest returned number for all cells of a screen</td></tr>
   <tr><td class="c">ui_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
+  <tr><td class="c">ui_chart(chart, values)</td><td>Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value</td></tr>
   <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code></td></tr>
   <tr><td class="c">ui_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row</td></tr>
   <tr><td class="c">ui_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]</td></tr>

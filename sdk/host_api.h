@@ -679,6 +679,38 @@ typedef struct host_cell {
 HOST_IMPORT(ui_cell_fit, int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture));
 HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture));
 
+/* Chart of a series of integers in a box. The vertical scale spans the
+ * least and the greatest value of the series.
+ * `values`: `count` numbers, 1 to HOST_CHART_VALUES_MAX, oldest first.
+ * A value of HOST_CHART_NO_VALUE is a gap in the series.
+ * kind: HOST_CHART_LINE - points joined by a line; HOST_CHART_AREA - the
+ * same with the area under the line in grey; HOST_CHART_BARS - one bar
+ * per value; HOST_CHART_STEPS - a value holds until the next one.
+ * flags: HOST_CHART_AXIS - a rule at the baseline; HOST_CHART_FROM_ZERO -
+ * the scale includes 0; HOST_CHART_RANGE - the greatest and the least
+ * value as captions at the left, printed with `decimals` decimals (215
+ * with 1 is "21.5"); HOST_CHART_MARK_LAST - a mark at the last value
+ * (LINE, AREA, STEPS).
+ * Returns HOST_OK or HOST_ERR_ARGUMENT. */
+#define HOST_CHART_LINE  0
+#define HOST_CHART_AREA  1
+#define HOST_CHART_BARS  2
+#define HOST_CHART_STEPS 3
+#define HOST_CHART_AXIS      1
+#define HOST_CHART_FROM_ZERO 2
+#define HOST_CHART_RANGE     4
+#define HOST_CHART_MARK_LAST 8
+#define HOST_CHART_VALUES_MAX 128
+#define HOST_CHART_NO_VALUE   INT32_MIN
+typedef struct host_chart {
+    int32_t x, y, width, height;
+    int32_t kind;
+    int32_t flags;
+    int32_t decimals;
+    int32_t count;
+} host_chart_t;
+HOST_IMPORT(ui_chart, int32_t ui_chart(const host_chart_t *chart, const int32_t *values));
+
 /* Picker: one value of a sequence, on the whole surface. The selected
  * value is framed in the middle; the previous value is above it, the next
  * one below. An empty text marks the end of the sequence. The button row

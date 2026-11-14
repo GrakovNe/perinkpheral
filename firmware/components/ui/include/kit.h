@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "gfx.h"
 
@@ -80,6 +81,35 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum);
 /* Frame around the value changed by UP and DOWN. `has_up`, `has_down`:
  * an arrow above and below the frame. */
 void kit_frame(gfx_t *g, int left, int top, int width, int height, bool has_up, bool has_down);
+
+/* Chart of a series of integers in a box. The vertical scale spans the
+ * least and the greatest value of the series.
+ * KIT_CHART_LINE: points joined by a line. KIT_CHART_AREA: the same with
+ * the area under the line filled with `fill_shade`. KIT_CHART_BARS: one
+ * bar per value. KIT_CHART_STEPS: a value holds until the next one.
+ * A value of KIT_CHART_NO_VALUE is a gap. */
+#define KIT_CHART_NO_VALUE INT32_MIN
+typedef enum {
+    KIT_CHART_LINE,
+    KIT_CHART_AREA,
+    KIT_CHART_BARS,
+    KIT_CHART_STEPS,
+} kit_chart_kind_t;
+#define KIT_CHART_AXIS      1 /* a rule at the baseline */
+#define KIT_CHART_FROM_ZERO 2 /* the scale includes 0 */
+#define KIT_CHART_RANGE     4 /* the greatest and the least value as captions at the left */
+#define KIT_CHART_MARK_LAST 8 /* a mark at the last value; line kinds only */
+typedef struct {
+    int              left, top, width, height;
+    const int32_t   *values;
+    int              count;
+    kit_chart_kind_t kind;
+    int              flags;
+    int              decimals;   /* of the captions: 215 with 1 is "21.5" */
+    int              fill_shade; /* KIT_CHART_AREA: shade of the area, 0 - GFX_SHADE_SOLID */
+} kit_chart_t;
+
+void kit_chart(gfx_t *g, const kit_chart_t *chart);
 
 /* ---- screens (whole surface) ---- */
 

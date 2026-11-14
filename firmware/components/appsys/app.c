@@ -961,6 +961,55 @@ HOST_FUNCTION(host_ui_cell)
     m3ApiReturn(HOST_OK);
 }
 
+_Static_assert(HOST_CHART_LINE == KIT_CHART_LINE && HOST_CHART_AREA == KIT_CHART_AREA &&
+               HOST_CHART_BARS == KIT_CHART_BARS && HOST_CHART_STEPS == KIT_CHART_STEPS &&
+               HOST_CHART_AXIS == KIT_CHART_AXIS && HOST_CHART_FROM_ZERO == KIT_CHART_FROM_ZERO &&
+               HOST_CHART_RANGE == KIT_CHART_RANGE && HOST_CHART_MARK_LAST == KIT_CHART_MARK_LAST &&
+               HOST_CHART_NO_VALUE == KIT_CHART_NO_VALUE,
+               "the chart of the contract is the chart of the kit");
+
+#define CHART_FILL_SHADE 4 /* the grey of the area under a line */
+
+HOST_FUNCTION(host_ui_chart)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, chart_offset);
+    m3ApiGetArg(uint32_t, values_offset);
+
+    app_t *app = APP_OF(runtime);
+    if (app->surface == NULL) {
+        m3ApiReturn(not_drawing(APP_OF(runtime)));
+    }
+    host_chart_t   asked;
+    const uint8_t *given = in_app_memory(runtime, _mem, chart_offset, sizeof asked);
+    if (given == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    memcpy(&asked, given, sizeof asked);
+    if (asked.count < 1 || asked.count > HOST_CHART_VALUES_MAX || asked.kind < HOST_CHART_LINE ||
+        asked.kind > HOST_CHART_STEPS || asked.decimals < 0 || asked.decimals > 9 ||
+        !is_drawable(asked.x) || !is_drawable(asked.y) || !is_drawable(asked.width) ||
+        !is_drawable(asked.height) || asked.width <= 0 || asked.height <= 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    /* A copy: the application's memory need not be aligned for numbers. */
+    int32_t        values[HOST_CHART_VALUES_MAX];
+    size_t         values_size = (size_t)asked.count * sizeof values[0];
+    const uint8_t *numbers = in_app_memory(runtime, _mem, values_offset, values_size);
+    if (numbers == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    memcpy(values, numbers, values_size);
+    const kit_chart_t chart = {
+        .left = asked.x, .top = asked.y, .width = asked.width, .height = asked.height,
+        .values = values, .count = asked.count,
+        .kind = (kit_chart_kind_t)asked.kind, .flags = asked.flags, .decimals = asked.decimals,
+        .fill_shade = app->services->dithers() ? CHART_FILL_SHADE : 0,
+    };
+    kit_chart(app->surface, &chart);
+    m3ApiReturn(HOST_OK);
+}
+
 #define DATE_YEAR_MAX 9999
 
 HOST_FUNCTION(host_ui_date)
@@ -2050,6 +2099,7 @@ static const struct {
     { "ui_picker", "i(*)", host_ui_picker },
     { "ui_cell_fit", "i(**)", host_ui_cell_fit },
     { "ui_cell", "i(**)", host_ui_cell },
+    { "ui_chart", "i(**)", host_ui_chart },
     { "ui_date", "i(*)", host_ui_date },
     { "gfx_text_fit", "i(i*ii*i)", host_gfx_text_fit },
     { "gfx_bitmap_file", "i(iiii*ii)", host_gfx_bitmap_file },

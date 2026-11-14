@@ -2,8 +2,10 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "kit.h"
 #include "wm.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #include "tinytest.h"
@@ -484,8 +486,106 @@ static void test_stack(void)
           !wm_has(&wm, &app.scene));
 }
 
+
+/* ---- the chart of the kit ---- */
+
+static int ink_in(const gfx_t *g, int x, int y, int w, int h)
+{
+    int count = 0;
+    for (int row = y; row < y + h; row++) {
+        for (int column = x; column < x + w; column++) {
+            count += gfx_get(g, column, row);
+        }
+    }
+    return count;
+}
+
+static void test_chart(void)
+{
+    static uint8_t bits[200 / 8 * 100];
+    gfx_t g;
+    gfx_init(&g, bits, 200, 100);
+
+    /* bars: the greatest value reaches the top, the least stays at the bottom */
+    const int32_t two[] = { 0, 10 };
+    kit_chart_t chart = { .left = 0, .top = 0, .width = 200, .height = 100,
+                          .values = two, .count = 2, .kind = KIT_CHART_BARS };
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(gfx_get(&g, 150, 0) && gfx_get(&g, 150, 99));
+    CHECK(!gfx_get(&g, 50, 0) && !gfx_get(&g, 50, 50) && gfx_get(&g, 50, 99));
+    CHECK(!gfx_get(&g, 199, 50)); /* the gap after a bar */
+
+    /* a rising line: ink goes from the bottom left to the top right */
+    const int32_t rising[] = { 1, 2, 3, 4, 5 };
+    chart.values = rising;
+    chart.count = 5;
+    chart.kind = KIT_CHART_LINE;
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(ink_in(&g, 0, 90, 10, 10) > 0 && ink_in(&g, 190, 0, 10, 10) > 0);
+    CHECK(ink_in(&g, 0, 0, 60, 40) == 0 && ink_in(&g, 140, 60, 60, 40) == 0);
+
+    /* an area has more ink than its line, and nothing over the line */
+    int line_ink = ink_in(&g, 0, 0, 200, 100);
+    chart.kind = KIT_CHART_AREA;
+    chart.fill_shade = 4;
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(ink_in(&g, 0, 0, 200, 100) > line_ink && ink_in(&g, 0, 0, 60, 40) == 0);
+    CHECK(g.shade == GFX_SHADE_SOLID); /* the surface's shade is given back */
+
+    /* a gap: nothing is drawn across a missing value */
+    const int32_t broken[] = { 5, 5, KIT_CHART_NO_VALUE, 5, 5 };
+    chart.values = broken;
+    chart.kind = KIT_CHART_LINE;
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(ink_in(&g, 60, 0, 30, 100) == 0 && ink_in(&g, 110, 0, 30, 100) == 0);
+    CHECK(ink_in(&g, 0, 0, 50, 100) > 0 && ink_in(&g, 150, 0, 50, 100) > 0);
+
+    /* steps: the value holds, so the middle of a span is at the old level */
+    const int32_t stepped[] = { 0, 10 };
+    chart.values = stepped;
+    chart.count = 2;
+    chart.kind = KIT_CHART_STEPS;
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(gfx_get(&g, 100, 98) && !gfx_get(&g, 100, 50) && gfx_get(&g, 198, 50));
+
+    /* the captions take room at the left and the plot moves right */
+    chart.kind = KIT_CHART_BARS;
+    chart.flags = KIT_CHART_RANGE;
+    gfx_clear(&g, false);
+    kit_chart(&g, &chart);
+    CHECK(ink_in(&g, 0, 0, 16, 12) > 0 && ink_in(&g, 0, 88, 16, 12) > 0);
+
+    /* nothing to scale by, extremes, one value, no values: drawn or left alone, never a fault */
+    const int32_t flat[] = { 7, 7, 7 };
+    const int32_t extremes[] = { INT32_MAX, INT32_MIN + 1, 0 };
+    const int32_t none[] = { KIT_CHART_NO_VALUE, KIT_CHART_NO_VALUE };
+    for (int kind = KIT_CHART_LINE; kind <= KIT_CHART_STEPS; kind++) {
+        for (int flags = 0; flags < 16; flags++) {
+            kit_chart_t odd = { .left = -5, .top = -5, .width = 300, .height = 150,
+                                .kind = (kit_chart_kind_t)kind, .flags = flags, .decimals = 9 };
+            odd.values = flat; odd.count = 3; kit_chart(&g, &odd);
+            odd.values = extremes; odd.count = 3; kit_chart(&g, &odd);
+            odd.values = flat; odd.count = 1; kit_chart(&g, &odd);
+            odd.values = none; odd.count = 2; kit_chart(&g, &odd);
+            odd.width = 1; odd.height = 3; odd.values = extremes; odd.count = 3; kit_chart(&g, &odd);
+        }
+    }
+    gfx_clear(&g, false);
+    kit_chart_t middle = { .left = 0, .top = 0, .width = 200, .height = 100,
+                           .values = flat, .count = 3, .kind = KIT_CHART_LINE };
+    kit_chart(&g, &middle);
+    CHECK(ink_in(&g, 0, 40, 200, 20) > 0 && ink_in(&g, 0, 0, 200, 30) == 0 &&
+          ink_in(&g, 0, 70, 200, 30) == 0);
+}
+
 int main(void)
 {
+    test_chart();
     test_stack();
     test_drop();
     test_header_share();

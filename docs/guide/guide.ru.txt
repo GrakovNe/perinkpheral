@@ -2485,3 +2485,12 @@ optional: data files, read with file_read()
 
 (section
 (раздел
+
+Series of integers as a line, an area, bars or steps, scaled to a box
+Ряд целых чисел в виде линии, области, столбцов или ступеней, масштабированный под прямоугольник
+
+History of one value. Changes with the data
+История одного значения. Изменяется вместе с данными
+
+Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value
+График из <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) и <code>count</code> чисел (1 - 128), от старых к новым. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (линия основания), <code>_FROM_ZERO</code> (шкала включает 0), <code>_RANGE</code> (наибольшее и наименьшее значение подписями, с <code>decimals</code> знаками после запятой), <code>_MARK_LAST</code> (отметка на последнем значении). <code>HOST_CHART_NO_VALUE</code> - разрыв. Шкала охватывает наименьшее и наибольшее значение
