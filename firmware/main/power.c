@@ -66,6 +66,7 @@ static void apply_sleep(void)
         .light_sleep_enable = s_is_saving,
     };
     esp_err_t result = esp_pm_configure(&config);
+    wifi_set_modem_sleep(s_is_saving);
     if (result != ESP_OK) {
         ESP_LOGW(TAG, "sleep not %s: %s", s_is_saving ? "allowed" : "forbidden",
                  esp_err_to_name(result));

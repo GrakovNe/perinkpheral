@@ -4,11 +4,14 @@
  */
 #include "events.h"
 
+#include "esp_timer.h"
+
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "units.h"
 
 static const char *TAG = "events";
 
@@ -60,7 +63,9 @@ void events_report_dropped(void)
 
 void events_post_button(uint8_t index, event_press_t press)
 {
-    event_t event = { .kind = EVENT_BUTTON, .button = { .index = index, .press = press } };
+    event_t event = { .kind = EVENT_BUTTON,
+                      .button = { .index = index, .press = press,
+                                  .at_ms = esp_timer_get_time() / US_PER_MS } };
     events_post(&event);
 }
 

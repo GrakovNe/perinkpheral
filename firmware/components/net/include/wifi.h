@@ -56,6 +56,9 @@ void wifi_retry_is_due(void);
  * access point is up: then it has to be found. From any task. */
 void wifi_set_radio(bool on);
 
+/* Whether the modem may sleep between beacons: yes when power is saved. */
+void wifi_set_modem_sleep(bool sleeps);
+
 #ifdef __cplusplus
 }
 #endif

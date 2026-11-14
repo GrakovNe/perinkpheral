@@ -145,13 +145,17 @@ static const scene_t *volatile s_scene_on_panel;
 /* The buttons that went down while a scene that asks once was on the
  * panel: only their presses are that scene's to take. */
 static uint8_t s_went_down_on_question;
+/* When the scene on the panel got there: the end of the refresh that put
+ * its first picture on it. A press made before this was made for another
+ * picture, though it is taken off the queue only now. */
+static int64_t s_scene_shown_at_ms;
 
 /* Whether the press is one the scene on the screen may have: every press,
  * unless one press there does what cannot be taken back - then only a
  * press that began with the question in front of whoever made it. The
  * panel takes seconds to show a question, and a press made for the
  * picture before it must not answer it. */
-static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t press)
+static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t press, int64_t at_ms)
 {
     if (!scene->asks_once) {
         s_went_down_on_question = 0;
@@ -159,7 +163,7 @@ static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t pres
     }
     uint8_t button = (uint8_t)(1u << index);
     if (press == EVENT_PRESS_DOWN) {
-        if (s_scene_on_panel == scene) {
+        if (s_scene_on_panel == scene && at_ms >= s_scene_shown_at_ms) {
             s_went_down_on_question |= button;
         } else {
             s_went_down_on_question &= (uint8_t)~button;
@@ -180,7 +184,7 @@ static const scene_button_t BUTTON_ROLE[] = {
     SCENE_BUTTON_UP, SCENE_BUTTON_OK, SCENE_BUTTON_DOWN, SCENE_BUTTON_BACK,
 };
 
-static void on_button(wm_t *wm, uint8_t index, event_press_t press)
+static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_ms)
 {
     static const scene_press_t SCENE_PRESS_OF[] = {
         [EVENT_PRESS_DOWN] = SCENE_PRESS_DOWN,
@@ -198,7 +202,7 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press)
     abort_background_delivery();
     /* The long press on BACK is the user's own way out of anything. */
     bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
-    if (!is_home_press && !is_press_for(wm->current, index, press)) {
+    if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {
         return;
     }
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
@@ -251,6 +255,9 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
         break;
     case DISPLAY_UNCHANGED:
         break;
+    }
+    if (s_scene_on_panel != wm->current) {
+        s_scene_shown_at_ms = esp_timer_get_time() / US_PER_MS;
     }
     s_scene_on_panel = wm->current;
     wm_shown(wm);
@@ -673,7 +680,7 @@ static void ring_alarm(uint32_t app_id, int alarm_number)
         if (installed[i].id == app_id) {
             app_host_alarm_rang(app_id, alarm_number);
             app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-            host_deliver(installed[i].name, &alarm);
+            host_deliver(installed[i].name, app_id, &alarm);
             return;
         }
     }
@@ -802,8 +809,31 @@ static void remove_orphan_alarms(void)
     }
 }
 
+void host_close_app(const char *app_name)
+{
+    scene_t *scene = launcher_app_scene(app_name);
+    if (scene == NULL) {
+        return;
+    }
+    if (delivery_state.in_background == scene) {
+        abort_background_delivery();
+    }
+    wm_close(&wm, scene);
+}
+
 void host_reload_apps(void)
 {
+    /* An application loaded off the screen for an answer is unloaded
+     * before any scene is closed: closing the one on the screen may enter
+     * the one under it, and there is room for one instance at a time. */
+    abort_background_delivery();
+    /* The application on the screen comes back if it is still installed:
+     * another being installed or removed is no reason to leave it. */
+    char        kept[APP_NAME_MAX + 1] = "";
+    const char *current = launcher_app_name(wm.current);
+    if (current != NULL) {
+        strlcpy(kept, current, sizeof kept);
+    }
     reload_context_t context = { &wm, &delivery_state };
     /* Nothing of the poller's is held meanwhile: the applications that
      * leave the screen here run their last handlers, and those may ask the
@@ -816,6 +846,10 @@ void host_reload_apps(void)
     scene_menu(entries, count);
     /* Where the splash leads may have been one of them. */
     scene_boot_splash(scene_after_boot(s_menu), timers_set, launcher_about(), about_is_shown);
+    scene_t *again = kept[0] != '\0' ? launcher_app_scene(kept) : NULL;
+    if (again != NULL && wm.current != again) {
+        wm_open_from_home(&wm, again);
+    }
     wm_invalidate(&wm, WM_CHANGED_URGENTLY);
 }
 
@@ -826,8 +860,13 @@ void host_reload_apps_later(void)
     s_reload_is_due = true;
 }
 
-void host_deliver(const char *app_name, const app_delivery_t *delivery)
+void host_deliver(const char *app_name, uint32_t app_id, const app_delivery_t *delivery)
 {
+    /* An answer to what an earlier version asked is not the new one's: it
+     * asks again by itself. */
+    if (app_id == 0 || launcher_app_id(app_name) != app_id) {
+        return;
+    }
     scene_t *owner = launcher_app_scene(app_name);
     if (owner != NULL) {
         s_is_delivering = true;
@@ -853,7 +892,7 @@ static void broadcast(int intent)
     }
     app_delivery_t news = { .kind = APP_DELIVERY_INTENT, .request = intent };
     for (int i = 0; i < asked; i++) {
-        host_deliver(names[i], &news);
+        host_deliver(names[i], launcher_app_id(names[i]), &news);
     }
 }
 
@@ -910,7 +949,7 @@ void host_run(void)
         const scene_t *scene_before = wm.current;
         switch (event.kind) {
         case EVENT_BUTTON:
-            on_button(&wm, event.button.index, event.button.press);
+            on_button(&wm, event.button.index, event.button.press, event.button.at_ms);
             break;
         case EVENT_DEADLINES:
             answer_deadlines();

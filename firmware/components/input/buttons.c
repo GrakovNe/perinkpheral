@@ -188,6 +188,10 @@ void buttons_start(buttons_sink_fn sink)
         ESP_ERROR_CHECK(gpio_wakeup_enable(s_gpio[i], GPIO_INTR_LOW_LEVEL));
     }
     ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup());
+    /* Buttons held through the start are counted too: the press that starts
+     * the count otherwise is an interrupt, and these went down before
+     * there were interrupts. The first look with every button up stops it. */
+    esp_timer_start_periodic(s_rescue_timer, RESCUE_LOOK_US);
     for (int i = 0; i < BUTTONS_COUNT; i++) {
         ESP_LOGI(TAG, "button %d on GPIO%d, idle level %d", i + 1, s_gpio[i],
                  gpio_get_level(s_gpio[i]));

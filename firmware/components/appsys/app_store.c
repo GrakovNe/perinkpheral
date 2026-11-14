@@ -280,7 +280,17 @@ bool app_store_commit_all(const char *root, const char *name)
 bool app_store_drop_incoming(const char *root, const char *name)
 {
     char folder[PATH_MAX_BYTES], mark[PATH_MAX_BYTES + sizeof COMMIT_MARK];
-    return folder_of(folder, mark, root, name) && settle_incoming(folder, false);
+    if (!folder_of(folder, mark, root, name)) {
+        return false;
+    }
+    /* A commit cut short is finished first: its files were checked, and the
+     * mark says so. Left in place, the mark would vouch at the next start
+     * for whatever this install leaves half-written. */
+    struct stat found;
+    if (stat(mark, &found) == 0 && (!settle_incoming(folder, true) || remove(mark) != 0)) {
+        return false;
+    }
+    return settle_incoming(folder, false);
 }
 
 void app_store_recover(const char *root)
@@ -366,6 +376,30 @@ static long data_bytes(const char *root, const char *name, const char *except)
         }
         long size = app_store_file_size(root, name, entry->d_name);
         total += taken_by(size);
+    }
+    closedir(directory);
+    return total;
+}
+
+long app_store_data_bytes_kept(const char *root, const char *name, const char *const *replaced,
+                                int replaced_count)
+{
+    char folder[PATH_MAX_BYTES];
+    snprintf(folder, sizeof folder, "%s/%s", root, name);
+    DIR *directory = opendir(folder);
+    if (directory == NULL) {
+        return 0;
+    }
+    long total = 0;
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        bool is_replaced = false;
+        for (int i = 0; i < replaced_count && !is_replaced; i++) {
+            is_replaced = strcmp(entry->d_name, replaced[i]) == 0;
+        }
+        if (entry->d_name[0] != '.' && is_data_file(entry->d_name) && !is_replaced) {
+            total += taken_by(app_store_file_size(root, name, entry->d_name));
+        }
     }
     closedir(directory);
     return total;

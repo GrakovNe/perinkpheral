@@ -40,6 +40,7 @@ typedef struct {
     struct {
         uint8_t       index; /* 0..3, as the buttons sit on the device */
         event_press_t press;
+        int64_t       at_ms; /* when it happened, by the clock of uptime */
     } button;
     void *dev_request; /* a devtools request, see devtools.h */
     void *call;        /* of events_call() */

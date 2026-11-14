@@ -335,6 +335,18 @@ const app_manifest_t *launcher_installed(int *count)
     return s_installed;
 }
 
+uint32_t launcher_app_id(const char *app_name)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(installed[i].name, app_name) == 0) {
+            return installed[i].id;
+        }
+    }
+    return 0;
+}
+
 scene_t *launcher_app_scene(const char *app_name)
 {
     for (int i = 0; i < s_installed_count; i++) {

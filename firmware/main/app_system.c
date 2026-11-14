@@ -271,6 +271,7 @@ int32_t app_system_app_remove(uint32_t id)
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
+    host_close_app(app->name);
     if (!launcher_remove(app->name, false)) {
         return HOST_ERR_FAILED;
     }

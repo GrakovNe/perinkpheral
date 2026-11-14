@@ -326,7 +326,7 @@ static void change_app_settings(void *argument)
         if (stored) {
             ESP_LOGI(TAG, "settings of \"%s\" changed", command->app_name);
             app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-            host_deliver(command->app_name, &changed);
+            host_deliver(command->app_name, launcher_app_id(command->app_name), &changed);
             poller_hurry(command->app_name);
             command->status = "200 OK";
             snprintf(command->message, sizeof command->message, "Saved.");
@@ -693,6 +693,7 @@ typedef struct {
 static void remove_command(void *argument)
 {
     remove_command_t *command = argument;
+    host_close_app(command->app_name);
     command->is_done = launcher_remove(command->app_name, command->forgets);
     host_reload_apps();
 }
@@ -700,7 +701,7 @@ static void remove_command(void *argument)
 
 /* The files as the page read them from the index: the module first, the
  * manifest last, and both there. */
-static bool is_sound_file_list(const json_t *files)
+static bool is_sound_file_list(const char *app_name, const json_t *files)
 {
     int count = json_is_array(files) ? json_count(files) : 0;
     if (count < 2 || count > CATALOG_APP_FILES_MAX) {
@@ -716,8 +717,14 @@ static bool is_sound_file_list(const json_t *files)
     /* What lies between them is the application's files, and all of them
      * together have a share, each counted as the whole blocks it takes: a
      * catalog cannot bring more than an application may write. */
-    long taken = 0;
+    long        taken = 0;
+    const char *replaced[CATALOG_APP_FILES_MAX];
+    int         replaced_count = 0;
     for (int i = 1; i < count - 1; i++) {
+        const json_t *name = json_get(json_at(files, i), "name");
+        if (json_is_string(name)) {
+            replaced[replaced_count++] = name->text;
+        }
         const json_t *size = json_get(json_at(files, i), "size");
         /* Bounded before it is made a whole number: a size beyond any
          * number cannot be one. */
@@ -729,6 +736,9 @@ static bool is_sound_file_list(const json_t *files)
                       MANIFEST_FILE_BLOCK_BYTES;
         taken += blocks * MANIFEST_FILE_BLOCK_BYTES;
     }
+    /* Files of the installed version that this one does not bring stay:
+     * they are the application's too. */
+    taken += app_store_data_bytes_kept(STORAGE_APPS_ROOT, app_name, replaced, replaced_count);
     return taken <= APP_FILES_MAX_BYTES;
 }
 
@@ -751,7 +761,7 @@ static esp_err_t handle_install(httpd_req_t *request)
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
     const json_t *files = json_get(json, "files");
-    if (!is_sound_file_list(files)) {
+    if (!is_sound_file_list(app_name, files)) {
         json_free(json);
         return send_message(request, "400 Bad Request", "error",
                             "Invalid request.");
