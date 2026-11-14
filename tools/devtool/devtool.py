@@ -350,6 +350,9 @@ def command_run(device, options):
     device.request("/api/dev/run?app=" + urllib.parse.quote(name), method="POST")
     print("uploaded %s, restarting into it" % name)
     device.wait_until_back()
+    # The device starts with its default application when one is chosen:
+    # the one just uploaded is opened by name.
+    device.request("/api/dev/open?app=" + urllib.parse.quote(name), method="POST")
     if options.shot:
         # The splash goes first; the application takes the screen after it.
         rows = device.settled_screen(seen_frame=1)
