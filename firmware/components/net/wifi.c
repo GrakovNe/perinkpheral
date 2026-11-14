@@ -19,6 +19,7 @@
 
 #include "captive_dns.h"
 #include "deadlines.h"
+#include "units.h"
 
 static const char *TAG = "wifi";
 
@@ -27,7 +28,6 @@ static const char *TAG = "wifi";
 #define ACCESS_POINT_CLIENTS    4
 #define EVENT_QUEUE_LENGTH      8
 #define TASK_STACK_BYTES        STACK_WIFI_PLAN
-#define MICROSECONDS_PER_MS     1000
 
 static struct {
     char ssid[WIFI_SSID_MAX + 1];
@@ -54,7 +54,7 @@ static struct {
 
 static int64_t now_ms(void)
 {
-    return esp_timer_get_time() / MICROSECONDS_PER_MS;
+    return esp_timer_get_time() / US_PER_MS;
 }
 
 /* From an event handler or a timer: hands the event to the Wi-Fi task. */

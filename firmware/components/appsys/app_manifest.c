@@ -13,6 +13,7 @@ _Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
 
 #include "json_tree.h"
 #include "host_api.h"
+#include "units.h"
 
 static bool is_name_character(char character)
 {
@@ -140,9 +141,9 @@ uint32_t app_manifest_interval_seconds(const char *text)
         text++;
     }
     uint32_t unit = *text == '\0' || *text == 's' ? 1
-                    : *text == 'm'               ? 60
-                    : *text == 'h'               ? 3600
-                    : *text == 'd'               ? 86400
+                    : *text == 'm'               ? SECONDS_PER_MINUTE
+                    : *text == 'h'               ? SECONDS_PER_HOUR
+                    : *text == 'd'               ? SECONDS_PER_DAY
                                                  : 0;
     /* More than a day is not a pace anybody is given, and would not fit. */
     return unit == 0 || number > APP_POLL_EVERY_MAX_S / unit ? 0 : number * unit;

@@ -34,7 +34,7 @@ int btn_core_feed(btn_core_t *b, int level, uint32_t now_ms, const btn_core_cfg_
     if (b->lows == 0) {
         b->down_at_ms = now_ms; /* a long press counts from the first contact */
     }
-    if (b->lows < 255) {
+    if (b->lows < UINT8_MAX) {
         b->lows++;
     }
     if (!b->down) {

@@ -31,11 +31,16 @@ static bool str_fits(const char *s, size_t cap)
     return s != NULL && strnlen(s, cap + 1) <= cap;
 }
 
+#define ASCII_SPACE          0x20 /* the first printable character */
+#define ASCII_LAST_PRINTABLE 0x7e
+#define ASCII_DELETE         0x7f
+#define WPA_PASSWORD_MIN     8    /* characters: the standard's own least */
+
 static bool has_ctrl(const char *s)
 {
     for (const char *p = s; *p != '\0'; p++) {
         unsigned char c = (unsigned char)*p;
-        if (c < 0x20 || c == 0x7f) {
+        if (c < ASCII_SPACE || c == ASCII_DELETE) {
             return true;
         }
     }
@@ -46,7 +51,7 @@ static bool is_printable_ascii(const char *s)
 {
     for (const char *p = s; *p != '\0'; p++) {
         unsigned char c = (unsigned char)*p;
-        if (c < 0x20 || c > 0x7e) {
+        if (c < ASCII_SPACE || c > ASCII_LAST_PRINTABLE) {
             return false;
         }
     }
@@ -73,19 +78,20 @@ static bool tz_ok(const char *s)
     }
     for (const char *p = s; *p != '\0'; p++) {
         unsigned char c = (unsigned char)*p;
-        if (c <= 0x20 || c > 0x7e) {
+        if (c <= ASCII_SPACE || c > ASCII_LAST_PRINTABLE) {
             return false;
         }
     }
     return true;
 }
 
-void appconf_device_id(const uint8_t mac[6], char out[5])
+void appconf_device_id(const uint8_t mac[APPCONF_MAC_BYTES], char out[APPCONF_DEVICE_ID_SIZE])
 {
-    snprintf(out, 5, "%02x%02x", mac[4], mac[5]);
+    snprintf(out, APPCONF_DEVICE_ID_SIZE, "%02x%02x", mac[APPCONF_MAC_BYTES - 2],
+             mac[APPCONF_MAC_BYTES - 1]);
 }
 
-void appconf_hostname(const char *device_name, const char device_id[5],
+void appconf_hostname(const char *device_name, const char device_id[APPCONF_DEVICE_ID_SIZE],
                       char *out, size_t out_sz)
 {
     if (out_sz == 0) {
@@ -122,16 +128,16 @@ void appconf_hostname(const char *device_name, const char device_id[5],
     }
 }
 
-void appconf_default_name(const char device_id[5], char *out, size_t out_sz)
+void appconf_default_name(const char device_id[APPCONF_DEVICE_ID_SIZE], char *out, size_t out_sz)
 {
-    char id_upper[5] = { 0 };
-    for (int i = 0; i < 4; i++) {
+    char id_upper[APPCONF_DEVICE_ID_SIZE] = { 0 };
+    for (int i = 0; i < APPCONF_DEVICE_ID_SIZE - 1; i++) {
         id_upper[i] = (char)toupper((unsigned char)device_id[i]);
     }
     snprintf(out, out_sz, PROJECT_NAME "-%s", id_upper);
 }
 
-void appconf_defaults(appconf_t *c, const char device_id[5])
+void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     memset(c, 0, sizeof *c);
     appconf_default_name(device_id, c->device_name, sizeof c->device_name);
@@ -148,7 +154,7 @@ void appconf_defaults(appconf_t *c, const char device_id[5])
     appconf_derive(c, device_id);
 }
 
-void appconf_derive(appconf_t *c, const char device_id[5])
+void appconf_derive(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     appconf_hostname(c->device_name, device_id, c->hostname, sizeof c->hostname);
 }
@@ -200,7 +206,7 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
         BAD("Wi-Fi password without an SSID.");
     }
     size_t pass_len = strlen(c->wifi_password);
-    if (c->wifi_ssid[0] != '\0' && pass_len > 0 && pass_len < 8) {
+    if (c->wifi_ssid[0] != '\0' && pass_len > 0 && pass_len < WPA_PASSWORD_MIN) {
         BAD("Wi-Fi password must be at least 8 characters.");
     }
 

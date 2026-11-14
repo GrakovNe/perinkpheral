@@ -19,6 +19,7 @@
 #define CRASH_STACK_WORDS  256         /* stack words scanned for code addresses */
 #define CRASH_ADDRESSES    24
 #define CRASH_TEXT_BYTES   24
+#define ADDRESS_TEXT_BYTES 10 /* " %08x" and the end */
 
 typedef struct {
     uint32_t magic;
@@ -110,7 +111,7 @@ bool crash_note_text(char *text, size_t text_size)
                           (unsigned)s_note.pc, (unsigned)s_note.ra, (unsigned)s_note.sp,
                           (unsigned)s_note.cause);
     uint32_t count = s_note.address_count < CRASH_ADDRESSES ? s_note.address_count : CRASH_ADDRESSES;
-    for (uint32_t i = 0; i < count && length > 0 && (size_t)length + 10 < text_size; i++) {
+    for (uint32_t i = 0; i < count && length > 0 && (size_t)length + ADDRESS_TEXT_BYTES < text_size; i++) {
         length += snprintf(text + length, text_size - (size_t)length, " %08x",
                            (unsigned)s_note.addresses[i]);
     }

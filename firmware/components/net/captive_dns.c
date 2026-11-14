@@ -18,13 +18,23 @@
 #define TYPE_ADDRESS       1
 #define CLASS_INTERNET     1
 #define ANSWER_TTL_S       60
+#define ADDRESS_BYTES      4    /* IPv4 */
+#define NAME_IS_POINTER    0xC0 /* the name is elsewhere in the message: at the offset that follows */
+
+/* Where the fields of a message's header are, in bytes from its start. */
+enum {
+    AT_FLAGS = 2,
+    AT_FLAGS_SECOND = 3,
+    AT_QUESTIONS = 4,
+    AT_ANSWERS = 6, /* and the counts of the other sections after it */
+};
 
 static const uint8_t ANSWER_HEAD[] = {
-    0xC0, HEADER_LENGTH,              /* the name: the one in the question */
+    NAME_IS_POINTER, HEADER_LENGTH,   /* the name: the one in the question */
     0x00, TYPE_ADDRESS,
     0x00, CLASS_INTERNET,
     0x00, 0x00, 0x00, ANSWER_TTL_S,
-    0x00, 0x04,                       /* four bytes of address follow */
+    0x00, ADDRESS_BYTES,              /* the address follows */
 };
 
 static uint16_t read_u16(const uint8_t *bytes)
@@ -61,8 +71,8 @@ size_t captive_dns_answer(const uint8_t *query, size_t query_length, const uint8
     if (query_length < HEADER_LENGTH) {
         return 0;
     }
-    bool is_plain_question = (query[2] & (FLAG_RESPONSE | OPCODE_MASK)) == 0;
-    if (!is_plain_question || read_u16(query + 4) != 1) {
+    bool is_plain_question = (query[AT_FLAGS] & (FLAG_RESPONSE | OPCODE_MASK)) == 0;
+    if (!is_plain_question || read_u16(query + AT_QUESTIONS) != 1) {
         return 0;
     }
     size_t question = question_length(query, query_length);
@@ -74,20 +84,21 @@ size_t captive_dns_answer(const uint8_t *query, size_t query_length, const uint8
                          read_u16(question_tail + 2) == CLASS_INTERNET;
 
     size_t length = HEADER_LENGTH + question;
-    size_t total = length + (wants_address ? sizeof ANSWER_HEAD + 4 : 0);
+    size_t total = length + (wants_address ? sizeof ANSWER_HEAD + ADDRESS_BYTES : 0);
     if (total > capacity) {
         return 0;
     }
     /* The id and the question go back as they came; whatever followed the
      * question is dropped. */
     memcpy(answer, query, length);
-    answer[2] = (uint8_t)(FLAG_RESPONSE | FLAG_AUTHORITATIVE | (query[2] & FLAG_RECURSION_ASK));
-    answer[3] = FLAG_RECURSION_OK;
-    memset(answer + 6, 0, HEADER_LENGTH - 6);
+    answer[AT_FLAGS] = (uint8_t)(FLAG_RESPONSE | FLAG_AUTHORITATIVE |
+                                 (query[AT_FLAGS] & FLAG_RECURSION_ASK));
+    answer[AT_FLAGS_SECOND] = FLAG_RECURSION_OK;
+    memset(answer + AT_ANSWERS, 0, HEADER_LENGTH - AT_ANSWERS);
     if (wants_address) {
-        answer[7] = 1; /* one answer */
+        answer[AT_ANSWERS + 1] = 1; /* one answer: the low byte of the count */
         memcpy(answer + length, ANSWER_HEAD, sizeof ANSWER_HEAD);
-        memcpy(answer + length + sizeof ANSWER_HEAD, address, 4);
+        memcpy(answer + length + sizeof ANSWER_HEAD, address, ADDRESS_BYTES);
     }
     return total;
 }

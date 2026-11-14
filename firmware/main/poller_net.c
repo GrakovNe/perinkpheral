@@ -22,6 +22,7 @@
 #include "storage.h"
 #include "text_template.h"
 #include "wifi.h"
+#include "units.h"
 
 /* The part of the poller that talks to the network: one request at a
  * time, on the poller's task. What it learns goes to the host through
@@ -45,7 +46,7 @@ void poller_net_start(const poller_net_host_t *host)
 
 static int64_t now_ms(void)
 {
-    return esp_timer_get_time() / 1000;
+    return esp_timer_get_time() / US_PER_MS;
 }
 
 static void hand_over(const char *app_name, const app_delivery_t *delivery)

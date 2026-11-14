@@ -89,6 +89,7 @@ void kit_frame(gfx_t *g, int left, int top, int width, int height, bool has_up, 
  * bar per value. KIT_CHART_STEPS: a value holds until the next one.
  * A value of KIT_CHART_NO_VALUE is a gap. */
 #define KIT_CHART_NO_VALUE INT32_MIN
+#define KIT_CHART_DECIMALS_MAX 9 /* a number of 32 bits has no more digits to give */
 typedef enum {
     KIT_CHART_LINE,
     KIT_CHART_AREA,

@@ -22,6 +22,7 @@
 #include "settings.h"
 #include "wifi.h"
 #include "timers.h"
+#include "units.h"
 
 static const char *TAG = "app";
 
@@ -30,7 +31,7 @@ _Static_assert(HOST_TIMER_COUNT == TIMERS_COUNT, "an application gets every time
 
 static int64_t uptime_ms(void)
 {
-    return esp_timer_get_time() / 1000;
+    return esp_timer_get_time() / US_PER_MS;
 }
 
 /* Drawn once a run. */
@@ -151,7 +152,6 @@ void app_host_tell_started(void)
     tell(HOST_INTENT_STARTED);
 }
 
-#define MS_PER_SECOND 1000
 
 /* The alarms that come again and again: how often each, and when it is
  * due next on the deadlines' own clock - so that a late call does not

@@ -12,6 +12,10 @@
 extern "C" {
 #endif
 
+/* The device's own id: the last two bytes of its address on the network,
+ * as four hex digits and the end of the text. */
+#define APPCONF_MAC_BYTES      6
+#define APPCONF_DEVICE_ID_SIZE 5
 #define APPCONF_NAME_MAX   32
 #define APPCONF_SSID_MAX   32
 #define APPCONF_PASS_MAX   64
@@ -100,18 +104,18 @@ typedef struct {
 } appconf_t;
 
 /* Last two MAC bytes, lower-case hex: "1a2b". */
-void appconf_device_id(const uint8_t mac[6], char out[5]);
+void appconf_device_id(const uint8_t mac[APPCONF_MAC_BYTES], char out[APPCONF_DEVICE_ID_SIZE]);
 
-void appconf_default_name(const char device_id[5], char *out, size_t out_sz);
+void appconf_default_name(const char device_id[APPCONF_DEVICE_ID_SIZE], char *out, size_t out_sz);
 
-void appconf_defaults(appconf_t *c, const char device_id[5]);
+void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]);
 
 /* The mDNS host from the name: lower case, letters and digits, runs of
  * anything else become one dash. Falls back to "perinkpheral-<id>". */
-void appconf_hostname(const char *device_name, const char device_id[5],
+void appconf_hostname(const char *device_name, const char device_id[APPCONF_DEVICE_ID_SIZE],
                       char *out, size_t out_sz);
 
-void appconf_derive(appconf_t *c, const char device_id[5]);
+void appconf_derive(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]);
 
 bool appconf_validate(const appconf_t *c, char *err, size_t err_sz);
 

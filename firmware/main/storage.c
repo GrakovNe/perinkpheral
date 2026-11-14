@@ -6,6 +6,7 @@
 
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "units.h"
 
 static const char *TAG = "storage";
 
@@ -45,7 +46,7 @@ bool storage_start(void)
     size_t total_bytes = 0, used_bytes = 0;
     esp_littlefs_info(APPS_PARTITION, &total_bytes, &used_bytes);
     ESP_LOGI(TAG, "%s mounted, %u of %u KB used", STORAGE_APPS_ROOT, (unsigned)(used_bytes / 1024),
-             (unsigned)(total_bytes / 1024));
+             (unsigned)(total_bytes / KB));
     return true;
 }
 

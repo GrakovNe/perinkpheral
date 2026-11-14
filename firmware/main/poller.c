@@ -30,6 +30,7 @@
 #include "storage.h"
 #include "text_template.h"
 #include "wifi.h"
+#include "units.h"
 
 /* What ties the polls to the host: which are wanted (poll_schedule.c),
  * when each is due (a deadline), the one task that asks the network
@@ -47,7 +48,6 @@ static const char *TAG = "poller";
  * request waits for a better moment instead of taking the device down. */
 /* And its largest buffer is one piece of 16 KB: the sum is not enough. */
 #define NO_APP               0 /* no application has this id */
-#define MS_PER_SECOND        1000
 
 static poll_schedule_t   s_schedule;
 /* The installed applications as the poller last took them: its own copy,
@@ -75,7 +75,7 @@ static void unlock(void)
  * only goes forward. */
 static int64_t uptime_ms(void)
 {
-    return esp_timer_get_time() / 1000;
+    return esp_timer_get_time() / US_PER_MS;
 }
 
 /* There is something for the task to look at. From any task. */

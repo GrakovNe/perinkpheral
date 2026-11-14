@@ -2,7 +2,7 @@ idf_component_register(SRCS "app.c" "app_scene.c" "app_manifest.c" "json_tree.c"
                             "text_template.c" "poll_schedule.c"
                        INCLUDE_DIRS "include" "../../../sdk/lib"
                        PRIV_INCLUDE_DIRS "../../../sdk"
-                       REQUIRES gfx ui
+                       REQUIRES gfx ui board
                        PRIV_REQUIRES wasm3 qr)
 
 # The table of imports is made from the contract: one place holds a call's signature.

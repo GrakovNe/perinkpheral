@@ -13,7 +13,7 @@ static const char ID[] = "1a2b";
 static void test_device_id(void)
 {
     const uint8_t mac1[6] = { 0x7c, 0x4f, 0xad, 0xbb, 0x1a, 0x2b };
-    char id[5];
+    char id[APPCONF_DEVICE_ID_SIZE];
     appconf_device_id(mac1, id);
     CHECK_STR(id, "1a2b");
 

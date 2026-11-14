@@ -19,11 +19,10 @@
 #include "net_time.h"
 #include "poller.h"
 #include "wifi.h"
+#include "units.h"
 
-#define MS_PER_SECOND        1000
 #define DATE_FORMAT          "%a %d %b"
 #define CLOCK_FORMAT         "%H:%M"
-#define SECONDS_PER_MINUTE   60
 
 static SemaphoreHandle_t s_lock;
 static status_t          s_last_reported; /* what the host was last told about */

@@ -22,7 +22,7 @@ void settings_nvs_init(void);
  * Reads what is stored - defaults when nothing is, or when what is stored
  * does not validate - and makes it the settings in effect. Once, before
  * anything asks for them. */
-void settings_start(const char device_id[5]);
+void settings_start(const char device_id[APPCONF_DEVICE_ID_SIZE]);
 
 /* The settings as they are now, copied whole: from any task, never waits.
  * A reader that was overtaken by a change copies again, so the copy is

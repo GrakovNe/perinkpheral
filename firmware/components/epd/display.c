@@ -16,6 +16,7 @@
 #include "epd.h"
 #include "deadlines.h"
 #include "frame_box.h"
+#include "units.h"
 
 _Static_assert(DISPLAY_WIDTH == EPD_W && DISPLAY_HEIGHT == EPD_H,
                "the display service is sized for this panel");
@@ -62,7 +63,7 @@ static frame_box_t window_for(const uint8_t *frame)
 
 static int64_t now_ms(void)
 {
-    return esp_timer_get_time() / 1000;
+    return esp_timer_get_time() / US_PER_MS;
 }
 
 /* With the lock held: the refresh that is due when nothing else was,

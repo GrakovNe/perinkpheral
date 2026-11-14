@@ -37,6 +37,25 @@ typedef struct {
 
 #define GFX_SHADE_SOLID 16
 
+/* A 1-bit picture is rows of whole bytes, the leftmost pixel in the
+ * highest bit. */
+static inline int gfx_row_bytes(int width)
+{
+    return (width + 7) / 8;
+}
+
+/* The bit of a column within its byte. */
+static inline uint8_t gfx_bit_of(int column)
+{
+    return (uint8_t)(0x80 >> (column & 7));
+}
+
+/* True for a byte of UTF-8 that continues a character begun earlier. */
+static inline bool gfx_is_utf8_tail(char byte)
+{
+    return ((unsigned char)byte & 0xC0) == 0x80;
+}
+
 /* The whole buffer. w must be a multiple of 8; bits holds w / 8 * h bytes. */
 void gfx_init(gfx_t *g, uint8_t *bits, int w, int h);
 

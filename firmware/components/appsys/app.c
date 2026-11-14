@@ -21,6 +21,7 @@
 #include "manifest_limits.h"
 #include "qrcodegen.h"
 #include "wasm3.h"
+#include "units.h"
 
 /* The interpreter's own stack of values, apart from the application's
  * memory. */
@@ -169,7 +170,7 @@ static bool copy_text(IM3Runtime runtime, void *memory, uint32_t offset, int32_t
     if (length > HOST_TEXT_MAX) {
         /* Cut between characters, not inside one of several bytes. */
         length = HOST_TEXT_MAX;
-        while (length > 0 && (text[length] & 0xC0) == 0x80) {
+        while (length > 0 && gfx_is_utf8_tail(text[length])) {
             length--;
         }
     }
@@ -289,7 +290,8 @@ HOST_FUNCTION(host_gfx_text_fit)
      * will be drawn. */
     if ((font_id & HOST_FONT_TABULAR) != 0) {
         int32_t room = max_width;
-        for (int turn = 0; turn < 8 && cut[0] != '\0'; turn++) {
+        enum { FITTING_TURNS = 8 }; /* each turn drops a character or more: enough for any text */
+        for (int turn = 0; turn < FITTING_TURNS && cut[0] != '\0'; turn++) {
             int32_t over = gfx_text_tabular_width(font, cut) - max_width;
             if (over <= 0) {
                 break;
@@ -391,14 +393,14 @@ HOST_FUNCTION(host_gfx_bitmap)
         width > app->surface->w || height > app->surface->h) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    int32_t bytes_per_row = (width + 7) / 8;
+    int32_t bytes_per_row = gfx_row_bytes(width);
     const uint8_t *bits = in_app_memory(runtime, _mem, bits_offset, bytes_per_row * height);
     if (bits == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     for (int32_t row = 0; row < height; row++) {
         for (int32_t column = 0; column < width; column++) {
-            bool is_set = (bits[row * bytes_per_row + column / 8] & (0x80 >> (column % 8))) != 0;
+            bool is_set = (bits[row * bytes_per_row + column / 8] & gfx_bit_of(column)) != 0;
             if (is_set) {
                 gfx_pixel(app->surface, x + column, y + row, true);
             }
@@ -554,7 +556,7 @@ static const char *notice_text(char *text, size_t size)
      * character: it ends before it. */
     if (memchr(text, '\0', size) == NULL) {
         size_t length = size - 1;
-        while (length > 0 && ((unsigned char)text[length] & 0xC0) == 0x80) {
+        while (length > 0 && gfx_is_utf8_tail(text[length])) {
             length--;
         }
         text[length] = '\0';
@@ -1010,7 +1012,7 @@ HOST_FUNCTION(host_ui_chart)
     }
     memcpy(&asked, given, sizeof asked);
     if (asked.count < 1 || asked.count > HOST_CHART_VALUES_MAX || asked.kind < HOST_CHART_LINE ||
-        asked.kind > HOST_CHART_STEPS || asked.decimals < 0 || asked.decimals > 9 ||
+        asked.kind > HOST_CHART_STEPS || asked.decimals < 0 || asked.decimals > KIT_CHART_DECIMALS_MAX ||
         !is_drawable(asked.x) || !is_drawable(asked.y) || !is_drawable(asked.width) ||
         !is_drawable(asked.height) || asked.width <= 0 || asked.height <= 0) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -1276,8 +1278,9 @@ HOST_FUNCTION(host_text_fill)
 
     char pattern[HOST_TEXT_MAX + 1];
     char filled[HOST_TEXT_MAX + 1];
-    /* An argument as the application's memory has it: three words of 32 bits. */
-    enum { ARGUMENT_BYTES = 12 };
+    /* An argument as the application's memory has it: three words of 32
+     * bits. A place in the pattern is three characters: "{0}". */
+    enum { ARGUMENT_WORDS = 3, ARGUMENT_BYTES = ARGUMENT_WORDS * 4, PLACE_LENGTH = 3 };
     if (count < 0 || count > HOST_TEXT_ARGUMENTS_MAX || capacity < 0 ||
         !copy_text(runtime, _mem, pattern_offset, pattern_length, pattern)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -1295,8 +1298,8 @@ HOST_FUNCTION(host_text_fill)
             filled[used++] = *at++;
             continue;
         }
-        at += 3;
-        uint32_t words[3];
+        at += PLACE_LENGTH;
+        uint32_t words[ARGUMENT_WORDS];
         memcpy(words, arguments + number * ARGUMENT_BYTES, sizeof words);
         char piece[HOST_TEXT_MAX + 1];
         if (words[1] == 0) {
@@ -1313,7 +1316,7 @@ HOST_FUNCTION(host_text_fill)
     }
     /* Full to the brim: the last character may be only half there. */
     while (used > 0 && used == HOST_TEXT_MAX && ((unsigned char)filled[used - 1] & 0x80) != 0) {
-        bool is_first_byte = ((unsigned char)filled[--used] & 0xC0) != 0x80;
+        bool is_first_byte = !gfx_is_utf8_tail(filled[--used]);
         if (is_first_byte) {
             break;
         }
@@ -1398,7 +1401,7 @@ static void note_store_write(app_t *app)
     } writes;
     int64_t now_ms = app->services->uptime_ms();
     if (strncmp(writes.name, app->name, sizeof writes.name) != 0 ||
-        now_ms - writes.since_ms >= 60 * 1000) {
+        now_ms - writes.since_ms >= MS_PER_MINUTE) {
         strncpy(writes.name, app->name, sizeof writes.name - 1);
         writes.since_ms = now_ms;
         writes.count = 0;
@@ -1513,7 +1516,7 @@ HOST_FUNCTION(host_gfx_bitmap_file)
         !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    int32_t bytes_per_row = (width + 7) / 8;
+    int32_t bytes_per_row = gfx_row_bytes(width);
     int32_t rows_per_chunk = PICTURE_CHUNK_BYTES / bytes_per_row;
     uint8_t rows[PICTURE_CHUNK_BYTES];
     for (int32_t row = 0; row < height; row += rows_per_chunk) {
@@ -1527,7 +1530,7 @@ HOST_FUNCTION(host_gfx_bitmap_file)
         for (int32_t chunk_row = 0; chunk_row < row_count; chunk_row++) {
             const uint8_t *bits = rows + chunk_row * bytes_per_row;
             for (int32_t column = 0; column < width; column++) {
-                if ((bits[column / 8] & (0x80 >> (column % 8))) != 0) {
+                if ((bits[column / 8] & gfx_bit_of(column)) != 0) {
                     gfx_pixel(app->surface, x + column, y + row + chunk_row, true);
                 }
             }
@@ -1678,6 +1681,8 @@ HOST_FUNCTION(host_alarm_set_every)
                     : HOST_ERR_NO_SPACE);
 }
 
+#define LAST_SECOND_OF_9999 253402300799LL
+
 HOST_FUNCTION(host_alarm_set_at)
 {
     m3ApiReturnType(int32_t);
@@ -1686,7 +1691,7 @@ HOST_FUNCTION(host_alarm_set_at)
     app_t *app = APP_OF(runtime);
     /* Up to the end of the year 9999: beyond it the milliseconds the host
      * counts in would not fit their 64 bits. */
-    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0 || unix_time > 253402300799LL) {
+    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0 || unix_time > LAST_SECOND_OF_9999) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->alarm_set(app->name, id, unix_time, true) ? HOST_OK
@@ -1723,7 +1728,6 @@ HOST_FUNCTION(host_time_zone_offset)
     m3ApiReturn(APP_OF(runtime)->services->time_zone_offset());
 }
 
-#define SECONDS_PER_DAY 86400
 
 /* Days from 1970-01-01 to a date of the calendar; any year, any month
  * number - the thirteenth month is next January. */
@@ -1877,7 +1881,8 @@ HOST_FUNCTION(host_time_from_local)
      * zone's offset - the offset at the moment itself, which a second look
      * finds when the clocks changed in between. */
     int64_t as_utc = days_from_civil(parts.year, parts.month, parts.day) * SECONDS_PER_DAY +
-                     (int64_t)parts.hour * 3600 + (int64_t)parts.minute * 60 + parts.second;
+                     (int64_t)parts.hour * SECONDS_PER_HOUR + (int64_t)parts.minute * SECONDS_PER_MINUTE +
+                     parts.second;
     int64_t moment = as_utc - app->services->time_zone_offset_at(as_utc);
     moment = as_utc - app->services->time_zone_offset_at(moment);
     m3ApiReturn(moment);
@@ -2394,15 +2399,24 @@ static void find_data_buffer(app_t *app)
 /* What the host will take into its own memory, for a moment, on an
  * application's word: tools/mkapp holds a table to the same. */
 #define STRINGS_MAX_BYTES    (8 * 1024)
+/* The table: its capacity and the number of strings, two bytes each, low
+ * first; then an offset of two bytes for every string; then the strings. */
+enum { STRINGS_AT_CAPACITY = 0, STRINGS_AT_COUNT = 2, STRINGS_OFFSET_BYTES = 2 };
+
+static uint32_t read_u16(const uint8_t *bytes)
+{
+    return (uint32_t)(bytes[0] | bytes[1] << 8);
+}
+
 static bool is_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
 {
-    if (bytes < STRINGS_HEADER_BYTES + 2 * (size_t)count || table[bytes - 1] != '\0' ||
-        (uint32_t)(table[2] | table[3] << 8) != count) {
+    if (bytes < STRINGS_HEADER_BYTES + STRINGS_OFFSET_BYTES * (size_t)count || table[bytes - 1] != '\0' ||
+        read_u16(table + STRINGS_AT_COUNT) != count) {
         return false;
     }
     for (uint32_t i = 0; i < count; i++) {
-        size_t offset = (size_t)(table[4 + 2 * i] | table[5 + 2 * i] << 8);
-        if (offset < STRINGS_HEADER_BYTES + 2 * (size_t)count || offset >= bytes) {
+        size_t offset = read_u16(table + STRINGS_HEADER_BYTES + STRINGS_OFFSET_BYTES * i);
+        if (offset < STRINGS_HEADER_BYTES + STRINGS_OFFSET_BYTES * (size_t)count || offset >= bytes) {
             return false;
         }
     }
@@ -2432,8 +2446,8 @@ static void load_strings(app_t *app)
         return;
     }
     uint8_t *english = memory + offset;
-    uint32_t capacity = (uint32_t)(english[0] | english[1] << 8);
-    uint32_t count = (uint32_t)(english[2] | english[3] << 8);
+    uint32_t capacity = read_u16(english + STRINGS_AT_CAPACITY);
+    uint32_t count = read_u16(english + STRINGS_AT_COUNT);
     if (capacity > memory_size - offset) {
         return;
     }

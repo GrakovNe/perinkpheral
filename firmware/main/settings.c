@@ -85,7 +85,7 @@ static void get_str(nvs_handle_t h, const char *key, char *out, size_t out_sz)
     free(tmp);
 }
 
-static void load(appconf_t *c, const char device_id[5])
+static void load(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     appconf_defaults(c, device_id);
 
@@ -270,7 +270,7 @@ refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
 
 static appconf_t         s_live;
 static volatile uint32_t s_version; /* odd while s_live is being rewritten */
-static char              s_device_id[5];
+static char              s_device_id[APPCONF_DEVICE_ID_SIZE];
 
 static void publish(const appconf_t *settings)
 {
@@ -280,7 +280,7 @@ static void publish(const appconf_t *settings)
     s_version++;
 }
 
-void settings_start(const char device_id[5])
+void settings_start(const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     memcpy(s_device_id, device_id, sizeof s_device_id);
     appconf_t stored;

@@ -3,10 +3,10 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "poll_schedule.h"
+#include "units.h"
 
 #include <stddef.h>
 
-#define MS_PER_SECOND       1000
 #define FIRST_RUN_SPREAD_MS 2000 /* between the first runs of two polls */
 
 void poll_schedule_init(poll_schedule_t *schedule)

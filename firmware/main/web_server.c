@@ -42,6 +42,7 @@
 #include "web_apps.h"
 #include "status.h"
 #include "wifi.h"
+#include "units.h"
 
 static const char *TAG = "web";
 
@@ -236,14 +237,14 @@ static esp_err_t handle_status(httpd_req_t *request)
     json_add_string(json, "hostname", settings.hostname);
     json_add_string(json, "idf", esp_app_get_description()->idf_ver);
     json_add_string(json, "built", esp_app_get_description()->date);
-    json_add_number(json, "uptime_s", (int64_t)(esp_timer_get_time() / 1000000));
+    json_add_number(json, "uptime_s", (int64_t)(esp_timer_get_time() / US_PER_SECOND));
     json_add_number(json, "free_memory", esp_get_free_heap_size());
     json_add_number(json, "least_free_memory", esp_get_minimum_free_heap_size());
     /* Why the device started this time: a number of esp_reset_reason_t - 1 power, 3 a restart
      * asked for, 4 a fault, 5-7 a watchdog, 9 the supply sagged. */
     json_add_number(json, "reset_reason", esp_reset_reason());
     json_add_number(json, "delays_cut", delay_guard_shortened());
-    static char crash[320];
+    static char crash[CRASH_NOTE_TEXT_BYTES];
     if (crash_note_text(crash, sizeof crash)) {
         json_add_string(json, "last_panic", crash);
     }

@@ -76,7 +76,7 @@ static bool locate(const gfx_t *g, int x, int y, int *buffer_x, int *buffer_y)
 
 static uint8_t pixel_mask(int buffer_x)
 {
-    return (uint8_t)(0x80 >> (buffer_x & 7));
+    return gfx_bit_of(buffer_x);
 }
 
 static uint8_t *pixel_byte(const gfx_t *g, int buffer_x, int buffer_y)
@@ -158,11 +158,11 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black)
 
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits)
 {
-    int stride = (w + 7) / 8;
+    int stride = gfx_row_bytes(w);
     for (int j = 0; j < h; j++) {
         const uint8_t *row = bits + j * stride;
         for (int i = 0; i < w; i++) {
-            bool black = (row[i >> 3] & (0x80 >> (i & 7))) == 0;
+            bool black = (row[i >> 3] & gfx_bit_of(i)) == 0;
             gfx_pixel(g, x + i, y + j, black);
         }
     }
@@ -180,23 +180,23 @@ int gfx_picture_height(const uint8_t *picture)
 
 int gfx_picture_bytes(const uint8_t *picture)
 {
-    return GFX_PICTURE_HEADER + (picture[0] + 7) / 8 * picture[1];
+    return GFX_PICTURE_HEADER + gfx_row_bytes(picture[0]) * picture[1];
 }
 
 void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black)
 {
-    int width = picture[0], height = picture[1], stride = (width + 7) / 8;
+    int width = picture[0], height = picture[1], stride = gfx_row_bytes(width);
     const uint8_t *bits = picture + GFX_PICTURE_HEADER;
     for (int row = 0; row < height; row++) {
         /* A run of ink in a row is one rectangle. */
         for (int column = 0; column < width;) {
-            if ((bits[row * stride + column / 8] & (0x80 >> (column % 8))) == 0) {
+            if ((bits[row * stride + column / 8] & gfx_bit_of(column)) == 0) {
                 column++;
                 continue;
             }
             int start = column;
             while (column < width &&
-                   (bits[row * stride + column / 8] & (0x80 >> (column % 8))) != 0) {
+                   (bits[row * stride + column / 8] & gfx_bit_of(column)) != 0) {
                 column++;
             }
             gfx_fill(g, x + start * cell, y + row * cell, (column - start) * cell, cell, black);
@@ -227,7 +227,7 @@ static uint32_t next_cp(const char **s)
         return '?';
     }
     for (int i = 1; i <= extra; i++) {
-        if ((p[i] & 0xC0) != 0x80) {
+        if (!gfx_is_utf8_tail(p[i])) {
             *s += i;
             return '?';
         }
@@ -461,7 +461,7 @@ size_t gfx_pack_bytes(const void *data, size_t available)
         }
         const gfx_glyph_t *glyphs = (const gfx_glyph_t *)((const uint8_t *)data + at);
         for (int g = 0; g < face->glyph_count; g++) {
-            size_t glyph_bytes = (size_t)((glyphs[g].w + 7) / 8) * glyphs[g].h;
+            size_t glyph_bytes = (size_t)(gfx_row_bytes(glyphs[g].w)) * glyphs[g].h;
             /* A glyph the size of the screen would make a line of text a
              * minute's work: no face here is drawn larger than this. */
             if (glyphs[g].w > GLYPH_SIDE_MAX || glyphs[g].h > GLYPH_SIDE_MAX ||
@@ -632,11 +632,11 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
         int inset;
         int room = glyph_room(gl, cp, cell, &inset);
         if (g != NULL) {
-            int stride = (gl->w + 7) / 8;
+            int stride = gfx_row_bytes(gl->w);
             bits += gl->offset;
             for (int row = 0; row < gl->h; row++) {
                 for (int col = 0; col < gl->w; col++) {
-                    if (bits[row * stride + (col >> 3)] & (0x80 >> (col & 7))) {
+                    if (bits[row * stride + (col >> 3)] & gfx_bit_of(col)) {
                         gfx_fill(g, x + (inset + gl->left + col) * scale,
                                  y + (row - gl->top) * scale, scale, scale, black);
                     }
@@ -675,7 +675,7 @@ size_t gfx_text_cut(const char *text, size_t max_bytes)
         return length;
     }
     length = max_bytes;
-    while (length > 0 && ((unsigned char)text[length] & 0xC0) == 0x80) {
+    while (length > 0 && gfx_is_utf8_tail(text[length])) {
         length--;
     }
     return length;
@@ -699,7 +699,7 @@ void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char 
     for (; kept > 0; kept--) {
         /* No space before the dots: "Saint...", not "Saint ...". And the
          * cut is between characters: not inside one of several bytes. */
-        if (text[kept - 1] == ' ' || ((unsigned char)text[kept] & 0xC0) == 0x80) {
+        if (text[kept - 1] == ' ' || gfx_is_utf8_tail(text[kept])) {
             continue;
         }
         snprintf(fitted, capacity, "%.*s%s", (int)kept, text, ELLIPSIS);

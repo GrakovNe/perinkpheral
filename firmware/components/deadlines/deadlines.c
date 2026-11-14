@@ -7,9 +7,8 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "units.h"
 
-#define MICROSECONDS_PER_MS 1000
-#define MS_PER_SECOND       1000
 /* The news of a deadline was not taken - the host's queue was full: it is
  * offered again this soon. */
 #define TELL_AGAIN_MS       50
@@ -23,7 +22,7 @@ int64_t deadlines_now_ms(void)
 {
     struct timeval now;
     gettimeofday(&now, NULL);
-    return (int64_t)now.tv_sec * MS_PER_SECOND + now.tv_usec / MICROSECONDS_PER_MS;
+    return (int64_t)now.tv_sec * MS_PER_SECOND + now.tv_usec / US_PER_MS;
 }
 
 /* Sets the timer for the nearest deadline. With the lock held. */
@@ -35,7 +34,7 @@ static void aim_timer(void)
         return;
     }
     int64_t wait_ms = nearest_ms - deadlines_now_ms();
-    esp_timer_start_once(s_timer, (uint64_t)(wait_ms > 0 ? wait_ms : 0) * MICROSECONDS_PER_MS);
+    esp_timer_start_once(s_timer, (uint64_t)(wait_ms > 0 ? wait_ms : 0) * US_PER_MS);
 }
 
 /* In the timer's task. The deadline stays in the table until somebody
@@ -44,7 +43,7 @@ static void on_timer(void *arg)
 {
     (void)arg;
     if (!s_some_are_due()) {
-        esp_timer_start_once(s_timer, (uint64_t)TELL_AGAIN_MS * MICROSECONDS_PER_MS);
+        esp_timer_start_once(s_timer, (uint64_t)TELL_AGAIN_MS * US_PER_MS);
     }
 }
 
@@ -136,7 +135,7 @@ bool deadlines_set_clock(const struct timeval *to, int64_t *moved_ms)
     bool    is_set = settimeofday(to, NULL) == 0;
     int64_t delta_ms = 0;
     if (is_set) {
-        delta_ms = (int64_t)to->tv_sec * MS_PER_SECOND + to->tv_usec / MICROSECONDS_PER_MS -
+        delta_ms = (int64_t)to->tv_sec * MS_PER_SECOND + to->tv_usec / US_PER_MS -
                    before_ms;
         deadline_table_clock_moved(&s_table, delta_ms);
         aim_timer();

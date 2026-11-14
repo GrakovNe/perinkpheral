@@ -108,9 +108,11 @@ int64_t deadline_table_nearest(const deadline_table_t *table)
     return earliest != NULL ? earliest->at_ms : DEADLINE_NONE;
 }
 
+#define KINDS_IN_A_MASK 32 /* a bit for a kind in a word of 32 */
+
 static bool is_of(const deadline_t *entry, uint32_t kinds)
 {
-    return entry->id.kind >= 0 && entry->id.kind < 32 && (kinds >> entry->id.kind & 1u) != 0;
+    return entry->id.kind >= 0 && entry->id.kind < KINDS_IN_A_MASK && (kinds >> entry->id.kind & 1u) != 0;
 }
 
 int64_t deadline_table_nearest_of(const deadline_table_t *table, uint32_t kinds)

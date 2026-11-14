@@ -93,10 +93,12 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
  * the same. Never 0, and never negative as an int. */
 #define HASH_CHUNK_BYTES 512
 
+#define SHA256_BYTES 32
+
 static uint32_t id_of(const char *app_name, const uint8_t *code, size_t code_size)
 {
     mbedtls_sha256_context hash;
-    uint8_t                digest[32];
+    uint8_t                digest[SHA256_BYTES];
     mbedtls_sha256_init(&hash);
     mbedtls_sha256_starts(&hash, 0);
     if (code != NULL) {
@@ -122,8 +124,10 @@ static uint32_t id_of(const char *app_name, const uint8_t *code, size_t code_siz
     }
     mbedtls_sha256_finish(&hash, digest);
     mbedtls_sha256_free(&hash);
+    /* The first four bytes, the sign bit off: an id is a positive number
+     * to an application that asks for it. */
     uint32_t id = ((uint32_t)digest[0] << 24 | (uint32_t)digest[1] << 16 |
-                   (uint32_t)digest[2] << 8 | digest[3]) & 0x7FFFFFFFu;
+                   (uint32_t)digest[2] << 8 | digest[3]) & INT32_MAX;
     return id != 0 ? id : 1;
 }
 

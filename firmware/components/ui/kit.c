@@ -119,6 +119,7 @@ int kit_title(gfx_t *g, const char *text)
 
 static int icon_cell(kit_icon_size_t size)
 {
+    /* An icon is 11 cells a side: 22, 44 and 99 pixels. */
     static const int CELL_OF[] = { [KIT_ICON_SMALL] = 2, [KIT_ICON_MEDIUM] = 4,
                                    [KIT_ICON_LARGE] = 9 };
     return CELL_OF[size];
@@ -239,13 +240,15 @@ void kit_bar(gfx_t *g, int left, int top, int width, int value, int maximum)
 #define CHART_LABEL_GAP  6 /* between the captions and the plot */
 #define CHART_LINE_WIDTH 2
 #define CHART_MARK_SIDE  7
+#define CHART_WIDE_BAR   8 /* a bar's room, in pixels, from which two of them are a gap */
+#define CHART_NARROW_BAR 3 /* and from which one is; narrower bars touch */
 
 static void chart_label(char *text, size_t size, int32_t value, int decimals)
 {
     /* Numbers of 32 bits and their plain formats: the firmware's printf is the small one. */
     unsigned long magnitude = value < 0 ? 0ul - (unsigned long)value : (unsigned long)value;
     unsigned long scale = 1;
-    int           digits = decimals < 9 ? decimals : 9;
+    int           digits = decimals < KIT_CHART_DECIMALS_MAX ? decimals : KIT_CHART_DECIMALS_MAX;
     for (int i = 0; i < digits; i++) {
         scale *= 10;
     }
@@ -341,7 +344,7 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
             int from = left + (int)((long long)i * width / chart->count);
             int to = left + (int)((long long)(i + 1) * width / chart->count);
             int slot = to - from;
-            int gap = slot >= 8 ? 2 : slot >= 3 ? 1 : 0;
+            int gap = slot >= CHART_WIDE_BAR ? 2 : slot >= CHART_NARROW_BAR ? 1 : 0;
             int row = chart_row(chart->values[i], low, high, chart->top, rows);
             chart_column(g, from, row, base_row + CHART_LINE_WIDTH - 1, slot - gap > 0 ? slot - gap : 1);
         }
@@ -604,6 +607,9 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
     gfx_text_tabular(g, row_left, middle + gfx_font_cap_height(font) / 2, font, value, true);
 }
 
+#define VALUE_UNIT_GAP       5  /* between a value and its unit, pixels */
+#define VALUE_UNIT_GAP_LARGE 12 /* beside the large sizes */
+
 /* ---- a value with its unit ---- */
 
 int kit_value(gfx_t *g, int left, int top, const gfx_font_t *font, bool tabular, const char *value,
@@ -625,7 +631,7 @@ int kit_value(gfx_t *g, int left, int top, const gfx_font_t *font, bool tabular,
      * is the small print. */
     bool              is_large = gfx_font_cap_height(font) >= 2 * gfx_font_cap_height(kit_font(KIT_TEXT));
     const gfx_font_t *unit_font = kit_font(is_large ? KIT_TEXT : KIT_CAPTION);
-    int               gap = is_large ? 12 : 5;
+    int               gap = is_large ? VALUE_UNIT_GAP_LARGE : VALUE_UNIT_GAP;
     if (g != NULL) {
         gfx_text_font(g, left + width + gap, baseline, unit_font, unit, true);
     }

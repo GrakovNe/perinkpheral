@@ -19,8 +19,10 @@
 #include "host_api.h"
 #include "host.h"
 #include "launcher.h"
+#include "scene.h"
 #include "settings.h"
 #include "storage.h"
+#include "units.h"
 #include "web_server.h"
 
 static const char *TAG = "devtools";
@@ -160,10 +162,28 @@ static bool query_value(httpd_req_t *http, const char *key, char *value, size_t 
 #define BMP_HEADER_BYTES 62
 #define BMP_ROW_BYTES    ((DISPLAY_WIDTH / 8 + 3) / 4 * 4)
 
+/* Where the fields of the file's header are, in bytes from its start. */
+enum {
+    BMP_AT_FILE_BYTES = 2,
+    BMP_AT_PIXELS_START = 10,
+    BMP_AT_INFO_BYTES = 14,
+    BMP_AT_WIDTH = 18,
+    BMP_AT_HEIGHT = 22,
+    BMP_AT_PLANES = 26,
+    BMP_AT_BITS_PER_PIXEL = 28,
+    BMP_AT_PIXELS_BYTES = 34,
+    BMP_AT_COLOURS = 46,
+    BMP_AT_PALETTE = 54,
+};
+#define BMP_INFO_BYTES 40
+#define BMP_COLOURS    2
+#define BMP_INK        0x00141413 /* the palette of the project: black #141413 */
+#define BMP_PAPER      0x00E9E7E1 /* and paper #E9E7E1 */
+
 static void put_u32(uint8_t *bytes, uint32_t value)
 {
-    for (int i = 0; i < 4; i++) {
-        bytes[i] = (uint8_t)(value >> (8 * i));
+    for (size_t i = 0; i < sizeof value; i++) {
+        bytes[i] = (uint8_t)(value >> (BITS_PER_BYTE * i));
     }
 }
 
@@ -172,17 +192,17 @@ static void bmp_header(uint8_t header[BMP_HEADER_BYTES])
     memset(header, 0, BMP_HEADER_BYTES);
     header[0] = 'B';
     header[1] = 'M';
-    put_u32(header + 2, BMP_HEADER_BYTES + BMP_ROW_BYTES * DISPLAY_HEIGHT);
-    put_u32(header + 10, BMP_HEADER_BYTES); /* where the pixels start */
-    put_u32(header + 14, 40);               /* the size of the info header */
-    put_u32(header + 18, DISPLAY_WIDTH);
-    put_u32(header + 22, DISPLAY_HEIGHT);
-    header[26] = 1;                         /* one plane */
-    header[28] = 1;                         /* one bit per pixel */
-    put_u32(header + 34, BMP_ROW_BYTES * DISPLAY_HEIGHT);
-    put_u32(header + 46, 2);                /* two colours: ink, then paper */
-    put_u32(header + 54, 0x00141413);
-    put_u32(header + 58, 0x00E9E7E1);
+    put_u32(header + BMP_AT_FILE_BYTES, BMP_HEADER_BYTES + BMP_ROW_BYTES * DISPLAY_HEIGHT);
+    put_u32(header + BMP_AT_PIXELS_START, BMP_HEADER_BYTES);
+    put_u32(header + BMP_AT_INFO_BYTES, BMP_INFO_BYTES);
+    put_u32(header + BMP_AT_WIDTH, DISPLAY_WIDTH);
+    put_u32(header + BMP_AT_HEIGHT, DISPLAY_HEIGHT);
+    header[BMP_AT_PLANES] = 1;
+    header[BMP_AT_BITS_PER_PIXEL] = 1;
+    put_u32(header + BMP_AT_PIXELS_BYTES, BMP_ROW_BYTES * DISPLAY_HEIGHT);
+    put_u32(header + BMP_AT_COLOURS, BMP_COLOURS);
+    put_u32(header + BMP_AT_PALETTE, BMP_INK);
+    put_u32(header + BMP_AT_PALETTE + sizeof(uint32_t), BMP_PAPER);
 }
 
 static esp_err_t handle_screen(httpd_req_t *http)
@@ -231,7 +251,7 @@ static esp_err_t handle_button(httpd_req_t *http)
             press = i;
         }
     }
-    if (button < 1 || button > 4 || press < 0) {
+    if (button < 1 || button > SCENE_BUTTON_COUNT || press < 0) {
         return refuse(http, "button is 1..4, press is short, long, down or up");
     }
     events_post_button((uint8_t)(button - 1), (event_press_t)press);

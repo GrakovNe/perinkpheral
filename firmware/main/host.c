@@ -36,6 +36,7 @@
 #include "timers.h"
 #include "wifi.h"
 #include "wm.h"
+#include "units.h"
 
 static const char *TAG = "host";
 
@@ -120,7 +121,7 @@ static app_delivery_state_t delivery_state;
 static void abort_background_delivery(void)
 {
     app_abandoned_t abandoned;
-    app_delivery_abort(&delivery_state, &wm, esp_timer_get_time() / 1000, &abandoned);
+    app_delivery_abort(&delivery_state, &wm, esp_timer_get_time() / US_PER_MS, &abandoned);
     if (abandoned.owner != NULL) {
         const char *app_name = launcher_app_name(abandoned.owner);
         if (app_name != NULL) {
@@ -763,7 +764,7 @@ static void update_menu_idle_timer(bool was_touched)
         appconf_t settings;
         settings_read(&settings);
         s_menu_is_watched =
-            deadlines_set_in(DEADLINE_MENU_IDLE, 0, 0, (int64_t)settings.menu_idle_min * 60 * 1000);
+            deadlines_set_in(DEADLINE_MENU_IDLE, 0, 0, (int64_t)settings.menu_idle_min * MS_PER_MINUTE);
     }
 }
 
@@ -830,7 +831,7 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
     scene_t *owner = launcher_app_scene(app_name);
     if (owner != NULL) {
         s_is_delivering = true;
-        app_deliver(&delivery_state, &wm, owner, delivery, esp_timer_get_time() / 1000);
+        app_deliver(&delivery_state, &wm, owner, delivery, esp_timer_get_time() / US_PER_MS);
         s_is_delivering = false;
     }
 }

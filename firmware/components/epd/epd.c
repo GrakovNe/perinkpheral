@@ -20,6 +20,38 @@
 
 static const char *TAG = "epd";
 
+/* The commands of the SSD1683, by the names its datasheet gives them. */
+enum {
+    CMD_DEEP_SLEEP = 0x10,
+    CMD_DATA_ENTRY_MODE = 0x11,
+    CMD_SOFT_RESET = 0x12,
+    CMD_WRITE_TEMPERATURE = 0x1A,
+    CMD_ACTIVATE = 0x20,         /* master activation: runs the update sequence */
+    CMD_UPDATE_CONTROL_1 = 0x21,
+    CMD_UPDATE_CONTROL_2 = 0x22, /* which sequence the activation runs */
+    CMD_WRITE_RAM = 0x24,
+    CMD_WRITE_RAM_PREVIOUS = 0x26, /* the frame a partial refresh starts from */
+    CMD_BORDER_WAVEFORM = 0x3C,
+    CMD_RAM_X_RANGE = 0x44,
+    CMD_RAM_Y_RANGE = 0x45,
+    CMD_RAM_X_COUNTER = 0x4E,
+    CMD_RAM_Y_COUNTER = 0x4F,
+};
+
+/* What goes with them: Waveshare's values for the 4.2" V2, as its code has them. */
+#define ENTRY_X_AND_Y_UP        0x03
+#define SLEEP_KEEPING_RAM       0x01 /* deep sleep mode 1 */
+#define UPDATE_1_FULL           0x40 /* with a second byte of 0x00 */
+#define UPDATE_1_PARTIAL        0x00
+#define UPDATE_1_SECOND         0x00
+#define BORDER_FOR_FULL         0x05
+#define BORDER_FOR_PARTIAL      0x80
+#define TEMPERATURE_FOR_FAST    0x6E /* the waveform of a warmer panel: the shorter one */
+#define SEQUENCE_LOAD_WAVEFORM  0x91
+#define SEQUENCE_FULL           0xF7
+#define SEQUENCE_FULL_FAST      0xC7
+#define SEQUENCE_PARTIAL        0xFF
+
 #define BUSY_INIT_MS    1000
 #define BUSY_FULL_MS    4000
 #define BUSY_PARTIAL_MS 3000
@@ -137,12 +169,12 @@ static void set_window(const frame_box_t *window)
 {
     int last_column = window->column + window->columns - 1;
     int last_row = window->row + window->rows - 1;
-    cmd(0x11); data(0x03); /* X+, Y+ */
-    cmd(0x44); data(window->column); data(last_column);
-    cmd(0x45); data(window->row & 0xFF); data(window->row >> 8);
+    cmd(CMD_DATA_ENTRY_MODE); data(ENTRY_X_AND_Y_UP);
+    cmd(CMD_RAM_X_RANGE); data(window->column); data(last_column);
+    cmd(CMD_RAM_Y_RANGE); data(window->row & 0xFF); data(window->row >> 8);
     data(last_row & 0xFF); data(last_row >> 8);
-    cmd(0x4E); data(window->column);
-    cmd(0x4F); data(window->row & 0xFF); data(window->row >> 8);
+    cmd(CMD_RAM_X_COUNTER); data(window->column);
+    cmd(CMD_RAM_Y_COUNTER); data(window->row & 0xFF); data(window->row >> 8);
 }
 
 /* The rows of the window, each from its first byte to its last. */
@@ -178,7 +210,7 @@ static void stay_up(void)
 
 static void deep_sleep(void)
 {
-    cmd(0x10); data(0x01); /* deep sleep mode 1, RAM kept */
+    cmd(CMD_DEEP_SLEEP); data(SLEEP_KEEPING_RAM);
     vTaskDelay(pdMS_TO_TICKS(100));
     s_is_awake = false;
     if (s_stays_up) {
@@ -258,25 +290,25 @@ esp_err_t epd_show_full(const uint8_t *fb, bool is_fast)
     }
     stay_up();
     hw_reset();
-    cmd(0x12);
+    cmd(CMD_SOFT_RESET);
     wait_busy("sw reset", BUSY_INIT_MS);
-    cmd(0x21); data(0x40); data(0x00); /* display update control */
-    cmd(0x3C); data(0x05);             /* border waveform */
+    cmd(CMD_UPDATE_CONTROL_1); data(UPDATE_1_FULL); data(UPDATE_1_SECOND);
+    cmd(CMD_BORDER_WAVEFORM); data(BORDER_FOR_FULL);
     if (is_fast) {
         /* Init_Fast, its 1.5 s: the waveform of a warmer panel, which is
          * a shorter one. */
-        cmd(0x1A); data(0x6E);
-        cmd(0x22); data(0x91);
-        cmd(0x20);
+        cmd(CMD_WRITE_TEMPERATURE); data(TEMPERATURE_FOR_FAST);
+        cmd(CMD_UPDATE_CONTROL_2); data(SEQUENCE_LOAD_WAVEFORM);
+        cmd(CMD_ACTIVATE);
         wait_busy("fast waveform", BUSY_INIT_MS);
     }
     set_window(&WHOLE_FRAME);
     wait_busy("init", BUSY_INIT_MS);
 
-    write_ram(0x24, fb, &WHOLE_FRAME);
-    write_ram(0x26, fb, &WHOLE_FRAME);
-    cmd(0x22); data(is_fast ? 0xC7 : 0xF7);
-    cmd(0x20);
+    write_ram(CMD_WRITE_RAM, fb, &WHOLE_FRAME);
+    write_ram(CMD_WRITE_RAM_PREVIOUS, fb, &WHOLE_FRAME);
+    cmd(CMD_UPDATE_CONTROL_2); data(is_fast ? SEQUENCE_FULL_FAST : SEQUENCE_FULL);
+    cmd(CMD_ACTIVATE);
     return finish("full refresh", BUSY_FULL_MS, false);
 }
 
@@ -292,13 +324,13 @@ esp_err_t epd_show_partial(const uint8_t *fb, const frame_box_t *window, bool st
     if (!s_is_awake) {
         hw_reset();
     }
-    cmd(0x3C); data(0x80);
-    cmd(0x21); data(0x00); data(0x00);
-    cmd(0x3C); data(0x80);
+    cmd(CMD_BORDER_WAVEFORM); data(BORDER_FOR_PARTIAL);
+    cmd(CMD_UPDATE_CONTROL_1); data(UPDATE_1_PARTIAL); data(UPDATE_1_SECOND);
+    cmd(CMD_BORDER_WAVEFORM); data(BORDER_FOR_PARTIAL);
     set_window(window);
 
-    write_ram(0x24, fb, window);
-    cmd(0x22); data(0xFF);
-    cmd(0x20);
+    write_ram(CMD_WRITE_RAM, fb, window);
+    cmd(CMD_UPDATE_CONTROL_2); data(SEQUENCE_PARTIAL);
+    cmd(CMD_ACTIVATE);
     return finish("partial refresh", BUSY_PARTIAL_MS, stays_awake);
 }

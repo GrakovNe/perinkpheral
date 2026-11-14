@@ -12,10 +12,10 @@
 
 #include "deadlines.h"
 #include "host.h"
+#include "units.h"
 
 static const char *TAG = "memory";
 
-#define KB 1024
 
 /* What each kind of work needs to begin: so much free in all, and so much
  * of it in one piece. Measured on the device (2026-11-12): a TLS session

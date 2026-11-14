@@ -1,6 +1,8 @@
 CC      ?= cc
 CFLAGS  ?= -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined
 COMP    := ../../components
+# Units and other headers with no code, shared by every component.
+CFLAGS  += -I$(COMP)/board/include
 APPCONF := $(COMP)/appconf
 GFX     := $(COMP)/gfx
 INPUT   := $(COMP)/input

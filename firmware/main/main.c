@@ -134,7 +134,7 @@ void app_main(void)
              __DATE__, __TIME__);
 
     crash_note_init();
-    static char crash[320];
+    static char crash[CRASH_NOTE_TEXT_BYTES];
     if (crash_note_text(crash, sizeof crash)) {
         ESP_LOGW(TAG, "last panic: %s", crash);
     }
@@ -146,9 +146,9 @@ void app_main(void)
     app_kv_start();
     board_init();
 
-    uint8_t mac[6];
+    uint8_t mac[APPCONF_MAC_BYTES];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    char device_id[5];
+    char device_id[APPCONF_DEVICE_ID_SIZE];
     appconf_device_id(mac, device_id);
 
     settings_start(device_id);

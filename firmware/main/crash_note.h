@@ -25,6 +25,9 @@ void crash_note_init(void);
  * Returns false when no panic is recorded. */
 bool crash_note_text(char *text, size_t text_size);
 
+/* A buffer that holds the whole record. */
+#define CRASH_NOTE_TEXT_BYTES 320
+
 #ifdef __cplusplus
 }
 #endif
