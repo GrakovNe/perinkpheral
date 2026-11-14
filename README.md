@@ -314,7 +314,7 @@ tools/
   devshot/             the same over USB for a device with no network
   mkapp/               builds an application to app.wasm and checks it
   fontgen/             TTF -> 1-bit bitmap font header
-assets/fonts/          Departure Mono (SIL OFL 1.1), the UI font, and its license
+assets/fonts/          Departure Mono and Jersey (SIL OFL 1.1), the UI fonts, and their licenses
 hardware/              the panel notes, the BOM and assembly page, the case model
 CLAUDE.md              the specification: architecture, decisions, milestones, state
 AGENTS.md              bench notes and constraints for coding agents
@@ -322,5 +322,6 @@ AGENTS.md              bench notes and constraints for coding agents
 
 ## License
 
-MIT, see `LICENSE`. The Departure Mono font in `assets/fonts/` is under the SIL
-Open Font License 1.1.
+MIT, see `LICENSE`. The Departure Mono and Jersey fonts in `assets/fonts/`, and the
+bitmaps made from them in `firmware/components/gfx/fonts/`, are under the SIL Open Font
+License 1.1: `OFL-DepartureMono.txt`, `OFL-Jersey.txt`.
