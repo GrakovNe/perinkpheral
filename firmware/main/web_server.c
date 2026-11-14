@@ -55,7 +55,6 @@ static const char *TAG = "web";
 #define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
 #define OWN_ROUTES            11
-#define SERVER_STACK_BYTES    6144
 
 /* The page, packed with gzip when the firmware was built. */
 extern const char index_html_start[] asm("_binary_index_html_gz_start");
@@ -773,7 +772,7 @@ void web_server_start(void)
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
     server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
     /* Installing an application hashes files and reads a manifest on this task. */
-    server_config.stack_size = SERVER_STACK_BYTES;
+    server_config.stack_size = STACK_WEB_SERVER;
     server_config.task_priority = PRIORITY_SERVER;
     server_config.max_uri_handlers = OWN_ROUTES + WEB_APPS_ROUTES + DEVTOOLS_ROUTES;
     httpd_handle_t server = NULL;

@@ -26,7 +26,7 @@ static const char *TAG = "wifi";
 #define ACCESS_POINT_CHANNEL    1
 #define ACCESS_POINT_CLIENTS    4
 #define EVENT_QUEUE_LENGTH      8
-#define TASK_STACK_BYTES        4096
+#define TASK_STACK_BYTES        STACK_WIFI_PLAN
 #define MICROSECONDS_PER_MS     1000
 
 static struct {

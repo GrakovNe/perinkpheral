@@ -79,6 +79,11 @@ def main():
                       help="en, or a language units.py has made guide.<language>.html for")
     args.add_argument("--out")
     options = args.parse_args()
+    # A number of the guide that the headers have otherwise stops the build.
+    checked = subprocess.run([sys.executable, os.path.join(HERE, "check_limits.py")],
+                             capture_output=True, text=True)
+    if checked.returncode != 0:
+        sys.exit(checked.stderr.strip())
     suffix = "" if options.language == "en" else "." + options.language
     if not options.out:
         options.out = os.path.join(HERE, "perinkpheral-app-guide%s.pdf" % suffix)

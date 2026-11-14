@@ -39,7 +39,7 @@
 
 static const char *TAG = "poller";
 
-#define TASK_STACK_BYTES     8192 /* the TLS handshake runs on it */
+#define TASK_STACK_BYTES     STACK_POLLER
 #define TASK_PRIORITY        PRIORITY_BACKGROUND
 #define RADIO_WAIT_MS        20000 /* for the network to be joined before the radio is given back */
 #define MEMORY_LOOK_AGAIN_MS 1000  /* no memory for a session just now */

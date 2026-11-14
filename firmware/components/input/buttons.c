@@ -20,7 +20,7 @@
 
 /* It posts events and nothing else, but a log line from any task costs
  * about a kilobyte of its stack. */
-#define BUTTONS_STACK_BYTES 3072
+#define BUTTONS_STACK_BYTES STACK_BUTTONS
 
 static const char *TAG = "buttons";
 

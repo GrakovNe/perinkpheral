@@ -1,4 +1,4 @@
-set(srcs "main.c" "settings.c" "reset.c" "crash_note.c" "delay_guard.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c" "glyphs.c"
+set(srcs "main.c" "settings.c" "reset.c" "crash_note.c" "delay_guard.c" "flash_budget.c" "events.c" "timers.c" "host.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c" "glyphs.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "ota.c" "web_server.c" "web_apps.c" "log_ring.c" "log_capture.c"
          "scene_menu.c" "scene_splash.c" "scene_storage.c" "scene_confirm.c" "scene_notify.c" "scene_working.c" "launcher.c" "poller.c" "poller_net.c" "image_layout.c" "power.c" "memory.c")
 if(CONFIG_APP_DEV_CONSOLE)
@@ -39,6 +39,15 @@ string(SHA256 partition_hash "${partition_lines}")
 string(SUBSTRING "${partition_hash}" 0 8 partition_table_number)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE "APP_PARTITION_TABLE=0x${partition_table_number}u")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${partitions_csv}")
+# Every partition's size as PARTITION_<NAME>_BYTES: flash_budget.c holds what
+# is promised of the flash against what the table gives, at compile time.
+foreach(partition_line IN LISTS partition_lines)
+    string(REPLACE "," ";" partition_fields "${partition_line}")
+    list(GET partition_fields 0 partition_name)
+    list(GET partition_fields 4 partition_size)
+    string(TOUPPER "${partition_name}" partition_name)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE "PARTITION_${partition_name}_BYTES=${partition_size}u")
+endforeach()
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-u image_layout")
 # crash_note.c records a panic before the system handler runs.
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")

@@ -490,6 +490,8 @@ tools/
   devtool/             the device over the network: screenshots, presses, the log, upload and run an application, flash
   devshot/             the same over USB for a device with no network: presses and the frame its panel shows
   mkapp/               builds app.wasm (wasi-sdk) and checks its imports and memory
+  hostapi/             the host's table of imports made from sdk/host_api.h at build time: the header is
+                       the one place a call's signature is written
   mkpicture/           drawings - PNG, PBM, rows of '#' and '.' - into the pictures an application carries in its
                        code; mkapp runs it over an application's `pictures` folder and the code includes pictures.h
   mkvideo/             a video into a 1-bit stream small enough to be a file of an application
@@ -544,6 +546,7 @@ The five milestones of the operating system are done but for what is listed abov
 - Everything is written strictly in English, with a plain hyphen `-`, never an en or em dash.
 - **Interface text is short and standard**: on the panel, on the web page, in the answers of the API. The words every interface uses - Save, Update, Remove, Install, Factory reset, "Invalid value.", "Storage error." - and not a sentence of our own making ("Read them again", "refreshes nobody asked for"). No paragraphs of help under a field: a label that needs explaining is the wrong label. Simple, exact, competent.
 - Nothing in the repository depends on one developer's machine: no home-directory paths, no fixed serial port names, no OS-specific steps in code, tools or documentation.
+- **What is written once and held by the build** (2026-11-14): a call's signature - in `sdk/host_api.h`, and the host's table of imports is made from it (`tools/hostapi`); a task's priority and stack - in `components/board/include/priorities.h`; what is checked before a web handler runs - the request's origin, the memory - in the table of routes (`web_route_t`), and no handler repeats it; what is promised of the flash - six slots of code, 64 KB of files for each of six applications and an update in hand, every store full - against `partitions.csv` in `main/flash_budget.c`, which does not compile when a number on either side breaks a promise; the guide's table of limits - against the headers, by `docs/guide/check_limits.py` on every build of the guide. Time constants stay beside the code that uses them: most are a module's own pauses.
 - JSON documents - manifests, the page's requests and answers - are read and written by `components/appsys/json_tree.c`, the project's own: a tree, integers only, no floating point (cJSON and what it pulled of the C library were 9.7 KB of the image). Answers that arrive in pieces are `sdk/lib/json_pick.c`.
 - SPDX header in every source file, C11. Logic that does not need hardware is pure and host-tested; `settings.c` is the only owner of the host's NVS.
 - When debugging hardware: the vendor's reference code and the datasheet first, hypotheses after. Do not suggest "check the wires".

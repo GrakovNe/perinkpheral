@@ -215,7 +215,7 @@ void ota_start(bool network_stored)
     ESP_LOGI(TAG, "running %s from %s%s", esp_app_get_description()->version,
              running != NULL ? running->label : "?", s_on_probation ? ", on probation" : "");
     if (s_on_probation) {
-        BaseType_t ok = xTaskCreate(probation_task, "ota-probation", 3072, NULL, PRIORITY_BACKGROUND, NULL);
+        BaseType_t ok = xTaskCreate(probation_task, "ota-probation", STACK_OTA_PROBATION, NULL, PRIORITY_BACKGROUND, NULL);
         configASSERT(ok == pdPASS);
     }
 }

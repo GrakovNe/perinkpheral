@@ -16,7 +16,7 @@
 static const char *TAG = "captive_dns";
 
 #define DNS_PORT         53
-#define TASK_STACK_BYTES 3072
+#define TASK_STACK_BYTES STACK_CAPTIVE_DNS
 #define TASK_PRIORITY    PRIORITY_BACKGROUND
 #define RETRY_DELAY_MS   5000
 
