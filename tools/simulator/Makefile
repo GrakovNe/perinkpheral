@@ -5,8 +5,8 @@
 # the interpreter, the host API, the kit, the window manager and the fonts
 # are the device's, so a frame here is the frame the panel shows.
 #
-#     make            build/perinkpheral-sim
-#     make universal  macOS: one binary for arm64 and x86_64
+#     make            build/perinkpheral-sim, for this computer
+#     make platforms  build/macos (arm64 and x86_64), build/linux-x86_64, build/linux-aarch64
 
 ROOT     := ../..
 FW       := $(ROOT)/firmware
@@ -29,7 +29,7 @@ CFLAGS   := $(OPT) -std=c11 -Wall -Wextra -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE -
 WASM3_FLAGS := -std=c11 -O2 -w -Dd_m3MaxLinearMemoryPages=1 -Dd_m3VerboseErrorMessages=0 \
                -Dd_m3LogOutput=0 -Dd_m3HasFloat=0 -Dd_m3HasRefTypes=0 \
                -Dd_m3HasExtendedConst=0 -Dd_m3HasCompactImports=0
-LDLIBS   := -lcurl -lpthread -lm
+LDLIBS   := -lpthread -lm
 
 SOURCES := sim.c \
            $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c $(APPSYS)/app_store.c \
@@ -41,18 +41,24 @@ SOURCES := sim.c \
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
 $(BUILD)/perinkpheral-sim: $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc
-	$(CC) $(WASM3_FLAGS) $(ARCH) -c $(WASM3_SOURCES)
-	mkdir -p $(BUILD)/wasm3 && mv *.o $(BUILD)/wasm3/
-	$(CC) $(CFLAGS) $(ARCH) -o $@ $(SOURCES) $(BUILD)/wasm3/*.o $(LDLIBS)
+	mkdir -p $(BUILD)/wasm3
+	for source in $(WASM3_SOURCES); do \
+		$(CC) $(WASM3_FLAGS) $(ARCH) -c $$source -o $(BUILD)/wasm3/$$(basename $$source .c).o || exit 1; \
+	done
+	$(CC) $(CFLAGS) $(ARCH) -o $@ $(SOURCES) $(BUILD)/wasm3/*.o $(LDLIBS) $(LDFLAGS)
 
 $(BUILD)/host_imports.inc: $(SDK)/host_api.h $(ROOT)/tools/hostapi/gen_imports.py
 	mkdir -p $(BUILD)
 	python3 $(ROOT)/tools/hostapi/gen_imports.py $(SDK)/host_api.h $(BUILD)
 
+# The binaries the CLion plugin carries. Linux is static (musl): it runs on any
+# distribution. Cross-built with zig.
 universal:
-	$(MAKE) ARCH="-arch arm64 -arch x86_64"
+	$(MAKE) BUILD=build/macos OPT=-O2 ARCH="-arch arm64 -arch x86_64"
 
-clean:
-	rm -rf $(BUILD)
+linux-x86_64 linux-aarch64:
+	$(MAKE) BUILD=build/$@ OPT=-O2 CC="zig cc -target $(subst linux-,,$@)-linux-musl" LDFLAGS="-static -s"
 
-.PHONY: universal clean
+platforms: universal linux-x86_64 linux-aarch64
+
+.PHONY: universal linux-x86_64 linux-aarch64 platforms

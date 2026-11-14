@@ -15,7 +15,7 @@ It answers on `http://127.0.0.1:8401` as the device does: `devtool.py --host
 | Buttons | `/api/dev/button` |
 | Store (NVS) | a folder, a file per key, the device's limits |
 | Files (LittleFS) | the application's folder |
-| Network | the computer's; answers replaced by mocks |
+| Network | the computer's, through `fetch.py` and the Python that runs `devtool.py`; answers replaced by mocks |
 | Clock | the computer's; moved on by `/api/sim/forward` |
 
 Beyond the device's API:
@@ -40,4 +40,7 @@ Not simulated: the menu of several applications, the system API, e-paper
 refresh timing, sleep and the battery. The application area of the device
 (128 KB for the interpreter) is not enforced: `mkapp`'s report is the check.
 
-Build: `make` (a C compiler and libcurl), `make universal` on macOS.
+Build: `make` for this computer (a C compiler, nothing else). `make platforms`
+builds what the CLion plugin carries: `build/macos` (arm64 and x86_64, on macOS),
+`build/linux-x86_64` and `build/linux-aarch64` (static, musl, cross-built with
+[zig](https://ziglang.org)). Windows is not supported yet.

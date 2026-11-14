@@ -6,12 +6,14 @@
  * own interpreter, host API, kit and window manager, on a computer. The
  * panel is a frame in memory, the buttons and the screen are the device's
  * development API (/api/dev) on localhost, the store and the files are
- * folders, the network is the computer's, and answers can be replaced by
- * mocks.
+ * folders, the network is the computer's - asked through
+ * tools/simulator/fetch.py, so that this program needs no HTTP library -
+ * and answers can be replaced by mocks.
  *
  *     perinkpheral-sim --apps <folder> --app <name> --state <folder>
  *                      [--port 8401] [--language en] [--font departure|jersey]
  *                      [--glyphs <folder>] [--mocks <file.json>] [--clock]
+ *                      [--python python3] [--fetcher <tools/simulator/fetch.py>]
  *
  * <apps>/<name> holds the application as mkapp builds it: app.wasm,
  * manifest.json and its files. <state> keeps what the application stores.
@@ -22,13 +24,13 @@
  * forward?seconds=N (the clock and every deadline move on).
  */
 #include <arpa/inet.h>
-#include <curl/curl.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -85,10 +87,12 @@ static struct {
     const char *language;
     const char *glyphs;
     const char *mocks;
+    const char *python;
+    const char *fetcher;
     int         port;
     bool        jersey;
     bool        clock;
-} s_options = { .language = "en", .port = 8401 };
+} s_options = { .language = "en", .port = 8401, .python = "python3" };
 
 /* ---- time: the computer's, moved on by /api/sim/forward ---- */
 
@@ -396,66 +400,122 @@ static void answer_from_mock(job_t *job, const json_t *mock)
     job->response.length = (int32_t)job->answer_length;
 }
 
-static size_t take_body(char *bytes, size_t size, size_t count, void *context)
+/* ---- base64, for bodies on their way to fetch.py and back ---- */
+
+static const char BASE64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static char *base64_encode(const uint8_t *bytes, size_t length)
 {
-    job_t *job = context;
-    size_t length = size * count;
-    size_t most = job->wants_values ? HOST_ANSWER_MAX : HOST_ANSWER_PIECES_MAX;
-    if (job->answer_length + length > most) {
-        job->status = HOST_FAILED_TOO_LARGE;
-        return 0;
+    char  *text = malloc((length + 2) / 3 * 4 + 1);
+    size_t out = 0;
+    for (size_t i = 0; i < length; i += 3) {
+        uint32_t group = (uint32_t)bytes[i] << 16 | (i + 1 < length ? (uint32_t)bytes[i + 1] << 8 : 0) |
+                         (i + 2 < length ? bytes[i + 2] : 0);
+        text[out++] = BASE64[group >> 18 & 63];
+        text[out++] = BASE64[group >> 12 & 63];
+        text[out++] = i + 1 < length ? BASE64[group >> 6 & 63] : '=';
+        text[out++] = i + 2 < length ? BASE64[group & 63] : '=';
     }
-    uint8_t *grown = realloc(job->answer, job->answer_length + length + 1);
-    if (grown == NULL) {
-        return 0;
-    }
-    job->answer = grown;
-    memcpy(job->answer + job->answer_length, bytes, length);
-    job->answer_length += length;
-    return length;
+    text[out] = '\0';
+    return text;
 }
 
-static void copy_header(char *to, size_t size, const char *line, const char *name)
+static uint8_t *base64_decode(const char *text, size_t *length)
 {
-    size_t length = strlen(name);
-    if (strncasecmp(line, name, length) != 0 || line[length] != ':') {
-        return;
+    size_t   size = strlen(text);
+    uint8_t *bytes = malloc(size / 4 * 3 + 1);
+    uint32_t group = 0;
+    int      bits = 0;
+    *length = 0;
+    for (const char *at = text; *at != '\0' && *at != '='; at++) {
+        const char *found = strchr(BASE64, *at);
+        if (found == NULL) {
+            continue;
+        }
+        group = group << 6 | (uint32_t)(found - BASE64);
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            bytes[(*length)++] = (uint8_t)(group >> bits);
+        }
     }
-    const char *value = line + length + 1;
-    while (*value == ' ') {
-        value++;
-    }
-    size_t value_length = strcspn(value, "\r\n");
-    if (value_length >= size) {
-        value_length = size - 1;
-    }
-    memcpy(to, value, value_length);
-    to[value_length] = '\0';
+    return bytes;
 }
 
-static size_t take_header(char *bytes, size_t size, size_t count, void *context)
+/* ---- fetch.py: started once, a request a line in, an answer a line out ---- */
+
+static FILE *s_fetcher_in;
+static FILE *s_fetcher_out;
+
+static bool start_fetcher(void)
 {
-    job_t *job = context;
-    size_t length = size * count;
-    char   line[512];
-    snprintf(line, sizeof line, "%.*s", (int)(length < sizeof line ? length : sizeof line - 1), bytes);
-    host_response_t *response = &job->response;
-    copy_header(response->content_type, sizeof response->content_type, line, "Content-Type");
-    copy_header(response->etag, sizeof response->etag, line, "ETag");
-    copy_header(response->last_modified, sizeof response->last_modified, line, "Last-Modified");
-    copy_header(response->location, sizeof response->location, line, "Location");
-    copy_header(response->link, sizeof response->link, line, "Link");
-    char number[24] = "";
-    copy_header(number, sizeof number, line, "Content-Length");
-    if (number[0] != '\0') {
-        response->length = atoi(number);
+    if (s_options.fetcher == NULL) {
+        return false;
     }
-    number[0] = '\0';
-    copy_header(number, sizeof number, line, "Retry-After");
-    if (number[0] >= '0' && number[0] <= '9') {
-        response->retry_after = atoi(number);
+    int to_child[2], from_child[2];
+    if (pipe(to_child) != 0 || pipe(from_child) != 0) {
+        return false;
     }
-    return length;
+    pid_t child = fork();
+    if (child == 0) {
+        dup2(to_child[0], STDIN_FILENO);
+        dup2(from_child[1], STDOUT_FILENO);
+        close(to_child[1]);
+        close(from_child[0]);
+        execlp(s_options.python, s_options.python, s_options.fetcher, (char *)NULL);
+        _exit(127);
+    }
+    close(to_child[0]);
+    close(from_child[1]);
+    if (child < 0) {
+        return false;
+    }
+    s_fetcher_in = fdopen(to_child[1], "w");
+    s_fetcher_out = fdopen(from_child[0], "r");
+    return s_fetcher_in != NULL && s_fetcher_out != NULL;
+}
+
+static void stop_fetcher(void)
+{
+    if (s_fetcher_in != NULL) {
+        fclose(s_fetcher_in);
+    }
+    if (s_fetcher_out != NULL) {
+        fclose(s_fetcher_out);
+    }
+    s_fetcher_in = s_fetcher_out = NULL;
+    while (waitpid(-1, NULL, WNOHANG) > 0) {
+    }
+}
+
+static void copy_answer_header(const json_t *headers, const char *name, char *to, size_t size)
+{
+    const json_t *value = json_get(headers, name);
+    if (json_is_string(value)) {
+        snprintf(to, size, "%s", value->text);
+    }
+}
+
+static json_t *headers_of(char *lines)
+{
+    json_t *headers = json_new_object();
+    for (char *line = lines; line != NULL && *line != '\0';) {
+        char *end = strchr(line, '\n');
+        if (end != NULL) {
+            *end = '\0';
+        }
+        char *colon = strchr(line, ':');
+        if (colon != NULL) {
+            *colon = '\0';
+            json_add_string(headers, line, colon[1] == ' ' ? colon + 2 : colon + 1);
+            *colon = ':';
+        }
+        if (end != NULL) {
+            *end = '\n';
+        }
+        line = end != NULL ? end + 1 : NULL;
+    }
+    return headers;
 }
 
 static void fetch(job_t *job)
@@ -466,57 +526,62 @@ static void fetch(job_t *job)
         answer_from_mock(job, mock);
         return;
     }
-    CURL *curl = curl_easy_init();
-    if (curl == NULL) {
-        job->status = HOST_FAILED_NO_MEMORY;
+    if (s_fetcher_in == NULL && !start_fetcher()) {
+        job->status = HOST_FAILED_NO_NETWORK;
         return;
     }
-    struct curl_slist *headers = NULL;
-    for (char *line = job->headers; line != NULL && *line != '\0';) {
-        char *end = strchr(line, '\n');
-        if (end != NULL) {
-            *end = '\0';
-        }
-        headers = curl_slist_append(headers, line);
-        line = end != NULL ? end + 1 : NULL;
-    }
-    curl_easy_setopt(curl, CURLOPT_URL, job->url);
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, METHODS[job->method]);
-    if (job->method == HOST_HTTP_HEAD) {
-        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-    }
-    if (job->body_length > 0) {
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, job->body);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)job->body_length);
-    }
+    json_t *asked = json_new_object();
+    json_add_string(asked, "method", METHODS[job->method]);
+    json_add_string(asked, "url", job->url);
+    json_add_item(asked, "headers", headers_of(job->headers));
+    char *body = base64_encode(job->body, job->body_length);
+    json_add_string(asked, "body", body);
+    free(body);
     /* A GET is asked again where a redirect says; one with a body is not sent twice. */
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, job->method == HOST_HTTP_GET ? 1L : 0L);
-    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, (long)REDIRECTS_MAX);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)REQUEST_TIMEOUT_S);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, take_body);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, job);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, take_header);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, job);
-    CURLcode result = curl_easy_perform(curl);
-    long status = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-    if (job->status == HOST_FAILED_TOO_LARGE) {
-        /* as it was set while the body came */
-    } else if (result == CURLE_OPERATION_TIMEDOUT) {
-        job->status = HOST_FAILED_TIMEOUT;
-    } else if (result == CURLE_PEER_FAILED_VERIFICATION || result == CURLE_SSL_CACERT_BADFILE) {
-        job->status = HOST_FAILED_NOT_TRUSTED;
-    } else if (result == CURLE_COULDNT_RESOLVE_HOST || result == CURLE_COULDNT_CONNECT) {
+    json_add_bool(asked, "follow", job->method == HOST_HTTP_GET);
+    json_add_number(asked, "max", job->wants_values ? HOST_ANSWER_MAX : HOST_ANSWER_PIECES_MAX);
+    json_add_number(asked, "timeout", REQUEST_TIMEOUT_S);
+    char *line = json_print(asked);
+    json_free(asked);
+    bool is_sent = fprintf(s_fetcher_in, "%s\n", line) > 0 && fflush(s_fetcher_in) == 0;
+    free(line);
+    char   *answer_line = NULL;
+    size_t  capacity = 0;
+    ssize_t got = is_sent ? getline(&answer_line, &capacity, s_fetcher_out) : -1;
+    json_t *answer = got > 0 ? json_parse(answer_line) : NULL;
+    free(answer_line);
+    if (answer == NULL) {
+        /* fetch.py is gone: it is started again for the next request. */
+        stop_fetcher();
         job->status = HOST_FAILED_NO_ANSWER;
-    } else if (result != CURLE_OK || status <= 0) {
-        job->status = HOST_FAILED_NO_ANSWER;
-    } else {
-        job->status = (int)status;
+        return;
     }
-    job->response.status = job->status;
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
+    const json_t *status = json_get(answer, "status");
+    job->status = json_is_number(status) ? (int)status->number : HOST_FAILED_NO_ANSWER;
+    host_response_t *response = &job->response;
+    response->status = job->status;
+    const json_t *got_headers = json_get(answer, "headers");
+    copy_answer_header(got_headers, "content-type", response->content_type, sizeof response->content_type);
+    copy_answer_header(got_headers, "etag", response->etag, sizeof response->etag);
+    copy_answer_header(got_headers, "last-modified", response->last_modified,
+                       sizeof response->last_modified);
+    copy_answer_header(got_headers, "location", response->location, sizeof response->location);
+    copy_answer_header(got_headers, "link", response->link, sizeof response->link);
+    char number[24] = "";
+    copy_answer_header(got_headers, "content-length", number, sizeof number);
+    if (number[0] != '\0') {
+        response->length = atoi(number);
+    }
+    number[0] = '\0';
+    copy_answer_header(got_headers, "retry-after", number, sizeof number);
+    if (number[0] >= '0' && number[0] <= '9') {
+        response->retry_after = atoi(number);
+    }
+    const json_t *content = json_get(answer, "body");
+    if (json_is_string(content)) {
+        job->answer = base64_decode(content->text, &job->answer_length);
+    }
+    json_free(answer);
 }
 
 static void *network_thread(void *unused)
@@ -1432,7 +1497,8 @@ static void usage(void)
 {
     fprintf(stderr, "perinkpheral-sim --apps <folder> --app <name> --state <folder> [--port 8401]\n"
                     "                 [--language en] [--font departure|jersey] [--glyphs <folder>]\n"
-                    "                 [--mocks <file.json>] [--clock]\n");
+                    "                 [--mocks <file.json>] [--clock] [--python python3]\n"
+                    "                 [--fetcher tools/simulator/fetch.py]\n");
     exit(2);
 }
 
@@ -1449,6 +1515,8 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--mocks") == 0 && next) s_options.mocks = argv[++i];
         else if (strcmp(argv[i], "--font") == 0 && next) s_options.jersey = strcmp(argv[++i], "jersey") == 0;
         else if (strcmp(argv[i], "--clock") == 0) s_options.clock = true;
+        else if (strcmp(argv[i], "--python") == 0 && next) s_options.python = argv[++i];
+        else if (strcmp(argv[i], "--fetcher") == 0 && next) s_options.fetcher = argv[++i];
         else usage();
     }
     if (s_options.apps == NULL || s_options.app == NULL || s_options.state == NULL) {
@@ -1457,7 +1525,10 @@ int main(int argc, char **argv)
     /* The store's paths are as short as the device's ("/apps/<name>/<file>"):
      * the folder of applications becomes the working one, and the other
      * folders are made absolute before that. */
-    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES];
+    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES], fetcher[PATH_BYTES];
+    if (s_options.fetcher != NULL && realpath(s_options.fetcher, fetcher) != NULL) {
+        s_options.fetcher = fetcher;
+    }
     if (realpath(s_options.state, state) == NULL) {
         mkdir(s_options.state, 0755);
         if (realpath(s_options.state, state) == NULL) {
@@ -1486,7 +1557,6 @@ int main(int argc, char **argv)
     gfx_font_use(s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO);
     load_glyphs();
     load_mocks();
-    curl_global_init(CURL_GLOBAL_DEFAULT);
     if (pipe(s_jobs_done) != 0) {
         return 1;
     }

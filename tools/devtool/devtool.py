@@ -338,7 +338,7 @@ def simulator_binary(given):
     binary = os.path.join(SIMULATOR_DIR, "build", "perinkpheral-sim")
     made = subprocess.run(["make", "-s", "-C", SIMULATOR_DIR])
     if made.returncode != 0 or not os.path.isfile(binary):
-        sys.exit("the simulator could not be built: it needs a C compiler and libcurl")
+        sys.exit("the simulator could not be built: it needs a C compiler")
     return binary
 
 
@@ -357,7 +357,8 @@ def command_sim(options):
         sys.exit(built.returncode)
     command = [simulator_binary(options.binary), "--apps", apps, "--app", name,
                "--state", state, "--port", str(options.port), "--language", options.language,
-               "--font", options.font]
+               "--font", options.font, "--python", sys.executable,
+               "--fetcher", os.path.join(SIMULATOR_DIR, "fetch.py")]
     for flag, value in (("--glyphs", options.glyphs), ("--mocks", options.mocks)):
         if value:
             command += [flag, value]
