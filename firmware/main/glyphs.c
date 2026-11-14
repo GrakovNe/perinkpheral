@@ -4,6 +4,7 @@
  */
 #include "glyphs.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -141,6 +142,67 @@ static int free_run(int wanted)
     return -1;
 }
 
+/* Moves the pack at `from` down to `to`, a sector at a time: the places
+ * may overlap. The old one is no pack from the first write on and the new
+ * one is a pack only after the last, so a loss of power loses the pack and
+ * leaves nothing that looks like one. */
+static bool move_pack(int from, int to)
+{
+    int      count = sectors_of(pack_at(from));
+    uint8_t *first = malloc(SECTOR_BYTES);
+    uint8_t *other = malloc(SECTOR_BYTES);
+    bool     is_moved = first != NULL && other != NULL;
+    if (is_moved) {
+        memcpy(first, s_mapped + (size_t)from * SECTOR_BYTES, SECTOR_BYTES);
+        is_moved = esp_partition_erase_range(s_partition, (size_t)from * SECTOR_BYTES,
+                                             SECTOR_BYTES) == ESP_OK;
+    }
+    for (int i = 1; is_moved && i < count; i++) {
+        memcpy(other, s_mapped + (size_t)(from + i) * SECTOR_BYTES, SECTOR_BYTES);
+        is_moved = esp_partition_erase_range(s_partition, (size_t)(to + i) * SECTOR_BYTES,
+                                             SECTOR_BYTES) == ESP_OK &&
+                   esp_partition_write(s_partition, (size_t)(to + i) * SECTOR_BYTES, other,
+                                       SECTOR_BYTES) == ESP_OK;
+    }
+    if (is_moved) {
+        size_t start = (size_t)to * SECTOR_BYTES;
+        is_moved = esp_partition_erase_range(s_partition, start, SECTOR_BYTES) == ESP_OK &&
+                   esp_partition_write(s_partition, start + MAGIC_BYTES, first + MAGIC_BYTES,
+                                       SECTOR_BYTES - MAGIC_BYTES) == ESP_OK &&
+                   esp_partition_write(s_partition, start, first, MAGIC_BYTES) == ESP_OK;
+    }
+    /* What the old one still holds beyond the new one's end. */
+    for (int i = 0; is_moved && i < count; i++) {
+        if (from + i >= to + count) {
+            esp_partition_erase_range(s_partition, (size_t)(from + i) * SECTOR_BYTES, SECTOR_BYTES);
+        }
+    }
+    free(first);
+    free(other);
+    return is_moved;
+}
+
+/* Packs side by side from the start of the partition: the free sectors
+ * become one run at its end. The fonts must have let go of the packs. */
+static void pack_together(void)
+{
+    int next = 0;
+    for (int sector = 0; sector < s_sectors;) {
+        size_t bytes = pack_at(sector);
+        if (bytes == 0) {
+            sector++;
+            continue;
+        }
+        int count = sectors_of(bytes);
+        if (sector > next && !move_pack(sector, next)) {
+            ESP_LOGW(TAG, "a pack could not be moved");
+            return;
+        }
+        next += count;
+        sector = sector > next ? sector : next;
+    }
+}
+
 bool glyphs_remove(const char *name)
 {
     int sector = sector_of(name);
@@ -174,6 +236,13 @@ bool glyphs_install(const uint8_t *pack, size_t size)
     if (sector < 0 && old >= 0) {
         glyphs_remove(name);
         old = -1;
+        sector = free_run(sectors_of(size));
+    }
+    if (sector < 0 && glyphs_free_bytes() >= (size_t)sectors_of(size) * SECTOR_BYTES) {
+        /* Room enough, in pieces. */
+        gfx_packs_clear();
+        pack_together();
+        register_glyph_packs();
         sector = free_run(sectors_of(size));
     }
     if (sector < 0) {
