@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "words.h"
+#include "priorities.h"
 #include "web_server.h"
 #include "crash_note.h"
 #include "delay_guard.h"
@@ -778,6 +779,7 @@ void web_server_start(void)
     server_config.recv_wait_timeout = RECEIVE_TIMEOUT_S;
     /* Installing an application hashes files and reads a manifest on this task. */
     server_config.stack_size = SERVER_STACK_BYTES;
+    server_config.task_priority = PRIORITY_SERVER;
     server_config.max_uri_handlers = OWN_ROUTES + WEB_APPS_ROUTES + DEVTOOLS_ROUTES;
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &server_config);

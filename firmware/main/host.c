@@ -4,6 +4,7 @@
  */
 #include <string.h>
 
+#include "priorities.h"
 #include "host.h"
 
 #include "esp_log.h"
@@ -856,16 +857,12 @@ static void broadcast(int intent)
 }
 
 /* The host loop draws the panel and answers the buttons, so it runs above
- * the tasks that only compute - the poller (4), whose TLS handshake is
- * seconds of arithmetic, and the web server (5) - and below the ones that
- * keep the radio and the network alive. As the main task it had priority
- * 1, the lowest of all: a refresh that met a handshake took 2.7 s
- * instead of 0.46. */
-#define HOST_LOOP_PRIORITY 6
-
+ * the tasks that only compute and below the ones that keep the radio
+ * alive (priorities.h). As the main task it had priority 1, the lowest of
+ * all: a refresh that met a TLS handshake took 2.7 s instead of 0.46. */
 void host_run(void)
 {
-    vTaskPrioritySet(NULL, HOST_LOOP_PRIORITY);
+    vTaskPrioritySet(NULL, PRIORITY_HOST_LOOP);
     launcher_start();
     int menu_entry_count;
     const menu_entry_t *menu_entries = launcher_entries(&menu_entry_count);

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "priorities.h"
 #include "buttons.h"
 
 #include "driver/gpio.h"
@@ -192,6 +193,6 @@ void buttons_start(buttons_sink_fn sink)
                  gpio_get_level(s_gpio[i]));
     }
 
-    BaseType_t ok = xTaskCreate(buttons_task, "buttons", BUTTONS_STACK_BYTES, NULL, 10, NULL);
+    BaseType_t ok = xTaskCreate(buttons_task, "buttons", BUTTONS_STACK_BYTES, NULL, PRIORITY_INPUT, NULL);
     configASSERT(ok == pdPASS);
 }

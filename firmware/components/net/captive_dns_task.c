@@ -10,13 +10,14 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 
+#include "priorities.h"
 #include "captive_dns.h"
 
 static const char *TAG = "captive_dns";
 
 #define DNS_PORT         53
 #define TASK_STACK_BYTES 3072
-#define TASK_PRIORITY    4
+#define TASK_PRIORITY    PRIORITY_BACKGROUND
 #define RETRY_DELAY_MS   5000
 
 static uint8_t     s_address[4];

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "priorities.h"
 #include "devconsole.h"
 
 #include <stdio.h>
@@ -102,7 +103,7 @@ void devconsole_start(void)
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&config));
     usb_serial_jtag_vfs_use_driver();
 
-    BaseType_t ok = xTaskCreate(devconsole_task, "devconsole", 3072, NULL, 2, NULL);
+    BaseType_t ok = xTaskCreate(devconsole_task, "devconsole", 3072, NULL, PRIORITY_DEV_CONSOLE, NULL);
     configASSERT(ok == pdPASS);
     ESP_LOGW(TAG, "development console is on: 1-4 short, q/w/e/r long, p frame, m memory, l log");
 }

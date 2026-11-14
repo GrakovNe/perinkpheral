@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "priorities.h"
 #include "poller.h"
 
 #include <stdlib.h>
@@ -39,7 +40,7 @@
 static const char *TAG = "poller";
 
 #define TASK_STACK_BYTES     8192 /* the TLS handshake runs on it */
-#define TASK_PRIORITY        4
+#define TASK_PRIORITY        PRIORITY_BACKGROUND
 #define RADIO_WAIT_MS        20000 /* for the network to be joined before the radio is given back */
 #define MEMORY_LOOK_AGAIN_MS 1000  /* no memory for a session just now */
 /* A TLS session takes about 45 KB while it is open; below this the

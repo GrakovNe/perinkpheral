@@ -185,7 +185,7 @@ The host is layers, and each knows only the ones under it:
 - **One module keeps every deadline** (`components/deadlines`): the scene's timers, the applications' alarms and polls, the panel's sleep and its daily refresh, the while after a press, Wi-Fi's retries, the day turning in the header, the menu left idle, the device stopping. The table is pure (`deadline_table.c`); around it are one timer set for the nearest and the clock as the scale. A deadline that has come is news in the event queue, answered by the host loop; one that could not be told stays in the table.
 - **One event queue** (`events.c`). A press, later a timer or a response from the network, is posted from its own task and taken off by the host loop one at a time: nothing in the host runs concurrently with anything else.
 - **The menu is a scene** like any other, not a layer over an application: opening it takes the screen away from whatever had it, which waits under it in the stack.
-- **Priorities** (the model of 2026-11-14; a number is a FreeRTOS priority, the larger the sooner). What the user sees and touches comes before what is computed for them, and what keeps the radio alive comes before both:
+- **Priorities** (the model of 2026-11-14; in code it is one header, `components/board/include/priorities.h`, which every task takes its number from and which will not compile with the tiers out of order; a number is a FreeRTOS priority, the larger the sooner). What the user sees and touches comes before what is computed for them, and what keeps the radio alive comes before both:
 
   | Tier | Who | Priority | Why there |
   |---|---|---|---|

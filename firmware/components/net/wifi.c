@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include "priorities.h"
 #include "wifi.h"
 
 #include <string.h>
@@ -325,7 +326,7 @@ void wifi_start(const wifi_config_in_t *config)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     /* The task first, so that it is there to take the start event. */
-    BaseType_t ok = xTaskCreate(wifi_task, "wifi", TASK_STACK_BYTES, NULL, 5, NULL);
+    BaseType_t ok = xTaskCreate(wifi_task, "wifi", TASK_STACK_BYTES, NULL, PRIORITY_SERVER, NULL);
     configASSERT(ok == pdPASS);
     ESP_ERROR_CHECK(esp_wifi_start());
 }
