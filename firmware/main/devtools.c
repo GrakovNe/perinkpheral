@@ -373,6 +373,27 @@ static esp_err_t handle_kv(httpd_req_t *http)
                              : send_text(http, "500 Internal Server Error", "not stored");
 }
 
+/* POST /api/dev/crash?kind=wdt|abort: a deliberate fault, for testing what
+ * the device records and how it comes back. wdt: interrupts off until the
+ * interrupt watchdog fires. */
+static esp_err_t handle_crash(httpd_req_t *http)
+{
+    char query[32], kind[8] = "";
+    if (httpd_req_get_url_query_str(http, query, sizeof query) == ESP_OK) {
+        httpd_query_key_value(query, "kind", kind, sizeof kind);
+    }
+    if (strcmp(kind, "wdt") == 0) {
+        static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+        portENTER_CRITICAL(&lock);
+        for (;;) {
+        }
+    }
+    if (strcmp(kind, "abort") == 0) {
+        abort();
+    }
+    return httpd_resp_send_err(http, HTTPD_400_BAD_REQUEST, "kind=wdt|abort");
+}
+
 static esp_err_t handle_restart(httpd_req_t *http)
 {
     if (web_server_refuses_cross_site(http)) {
@@ -395,6 +416,7 @@ void devtools_register(httpd_handle_t server)
         { .uri = "/api/dev/flash", .method = HTTP_POST, .handler = handle_flash },
         { .uri = "/api/dev/restart", .method = HTTP_POST, .handler = handle_restart },
         { .uri = "/api/dev/kv", .method = HTTP_POST, .handler = handle_kv },
+        { .uri = "/api/dev/crash", .method = HTTP_POST, .handler = handle_crash },
     };
     for (int i = 0; i < DEVTOOLS_ROUTES; i++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ROUTES[i]));

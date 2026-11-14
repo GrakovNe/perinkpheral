@@ -31,6 +31,7 @@
 #include "log_capture.h"
 #include "reset.h"
 #include "net_time.h"
+#include "crash_note.h"
 #include "ota.h"
 #include "settings.h"
 #include "status.h"
@@ -132,6 +133,11 @@ void app_main(void)
              esp_app_get_description()->version, esp_get_idf_version(),
              __DATE__, __TIME__);
 
+    crash_note_init();
+    static char crash[320];
+    if (crash_note_text(crash, sizeof crash)) {
+        ESP_LOGW(TAG, "last panic: %s", crash);
+    }
     reset_early_init();
     /* First of all: the heap will not be this whole again. */
     m3_area_start();

@@ -4,6 +4,7 @@
  */
 #include "words.h"
 #include "web_server.h"
+#include "crash_note.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -243,6 +244,10 @@ static esp_err_t handle_status(httpd_req_t *request)
     /* Why the device started this time: a number of esp_reset_reason_t - 1 power, 3 a restart
      * asked for, 4 a fault, 5-7 a watchdog, 9 the supply sagged. */
     cJSON_AddNumberToObject(json, "reset_reason", esp_reset_reason());
+    static char crash[320];
+    if (crash_note_text(crash, sizeof crash)) {
+        cJSON_AddStringToObject(json, "last_panic", crash);
+    }
     /* Of the application area, the most the application loaded now has had. */
     cJSON_AddNumberToObject(json, "app_area_used", (double)m3_area_most_used());
     cJSON_AddNumberToObject(json, "app_area", M3_AREA_BYTES);
