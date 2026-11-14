@@ -13,20 +13,29 @@
 static const char *TAG = "events";
 
 #define QUEUE_LENGTH 64
+/* Presses have a queue of their own, taken first: what the user did comes
+ * before what other tasks ask of the host loop. Four events a press. */
+#define INPUT_QUEUE_LENGTH 16
 
-static QueueHandle_t s_queue;
+static QueueHandle_t    s_queue;
+static QueueHandle_t    s_input;
+static QueueSetHandle_t s_either;
 static volatile uint32_t s_dropped;
 static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
 
 void events_start(void)
 {
     s_queue = xQueueCreate(QUEUE_LENGTH, sizeof(event_t));
-    configASSERT(s_queue != NULL);
+    s_input = xQueueCreate(INPUT_QUEUE_LENGTH, sizeof(event_t));
+    s_either = xQueueCreateSet(QUEUE_LENGTH + INPUT_QUEUE_LENGTH);
+    configASSERT(s_queue != NULL && s_input != NULL && s_either != NULL);
+    xQueueAddToSet(s_queue, s_either);
+    xQueueAddToSet(s_input, s_either);
 }
 
 bool events_post(const event_t *event)
 {
-    if (xQueueSend(s_queue, event, 0) != pdTRUE) {
+    if (xQueueSend(event->kind == EVENT_BUTTON ? s_input : s_queue, event, 0) != pdTRUE) {
         /* Counted, not logged: this runs in whatever task has the event,
          * and the smallest of them has no stack for a log line. */
         s_dropped++;
@@ -37,7 +46,7 @@ bool events_post(const event_t *event)
 
 bool events_are_waiting(void)
 {
-    return uxQueueMessagesWaiting(s_queue) > 0;
+    return uxQueueMessagesWaiting(s_queue) > 0 || uxQueueMessagesWaiting(s_input) > 0;
 }
 
 void events_report_dropped(void)
@@ -119,5 +128,9 @@ bool events_post_apps_changed(void)
 bool events_wait(event_t *event, uint32_t timeout_ms)
 {
     TickType_t ticks = timeout_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-    return xQueueReceive(s_queue, event, ticks) == pdTRUE;
+    /* Whichever queue the set names, input is looked at first. */
+    if (xQueueSelectFromSet(s_either, ticks) == NULL) {
+        return false;
+    }
+    return xQueueReceive(s_input, event, 0) == pdTRUE || xQueueReceive(s_queue, event, 0) == pdTRUE;
 }
