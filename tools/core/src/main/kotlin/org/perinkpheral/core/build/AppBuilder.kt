@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.build
 
+import org.perinkpheral.core.BuildError
 import java.io.File
 import java.nio.file.Files
 
+/** An application built: its name, its manifest as checked, and the folder of its package. */
+class Built(val name: String, val manifest: Map<*, *>, val dir: File)
+
 /**
  * Builds a perINKpheral application: C sources -> app.wasm and its package, checked by the
- * rules the host applies and measured against what the device has. What tools/mkapp does,
- * in the same words; the compiler is clang of wasi-sdk, as there.
+ * rules the host applies and measured against what the device has. The compiler is clang of
+ * wasi-sdk, with BuildFlags.
  */
 class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val say: (String) -> Unit) {
     private val check = ManifestCheck(sdk)
@@ -27,37 +31,51 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         return if (file.exists()) file else File(file.path + ".exe")
     }
 
-    /** strings.h, strings.c and pictures.h into `into`: what an editor needs to read the code. */
+    /**
+     * strings.h, strings.c and pictures.h into `into`: what an editor needs to read the code.
+     * Made of what is there while the code is being written - a string not used yet, a
+     * translation that lags behind - which the build itself refuses. What cannot be made
+     * leaves `into` as it was, so that the code an editor reads does not lose its names.
+     */
     fun headers(given: File, givenInto: File) {
         val appDir = given.absoluteFile
         val into = givenInto.absoluteFile
-        into.mkdirs()
-        val pictures = File(appDir, "pictures")
-        if (pictures.isDirectory) Pictures.make(pictures, File(into, "pictures.h"))
-        Strings(sdk, check).make(appDir, into)
+        val made = Files.createTempDirectory("perinkpheral-headers").toFile()
+        try {
+            val pictures = File(appDir, "pictures")
+            if (pictures.isDirectory) Pictures.make(pictures, File(made, "pictures.h"))
+            Strings(sdk, check).make(appDir, made, isStrict = false)
+            into.mkdirs()
+            // What the application no longer has goes too: a header of pictures that were removed.
+            for (name in GENERATED) File(into, name).delete()
+            for (file in made.listFiles().orEmpty()) file.copyTo(File(into, file.name), overwrite = true)
+        } finally {
+            made.deleteRecursively()
+        }
     }
 
     /** Builds `appDir` into `outDir`: app.wasm, manifest.json, the files and the tables of the
-     * languages. Throws BuildError with the reason when it fails. Returns the application's name. */
-    fun build(given: File, givenOut: File): String {
+     * languages. Throws BuildError with the reason when it fails. */
+    fun build(given: File, givenOut: File): Built {
         val appDir = given.absoluteFile
         val outDir = givenOut.absoluteFile
         val manifest = check.check(appDir)
         outDir.mkdirs()
-        val wasm = File(outDir, "app.wasm")
+        val wasm = File(outDir, MODULE)
         // Whatever an earlier build left: a build that fails must not look done.
         wasm.delete()
         val strings = Strings(sdk, check)
-        val memoryEnd = compile(appDir, wasm, strings)
+        val memoryEnd = compile(appDir, wasm, strings, manifest)
         try {
-            val imports = checkModule(wasm, manifest["system"] == true)
+            val module = Wasm(wasm)
+            checkModule(wasm, module, manifest["system"] == true)
             misspelledHandlers(appDir)
-            checkHandlers(wasm, imports, manifest)
+            checkHandlers(wasm, module, manifest)
             val moduleBytes = wasm.length()
             if (moduleBytes > moduleMax) {
                 throw BuildError("${wasm.path}: the module is $moduleBytes bytes, at most $moduleMax fit on the device")
             }
-            File(appDir, "manifest.json").copyTo(File(outDir, "manifest.json"), overwrite = true)
+            File(appDir, MANIFEST).copyTo(File(outDir, MANIFEST), overwrite = true)
             var filesBytes = copyDataFiles(appDir, outDir)
             // The tables of the languages it speaks beside English, as files of its own.
             for ((code, table) in strings.tables) {
@@ -72,28 +90,29 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 throw BuildError("${appDir.path}: its files take $filesBytes bytes on the device - each a whole " +
                     "number of $fileBlock-byte blocks - and an application may have $filesMax")
             }
-            report(wasm, imports.size, filesBytes, memoryEnd)
-        } catch (error: BuildError) {
-            // A module that fails a check is not left behind.
+            report(wasm, module, filesBytes, memoryEnd)
+        } catch (error: Exception) {
+            // A module that fails a check, or a package that could not be written, is not left behind.
             wasm.delete()
             throw error
         }
-        return manifest["name"] as String
+        return Built(manifest["name"] as String, manifest, outDir)
     }
 
+    /** The application's own C files, in the order they are compiled. */
+    private fun sources(appDir: File): List<File> =
+        appDir.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".c") }.sortedBy { it.path }
+
     /** Compiles; returns where the module's data ends in its memory. */
-    private fun compile(appDir: File, wasm: File, strings: Strings): Long {
-        val sources = appDir.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".c") }.sortedBy { it.path }
+    private fun compile(appDir: File, wasm: File, strings: Strings, manifest: Map<*, *>): Long {
+        val sources = sources(appDir)
         if (sources.isEmpty()) throw BuildError("no .c files in ${appDir.path}")
         val library = sdk.library.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".c") }.sortedBy { it.path }
-        val command = mutableListOf(
-            tool("clang").path, "--target=wasm32", "-nostdlib", "-ffreestanding", "-fno-builtin",
-            "-Oz", "-flto", "-Wall", "-Wextra", "-Werror",
-            "-I" + sdk.sdk.path, "-I" + sdk.library.path,
-            "-Wl,--no-entry", "-Wl,--strip-all", "-Wl,--gc-sections",
-            "-Wl,--initial-memory=$WASM_PAGE", "-Wl,--max-memory=$WASM_PAGE",
-            "-Wl,-z,stack-size=$APP_STACK",
-            "-o", wasm.path)
+        val command = mutableListOf(tool("clang").path, BuildFlags.TARGET)
+        command += BuildFlags.compile
+        command += listOf("-I" + sdk.sdk.path, "-I" + sdk.library.path)
+        command += BuildFlags.linker
+        command += listOf("-o", wasm.path)
         command += (sources + library).map { it.path }
         // The linker's map says where the module's data ends in its memory: the binary itself
         // does not, for what starts as zeroes is not written out.
@@ -105,7 +124,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 Unused.check(appDir, constants, "pictures")
                 command += "-I" + scratch.path
             }
-            val stringsSource = strings.make(appDir, scratch)
+            val stringsSource = strings.make(appDir, scratch, isStrict = true, manifest = manifest)
             if (stringsSource != null) command += listOf(stringsSource.path, "-I" + scratch.path)
             val map = File(scratch, "app.map")
             command += "-Wl,-Map=" + map.path
@@ -125,8 +144,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         return process.waitFor()
     }
 
-    private fun checkModule(wasm: File, asksForSystem: Boolean): List<Pair<String, String>> {
-        val module = Wasm(wasm)
+    private fun checkModule(wasm: File, module: Wasm, asksForSystem: Boolean) {
         val floats = floatOperations(wasm)
         if (floats.isNotEmpty()) {
             throw BuildError("${wasm.path} uses floating point (${floats.take(4).joinToString(", ")}). The device's " +
@@ -147,7 +165,6 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         if (module.memory != (1L to 1L)) {
             throw BuildError("the module's memory is ${module.memory} pages, it must be exactly one")
         }
-        return module.imports
     }
 
     /** The floating point operations in the module's code, as the disassembler names them. */
@@ -164,7 +181,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     /** A function named like a handler that is none: the build drops it without a word. */
     private fun misspelledHandlers(appDir: File) {
         val known = sdk.knownHandlers
-        for (file in appDir.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".c") }.sortedBy { it.path }) {
+        for (file in sources(appDir)) {
             for (match in Regex("""\b(app_on_\w+)\s*\([^;{}()]*\)\s*\{""").findAll(file.readText())) {
                 val name = match.groupValues[1]
                 if (name !in known) {
@@ -176,8 +193,8 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     }
 
     /** What the module asks for has to have somewhere to arrive. */
-    private fun checkHandlers(wasm: File, imports: List<Pair<String, String>>, manifest: Map<*, *>) {
-        val exports = Wasm(wasm).exports.toSet()
+    private fun checkHandlers(wasm: File, module: Wasm, manifest: Map<*, *>) {
+        val exports = module.exports.toSet()
         val known = sdk.knownHandlers
         for (name in exports.sorted()) {
             if (name.startsWith("app_") && name !in known && name != "app_strings_buffer") {
@@ -185,7 +202,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                     known.sorted().joinToString(", "))
             }
         }
-        val called = imports.filter { it.first == HOST_MODULE }.map { it.second }.toSet()
+        val called = module.imports.filter { it.first == HOST_MODULE }.map { it.second }.toSet()
         for ((call, handler) in ANSWERED_BY.toSortedMap()) {
             if (call in called && handler !in exports) {
                 throw BuildError("${wasm.path} calls $call() and has no $handler() for what comes of it")
@@ -221,7 +238,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         for (file in folder.listFiles().orEmpty().sortedBy { it.name }) {
             // What a file manager leaves behind, and folders, are not the application's.
             if (file.name.startsWith(".") || !file.isFile) continue
-            if (file.name in setOf("app.wasm", "manifest.json")) throw BuildError("${file.path}: this name is the application's own")
+            if (file.name == MODULE || file.name == MANIFEST) throw BuildError("${file.path}: this name is the application's own")
             if (!Regex("[a-z0-9_-][a-z0-9._-]{0,${fileNameMax - 1}}").matches(file.name)) {
                 throw BuildError("${file.path}: a file's name is 1-$fileNameMax of a-z, 0-9, '.', '-' and '_', " +
                     "not starting with a dot")
@@ -233,27 +250,39 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     }
 
     /** What the build came to, against what the device has for it. */
-    private fun report(wasm: File, importCount: Int, filesBytes: Long, memoryEnd: Long) {
-        // Rounded as tools/mkapp rounds: half to even, of the exact value.
+    private fun report(wasm: File, module: Wasm, filesBytes: Long, memoryEnd: Long) {
+        // Half to even, of the exact value.
         fun kb(count: Long) = java.math.BigDecimal(count / 1024.0).setScale(1, java.math.RoundingMode.HALF_EVEN)
             .toPlainString() + " KB"
-        val module = wasm.length()
-        val code = Wasm(wasm).codeBytes
+        val moduleBytes = wasm.length()
+        val code = module.codeBytes
         val running = INTERPRETER_BASE_BYTES + INTERPRETER_BYTES_PER_CODE_BYTE * code
-        say("${wasm.path}: $module bytes, $importCount host calls")
-        say("  module  ${kb(module)} of ${kb(moduleMax)}")
+        say("${wasm.path}: $moduleBytes bytes, ${module.imports.size} host calls")
+        say("  module  ${kb(moduleBytes)} of ${kb(moduleMax)}")
         say("  code    ${kb(code)}; running it takes about ${kb(running)} of the interpreter's ${kb(INTERPRETER_ROOM_BYTES)}")
         if (memoryEnd > 0) {
-            say("  memory  ${kb(memoryEnd)} of ${kb(WASM_PAGE.toLong())}: ${kb(APP_STACK.toLong())} of stack, " +
-                "${kb(memoryEnd - APP_STACK)} of data; ${kb(WASM_PAGE - memoryEnd)} left for app_alloc()")
+            say("  memory  ${kb(memoryEnd)} of ${kb(BuildFlags.WASM_PAGE.toLong())}: " +
+                "${kb(BuildFlags.APP_STACK.toLong())} of stack, ${kb(memoryEnd - BuildFlags.APP_STACK)} of data; " +
+                "${kb(BuildFlags.WASM_PAGE - memoryEnd)} left for app_alloc()")
         }
         if (filesBytes > 0) say("  files   ${kb(filesBytes)} of ${kb(filesMax)}")
         if (running > INTERPRETER_ROOM_BYTES) say("  warning: this much code may not fit when all of it runs")
     }
 
     companion object {
-        const val WASM_PAGE = 65536
-        const val APP_STACK = 8192
+        /** What `headers` makes; nothing else in its folder is touched. */
+        private val GENERATED = listOf("strings.h", "strings.c", "pictures.h")
+
+        /** A package's files in the order a device takes them: the module first, the manifest
+         * last - until it is there the device does not list the application, and by then
+         * everything it needs is. */
+        fun packageFiles(dir: File): List<String> {
+            val data = dir.listFiles().orEmpty().map { it.name }.filter { it != MODULE && it != MANIFEST }.sorted()
+            return listOf(MODULE) + data + listOf(MANIFEST)
+        }
+
+        const val MODULE = "app.wasm"
+        const val MANIFEST = "manifest.json"
         private const val HOST_MODULE = "host"
         // What an application's code costs when it runs, as measured on the device: about this much
         // for any application, and about four bytes for every byte of the code section.

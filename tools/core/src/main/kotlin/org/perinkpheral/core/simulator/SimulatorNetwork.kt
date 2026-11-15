@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.simulator
 
-import org.perinkpheral.core.build.Json
+import org.perinkpheral.core.Json
 import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -17,15 +17,19 @@ import java.util.Base64
 import javax.net.ssl.SSLHandshakeException
 
 /**
- * The simulator's network, in the IDE's own process: the simulator connects to this port
- * (`--fetcher-port`) and asks a request a line, as it asks tools/simulator/fetch.py, and
- * gets the answer a line. Programs the IDE starts may not be let into the local network by
- * the system; the IDE itself is, and a user's own server lives there.
+ * The simulator's network, in the process that started it - the command line, or the IDE:
+ * the simulator connects to this port (`--fetcher-port`), asks a request a line and gets the
+ * answer a line. Programs an IDE starts may not be let into the local network by the
+ * system; the IDE itself is, and a user's own server lives there.
  *
- * Request:  {"method", "url", "headers": {name: value}, "body": base64, "follow": bool,
- *            "max": bytes, "timeout": seconds}
+ * One request is one exchange: a redirect is the answer, with where it leads resolved, and
+ * the simulator decides whether to go there - by the firmware's own rules of hosts and
+ * headers, which are C and are not written here again.
+ *
+ * Request:  {"method", "url", "headers": {name: value}, "body": base64, "max": bytes,
+ *            "timeout": seconds}
  * Answer:   {"status": HTTP status, or a HOST_FAILED_* code, "headers": {name: value},
- *            "body": base64}
+ *            "body": base64, "next": the absolute address a redirect leads to}
  */
 object SimulatorNetwork {
     // sdk/host_api.h
@@ -33,8 +37,8 @@ object SimulatorNetwork {
     private const val TIMEOUT = -5L
     private const val NOT_TRUSTED = -6L
     private const val TOO_LARGE = -7L
-    private const val REDIRECTS_MAX = 3
     private const val USER_AGENT = "perinkpheral" // what the device sends unless the application gives its own
+    private val REDIRECTS = setOf(301, 302, 303, 307, 308)
     private val KEPT_HEADERS = setOf("content-type", "content-length", "etag", "last-modified", "location", "link",
         "retry-after")
     // What the HTTP client sets itself and refuses to be given.
@@ -87,48 +91,42 @@ object SimulatorNetwork {
     }
 
     private fun fetch(asked: Map<*, *>): Map<String, Any?> {
-        var method = asked["method"] as String
-        var url = URI.create(asked["url"] as String)
+        val method = asked["method"] as String
+        val url = URI.create(asked["url"] as String)
         val body = Base64.getDecoder().decode((asked["body"] as? String).orEmpty())
         val headers = (asked["headers"] as? Map<*, *>).orEmpty()
-        val follow = asked["follow"] != false
         val most = (asked["max"] as? Long) ?: (256L * 1024)
         val timeout = Duration.ofSeconds((asked["timeout"] as? Long) ?: 15L)
         try {
-            var hops = 0
-            while (true) {
-                val request = HttpRequest.newBuilder(url).timeout(timeout)
-                    .method(method, if (body.isEmpty()) HttpRequest.BodyPublishers.noBody()
-                                    else HttpRequest.BodyPublishers.ofByteArray(body))
-                var hasAgent = false
-                for ((name, value) in headers) {
-                    name as String
-                    if (name.lowercase() in CLIENTS_OWN) continue
-                    hasAgent = hasAgent || name.equals("User-Agent", ignoreCase = true)
-                    request.header(name, value as String)
-                }
-                if (!hasAgent) request.header("User-Agent", USER_AGENT)
-                val response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream())
-                val location = response.headers().firstValue("location").orElse(null)
-                // A GET is asked again where a redirect says, three times at most; any other
-                // method takes the redirect as its answer.
-                if (follow && response.statusCode() in setOf(301, 302, 303, 307, 308) && location != null &&
-                    hops < REDIRECTS_MAX) {
-                    response.body().close()
-                    url = url.resolve(location)
-                    if (response.statusCode() == 303) method = "GET"
-                    hops++
-                    continue
-                }
-                val content = response.body().use { stream -> stream.readNBytes((most + 1).toInt()) }
-                if (content.size > most) return mapOf("status" to TOO_LARGE)
-                val kept = LinkedHashMap<String, Any?>()
-                for ((name, values) in response.headers().map()) {
-                    if (name.lowercase() in KEPT_HEADERS && values.isNotEmpty()) kept[name.lowercase()] = values[0]
-                }
-                return mapOf("status" to response.statusCode().toLong(), "headers" to kept,
-                    "body" to Base64.getEncoder().encodeToString(content))
+            val request = HttpRequest.newBuilder(url).timeout(timeout)
+                .method(method, if (body.isEmpty()) HttpRequest.BodyPublishers.noBody()
+                                else HttpRequest.BodyPublishers.ofByteArray(body))
+            var hasAgent = false
+            for ((name, value) in headers) {
+                name as String
+                if (name.lowercase() in CLIENTS_OWN) continue
+                hasAgent = hasAgent || name.equals("User-Agent", ignoreCase = true)
+                request.header(name, value as String)
             }
+            if (!hasAgent) request.header("User-Agent", USER_AGENT)
+            val response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream())
+            val content = response.body().use { stream -> stream.readNBytes((most + 1).toInt()) }
+            if (content.size > most) return mapOf("status" to TOO_LARGE)
+            val kept = LinkedHashMap<String, Any?>()
+            for ((name, values) in response.headers().map()) {
+                if (name.lowercase() in KEPT_HEADERS && values.isNotEmpty()) kept[name.lowercase()] = values[0]
+            }
+            val answer = linkedMapOf<String, Any?>("status" to response.statusCode().toLong(), "headers" to kept,
+                "body" to Base64.getEncoder().encodeToString(content))
+            val location = response.headers().firstValue("location").orElse(null)
+            if (response.statusCode() in REDIRECTS && location != null) {
+                try {
+                    answer["next"] = url.resolve(location).toString()
+                } catch (error: IllegalArgumentException) {
+                    // A Location that is no address: the redirect is the answer.
+                }
+            }
+            return answer
         } catch (error: HttpConnectTimeoutException) {
             return mapOf("status" to TIMEOUT)
         } catch (error: HttpTimeoutException) {

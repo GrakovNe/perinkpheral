@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package org.perinkpheral.core.build
+package org.perinkpheral.core
 
 /**
  * JSON as the build reads it: objects keep the order of their keys, a key written twice

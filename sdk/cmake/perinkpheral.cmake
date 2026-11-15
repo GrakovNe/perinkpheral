@@ -10,9 +10,11 @@
 #     project(my-app C)
 #     perinkpheral_app(.)
 #
-# Needs WASI_SDK_PATH. strings.h and pictures.h are made by tools/perinkpheral
-# (Java) into the build folder - or, when PERINKPHERAL_GENERATED names a folder,
-# found there: the CLion plugin makes them itself and sets it.
+# Needs WASI_SDK_PATH. The flags of the compiler are the build's own, asked of
+# tools/perinkpheral (Java), and so are strings.h and pictures.h, made into the
+# build folder. The CLion plugin gives all of it in its toolchain file instead:
+# PERINKPHERAL_COMPILE_FLAGS, PERINKPHERAL_LINK_FLAGS and PERINKPHERAL_GENERATED,
+# the folder of the headers it makes itself.
 #
 # Targets of an application `name`:
 #     name           compiles the code into app.wasm
@@ -31,6 +33,19 @@ function(perinkpheral_app app_dir)
     get_filename_component(name "${app_dir}" NAME)
     set(tools "${PERINKPHERAL_ROOT}/tools/perinkpheral")
     set(environment "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}")
+
+    # The flags are written once, in the tools: what CMake compiles is what the device gets.
+    foreach(kind compile link)
+        string(TOUPPER "${kind}" KIND)
+        if(NOT DEFINED PERINKPHERAL_${KIND}_FLAGS)
+            execute_process(COMMAND "${tools}" flags ${kind} OUTPUT_VARIABLE flags
+                            OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE asked ERROR_VARIABLE said)
+            if(NOT asked EQUAL 0)
+                message(FATAL_ERROR "tools/perinkpheral flags ${kind}: ${said}")
+            endif()
+            set(PERINKPHERAL_${KIND}_FLAGS "${flags}")
+        endif()
+    endforeach()
 
     if(PERINKPHERAL_GENERATED)
         set(generated "${PERINKPHERAL_GENERATED}/${name}")
@@ -51,11 +66,8 @@ function(perinkpheral_app app_dir)
     set_target_properties(${name} PROPERTIES OUTPUT_NAME app SUFFIX ".wasm" C_STANDARD 11)
     target_include_directories(${name} PRIVATE "${PERINKPHERAL_ROOT}/sdk" "${PERINKPHERAL_ROOT}/sdk/lib"
                                "${generated}" "${app_dir}")
-    target_compile_options(${name} PRIVATE -nostdlib -ffreestanding -fno-builtin -Oz -flto
-                           -Wall -Wextra -Werror)
-    target_link_options(${name} PRIVATE -nostdlib -flto -Wl,--no-entry -Wl,--strip-all
-                        -Wl,--gc-sections -Wl,--initial-memory=65536 -Wl,--max-memory=65536
-                        -Wl,-z,stack-size=8192)
+    target_compile_options(${name} PRIVATE ${PERINKPHERAL_COMPILE_FLAGS})
+    target_link_options(${name} PRIVATE ${PERINKPHERAL_LINK_FLAGS})
 
     file(GLOB inputs CONFIGURE_DEPENDS "${app_dir}/manifest.json" "${app_dir}/strings/*"
                                        "${app_dir}/pictures/*")

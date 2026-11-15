@@ -2,19 +2,27 @@
 package org.perinkpheral.core.device
 
 import java.awt.image.BufferedImage
-import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.net.URI
 import java.net.URLEncoder
 import java.net.HttpURLConnection
 import java.nio.charset.StandardCharsets
-import javax.imageio.ImageIO
 
-/** The panel's frame as rows of pixels, true where there is ink. */
-class Screen(val rows: List<BooleanArray>, val number: Int, val isPending: Boolean)
+/** The panel's frame as rows of pixels, true where there is ink; its number, and whether a
+ * newer one is waiting for the panel. */
+class Screen(val rows: List<BooleanArray>, val number: Int, val isPending: Boolean) {
+    /** The frame as a picture in the panel's colours, a pixel a pixel. */
+    fun image(): BufferedImage {
+        val picture = BufferedImage(rows[0].size, rows.size, BufferedImage.TYPE_INT_RGB)
+        rows.forEachIndexed { y, row -> row.forEachIndexed { x, isInk -> picture.setRGB(x, y, if (isInk) INK else PAPER) } }
+        return picture
+    }
 
-/** One frame of the panel, as the device reports it. */
-class DeviceFrame(val image: BufferedImage, val number: Int, val isRefreshPending: Boolean)
+    private companion object {
+        const val INK = 0x141413
+        const val PAPER = 0xE9E7E1
+    }
+}
 
 /** A part of the device log. `end` is the position to pass to the next call. */
 class DeviceLog(val text: String, val end: Long)
@@ -31,6 +39,19 @@ enum class DeviceButton(val number: Int) { UP(1), OK(2), DOWN(3), BACK(4) }
  */
 class DeviceClient(val host: String) {
     private val base = "http://" + host.trim().removePrefix("http://").trimEnd('/')
+
+    @Volatile
+    private var current: HttpURLConnection? = null
+
+    @Volatile
+    private var isAborted = false
+
+    /** Cuts the request under way, an upload of minutes included, and refuses the ones after:
+     * for whoever stops the work. */
+    fun abort() {
+        isAborted = true
+        current?.disconnect()
+    }
 
     private class Response(val body: ByteArray, private val connection: HttpURLConnection) {
         fun header(name: String): String? = connection.getHeaderField(name)
@@ -52,7 +73,9 @@ class DeviceClient(val host: String) {
     private class BusyException : IOException("busy")
 
     private fun sendOnce(path: String, method: String, body: ByteArray?, timeoutMs: Int): Response {
+        if (isAborted) throw InterruptedException("cancelled")
         val connection = URI.create(base + path).toURL().openConnection() as HttpURLConnection
+        current = connection
         try {
             connection.requestMethod = method
             connection.connectTimeout = 3_000
@@ -72,7 +95,12 @@ class DeviceClient(val host: String) {
                 throw IOException("HTTP $code from $path: ${said.take(200)}")
             }
             return Response(connection.inputStream.use { it.readBytes() }, connection)
+        } catch (error: IOException) {
+            // A request cut by abort() is not a failure of the device.
+            if (isAborted) throw InterruptedException("cancelled")
+            throw error
         } finally {
+            current = null
             connection.disconnect()
         }
     }
@@ -105,15 +133,6 @@ class DeviceClient(val host: String) {
 
     /** The JSON text of `/api/status`. */
     fun status(): String = String(send("/api/status").body, StandardCharsets.UTF_8)
-
-    /** The frame currently shown on the panel. */
-    fun frame(): DeviceFrame {
-        val response = send("/api/dev/screen")
-        val image = ImageIO.read(ByteArrayInputStream(response.body))
-            ?: throw IOException("the device returned no image")
-        val number = response.header("X-Frame")?.toIntOrNull() ?: 0
-        return DeviceFrame(image, number, response.header("X-Pending") == "1")
-    }
 
     fun press(button: DeviceButton, isLong: Boolean) {
         val press = if (isLong) "long" else "short"
@@ -177,11 +196,13 @@ class DeviceClient(val host: String) {
         send("/api/dev/run?app=${encode(application)}", "POST")
     }
 
-    /** After a restart: the device is gone for a moment, then answers again. Returns its status. */
+    /** After a restart: the device is gone for a moment, then answers again. Returns its
+     * status; cancelled, throws InterruptedException. */
     fun waitUntilBack(isCancelled: () -> Boolean): String {
         Thread.sleep(3_000)
         val deadline = System.currentTimeMillis() + RESTART_WAIT_MS
-        while (System.currentTimeMillis() < deadline && !isCancelled()) {
+        while (System.currentTimeMillis() < deadline) {
+            if (isCancelled()) throw InterruptedException("cancelled")
             try {
                 return status()
             } catch (error: IOException) {

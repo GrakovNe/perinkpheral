@@ -55,9 +55,6 @@ about 10 s, no reflashing
 <b>III</b>Reference: host API and SDK library
 <b>III</b>Справочник: API хоста и библиотека SDK
 
-revision 3, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 3, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
-
 Contents
 Содержание
 
@@ -93,9 +90,6 @@ Sandbox: 64 KB of private memory; network access through the host only
 
 Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code
 Сеть: запросы HTTP и HTTPS выполняются хостом - опросы по расписанию или запросы из кода
-
-Data: the host extracts values from JSON answers; any answer can be streamed in 1 KB pieces
-Данные: значения из ответов JSON извлекаются хостом; любой ответ может передаваться потоком, фрагментами по 1 КБ
 
 Background work: answers, alarms and device events are delivered while the application is off the screen
 Фоновая работа: ответы, будильники и события устройства доставляются приложению, когда оно не на экране
@@ -174,9 +168,6 @@ Depth
 
 Partial refresh
 Частичное обновление
-
-0.46 - 0.53 s
-0,46 - 0,53 с
 
 Only the changed rectangle is sent. 0.6 - 0.7 s when the panel has been idle for more than 1.5 s and is woken first
 Передаётся только изменившийся прямоугольник. 0,6 - 0,7 с, если панель простаивала больше 1,5 с и её сначала будят
@@ -289,9 +280,6 @@ Executable code, all paths run
 about 13 KB
 около 13 КБ
 
-Derived from the interpreter memory. <code>mkapp</code> warns when the estimate is exceeded
-Следует из памяти интерпретатора. <code>mkapp</code> предупреждает о превышении оценки
-
 Handler time limit
 Лимит времени обработчика
 
@@ -352,9 +340,6 @@ Store total
 4096 bytes
 4096 байт
 
-Per application. Kept after removal and restored on reinstall
-На приложение. Сохраняется после удаления и доступно после переустановки
-
 Files total
 Файлы целиком
 
@@ -397,14 +382,8 @@ Listed in the manifest, or taken from a <code>url</code> or <code>link</code> se
 Polls per manifest
 Опросов в манифесте
 
-Interval 10 s to 1 day; minimum 300 s on battery
-Интервал от 10 с до 1 суток; на батарее не менее 300 с
-
 Concurrent requests
 Одновременных запросов
-
-Per device. Queue: 2 more
-На устройство. Очередь: ещё 2
 
 Request headers / body
 Заголовки / тело запроса
@@ -420,9 +399,6 @@ Answer with extracted values
 
 256 KB
 256 КБ
-
-JSON; up to 16 paths; value up to 63 bytes
-JSON; до 16 путей; значение до 63 байт
 
 Streamed answer
 Потоковый ответ
@@ -658,9 +634,6 @@ Requirements
 <b>wasi-sdk</b> 34 or newer. It provides clang for the wasm32 target. Set <code>WASI_SDK_PATH</code> to its location.
 <b>wasi-sdk</b> версии 34 или новее. Содержит clang для цели wasm32. Укажите путь к нему в <code>WASI_SDK_PATH</code>.
 
-<b>Python 3</b>. The tools use the standard library only.
-<b>Python 3</b>. Инструменты используют только стандартную библиотеку.
-
 A checkout of the <b>perinkpheral</b> repository. It contains <code>sdk/</code> and <code>tools/</code>.
 Копия репозитория <b>perinkpheral</b>. Содержит <code>sdk/</code> и <code>tools/</code>.
 
@@ -679,14 +652,8 @@ build, upload, restart into the application
 local page: live screen, buttons, log, Run
 локальная страница: экран, кнопки, журнал, Run
 
-<code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.
-<code>serve</code> запускает локальную веб-страницу с экраном устройства, четырьмя кнопками, журналом устройства и кнопкой Run. Клавиши со стрелками, Enter и Backspace работают как кнопки.
-
 <code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.
 <code>new</code> также создаёт <code>CMakeLists.txt</code> в папке приложения. Откройте эту папку в IDE с поддержкой CMake, например CLion или VS Code.
-
-The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page).
-IDE находит заголовочные файлы SDK и сгенерированные <code>strings.h</code> и <code>pictures.h</code>. В проекте три цели сборки: <code>my-app</code> (сборка), <code>my-app-run</code> (сборка и запуск на устройстве) и <code>my-app-serve</code> (страница с экраном).
 
 Set <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the CMake environment of the IDE.
 Задайте <code>WASI_SDK_PATH</code> и <code>PERINKPHERAL_HOST</code> в окружении CMake в IDE.
@@ -721,9 +688,6 @@ the code calls a <code>sys_*</code> function and the manifest lacks <code>"syste
 the manifest exceeds a limit;
 манифест превышает лимит;
 
-a translation does not match <code>en.json</code> (section 12).
-перевод не соответствует <code>en.json</code> (раздел 12).
-
 5. Package
 5. Пакет
 
@@ -757,9 +721,6 @@ Description
 Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting
 До 511 байт. <code>http</code> или <code>https</code>; либо начинается с <code>{{key}}</code> настройки типа <code>url</code>; либо целиком <code>{{key}}</code> настройки типа <code>link</code>
 
-<code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required
-<code>{{key}}</code> любой настройки заменяется сохранённым значением в URL-кодировании: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, превращается в <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Настройка типа <code>url</code> в начале адреса и настройка типа <code>link</code> подставляются без изменений. Опрос с пустой настройкой в URL или заголовках завершается ошибкой <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен
-
 10 to 86400 seconds, or <code>"{{key}}"</code> of a setting
 от 10 до 86400 секунд либо <code>"{{key}}"</code> настройки
 
@@ -769,14 +730,8 @@ Interval. With a setting, the stored text is a number and a unit; the unit is id
 up to 4; a value up to 255 bytes
 до 4; значение до 255 байт
 
-<code>{{key}}</code> is supported in values. Used to send a token
-В значениях поддерживается <code>{{key}}</code>. Используется для передачи токена
-
 up to 16 paths of up to 63 bytes
 до 16 путей, каждый до 63 байт
-
-JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. The host extracts the values. Without <code>pick</code> the answer is streamed
-Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. Значения извлекаются хостом. Без <code>pick</code> ответ передаётся потоком
 
 Polls are numbered from 0 in the order of the list. Handlers receive this number.
 Опросы нумеруются с 0 в порядке списка. Этот номер получают обработчики.
@@ -849,9 +804,6 @@ Complete URL supplied by the user
 
 <code>https://host/path?key</code>, up to 255 bytes. Hidden on the web page like a secret. <code>webcal://</code> is converted to <code>https://</code>
 <code>https://host/path?key</code>, до 255 байт. На веб-странице скрыт, как секрет. <code>webcal://</code> преобразуется в <code>https://</code>
-
-<code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty. The code applies the same default when <code>kv_get()</code> finds no value.
-<code>default</code> только отображается: страница показывает его, пока настройка пуста, а хранилище остаётся пустым. Код применяет то же значение по умолчанию, когда <code>kv_get()</code> не находит значения.
 
 <code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.
 Настройки типов <code>url</code> и <code>link</code> доступны приложению только для чтения: <code>kv_set()</code> по их ключам завершается ошибкой. Когда пользователь меняет такую настройку, хост стирает секреты, не введённые заново, поэтому токен остаётся с тем сервером, для которого был введён.
@@ -1036,9 +988,6 @@ Basic kit parts: title, text, caption, icons, value, button, bar, button row
 An application's own pictures are placed in the <code>pictures/</code> folder. Supported formats are PNG, PBM and text. A text file contains rows of <code>#</code> (ink) and <code>.</code> (paper) and can hold several named pictures:
 Собственные картинки приложения размещаются в папке <code>pictures/</code>. Поддерживаются форматы PNG, PBM и текстовый. Текстовый файл содержит строки из <code>#</code> (чернила) и <code>.</code> (бумага) и может содержать несколько именованных картинок:
 
-generated by mkapp
-генерируется mkapp
-
 44 px: cell size 4
 44 пикс.: размер клетки 4
 
@@ -1060,9 +1009,6 @@ A picture is at most 255 cells wide and 255 cells high.
 The constant is <code>PICTURE_</code> followed by the picture name in upper case. Characters other than letters and digits are replaced with <code>_</code>. Example: <code>half-moon</code> becomes <code>PICTURE_HALF_MOON</code>.
 Константа - <code>PICTURE_</code> и имя картинки в верхнем регистре. Символы, кроме букв и цифр, заменяются на <code>_</code>. Пример: <code>half-moon</code> превращается в <code>PICTURE_HALF_MOON</code>.
 
-<code>mkpicture.py --show</code> prints the pictures as the tool read them.
-<code>mkpicture.py --show</code> выводит картинки в том виде, как их прочитал инструмент.
-
 A picture is stored as one bit per cell. <code>gfx_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.
 Картинка хранится по одному биту на клетку. <code>gfx_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.
 
@@ -1071,6 +1017,7 @@ Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more 
 
 Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.
 Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.
+
 Kit
 Kit
 
@@ -1193,9 +1140,6 @@ Default
 
 Immediate, without a button press
 Немедленно, без нажатия кнопки
-
-Data the user is waiting for, such as the result of a manual refresh
-Данные, которых ждёт пользователь, например результат ручного обновления
 
 Full refresh: 2 - 3 s, one flash, removes ghosting
 Полное обновление: 2 - 3 с, одно мигание, убирает остаточное изображение
@@ -1458,9 +1402,6 @@ To be called when the clock is set or changed, declare the <code>time_changed</c
 An application displays its text in the language of the device. The developer provides the translations. The host loads the translation for the current language.
 Приложение отображает свой текст на языке устройства. Переводы предоставляет разработчик. Хост загружает перевод для текущего языка.
 
-generated by mkapp: STR_NO_EVENTS, STR_STARTS_IN, app_string()
-генерируется mkapp: STR_NO_EVENTS, STR_STARTS_IN, app_string()
-
 text in the device's language
 текст на языке устройства
 
@@ -1545,26 +1486,14 @@ Builds, uploads, restarts the device and opens the application
 Local web page: live screen, buttons, log, Run
 Локальная веб-страница: экран устройства, кнопки, журнал, Run
 
-Saves the current panel frame as an image
-Сохраняет текущий кадр панели как изображение
-
 Sends button presses: 1 - 4 short, 1L - 4L long, in device order
 Отправляет нажатия кнопок: 1 - 4 короткие, 1L - 4L длинные, в порядке кнопок устройства
 
 Opens an installed application
 Открывает установленное приложение
 
-Prints the device log. <code>--app</code>: application lines only
-Выводит журнал устройства. <code>--app</code>: только строки приложений
-
-Writes a value to an application's store, for example a setting
-Записывает значение в хранилище приложения, например настройку
-
 Prints firmware, network, free memory and the last reset reason
 Выводит прошивку, сеть, свободную память и причину последней перезагрузки
-
-Prints pictures as rows of # and . as <code>mkapp</code> reads them
-Выводит картинки строками из # и . в том виде, как их читает <code>mkapp</code>
 
 Converts a video to a 1-bit stream that fits in an application file
 Преобразует видео в однобитный поток, помещающийся в файл приложения
@@ -1625,9 +1554,6 @@ Self-signed or expired server certificate. Use <code>http</code> within a home n
 
 <code>http_request()</code> returns -4
 <code>http_request()</code> возвращает -4
-
-The device request queue is full. Retry from a later handler
-Очередь запросов устройства заполнена. Повторите из следующего обработчика
 
 Ghost images of earlier frames
 Остаточное изображение предыдущих кадров
@@ -1743,9 +1669,6 @@ A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code
 Returns the buffer for one piece of data (1 KB). Provided by <code>sdk/lib</code>
 Возвращает буфер для одного фрагмента данных (1 КБ). Предоставляется <code>sdk/lib</code>
 
-Returns the buffer for the strings of the device's language. Generated by <code>mkapp</code>
-Возвращает буфер для строк на языке устройства. Генерируется <code>mkapp</code>
-
 18. Drawing
 18. Отрисовка
 
@@ -1773,9 +1696,6 @@ Rectangle: <code>HOST_RECT_OUTLINE</code> or <code>HOST_RECT_FILLED</code>
 Line, 1 px wide, end points included
 Линия шириной 1 пиксель, включая концы
 
-Picture generated by <code>mkapp</code> from <code>pictures/</code>: width byte, height byte, one bit per cell. Cell size 1 - 16 px
-Картинка, сгенерированная <code>mkapp</code> из <code>pictures/</code>: байт ширины, байт высоты, один бит на клетку. Размер клетки 1 - 16 пикселей
-
 Built-in icon <code>HOST_ICON_*</code>, 11 x 11 cells. Cell size 1 - 16 px
 Встроенная иконка <code>HOST_ICON_*</code>, 11 x 11 клеток. Размер клетки 1 - 16 пикселей
 
@@ -1790,9 +1710,6 @@ QR-код до 200 байт. Возвращает число модулей на
 
 Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code>
 Запрашивает перерисовку. Флаги: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code>
-
-Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler
-Задаёт текст приложения в заголовке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Вызывается из любого обработчика
 
 19. Kit
 19. Kit
@@ -1902,12 +1819,6 @@ Runs a manifest poll immediately
 Sets the poll interval, 10 s to 1 day. Kept across restarts
 Задаёт интервал опроса, от 10 с до 1 суток. Сохраняется при перезагрузке
 
-Queues a request. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines
-Ставит запрос в очередь. Методы: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Заголовки: строки вида "Name: value"
-
-Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length
-Внутри <code>app_on_values()</code>: копирует значение пути <code>index</code> как текст без завершающего нуля. Возвращает его длину
-
 Inside a data handler: fills a <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 Внутри обработчика данных: заполняет <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 
@@ -1977,9 +1888,6 @@ The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height
 23. SDK library
 23. Библиотека SDK
 
-<code>mkapp</code> links the library into every application. Unused functions are removed. The headers are in <code>sdk/lib</code>.
-<code>mkapp</code> компонует библиотеку с каждым приложением. Неиспользуемые функции удаляются. Заголовочные файлы находятся в <code>sdk/lib</code>.
-
 <code>bool</code> is the standard type from <code>&lt;stdbool.h&gt;</code>. Text arguments are null-terminated unless stated otherwise.
 <code>bool</code> - стандартный тип из <code>&lt;stdbool.h&gt;</code>. Текстовые аргументы завершаются нулём, если не указано иное.
 
@@ -2000,12 +1908,6 @@ length of any null-terminated text
 
 app_values.h: what the host picked
 app_values.h: значения, извлечённые хостом
-
-false: value absent or buffer too small
-false: значения нет или буфер мал
-
-"-3.46", 1 -> -35; false: value absent
-"-3.46", 1 -> -35; false: значения нет
 
 the same for a given text
 то же для заданного текста
@@ -2042,9 +1944,6 @@ up to 16
 
 one piece of the answer
 один фрагмент ответа
-
-NULL: value absent
-NULL: значения нет
 
 generated from strings/: enum { STR_NO_EVENTS, ... }; const char *app_string(int32_t id);
 генерируется из strings/: enum { STR_NO_EVENTS, ... }; const char *app_string(int32_t id);
@@ -2088,9 +1987,6 @@ Text per drawing or measuring call
 Header text; header status text
 Текст в заголовке; текст статуса в заголовке
 
-Store key; value; total per application
-Ключ хранилища; значение; всего на приложение
-
 23 / 64 KB
 23 / 64 КБ
 
@@ -2111,9 +2007,6 @@ Answer with extracted values; streamed answer
 
 One extracted value
 Одно извлечённое значение
-
-Request headers; body; queued requests per device
-Заголовки запроса; тело; запросов в очереди на устройство
 
 Tags for requests from code
 Теги для запросов из кода
@@ -2150,6 +2043,7 @@ Loaded by the host
 
 <code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.
 <code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.
+
 <code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.
 <code>run</code> собирает приложение, загружает его, перезапускает устройство и открывает приложение. Это занимает около десяти секунд. Прошивка не перезаписывается.
 
@@ -2189,9 +2083,6 @@ Allocate large buffers with <code>app_alloc()</code> under a mark. Read files in
 The build also fails in these cases:
 Сборка также завершается ошибкой в следующих случаях:
 
-<code>mkapp</code> builds the package from this folder. It compiles the sources with the SDK library, generates <code>strings.h</code> from <code>strings/</code> and <code>pictures.h</code> from <code>pictures/</code>, and checks all limits. The package contains <code>app.wasm</code>, <code>manifest.json</code>, the files and one string table per language.
-<code>mkapp</code> собирает пакет из этой папки. Он компилирует исходный код с библиотекой SDK, генерирует <code>strings.h</code> из <code>strings/</code> и <code>pictures.h</code> из <code>pictures/</code> и проверяет все лимиты. Пакет содержит <code>app.wasm</code>, <code>manifest.json</code>, файлы и по одной таблице строк на язык.
-
 1 - 13 of <code>a-z 0-9 - _</code>; equal to the folder name
 1 - 13 символов из <code>a-z 0-9 - _</code>; совпадает с именем папки
 
@@ -2225,9 +2116,6 @@ Shown in the menu, on the web page and in catalogs. Optional
 up to 4
 до 4
 
-Scheduled requests performed by the host (below)
-Запросы по расписанию, выполняемые хостом (ниже)
-
 up to 4, each up to 63 bytes
 до 4, каждый до 63 байт
 
@@ -2251,9 +2139,6 @@ URL с <code>https</code>
 
 Developer's page opened from the settings form, for setup that a form cannot express
 Страница разработчика, открываемая из формы настроек, для настройки, которую нельзя выразить формой
-
-The host ignores unknown keys. <code>mkapp</code> validates the keys listed above.
-Неизвестные ключи хост игнорирует. <code>mkapp</code> проверяет перечисленные выше ключи.
 
 Rules for text files:
 Правила для текстовых файлов:
@@ -2297,9 +2182,6 @@ Use files for data that does not fit in a store value: a downloaded list, a cach
 Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.
 Числа - целые. <code>app_value_number()</code> возвращает значение, умноженное на запрошенное число десятичных разрядов, с округлением.
 
-Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB.
-Обрабатывайте каждый фрагмент при получении и сохраняйте только данные для отображения. Используйте конечный автомат, <code>json_pick</code> из SDK или собственный разборщик. Ответ может занимать несколько мегабайт; у приложения 64 КБ.
-
 Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new answer.
 Заменяйте отображаемые данные только по <code>HOST_DATA_LAST</code>. Доставка может прекратиться без последнего фрагмента и без ошибки (раздел 3). <code>HOST_DATA_FIRST</code> всегда начинает новый ответ.
 
@@ -2311,9 +2193,6 @@ Requests from code
 
 Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.
 Запросы разрешены только на адреса, перечисленные в манифесте. Подстановки <code>{{key}}</code> работают в URL и в значениях заголовков, поэтому коду не нужно читать токен.
-
-<code>HOST_ERR_NO_SPACE</code> means that the request queue of the device is full (two waiting requests). Retry later.
-<code>HOST_ERR_NO_SPACE</code> означает, что очередь запросов устройства заполнена (два ожидающих запроса). Повторите позже.
 
 The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is sent once; its redirect response is delivered as the answer.
 Для <code>GET</code> хост выполняет до трёх перенаправлений. Перенаправление на адрес вне списка завершается ошибкой <code>HOST_FAILED_NOT_ALLOWED</code>. Запрос с телом отправляется один раз; ответ с перенаправлением доставляется как ответ на запрос.
@@ -2356,9 +2235,6 @@ Save the last status in the store. When there is no data to display, pass the st
 
 After <code>notify()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
 После возврата из <code>notify()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
-
-<code>en.json</code> is required. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).
-<code>en.json</code> обязателен. Английский встраивается в модуль и используется, когда перевода нет. Все остальные файлы содержат точно те же ключи. Ключ <code>manifest</code> допускается только в переводах (см. ниже).
 
 When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.
 При загрузке приложения хост копирует таблицу строк на языке устройства в память приложения поверх английской. После этого <code>app_string()</code> возвращает переведённый текст без дополнительного вызова.
@@ -2456,9 +2332,6 @@ This part lists every declaration of <code>sdk/host_api.h</code> for ABI 2.
 The buffer is always null-terminated and stays within its size. The text is complete after each call.
 Буфер всегда завершается нулём и не выходит за свой размер. После каждого вызова текст в буфере полон.
 
-These functions work only inside <code>app_on_values()</code>. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest.
-Эти функции работают только внутри <code>app_on_values()</code>. <code>index</code> - позиция пути в списке <code>pick</code> манифеста.
-
 To handle BACK on these screens, export <code>app_on_back()</code> and pass <code>BTN_BACK_PRESSED</code> from it to the same button function.
 Чтобы обрабатывать BACK на этих экранах, экспортируйте <code>app_on_back()</code> и передавайте из него <code>BTN_BACK_PRESSED</code> в ту же функцию обработки кнопок.
 
@@ -2477,14 +2350,8 @@ Not found / Check the address
 No answer / Code &lt;status&gt;
 =
 
-perINKpheral / application guide
-perINKpheral / руководство по приложениям
-
 optional: data files, read with file_read()
 необязательно: файлы данных, читаются через file_read()
-
-(section
-(раздел
 
 Series of integers as a line, an area, bars or steps, scaled to a box
 Ряд целых чисел в виде линии, области, столбцов или ступеней, масштабированный под прямоугольник
@@ -2537,9 +2404,6 @@ first field: int32_t version
 one flash write
 одна запись во флеш
 
-length; 0: not set
-длина; 0: не задано
-
 toggle: true unless "0"
 toggle: true, кроме "0"
 
@@ -2558,9 +2422,6 @@ run it in the simulator on this computer
 The perINKpheral plugin for CLion (repository <code>perinkpheral-clion-plugin</code>) does this setup itself. It downloads the SDK and wasi-sdk on request, opens an application folder as a CMake project, and adds two run configurations: on the device and in the simulator. Its device window shows the live screen, the buttons, the log and the status of the device or the simulator.
 Плагин perINKpheral для CLion (репозиторий <code>perinkpheral-clion-plugin</code>) делает эту настройку сам. Он по запросу скачивает SDK и wasi-sdk, открывает папку приложения как проект CMake и добавляет две конфигурации запуска: на устройстве и в симуляторе. Его окно устройства показывает живой экран, кнопки, лог и состояние устройства или симулятора.
 
-Builds the application and runs it in the simulator (below)
-Собирает приложение и запускает его в симуляторе (ниже)
-
 Simulator
 Симулятор
 
@@ -2575,12 +2436,6 @@ Device
 
 Store, files
 Хранилище, файлы
-
-A folder on the computer, with the device's limits. Kept between runs
-Папка на компьютере, с ограничениями устройства. Сохраняется между запусками
-
-The computer's. Answers can be replaced by mocks
-Сеть компьютера. Ответы можно подменить моками
 
 The computer's. Moved forward on request
 Часы компьютера. Переводятся вперёд по запросу
@@ -2603,9 +2458,6 @@ The application leaves the screen. From then on it is loaded only for what is de
 The application takes the screen again
 Приложение снова занимает экран
 
-Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Only an intent the manifest declares
-Доставляет интент: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Только объявленный в манифесте
-
 Alarm <code>N</code> expires now
 Будильник <code>N</code> срабатывает сейчас
 
@@ -2615,9 +2467,6 @@ The clock and every pending poll, alarm and timer move forward
 Mocks are a JSON file of address to answer. An address that ends with <code>*</code> matches every address that begins with the rest:
 Моки - это файл JSON: адрес и ответ на него. Адрес, который заканчивается на <code>*</code>, подходит ко всем адресам, начинающимся с остального:
 
-Not simulated: the menu and other applications, the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
-Не симулируются: меню и другие приложения, системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
-
 the three visible texts, made by the caller
 три видимых текста, их готовит вызывающий
 
@@ -2626,9 +2475,6 @@ index shown above the chosen one; -1: none
 
 index shown below; -1: none
 индекс под выбранным; -1: нет
-
-revision 4, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 4, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
 
 Data: the host extracts values and lists from JSON answers; any answer can be streamed in 1 KB pieces
 Данные: хост извлекает значения и списки из ответов JSON; любой ответ можно получать потоком кусками по 1 КБ
@@ -2681,9 +2527,6 @@ A line per item; items are added and removed
 Items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all, about 40 tickers. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code>
 Пункты по 1 - 63 печатных символа ASCII, разделённые переводом строки (<code>\n</code>); всего 255 байт, около 40 тикеров. Читается через <code>app_setting_count()</code> и <code>app_setting_item()</code>
 
-<code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.
-<code>default</code> только для показа: страница показывает его, пока настройка пуста, а хранилище остаётся пустым, и у <code>{{key}}</code> нет значения. Код применяет то же значение по умолчанию, когда <code>kv_get()</code> ничего не находит. Значение по умолчанию у <code>list</code> - список пунктов.
-
 Files written by the code are kept when the application is updated. They are removed with the application; the store is kept.
 Файлы, записанные кодом, сохраняются при обновлении приложения. Они удаляются вместе с приложением; хранилище остаётся.
 
@@ -2707,9 +2550,6 @@ Lists
 
 A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:
 Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_chart()</code>:
-
-"pick": ["meta.longName", "indicators.close[*]"]
-=
 
 which ticker of the list
 какой тикер из списка
@@ -2785,12 +2625,6 @@ Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>netwo
 
 16 of the application's requests are waiting. Queue more as answers arrive
 Ждут 16 запросов приложения. Ставьте новые по мере прихода ответов
-
-A poll fails with -3 in the simulator and on the device, though the page shows a value
-Опрос завершается с -3 в симуляторе и на устройстве, хотя страница показывает значение
-
-The value is the setting's <code>default</code>, which is shown and not stored. Apply the default in the code, or save the settings once
-Это <code>default</code> настройки: он показывается, но не хранится. Примените значение по умолчанию в коде или сохраните настройки один раз
 
 Once after the application is installed: it has not run on this device before, or was removed and installed again
 Один раз после установки приложения: оно ещё не запускалось на этом устройстве или было удалено и установлено снова
@@ -2882,9 +2716,6 @@ Elements of the list paths of one answer, as text
 An item of a list setting, in bytes
 Пункт настройки-списка, в байтах
 
-revision 5, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 5, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
-
 <code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code>
 <code>{{key}}</code> поддерживается в значениях. Используются для отправки токена или собственного <code>User-Agent</code> приложения вместо хостового <code>perinkpheral</code>
 
@@ -2915,17 +2746,8 @@ The network sends <code>User-Agent: perinkpheral</code>, as the device does. The
 Ctrl+C stops the simulator as a restart stops the device: <code>app_on_terminate()</code> is called. A process that is killed loses what was not saved, as at a power loss.
 Ctrl+C останавливает симулятор, как перезапуск останавливает устройство: вызывается <code>app_on_terminate()</code>. Убитый процесс теряет несохранённое, как при пропаже питания.
 
-<code>devtool.py set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in a POSIX shell.
-<code>devtool.py set</code> принимает список пунктами через перевод строки: <code>set stocks tickers $'AAPL\nMSFT'</code> в POSIX-оболочке.
-
 Not simulated: other applications (the menu holds only this one), the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
 Не симулируются: другие приложения (в меню только это), системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
-
-<b>Python 3</b> for the command-line tools; they use the standard library only. The CLion plugin needs none: it builds, uploads and runs the simulator itself.
-<b>Python 3</b> для инструментов командной строки; они используют только стандартную библиотеку. Плагину для CLion он не нужен: плагин сам собирает, загружает и запускает симулятор.
-
-revision 6, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 6, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
 
 Derived from the interpreter memory. The build warns when the estimate is exceeded
 Выводится из памяти интерпретатора. Сборка предупреждает, когда оценка превышена
@@ -2962,3 +2784,30 @@ Picture generated by the build from <code>pictures/</code>: width byte, height b
 
 The build links the library into every application. Unused functions are removed. The headers are in <code>sdk/lib</code>.
 Сборка подключает библиотеку к каждому приложению. Неиспользуемые функции удаляются. Заголовки лежат в <code>sdk/lib</code>.
+
+revision 7, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 7, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+
+<code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons. The page accepts requests from itself only, as the device does.
+<code>serve</code> запускает локальную веб-страницу с экраном устройства, четырьмя кнопками, журналом устройства и кнопкой Run. Клавиши со стрелками, Enter и Backspace работают как кнопки. Страница принимает запросы только от самой себя, как и устройство.
+
+The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page). The IDE compiles with the flags of the build (<code>tools/perinkpheral flags</code>) and produces the same module.
+IDE находит заголовочные файлы SDK и сгенерированные <code>strings.h</code> и <code>pictures.h</code>. В проекте три цели сборки: <code>my-app</code> (сборка), <code>my-app-run</code> (сборка и запуск на устройстве) и <code>my-app-serve</code> (страница с экраном). IDE компилирует с флагами сборки (<code>tools/perinkpheral flags</code>) и получает тот же модуль.
+
+The generated headers follow <code>strings/</code> and <code>pictures/</code> while the code is written. A string the code does not use yet, or a translation that lacks a string, is accepted in them; the build refuses both.
+Сгенерированные заголовки следуют за <code>strings/</code> и <code>pictures/</code>, пока пишется код. Строка, которую код ещё не использует, или перевод, в котором строки не хватает, в них допускаются; сборка отклоняет и то и другое.
+
+Writes <code>strings.h</code>, <code>strings.c</code> and <code>pictures.h</code> for an editor or another build system
+Записывает <code>strings.h</code>, <code>strings.c</code> и <code>pictures.h</code> для редактора или другой системы сборки
+
+Prints the compiler and linker flags of the build as a CMake list
+Выводит флаги компилятора и компоновщика сборки списком CMake
+
+Prints the device log. <code>--app</code>: application lines only. <code>--follow</code> continues across restarts of the device
+Выводит журнал устройства. <code>--app</code>: только строки приложений. <code>--follow</code> продолжает и после перезапуска устройства
+
+The computer's. Redirects, hosts and headers follow the device's rules. Answers can be replaced by mocks
+Сеть компьютера. Перенаправления, хосты и заголовки подчиняются правилам устройства. Ответы можно подменить моками
+
+The output folder is created anew on every run. It must be empty or an earlier catalog, and must not contain the applications.
+Выходная папка создаётся заново при каждом запуске. Она должна быть пустой или прежним каталогом и не должна содержать сами приложения.

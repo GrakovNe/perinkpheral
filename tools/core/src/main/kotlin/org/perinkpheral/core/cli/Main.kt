@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.cli
 
+import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import org.perinkpheral.core.app.Applications
 import org.perinkpheral.core.app.StringsTable
 import org.perinkpheral.core.build.AppBuilder
-import org.perinkpheral.core.build.BuildError
-import org.perinkpheral.core.build.Json
+import org.perinkpheral.core.build.BuildFlags
 import org.perinkpheral.core.build.Sdk
 import org.perinkpheral.core.catalog.Catalog
 import org.perinkpheral.core.device.Bmp
 import org.perinkpheral.core.device.DeviceClient
+import org.perinkpheral.core.device.LogFollower
 import org.perinkpheral.core.device.UsbConsole
+import org.perinkpheral.core.firmware.Preview
 import org.perinkpheral.core.simulator.SimulatorNetwork
 import java.io.File
 import java.io.IOException
@@ -20,6 +23,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
 
     perinkpheral build <app> --out <dir>      build and check an application: app.wasm and its package
     perinkpheral headers <app> <dir>          strings.h, strings.c and pictures.h, for an editor
+    perinkpheral flags compile|link           the compiler's flags of the build, as a CMake list
     perinkpheral new <dir> [--title T]        an application to start from: the SDK's sample
     perinkpheral pictures <file or folder>... the drawings as the build reads them
     perinkpheral catalog <folder>... --out <dir>
@@ -30,6 +34,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral sim <app> [--port 8401] [--language en] [--font departure|jersey]
                      [--glyphs <dir>] [--mocks <file>] [--clock] [--state <dir>] [--binary <file>]
                                               run the application in the simulator; Ctrl-C stops it
+    perinkpheral preview [dir] [--font jersey] the host's screens as PNGs, rendered on this computer
 
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
     perinkpheral status                       what the device is and how it is doing
@@ -80,9 +85,9 @@ private fun root(): File {
     return File(given).absoluteFile
 }
 
-private fun builder(): AppBuilder {
+private fun builder(say: (String) -> Unit = { println(it) }): AppBuilder {
     val wasi = System.getenv("WASI_SDK_PATH") ?: fail("WASI_SDK_PATH is not set: point it at an unpacked wasi-sdk")
-    return AppBuilder(Sdk(root()), File(wasi)) { println(it) }
+    return AppBuilder(Sdk(root()), File(wasi), say)
 }
 
 private fun device(arguments: Arguments): DeviceClient =
@@ -143,7 +148,17 @@ private fun run(raw: Array<String>): Int {
             builder().build(File(arguments.word(1, "the application's folder")),
                 File(arguments.option("out") ?: fail("--out is required")))
         }
-        "headers" -> builder().headers(File(arguments.word(1, "the application's folder")), File(arguments.word(2, "the folder")))
+        // Made of the application's files alone: no compiler.
+        "headers" -> AppBuilder(Sdk(root()), File(System.getenv("WASI_SDK_PATH").orEmpty())) {}.headers(File(arguments.word(1, "the application's folder")), File(arguments.word(2, "the folder")))
+        "flags" -> println(BuildFlags.cmake(when (arguments.word(1, "compile or link")) {
+            "compile" -> listOf(BuildFlags.TARGET) + BuildFlags.compile
+            "link" -> listOf(BuildFlags.TARGET) + BuildFlags.link
+            else -> fail(USAGE)
+        }))
+        "preview" -> {
+            val out = File(arguments.words.getOrNull(1) ?: File(System.getProperty("java.io.tmpdir"), "perinkpheral-preview").path)
+            Preview.render(root(), out, arguments.option("font")).forEach { println(it.path) }
+        }
         "new" -> {
             val folder = File(arguments.word(1, "the folder"))
             Applications.create(root(), folder, arguments.option("title").orEmpty(), ::cmakeLists)
@@ -168,15 +183,26 @@ private fun run(raw: Array<String>): Int {
             status.forEach { (key, value) -> println("%-18s %s".format(key, value)) }
         }
         "log" -> {
-            val client = device(arguments)
-            var end: Long? = null
+            val log = LogFollower(device(arguments))
+            val isFollowing = arguments.has("follow")
+            var isAway = false
             do {
-                val part = client.log(end)
-                end = part.end
+                val part = try {
+                    log.next()
+                } catch (error: IOException) {
+                    // A device that restarts is away for a while: followed, it is waited for.
+                    if (!isFollowing) throw error
+                    if (!isAway) System.err.println("${error.message}; waiting")
+                    isAway = true
+                    Thread.sleep(1_000)
+                    continue
+                }
+                isAway = false
+                if (part.restarted) println("--- restart ---")
                 part.text.lineSequence().filter { it.isNotEmpty() && (!arguments.has("app") || " app: " in it) }
                     .forEach { println(it) }
-                if (arguments.has("follow")) Thread.sleep(1_000)
-            } while (arguments.has("follow"))
+                if (isFollowing) Thread.sleep(1_000)
+            } while (isFollowing)
         }
         "shot" -> {
             val screen = device(arguments).screen()
@@ -223,9 +249,8 @@ private fun run(raw: Array<String>): Int {
             val client = device(arguments)
             val appDir = arguments.words.getOrNull(1)?.let { File(it).absoluteFile }
             PageServer(client, appDir) { folder, out ->
-                val builder = AppBuilder(Sdk(root()), File(System.getenv("WASI_SDK_PATH").orEmpty())) { out.println(it) }
                 try {
-                    Applications.toDevice(builder, client, folder, { out.println(it) })
+                    Applications.toDevice(builder { out.println(it) }, client, folder, { out.println(it) })
                     true
                 } catch (error: BuildError) {
                     out.println(error.message)
@@ -256,8 +281,13 @@ fun main(raw: Array<String>) {
     } catch (error: BuildError) {
         System.err.println(error.message)
         1
-    } catch (error: IOException) {
-        System.err.println(error.message ?: error.javaClass.simpleName)
+    } catch (error: Exception) {
+        // Whatever it was, a line of it: a stack is no help to whoever runs a command.
+        System.err.println(when (error) {
+            is IOException, is Json.Error -> error.message ?: error.javaClass.simpleName
+            is NumberFormatException -> "not a number: ${error.message?.substringAfter("For input string: ")}"
+            else -> "${error.javaClass.simpleName}: ${error.message}"
+        })
         1
     }
     exitProcess(code)

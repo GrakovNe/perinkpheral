@@ -17,10 +17,14 @@ import java.util.concurrent.Executors
  * The device in a browser tab beside any editor: the live screen, the four buttons, the log
  * and, given an application, a Run button. The device takes requests from its own page only,
  * so a page of ours cannot ask it directly: this server gives the page and passes its
- * requests on.
+ * requests on - to its own page only, as the device does: a page of another site in the same
+ * browser, or a name that was made to point here, is refused.
  */
 class PageServer(private val client: DeviceClient, private val appDir: File?, private val run: (File, PrintStream) -> Boolean) {
+    private var port = 0
+
     fun serve(port: Int) {
+        this.port = port
         val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0)
         server.executor = Executors.newCachedThreadPool()
         server.createContext("/") { exchange ->
@@ -52,7 +56,19 @@ class PageServer(private val client: DeviceClient, private val appDir: File?, pr
             expose.mapNotNull { name -> got.headers[name]?.let { name to it } }.toMap())
     }
 
+    /** Asked by this server's own page: by its own address, and from no other site. */
+    private fun isOwn(exchange: HttpExchange): Boolean {
+        val own = listOf("127.0.0.1:$port", "localhost:$port")
+        val host = exchange.requestHeaders.getFirst("Host")
+        val origin = exchange.requestHeaders.getFirst("Origin")
+        return host in own && (origin == null || origin in own.map { "http://$it" })
+    }
+
     private fun handle(exchange: HttpExchange) {
+        if (!isOwn(exchange)) {
+            answer(exchange, 403, "Forbidden.".toByteArray())
+            return
+        }
         val path = exchange.requestURI.path
         val query = exchange.requestURI.rawQuery.orEmpty().split('&').filter { it.contains('=') }
             .associate { URLDecoder.decode(it.substringBefore('='), Charsets.UTF_8) to URLDecoder.decode(it.substringAfter('='), Charsets.UTF_8) }

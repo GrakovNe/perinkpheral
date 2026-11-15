@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 6, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 7, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -300,10 +300,11 @@ tools/perinkpheral serve my-app                    # local page: live screen, bu
 tools/perinkpheral sim my-app                      # run it in the simulator on this computer</pre>
 <p><code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.</p>
 <p>The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.</p>
-<p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.</p>
+<p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons. The page accepts requests from itself only, as the device does.</p>
 
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.</p>
-<p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page).</p>
+<p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page). The IDE compiles with the flags of the build (<code>tools/perinkpheral flags</code>) and produces the same module.</p>
+<p>The generated headers follow <code>strings/</code> and <code>pictures/</code> while the code is written. A string the code does not use yet, or a translation that lacks a string, is accepted in them; the build refuses both.</p>
 <p>Set <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the CMake environment of the IDE.</p>
 <p>The perINKpheral plugin for CLion (repository <code>perinkpheral-clion-plugin</code>) does this setup itself. It downloads the SDK and wasi-sdk on request, opens an application folder as a CMake project, and adds two run configurations: on the device and in the simulator. Its device window shows the live screen, the buttons, the log and the status of the device or the simulator.</p>
 <h2 id="start-sample">Sample application</h2>
@@ -885,13 +886,15 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><th style="width:44%">Command</th><th>Function</th></tr>
   <tr><td class="c">tools/perinkpheral build &lt;dir&gt; --out &lt;dir&gt;</td><td>Builds one application: compile, link with the SDK library, check, measure</td></tr>
   <tr><td class="c">tools/perinkpheral new &lt;dir&gt; [--title T]</td><td>Creates a new application folder from the SDK sample</td></tr>
+  <tr><td class="c">tools/perinkpheral headers &lt;dir&gt; &lt;out&gt;</td><td>Writes <code>strings.h</code>, <code>strings.c</code> and <code>pictures.h</code> for an editor or another build system</td></tr>
+  <tr><td class="c">tools/perinkpheral flags compile|link</td><td>Prints the compiler and linker flags of the build as a CMake list</td></tr>
   <tr><td class="c">tools/perinkpheral run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads, restarts the device and opens the application</td></tr>
   <tr><td class="c">tools/perinkpheral sim &lt;dir&gt; [--language ru] [--mocks m.json]</td><td>Builds the application and runs it in the simulator (below). Ctrl+C stops it</td></tr>
   <tr><td class="c">tools/perinkpheral serve [dir]</td><td>Local web page: live screen, buttons, log, Run</td></tr>
   <tr><td class="c">tools/perinkpheral shot [f.png]</td><td>Saves the current panel frame as a PNG at twice the panel's size, 800 x 600</td></tr>
   <tr><td class="c">tools/perinkpheral press 3 3 2L [--shot f.png]</td><td>Sends button presses: 1 - 4 short, 1L - 4L long, in device order</td></tr>
   <tr><td class="c">tools/perinkpheral open &lt;name&gt;</td><td>Opens an installed application</td></tr>
-  <tr><td class="c">tools/perinkpheral log [--follow] [--app]</td><td>Prints the device log. <code>--app</code>: application lines only</td></tr>
+  <tr><td class="c">tools/perinkpheral log [--follow] [--app]</td><td>Prints the device log. <code>--app</code>: application lines only. <code>--follow</code> continues across restarts of the device</td></tr>
   <tr><td class="c">tools/perinkpheral set &lt;app&gt; &lt;key&gt; &lt;value&gt;</td><td>Writes a value to an application's store, as the web page saves a setting: <code>app_on_settings()</code> is called and the polls are repeated. A list is its items with line breaks</td></tr>
   <tr><td class="c">tools/perinkpheral status</td><td>Prints firmware, network, free memory and the last reset reason</td></tr>
   <tr><td class="c">tools/perinkpheral pictures &lt;files&gt;</td><td>Prints pictures as rows of # and . as the build reads them</td></tr>
@@ -907,7 +910,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:34%">Device</th><th>Simulator</th></tr>
   <tr><td>Store, files</td><td>A folder on the computer, with the device's limits. Kept between runs, as across an update on the device</td></tr>
-  <tr><td>Network</td><td>The computer's. Answers can be replaced by mocks</td></tr>
+  <tr><td>Network</td><td>The computer's. Redirects, hosts and headers follow the device's rules. Answers can be replaced by mocks</td></tr>
   <tr><td>Clock</td><td>The computer's. Moved forward on request</td></tr>
   <tr><td>Language, font, glyph packs</td><td><code>--language</code>, <code>--font</code>, <code>--glyphs</code></td></tr>
   <tr><td>Where it keeps its state</td><td><code>--state &lt;folder&gt;</code>; by default <code>~/.perinkpheral/simulator/&lt;name&gt;</code></td></tr>
@@ -958,6 +961,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <pre>tools/perinkpheral catalog my-apps --out catalog       # build all applications in the folder
                                                        # output: catalog/catalog.json, one folder per application</pre>
 <ul>
+  <li>The output folder is created anew on every run. It must be empty or an earlier catalog, and must not contain the applications.</li>
   <li>The index lists the name, title, version and icon of each application, and its files with their sizes and SHA-256 hashes. The device accepts a file only if both the size and the hash match.</li>
   <li>Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.</li>
   <li>The official catalog is the <code>perinkpheral-apps</code> repository. It is the first source on every device. The user can add up to three more sources on the device's web page by entering a repository address.</li>

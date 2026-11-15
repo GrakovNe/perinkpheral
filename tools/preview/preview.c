@@ -4,7 +4,7 @@
  *
  * Renders the host's screens on the host and writes them as PBM (P4),
  * one file per screen: what the panel would show, before flashing.
- * Built and run by tools/preview/preview.py.
+ * Built by tools/preview/Makefile and run by `tools/perinkpheral preview`.
  */
 #include <stdint.h>
 #include <stdio.h>

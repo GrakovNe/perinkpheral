@@ -2,8 +2,9 @@
 package org.perinkpheral.core.catalog
 
 import org.perinkpheral.core.build.AppBuilder
-import org.perinkpheral.core.build.BuildError
-import org.perinkpheral.core.build.Json
+import org.perinkpheral.core.build.Built
+import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import java.io.File
 import java.security.MessageDigest
 
@@ -34,24 +35,37 @@ object Catalog {
             throw BuildError("no applications in ${appsDirs.joinToString(", ") { it.path }}: an application is a " +
                 "folder with a manifest.json")
         }
+        refuseToRemove(out, appsDirs)
         // Whatever the catalog held before is gone: an application that was taken out of the
         // folder must not stay in the catalog.
         out.deleteRecursively()
         out.mkdirs()
-        val apps = appDirs.map { appDir ->
-            val built = File(out, appDir.absoluteFile.normalize().name)
-            builder.build(appDir, built)
-            entryOf(built)
-        }
+        val apps = appDirs.map { appDir -> entryOf(builder.build(appDir, File(out, appDir.absoluteFile.normalize().name))) }
         File(out, INDEX_NAME).writeText(Json.pretty(linkedMapOf("catalog" to VERSION, "apps" to apps), ensureAscii = true) + "\n")
         return apps.size
     }
 
-    private fun entryOf(built: File): Map<String, Any?> {
-        val manifest = Json.parse(File(built, "manifest.json").readText()) as Map<*, *>
-        val names = built.listFiles().orEmpty().map { it.name }.filter { it != "app.wasm" && it != "manifest.json" }.sorted()
-        val files = (listOf("app.wasm") + names + listOf("manifest.json")).map { name ->
-            val data = File(built, name).readBytes()
+    /** The catalog's folder is made anew, and so it must be one: not where the applications
+     * are, nor above them, nor a folder of something else. */
+    private fun refuseToRemove(out: File, appsDirs: List<File>) {
+        val target = out.canonicalFile
+        for (folder in appsDirs) {
+            val source = folder.canonicalFile
+            if (source.toPath().startsWith(target.toPath())) {
+                throw BuildError("${out.path}: the catalog is made anew there, and the applications of ${folder.path} " +
+                    "are in it: give another folder")
+            }
+        }
+        if (target.isDirectory && target.list().orEmpty().isNotEmpty() && !File(target, INDEX_NAME).isFile) {
+            throw BuildError("${out.path} has files and no $INDEX_NAME: it is not a catalog, and the catalog is made " +
+                "anew there - give an empty folder or one that is a catalog")
+        }
+    }
+
+    private fun entryOf(built: Built): Map<String, Any?> {
+        val manifest = built.manifest
+        val files = AppBuilder.packageFiles(built.dir).map { name ->
+            val data = File(built.dir, name).readBytes()
             linkedMapOf("name" to name, "size" to data.size.toLong(),
                 "sha256" to MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) })
         }

@@ -58,3 +58,7 @@
 #define MANIFEST_FILE_NAME_MAX  23
 #define MANIFEST_FILES_MAX_BYTES (64 * 1024)
 #define MANIFEST_FILE_BLOCK_BYTES 4096
+
+/* The strings of one language, as a table: what the host takes into its
+ * own memory, for a moment, on an application's word. */
+#define MANIFEST_STRINGS_MAX_BYTES (8 * 1024)

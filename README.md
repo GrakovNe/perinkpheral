@@ -192,7 +192,7 @@ Host tests of the hardware-independent modules need only a C compiler:
 cd firmware/test/host && make test
 ```
 
-`tools/preview/preview.py [dir]` renders the host's screens to PNG
+`tools/perinkpheral preview [dir]` renders the host's screens to PNG
 without the device. `tools/fontgen/fontgen.py` turns a TTF into a 1-bit
 bitmap font header and needs the `freetype-py` package.
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.build
 
+import org.perinkpheral.core.BuildError
 import java.io.File
 
 /** Just enough of the wasm binary format to list imports, exports, memory and code size. */
@@ -28,6 +29,14 @@ class Wasm(file: File) {
             throw BuildError("${file.path} is not a wasm module")
         }
         at = 8
+        try {
+            readSections()
+        } catch (error: IndexOutOfBoundsException) {
+            throw BuildError("${file.path} is not a whole wasm module")
+        }
+    }
+
+    private fun readSections() {
         while (at < data.size) {
             val section = byte()
             val size = unsigned()

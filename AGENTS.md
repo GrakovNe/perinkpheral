@@ -68,9 +68,9 @@ declare, and checks `manifest.json` by the host's rules. Everything in
 image of the `apps` partition; `idf.py flash` writes it with the
 firmware.
 
-Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
-the window manager and `firmware/main/screens.c` natively and writes a
-PNG per screen. Look at them; the panel shows exactly that.
+Views before flashing: `tools/perinkpheral preview [dir]` compiles
+`gfx`, the window manager and `firmware/main/screens.c` natively
+(`tools/preview/Makefile`) and writes a PNG per screen. Look at them; the panel shows exactly that.
 
 The device without hands on it, over the network: `tools/perinkpheral`
 with `PERINKPHERAL_HOST` set to the device's address (the second page of About, in

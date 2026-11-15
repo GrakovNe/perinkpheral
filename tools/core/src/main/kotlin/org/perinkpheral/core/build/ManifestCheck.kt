@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.build
 
+import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import java.io.File
 
 /**
  * The rules of firmware/components/appsys/app_manifest.c, before the device sees the
- * manifest: what tools/mkapp checks, in the same words.
+ * manifest, in the same words.
  */
 class ManifestCheck(private val sdk: Sdk) {
     private val nameMax = sdk.limit("NAME_MAX")

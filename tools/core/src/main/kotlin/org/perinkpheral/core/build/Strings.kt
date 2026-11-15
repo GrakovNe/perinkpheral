@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.build
 
+import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import java.io.ByteArrayOutputStream
 import java.io.File
 
 /**
  * An application's `strings` folder - a file a language - as strings.h and strings.c for
  * the build, with English compiled in, and a table for every other language, which the
- * host copies over the English one. What tools/mkapp does, byte for byte.
+ * host copies over the English one.
  */
 class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
     /** The tables of the languages beside English: code -> bytes, for files of the package. */
@@ -16,9 +18,17 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
     /** The translated words of the manifest: code -> JSON text, for files of the package. */
     val manifests = sortedMapOf<String, String>()
 
-    /** Writes strings.h and strings.c into `scratch`; returns strings.c, or null when the
-     * application has no `strings` folder. */
-    fun make(appDir: File, scratch: File): File? {
+    /**
+     * Writes strings.h and strings.c into `scratch`; returns strings.c, or null when the
+     * application has no `strings` folder.
+     *
+     * Strict, it is the build: every rule holds, and the tables and the manifest's words come
+     * of it (`manifest` is the application's, as checked). Not strict, it is for an editor
+     * while the code is being written: English alone has to be sound - a string the code does
+     * not use yet, a translation that lacks it or is broken, is let be, and a text missing
+     * from a language counts as its English.
+     */
+    fun make(appDir: File, scratch: File, isStrict: Boolean, manifest: Map<*, *>? = null): File? {
         val folder = File(appDir, "strings")
         if (!folder.isDirectory) return null
         val known = sdk.languages
@@ -28,34 +38,11 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
         for (file in folder.listFiles().orEmpty().sortedBy { it.name }) {
             if (file.name.startsWith(".") || !file.name.endsWith(".json")) continue
             val code = file.name.removeSuffix(".json")
-            val path = file.path
-            val glyphs = known[code]
-                ?: fail("$path: the system does not know the language \"$code\" (sdk/languages.json)")
-            val parsed = try {
-                Json.parse(file.readText())
-            } catch (error: Json.Error) {
-                fail("$path: ${error.message}")
+            try {
+                translations[code] = read(file, code, known, isStrict, manifest)
+            } catch (error: BuildError) {
+                if (isStrict || code == "en") throw error
             }
-            if (parsed !is Map<*, *>) fail("$path: an object of keys and texts")
-            val texts = LinkedHashMap(parsed)
-            // What of the manifest a person reads, in this language: not a string of the
-            // code, and checked against the manifest itself.
-            val manifestWords = texts.remove("manifest")
-            if (manifestWords != null) {
-                if (code == "en") fail("$path: English is the manifest itself: no \"manifest\" here")
-                manifests[code] = translatedManifest(path, manifestWords, appDir, glyphs)
-            }
-            if (texts.values.any { it !is String }) fail("$path: an object of keys and texts")
-            for ((key, text) in texts) {
-                val strange = (text as String).codePoints().toArray()
-                    .filter { (it < ' '.code || it > '~'.code) && it !in glyphs && it != DEGREE }.distinct().sorted()
-                if (strange.isNotEmpty()) {
-                    fail("$path: \"$key\" has ${strange.joinToString(" ") { "U+%04X".format(it) }}, " +
-                        "which the glyphs of \"$code\" do not have")
-                }
-            }
-            @Suppress("UNCHECKED_CAST")
-            translations[code] = texts as Map<String, String>
         }
         val english = translations["en"] ?: fail("${folder.path}: en.json is the language every application speaks: it is missing")
         val keys = english.keys.toList()
@@ -64,28 +51,32 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
                 fail("${folder.path}/en.json: a key is a-z, 0-9 and '_', beginning with a letter: \"$key\"")
             }
         }
-        Unused.check(appDir, keys.map { "STR_" + it.uppercase() }, "strings")
-        for ((code, texts) in translations) {
-            val missing = keys.filter { it !in texts }
-            val extra = texts.keys.filter { it !in keys }
-            if (missing.isNotEmpty() || extra.isNotEmpty()) {
-                val parts = listOfNotNull(
-                    if (missing.isNotEmpty()) "lacks " + missing.joinToString(", ") else null,
-                    if (extra.isNotEmpty()) "has " + extra.joinToString(", ") + ", which en.json has not" else null)
-                fail("${folder.path}/$code.json: ${parts.joinToString("; ")}")
+        if (isStrict) {
+            Unused.check(appDir, keys.map { "STR_" + it.uppercase() }, "strings")
+            for ((code, texts) in translations) {
+                val missing = keys.filter { it !in texts }
+                val extra = texts.keys.filter { it !in keys }
+                if (missing.isNotEmpty() || extra.isNotEmpty()) {
+                    val parts = listOfNotNull(
+                        if (missing.isNotEmpty()) "lacks " + missing.joinToString(", ") else null,
+                        if (extra.isNotEmpty()) "has " + extra.joinToString(", ") + ", which en.json has not" else null)
+                    fail("${folder.path}/$code.json: ${parts.joinToString("; ")}")
+                }
             }
         }
+        fun textsOf(texts: Map<String, String>) = keys.map { texts[it] ?: english.getValue(it) }
         // One buffer holds any of them: as large as the largest, to a multiple of four.
-        val largest = translations.values.maxOf { texts -> table(keys.map { texts.getValue(it) }, 0).size }
+        val largest = translations.values.maxOf { texts -> table(textsOf(texts), 0).size }
         val capacity = (largest + 3) / 4 * 4
-        if (capacity > STRINGS_MAX_BYTES) {
-            fail("${folder.path}: $capacity bytes of strings in one language, and the device takes $STRINGS_MAX_BYTES")
+        val most = sdk.limit("STRINGS_MAX_BYTES")
+        if (isStrict && capacity > most) {
+            fail("${folder.path}: $capacity bytes of strings in one language, and the device takes $most")
         }
-        val built = translations.mapValues { (_, texts) -> table(keys.map { texts.getValue(it) }, capacity) }
+        val built = translations.mapValues { (_, texts) -> table(textsOf(texts), capacity) }
         built.filterKeys { it != "en" }.forEach { (code, bytes) -> tables[code] = bytes }
         scratch.mkdirs()
         File(scratch, "strings.h").writeText(buildString {
-            append("/* Generated by tools/mkapp from the `strings` folder: do not edit. */\n#pragma once\n\n")
+            append("/* Generated by tools/perinkpheral from the `strings` folder: do not edit. */\n#pragma once\n\n")
             append("#include <stdint.h>\n\nenum {\n")
             keys.forEach { append("    STR_${it.uppercase()},\n") }
             append("    STR_COUNT,\n};\n\n#define APP_STRINGS_BYTES $capacity\nextern uint8_t app_strings[APP_STRINGS_BYTES];\n\n")
@@ -96,7 +87,7 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
         val source = File(scratch, "strings.c")
         val englishTable = built.getValue("en")
         source.writeText(buildString {
-            append("/* Generated by tools/mkapp: English, until the host puts another language here. */\n")
+            append("/* Generated by tools/perinkpheral: English, until the host puts another language here. */\n")
             append("#include \"strings.h\"\n\nuint8_t app_strings[APP_STRINGS_BYTES] = {\n")
             for (start in englishTable.indices step 16) {
                 val line = englishTable.copyOfRange(start, minOf(start + 16, englishTable.size))
@@ -106,6 +97,41 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
                 "{\n    return app_strings;\n}\n")
         })
         return source
+    }
+
+    /** One language's file: its texts by key. The manifest's words in it are taken apart from
+     * them - held to the manifest when strict, let be when not. */
+    private fun read(file: File, code: String, known: Map<String, Set<Int>>, isStrict: Boolean,
+                     manifest: Map<*, *>?): Map<String, String> {
+        val path = file.path
+        val glyphs = known[code] ?: fail("$path: the system does not know the language \"$code\" (sdk/languages.json)")
+        val parsed = try {
+            Json.parse(file.readText())
+        } catch (error: Json.Error) {
+            fail("$path: ${error.message}")
+        }
+        if (parsed !is Map<*, *>) fail("$path: an object of keys and texts")
+        val texts = LinkedHashMap(parsed)
+        // What of the manifest a person reads, in this language: not a string of the code, and
+        // checked against the manifest itself.
+        val manifestWords = texts.remove("manifest")
+        if (manifestWords != null && isStrict) {
+            if (code == "en") fail("$path: English is the manifest itself: no \"manifest\" here")
+            manifests[code] = translatedManifest(path, manifestWords, manifest ?: emptyMap<String, Any>(), glyphs)
+        }
+        if (texts.values.any { it !is String }) fail("$path: an object of keys and texts")
+        if (isStrict) {
+            for ((key, text) in texts) {
+                val strange = (text as String).codePoints().toArray()
+                    .filter { (it < ' '.code || it > '~'.code) && it !in glyphs && it != DEGREE }.distinct().sorted()
+                if (strange.isNotEmpty()) {
+                    fail("$path: \"$key\" has ${strange.joinToString(" ") { "U+%04X".format(it) }}, " +
+                        "which the glyphs of \"$code\" do not have")
+                }
+            }
+        }
+        @Suppress("UNCHECKED_CAST")
+        return texts as Map<String, String>
     }
 
     private fun table(texts: List<String>, capacity: Int): ByteArray {
@@ -131,8 +157,7 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
 
     /** The "manifest" of a translation, held to the manifest: a title, and for settings that
      * exist their titles, help and the labels of options that exist. */
-    private fun translatedManifest(path: String, words: Any?, appDir: File, glyphs: Set<Int>): String {
-        val manifest = Json.parse(File(appDir, "manifest.json").readText()) as Map<*, *>
+    private fun translatedManifest(path: String, words: Any?, manifest: Map<*, *>, glyphs: Set<Int>): String {
         val settings = ((manifest["settings"] as? List<*>) ?: emptyList<Any>())
             .associateBy { (it as Map<*, *>)["key"] as String }.mapValues { it.value as Map<*, *> }
 
@@ -179,7 +204,6 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
 
     companion object {
         private const val STRINGS_HEADER = 4 // the buffer's size and how many strings, 16 bits each
-        const val STRINGS_MAX_BYTES = 8 * 1024 // what the host takes: app.c says the same
         private const val DEGREE = 0xB0
 
         private fun fail(message: String): Nothing = throw BuildError(message)

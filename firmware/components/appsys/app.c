@@ -2445,9 +2445,7 @@ static void find_data_buffer(app_t *app)
  * that language among its files, and the table is sound and fits. Else
  * the application speaks English. */
 #define STRINGS_HEADER_BYTES 4
-/* What the host will take into its own memory, for a moment, on an
- * application's word: the build (tools/core) holds a table to the same. */
-#define STRINGS_MAX_BYTES    (8 * 1024)
+#define STRINGS_MAX_BYTES    MANIFEST_STRINGS_MAX_BYTES
 /* The table: its capacity and the number of strings, two bytes each, low
  * first; then an offset of two bytes for every string; then the strings. */
 enum { STRINGS_AT_CAPACITY = 0, STRINGS_AT_COUNT = 2, STRINGS_OFFSET_BYTES = 2 };

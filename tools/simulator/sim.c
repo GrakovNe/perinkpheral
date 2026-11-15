@@ -531,8 +531,11 @@ static json_t *headers_of(char *lines)
     return headers;
 }
 
-static void fetch(job_t *job)
+/* One exchange with the network: the answer, and where a redirect leads (`next`, empty
+ * when nowhere). */
+static void exchange(job_t *job, char *next, size_t next_size)
 {
+    next[0] = '\0';
     job->response.length = -1;
     const json_t *mock = mock_for(job->url);
     if (mock != NULL) {
@@ -550,8 +553,6 @@ static void fetch(job_t *job)
     char *body = base64_encode(job->body, job->body_length);
     json_add_string(asked, "body", body);
     free(body);
-    /* A GET is asked again where a redirect says; one with a body is not sent twice. */
-    json_add_bool(asked, "follow", job->method == HOST_HTTP_GET);
     json_add_number(asked, "max", job->wants_values ? HOST_ANSWER_MAX : HOST_ANSWER_PIECES_MAX);
     json_add_number(asked, "timeout", REQUEST_TIMEOUT_S);
     char *line = json_print(asked);
@@ -594,7 +595,51 @@ static void fetch(job_t *job)
     if (json_is_string(content)) {
         job->answer = base64_decode(content->text, &job->answer_length);
     }
+    const json_t *where = json_get(answer, "next");
+    if (json_is_string(where) && snprintf(next, next_size, "%s", where->text) >= (int)next_size) {
+        next[0] = '\x01'; /* an address too long to follow: refused, as on the device */
+        next[1] = '\0';
+    }
     json_free(answer);
+}
+
+#define REDIRECTS_MAX 3
+
+/* A request as the device makes it (poller_net.c): a GET that is answered with a redirect is
+ * asked again where it says, three times at most; one with a body is not sent twice. A
+ * request of the application's own stays inside its manifest's "hosts", and the headers it
+ * gave do not travel to another host than the one it named. */
+static void fetch(job_t *job)
+{
+    char first[APP_URL_MAX + 1];
+    snprintf(first, sizeof first, "%s", job->url);
+    for (int hop = 0;; hop++) {
+        char next[APP_URL_MAX + 1];
+        exchange(job, next, sizeof next);
+        int code = job->status;
+        bool is_redirect = code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+        if (job->method != HOST_HTTP_GET || !is_redirect || next[0] == '\0' || hop == REDIRECTS_MAX) {
+            return;
+        }
+        bool is_refused = next[0] == '\x01';
+        if (!is_refused && !app_manifest_is_same_host(first, next)) {
+            is_refused = !job->is_poll && !app_manifest_allows_url(s_manifest_json, next, setting_of, NULL);
+            free(job->headers);
+            job->headers = NULL;
+        }
+        free(job->answer);
+        job->answer = NULL;
+        job->answer_length = 0;
+        memset(&job->response, 0, sizeof job->response);
+        if (is_refused) {
+            /* Said in the log by hand_over(), on the thread the log belongs to. */
+            job->status = HOST_FAILED_NOT_ALLOWED;
+            job->response.status = job->status;
+            job->response.length = -1;
+            return;
+        }
+        snprintf(job->url, sizeof job->url, "%s", next);
+    }
 }
 
 static void *network_thread(void *unused)
@@ -641,6 +686,9 @@ static void free_job(job_t *job)
  * picked, or the answer in pieces of HOST_DATA_CHUNK_MAX. */
 static void hand_over(job_t *job)
 {
+    if (job->status == HOST_FAILED_NOT_ALLOWED) {
+        say('W', "sim", "%s: redirected to a host its manifest does not list", s_options.app);
+    }
     bool failed = job->status == HOST_FAILED_NO_NETWORK || job->status == HOST_FAILED_NO_ANSWER ||
                   job->status == HOST_FAILED_TIMEOUT;
     if (failed != s_last_use_failed && job->status != HOST_FAILED_NOT_READY) {

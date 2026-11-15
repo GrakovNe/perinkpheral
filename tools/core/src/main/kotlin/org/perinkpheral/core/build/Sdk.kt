@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.build
 
+import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import java.io.File
 
 /**
@@ -64,5 +66,3 @@ class Sdk(val root: File) {
         }
     }
 }
-
-class BuildError(message: String) : Exception(message)

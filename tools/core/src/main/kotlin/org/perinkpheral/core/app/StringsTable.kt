@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.core.app
 
-import org.perinkpheral.core.build.Json
+import org.perinkpheral.core.Json
 import java.io.File
 
 /**
