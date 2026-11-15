@@ -1419,12 +1419,40 @@ static void press(int button, bool is_long)
     }
 }
 
+/* The page of the tools (tools/core: its screen, buttons and log), made into page.inc by the
+ * Makefile: what `perinkpheral serve` shows, here at the simulator's own address. */
+static const unsigned char PAGE[] = {
+#include "page.inc"
+};
+
+static void answer_page(int socket_fd)
+{
+    /* No application to build and run from here: the Run button stays hidden. */
+    static const char PLACE[] = "{{app}}";
+    const char *page = (const char *)PAGE;
+    size_t      length = sizeof PAGE;
+    const char *at = memmem(page, length, PLACE, sizeof PLACE - 1);
+    char       *body = malloc(length);
+    size_t      before = at != NULL ? (size_t)(at - page) : length;
+    memcpy(body, page, before);
+    size_t written = before;
+    if (at != NULL) {
+        size_t after = length - before - (sizeof PLACE - 1);
+        memcpy(body + written, at + sizeof PLACE - 1, after);
+        written += after;
+    }
+    answer(socket_fd, 200, "text/html; charset=utf-8", "Cache-Control: no-store\r\n", body, written);
+    free(body);
+}
+
 static void handle(int socket_fd, const request_t *request)
 {
     char value[PATH_BYTES], name[PATH_BYTES];
     bool is_post = strcmp(request->method, "POST") == 0;
     const char *path = request->path;
-    if (strcmp(path, "/api/status") == 0) {
+    if (!is_post && strcmp(path, "/") == 0) {
+        answer_page(socket_fd);
+    } else if (strcmp(path, "/api/status") == 0) {
         answer_status(socket_fd);
     } else if (strcmp(path, "/api/log") == 0) {
         answer_log(socket_fd, request);

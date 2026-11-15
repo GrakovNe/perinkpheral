@@ -2428,8 +2428,8 @@ Simulator
 The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. A frame in the simulator is the frame the panel shows. It runs on macOS and Linux.
 Симулятор запускает одно приложение на компьютере на собственных интерпретаторе, API хоста, наборе элементов, шапке и шрифтах прошивки. Кадр в симуляторе - это кадр, который показывает панель. Работает на macOS и Linux.
 
-It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.
-Он отвечает на <code>127.0.0.1:8401</code> как устройство. Остальные команды работают с ним через <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.
+It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. The address opened in a browser shows the page of <code>serve</code>, with the simulator's own requests (below) as buttons.
+Он отвечает на <code>127.0.0.1:8401</code> как устройство. Остальные команды работают с ним через <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. Адрес, открытый в браузере, показывает страницу <code>serve</code>, а собственные запросы симулятора (ниже) на ней стоят кнопками.
 
 Device
 Устройство

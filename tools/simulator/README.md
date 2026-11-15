@@ -11,7 +11,7 @@ It answers on `http://127.0.0.1:8401` as the device does: `tools/perinkpheral --
 
 | Device | Simulator |
 |---|---|
-| Panel | a frame in memory, `/api/dev/screen` |
+| Panel | a frame in memory, `/api/dev/screen`; its address in a browser shows the page of `perinkpheral serve` - the screen, the buttons, the log, and the requests below as buttons |
 | Buttons | `/api/dev/button` |
 | Store (NVS) | a folder, a file per key, the device's limits |
 | Files (LittleFS) | the application's folder |

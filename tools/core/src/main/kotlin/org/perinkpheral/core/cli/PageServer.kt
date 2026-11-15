@@ -16,8 +16,8 @@ import java.util.concurrent.Executors
 /**
  * The device in a browser tab beside any editor: the live screen, the four buttons, the log
  * and, given an application, a Run button. The device takes requests from its own page only,
- * so a page of ours cannot ask it directly: this server gives the page and passes its
- * requests on - to its own page only, as the device does: a page of another site in the same
+ * so a page of ours cannot ask it directly: this server gives the page and passes on the
+ * requests of the device's API it makes - to its own page only, as the device does: a page of another site in the same
  * browser, or a name that was made to point here, is refused.
  */
 class PageServer(private val client: DeviceClient, private val appDir: File?, private val run: (File, PrintStream) -> Boolean) {
@@ -78,18 +78,21 @@ class PageServer(private val client: DeviceClient, private val appDir: File?, pr
                     .use { String(it.readBytes(), Charsets.UTF_8) }.replace("{{app}}", appDir?.path.orEmpty())
                 answer(exchange, 200, page.toByteArray(), "text/html; charset=utf-8")
             }
-            exchange.requestMethod == "GET" && path == "/screen" -> passOn(exchange, "/api/dev/screen", expose = listOf("X-Frame", "X-Pending"))
-            exchange.requestMethod == "GET" && path == "/log" ->
-                passOn(exchange, "/api/log" + (exchange.requestURI.rawQuery?.let { "?$it" } ?: ""), expose = listOf("X-Log-End"))
-            exchange.requestMethod == "GET" && path == "/status" -> passOn(exchange, "/api/status")
-            exchange.requestMethod == "POST" && path == "/press" -> {
-                val key = query["key"].orEmpty()
-                if (!Regex("[1-4]L?").matches(key)) {
-                    answer(exchange, 400, "a key is 1-4, or 1L-4L".toByteArray())
+            exchange.requestMethod == "GET" && path == "/api/dev/screen" ->
+                passOn(exchange, path, expose = listOf("X-Frame", "X-Pending"))
+            exchange.requestMethod == "GET" && path == "/api/log" ->
+                passOn(exchange, path + (exchange.requestURI.rawQuery?.let { "?$it" } ?: ""), expose = listOf("X-Log-End"))
+            exchange.requestMethod == "GET" && path == "/api/status" -> passOn(exchange, path)
+            exchange.requestMethod == "POST" && path == "/api/dev/button" -> {
+                if (query["button"].orEmpty() !in setOf("1", "2", "3", "4") || query["press"] !in setOf("short", "long")) {
+                    answer(exchange, 400, "button=1..4&press=short|long".toByteArray())
                 } else {
-                    passOn(exchange, "/api/dev/button?button=${key[0]}&press=${if (key.endsWith("L")) "long" else "short"}", "POST")
+                    passOn(exchange, "$path?button=${query["button"]}&press=${query["press"]}", "POST")
                 }
             }
+            // A simulator's own requests, for a page that looks at one: a device answers them "not here".
+            exchange.requestMethod == "POST" && path.startsWith("/api/sim/") ->
+                passOn(exchange, path + (exchange.requestURI.rawQuery?.let { "?$it" } ?: ""), "POST")
             exchange.requestMethod == "POST" && path == "/run" && appDir != null -> {
                 // The build's own words go back to the page, whatever they are.
                 val said = ByteArrayOutputStream()

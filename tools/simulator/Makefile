@@ -40,12 +40,20 @@ SOURCES := sim.c \
            $(FW)/main/screens.c $(COMP)/deadlines/deadline_table.c $(QR)/qrcodegen/qrcodegen.c
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
-$(BUILD)/perinkpheral-sim: $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc
+# The page of the tools, which the simulator serves at its address.
+PAGE := $(ROOT)/tools/core/src/main/resources/org/perinkpheral/core/page.html
+
+$(BUILD)/perinkpheral-sim: $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc $(BUILD)/page.inc
 	mkdir -p $(BUILD)/wasm3
 	for source in $(WASM3_SOURCES); do \
 		$(CC) $(WASM3_FLAGS) $(ARCH) -c $$source -o $(BUILD)/wasm3/$$(basename $$source .c).o || exit 1; \
 	done
 	$(CC) $(CFLAGS) $(ARCH) -o $@ $(SOURCES) $(BUILD)/wasm3/*.o $(LDLIBS) $(LDFLAGS)
+
+# The page as bytes for C, by POSIX od and sed.
+$(BUILD)/page.inc: $(PAGE)
+	mkdir -p $(BUILD)
+	od -An -v -tx1 $(PAGE) | sed -e 's/  */ /g' -e 's/^ //' -e 's/ $$//' -e 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' > $@
 
 $(BUILD)/host_imports.inc: $(SDK)/host_api.h $(ROOT)/tools/hostapi/gen_imports.py
 	mkdir -p $(BUILD)

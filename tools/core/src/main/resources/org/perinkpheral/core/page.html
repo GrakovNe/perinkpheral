@@ -1,7 +1,10 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MIT -->
 <!-- The device in a browser tab: its screen as the panel shows it, its four
-     buttons, its log. Served by `perinkpheral serve`, which passes the requests on. -->
+     buttons, its log. It asks the device's own API (/api/dev, /api/log, /api/status).
+     Served by `perinkpheral serve`, which passes those requests on to a device and
+     builds the application for Run; and by the simulator itself, at its address, with
+     the simulator's own requests (/api/sim) beside. -->
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,6 +40,15 @@
       <button data-key="3">Down<small>arrow down</small></button>
       <button data-key="4">Back<small>Backspace</small></button>
     </div>
+    <div class="keys" id="simulator" hidden>
+      <button data-sim="background" title="The application leaves the screen">Background</button>
+      <button data-sim="foreground" title="The application takes the screen again">Foreground</button>
+      <button data-sim="intent?kind=started" title="Intent: the device was restarted">Started</button>
+      <button data-sim="intent?kind=time_changed" title="Intent: the clock or the time zone changed">Time changed</button>
+      <button data-sim="intent?kind=network_up" title="Intent: the network is back">Network up</button>
+      <button data-sim="alarm?id=0" title="Alarm 0 comes now">Alarm 0</button>
+      <button data-sim="forward?seconds=900" title="The clock and every deadline move 15 minutes on">+15 min</button>
+    </div>
     <p><label>A long press: hold a button, or Shift with the key.</label></p>
     <p id="memory"></p>
   </div>
@@ -61,7 +73,7 @@ let frame = null;
 
 async function look() {
   try {
-    const answer = await fetch("/screen");
+    const answer = await fetch("/api/dev/screen");
     if (!answer.ok) throw new Error(await answer.text());
     const number = answer.headers.get("X-Frame");
     if (number !== frame) {
@@ -79,8 +91,16 @@ async function look() {
 
 /* ---- the buttons ---- */
 async function press(key) {
-  const answer = await fetch("/press?key=" + key, { method: "POST" });
+  const query = "button=" + key[0] + "&press=" + (key.endsWith("L") ? "long" : "short");
+  const answer = await fetch("/api/dev/button?" + query, { method: "POST" });
   if (!answer.ok) state(await answer.text());
+}
+
+for (const button of document.querySelectorAll("[data-sim]")) {
+  button.addEventListener("click", async () => {
+    const answer = await fetch("/api/sim/" + button.dataset.sim, { method: "POST" });
+    if (!answer.ok) state(await answer.text());
+  });
 }
 
 for (const button of document.querySelectorAll("[data-key]")) {
@@ -110,7 +130,7 @@ let log_end = null, kept_part = "";
 
 async function read_log() {
   try {
-    const answer = await fetch("/log" + (log_end === null ? "" : "?since=" + log_end));
+    const answer = await fetch("/api/log" + (log_end === null ? "" : "?since=" + log_end));
     if (answer.ok) {
       log_end = Number(answer.headers.get("X-Log-End"));
       /* A line may arrive in two halves: the last one waits for its end. */
@@ -135,9 +155,16 @@ const kb = bytes => (bytes / 1024).toFixed(1) + " KB";
 
 async function read_memory() {
   try {
-    const answer = await fetch("/status");
+    const answer = await fetch("/api/status");
     if (answer.ok) {
       const status = await answer.json();
+      /* A simulator has requests of its own, and no memory of a device to tell. */
+      byId("simulator").hidden = status.firmware !== "simulator";
+      if (status.free_memory === undefined) {
+        byId("memory").textContent = "";
+        setTimeout(read_memory, 3000);
+        return;
+      }
       /* The area is the application's page and what the interpreter needs to run it. */
       const interpreter = Math.max(0, status.app_area_used - PAGE_BYTES);
       byId("memory").textContent = status.app_area_used
