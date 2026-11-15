@@ -654,3 +654,83 @@ const char *app_stop_reason(const app_t *app)
 {
     return app->stop_reason != NULL ? app->stop_reason : "";
 }
+
+/* ---- what the calls of the contract share: declared in app_internal.h ---- */
+
+const uint8_t *app_memory_at(IM3Runtime runtime, void *memory, uint32_t offset,
+                                    int32_t length)
+{
+    uint32_t memory_size = m3_GetMemorySize(runtime);
+    bool inside = length >= 0 && offset <= memory_size &&
+                  (uint32_t)length <= memory_size - offset;
+    return inside ? (const uint8_t *)memory + offset : NULL;
+}
+
+uint8_t *app_memory_to_fill(IM3Runtime runtime, void *memory, uint32_t offset,
+                                      int32_t capacity)
+{
+    return app_memory_at(runtime, memory, offset, capacity) != NULL ? (uint8_t *)memory + offset
+                                                                    : NULL;
+}
+
+bool app_text_copy(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                      char terminated[HOST_TEXT_MAX + 1])
+{
+    const uint8_t *text = app_memory_at(runtime, memory, offset, length);
+    if (text == NULL) {
+        return false;
+    }
+    if (length > HOST_TEXT_MAX) {
+        /* Cut between characters, not inside one of several bytes. */
+        length = HOST_TEXT_MAX;
+        while (length > 0 && gfx_is_utf8_tail(text[length])) {
+            length--;
+        }
+    }
+    memcpy(terminated, text, (size_t)length);
+    terminated[length] = '\0';
+    return true;
+}
+
+int32_t app_not_drawing(app_t *app)
+{
+    static const char TOLD[] = "a drawing call outside app_on_draw() draws nothing: "
+                               "change the state and call request_redraw()";
+    if (!app->not_drawing_logged && app->services != NULL && app->services->log != NULL) {
+        app->not_drawing_logged = true;
+        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
+    }
+    return HOST_ERR_NOT_DRAWING;
+}
+
+bool app_file_name_copy(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                           char name[HOST_FILE_NAME_MAX + 1])
+{
+    const uint8_t *text = length >= 1 && length <= HOST_FILE_NAME_MAX
+                              ? app_memory_at(runtime, memory, offset, length)
+                              : NULL;
+    if (text == NULL) {
+        return false;
+    }
+    for (int32_t i = 0; i < length; i++) {
+        char character = (char)text[i];
+        bool allowed = (character >= 'a' && character <= 'z') ||
+                       (character >= '0' && character <= '9') || character == '-' ||
+                       character == '_' || (character == '.' && i > 0);
+        if (!allowed) {
+            return false;
+        }
+        name[i] = character;
+    }
+    name[length] = '\0';
+    return true;
+}
+
+const uint8_t *app_picture_at(IM3Runtime runtime, void *memory, uint32_t offset)
+{
+    const uint8_t *header = app_memory_at(runtime, memory, offset, GFX_PICTURE_HEADER);
+    if (header == NULL || header[0] == 0 || header[1] == 0) {
+        return NULL;
+    }
+    return app_memory_at(runtime, memory, offset, (uint32_t)gfx_picture_bytes(header));
+}

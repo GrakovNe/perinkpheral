@@ -23,12 +23,12 @@ HOST_FUNCTION(text_fill)
      * bits. A place in the pattern is three characters: "{0}". */
     enum { ARGUMENT_WORDS = 3, ARGUMENT_BYTES = ARGUMENT_WORDS * 4, PLACE_LENGTH = 3 };
     if (count < 0 || count > HOST_TEXT_ARGUMENTS_MAX || capacity < 0 ||
-        !copy_text(runtime, _mem, pattern_offset, pattern_length, pattern)) {
+        !app_text_copy(runtime, _mem, pattern_offset, pattern_length, pattern)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     const uint8_t *arguments =
-        count > 0 ? in_app_memory(runtime, _mem, arguments_offset, count * ARGUMENT_BYTES) : NULL;
-    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+        count > 0 ? app_memory_at(runtime, _mem, arguments_offset, count * ARGUMENT_BYTES) : NULL;
+    uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
     if ((count > 0 && arguments == NULL) || text == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -45,7 +45,7 @@ HOST_FUNCTION(text_fill)
         char piece[HOST_TEXT_MAX + 1];
         if (words[1] == 0) {
             snprintf(piece, sizeof piece, "%d", (int)(int32_t)words[0]);
-        } else if (!copy_text(runtime, _mem, words[1], (int32_t)words[2], piece)) {
+        } else if (!app_text_copy(runtime, _mem, words[1], (int32_t)words[2], piece)) {
             m3ApiReturn(HOST_ERR_ARGUMENT);
         }
         size_t length = strlen(piece);
@@ -132,7 +132,7 @@ static void take_apart(const app_t *app, int64_t utc_seconds, host_local_time_t 
 static int32_t local_time_at(IM3Runtime runtime, void *memory, uint32_t parts_offset,
                              int64_t utc_seconds)
 {
-    host_local_time_t *parts = (host_local_time_t *)in_app_memory_to_fill(
+    host_local_time_t *parts = (host_local_time_t *)app_memory_to_fill(
         runtime, memory, parts_offset, (int32_t)sizeof(host_local_time_t));
     if (parts == NULL) {
         return HOST_ERR_ARGUMENT;
@@ -150,7 +150,7 @@ HOST_FUNCTION(time_local)
     m3ApiGetArg(uint32_t, now_offset);
     int64_t utc_seconds = APP_OF(runtime)->services->unix_time();
     if (utc_seconds == 0) {
-        m3ApiReturn(in_app_memory_to_fill(runtime, _mem, now_offset,
+        m3ApiReturn(app_memory_to_fill(runtime, _mem, now_offset,
                                           (int32_t)sizeof(host_local_time_t)) != NULL
                         ? HOST_ERR_NOT_FOUND
                         : HOST_ERR_ARGUMENT);
@@ -178,7 +178,7 @@ HOST_FUNCTION(time_text)
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, capacity);
     app_t *app = APP_OF(runtime);
-    char  *text = (char *)in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    char  *text = (char *)app_memory_to_fill(runtime, _mem, text_offset, capacity);
     if (text == NULL || capacity < 1 || style < HOST_TIME_CLOCK || style > HOST_TIME_NEAR_DAY) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -236,7 +236,7 @@ HOST_FUNCTION(time_from_local)
 {
     m3ApiReturnType(int64_t);
     m3ApiGetArg(uint32_t, parts_offset);
-    const uint8_t *given = in_app_memory(runtime, _mem, parts_offset,
+    const uint8_t *given = app_memory_at(runtime, _mem, parts_offset,
                                          (int32_t)sizeof(host_local_time_t));
     if (given == NULL) {
         m3ApiReturn(0);
@@ -273,7 +273,7 @@ HOST_FUNCTION(log)
     m3ApiGetArg(int32_t, level);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, length);
-    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    const uint8_t *text = app_memory_at(runtime, _mem, text_offset, length);
     if (text != NULL) {
         /* One line of the log, and nothing that could pass for another:
          * what is not a printable character is shown as one that is. */

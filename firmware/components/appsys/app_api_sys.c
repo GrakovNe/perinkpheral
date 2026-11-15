@@ -16,7 +16,7 @@ HOST_FUNCTION(sys_info)
     m3ApiGetArg(int32_t, what);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, capacity);
-    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
     app_t *app = APP_OF(runtime);
     if (text == NULL || app->services->system_info == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -31,7 +31,7 @@ HOST_FUNCTION(sys_number_get)
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, what);
     m3ApiGetArg(uint32_t, number_offset);
-    uint8_t *number = in_app_memory_to_fill(runtime, _mem, number_offset, sizeof(sys_number_t));
+    uint8_t *number = app_memory_to_fill(runtime, _mem, number_offset, sizeof(sys_number_t));
     app_t *app = APP_OF(runtime);
     if (number == NULL || app->services->system_number_get == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -62,7 +62,7 @@ HOST_FUNCTION(sys_text_set)
     m3ApiGetArg(int32_t, what);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, length);
-    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    const uint8_t *text = app_memory_at(runtime, _mem, text_offset, length);
     app_t *app = APP_OF(runtime);
     if (text == NULL || length > SYS_TEXT_MAX || app->services->system_text_set == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -95,7 +95,7 @@ HOST_FUNCTION(sys_app_list)
         app->services->system_app_list == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    uint8_t *ids = in_app_memory_to_fill(runtime, _mem, ids_offset,
+    uint8_t *ids = app_memory_to_fill(runtime, _mem, ids_offset,
                                          capacity * (int32_t)sizeof(uint32_t));
     if (ids == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -112,7 +112,7 @@ HOST_FUNCTION(sys_app_title)
     m3ApiGetArg(uint32_t, index);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, capacity);
-    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
     app_t *app = APP_OF(runtime);
     if (text == NULL || app->services->system_app_title == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -172,7 +172,7 @@ HOST_FUNCTION(sys_logo)
     }
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     /* One stroke between the letters, as on the splash. */
     gfx_text_sq_ex(app->surface, x, y, LOGO_WORD, scale, true, scale);

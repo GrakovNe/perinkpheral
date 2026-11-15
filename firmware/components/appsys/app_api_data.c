@@ -14,7 +14,7 @@ HOST_FUNCTION(data_value)
     m3ApiGetArg(int32_t, capacity);
 
     app_t *app = APP_OF(runtime);
-    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
     if (text == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -48,7 +48,7 @@ HOST_FUNCTION(data_element)
     m3ApiGetArg(int32_t, capacity);
 
     app_t *app = APP_OF(runtime);
-    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
     if (text == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -79,7 +79,7 @@ HOST_FUNCTION(data_response)
     m3ApiGetArg(uint32_t, response_offset);
 
     app_t *app = APP_OF(runtime);
-    uint8_t *given = in_app_memory_to_fill(runtime, _mem, response_offset,
+    uint8_t *given = app_memory_to_fill(runtime, _mem, response_offset,
                                            (int32_t)sizeof(host_response_t));
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -102,7 +102,7 @@ HOST_FUNCTION(data_response)
 static bool copy_key(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
                      char key[HOST_KV_KEY_MAX + 1])
 {
-    const uint8_t *bytes = in_app_memory(runtime, memory, offset, length);
+    const uint8_t *bytes = app_memory_at(runtime, memory, offset, length);
     if (bytes == NULL || length < 1 || length > HOST_KV_KEY_MAX) {
         return false;
     }
@@ -127,7 +127,7 @@ HOST_FUNCTION(kv_get)
 
     app_t *app = APP_OF(runtime);
     char key[HOST_KV_KEY_MAX + 1];
-    uint8_t *value = in_app_memory_to_fill(runtime, _mem, value_offset, capacity);
+    uint8_t *value = app_memory_to_fill(runtime, _mem, value_offset, capacity);
     if (value == NULL || !copy_key(runtime, _mem, key_offset, key_length, key)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -172,7 +172,7 @@ HOST_FUNCTION(kv_set)
 
     app_t *app = APP_OF(runtime);
     char key[HOST_KV_KEY_MAX + 1];
-    const uint8_t *value = in_app_memory(runtime, _mem, value_offset, length);
+    const uint8_t *value = app_memory_at(runtime, _mem, value_offset, length);
     if (value == NULL || length > HOST_KV_VALUE_MAX ||
         !copy_key(runtime, _mem, key_offset, key_length, key)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -188,7 +188,7 @@ HOST_FUNCTION(file_size)
     m3ApiGetArg(int32_t, name_length);
     app_t *app = APP_OF(runtime);
     char name[HOST_FILE_NAME_MAX + 1];
-    if (!copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+    if (!app_file_name_copy(runtime, _mem, name_offset, name_length, name)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->file_size(app->name, name));
@@ -204,9 +204,9 @@ HOST_FUNCTION(file_read)
     m3ApiGetArg(int32_t, capacity);
     app_t *app = APP_OF(runtime);
     char name[HOST_FILE_NAME_MAX + 1];
-    uint8_t *bytes = in_app_memory_to_fill(runtime, _mem, bytes_offset, capacity);
+    uint8_t *bytes = app_memory_to_fill(runtime, _mem, bytes_offset, capacity);
     if (bytes == NULL || offset < 0 ||
-        !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        !app_file_name_copy(runtime, _mem, name_offset, name_length, name)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
@@ -282,9 +282,9 @@ HOST_FUNCTION(http_request)
     m3ApiGetArg(int32_t, body_length);
 
     app_t *app = APP_OF(runtime);
-    const uint8_t *url = in_app_memory(runtime, _mem, url_offset, url_length);
-    const uint8_t *headers = in_app_memory(runtime, _mem, headers_offset, headers_length);
-    const uint8_t *body = in_app_memory(runtime, _mem, body_offset, body_length);
+    const uint8_t *url = app_memory_at(runtime, _mem, url_offset, url_length);
+    const uint8_t *headers = app_memory_at(runtime, _mem, headers_offset, headers_length);
+    const uint8_t *body = app_memory_at(runtime, _mem, body_offset, body_length);
     bool is_sound = url != NULL && headers != NULL && body != NULL && url_length >= 1 &&
                     url_length <= APP_URL_MAX && headers_length <= HOST_HTTP_HEADERS_MAX &&
                     body_length <= HOST_HTTP_BODY_MAX && method >= HOST_HTTP_GET &&
@@ -381,9 +381,9 @@ HOST_FUNCTION(file_write)
     m3ApiGetArg(int32_t, length);
     app_t *app = APP_OF(runtime);
     char name[HOST_FILE_NAME_MAX + 1];
-    const uint8_t *bytes = in_app_memory(runtime, _mem, bytes_offset, length);
+    const uint8_t *bytes = app_memory_at(runtime, _mem, bytes_offset, length);
     if (bytes == NULL || offset < 0 ||
-        !copy_file_name(runtime, _mem, name_offset, name_length, name)) {
+        !app_file_name_copy(runtime, _mem, name_offset, name_length, name)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->file_write(app->name, name, offset, bytes, length));

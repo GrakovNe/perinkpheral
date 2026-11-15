@@ -18,7 +18,7 @@ static bool is_valid_icon(int32_t icon)
  * the application's to give, or not a list. */
 static bool read_list(IM3Runtime runtime, void *memory, uint32_t offset, list_t *list)
 {
-    const uint8_t *given = in_app_memory(runtime, memory, offset, sizeof(host_list_t));
+    const uint8_t *given = app_memory_at(runtime, memory, offset, sizeof(host_list_t));
     if (given == NULL) {
         return false;
     }
@@ -39,7 +39,7 @@ HOST_FUNCTION(ui_list_visible)
     m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     list_t list;
     if (!read_list(runtime, _mem, list_offset, &list)) {
@@ -54,7 +54,7 @@ HOST_FUNCTION(ui_list_first)
     m3ApiGetArg(uint32_t, list_offset);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     list_t list;
     if (!read_list(runtime, _mem, list_offset, &list)) {
@@ -76,15 +76,15 @@ HOST_FUNCTION(ui_list_row)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     list_t list;
     char label[HOST_TEXT_MAX + 1];
     char value[HOST_TEXT_MAX + 1];
     if (!read_list(runtime, _mem, list_offset, &list) ||
         (icon != HOST_ICON_NONE && !is_valid_icon(icon)) ||
-        !copy_text(runtime, _mem, label_offset, label_length, label) ||
-        !copy_text(runtime, _mem, value_offset, value_length, value)) {
+        !app_text_copy(runtime, _mem, label_offset, label_length, label) ||
+        !app_text_copy(runtime, _mem, value_offset, value_length, value)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     list_row_t row = { .label = label, .value = value,
@@ -117,9 +117,9 @@ HOST_FUNCTION(ui_notice)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
-    const uint8_t *given = in_app_memory(runtime, _mem, notice_offset, sizeof(host_notice_t));
+    const uint8_t *given = app_memory_at(runtime, _mem, notice_offset, sizeof(host_notice_t));
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -154,12 +154,12 @@ HOST_FUNCTION(ui_text_lines)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
         width <= 0 || !is_drawable(width) || max_lines < 1 || max_lines > HOST_UI_LINES_MAX ||
-        !copy_text(runtime, _mem, text_offset, length, text)) {
+        !app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(kit_text_lines(app->surface, x, y, (kit_style_t)style, text, width, max_lines));
@@ -177,12 +177,12 @@ HOST_FUNCTION(ui_text)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
         max_width < 0 || !is_drawable(max_width) ||
-        !copy_text(runtime, _mem, text_offset, length, text)) {
+        !app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(kit_text(app->surface, x, y, (kit_style_t)style, text, max_width));
@@ -197,7 +197,7 @@ HOST_FUNCTION(ui_text_width)
 
     char text[HOST_TEXT_MAX + 1];
     if (style < HOST_UI_TEXT || style > HOST_UI_VALUE ||
-        !copy_text(runtime, _mem, text_offset, length, text)) {
+        !app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(gfx_text_font_width(kit_font((kit_style_t)style), text));
@@ -221,10 +221,10 @@ HOST_FUNCTION(ui_title)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     char text[HOST_TEXT_MAX + 1];
-    if (!copy_text(runtime, _mem, text_offset, length, text)) {
+    if (!app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(kit_title(app->surface, text));
@@ -240,7 +240,7 @@ HOST_FUNCTION(ui_icon)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || !is_valid_icon(icon) || size < HOST_UI_ICON_SMALL ||
         size > HOST_UI_ICON_LARGE) {
@@ -266,13 +266,13 @@ HOST_FUNCTION(ui_button)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     char name[HOST_TEXT_MAX + 1];
     char action[HOST_TEXT_MAX + 1];
     if (!is_drawable(x) || !is_drawable(y) || name_length < 1 || name_length > BUTTON_NAME_MAX ||
-        !copy_text(runtime, _mem, name_offset, name_length, name) ||
-        !copy_text(runtime, _mem, action_offset, action_length, action)) {
+        !app_text_copy(runtime, _mem, name_offset, name_length, name) ||
+        !app_text_copy(runtime, _mem, action_offset, action_length, action)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     int baseline = y + gfx_font_ascent(kit_font(KIT_TEXT));
@@ -289,12 +289,12 @@ HOST_FUNCTION(ui_actions)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     char ok[HOST_TEXT_MAX + 1];
     char back[HOST_TEXT_MAX + 1];
-    if (!copy_text(runtime, _mem, ok_offset, ok_length, ok) ||
-        !copy_text(runtime, _mem, back_offset, back_length, back)) {
+    if (!app_text_copy(runtime, _mem, ok_offset, ok_length, ok) ||
+        !app_text_copy(runtime, _mem, back_offset, back_length, back)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     kit_actions(app->surface, ok[0] != '\0' ? ok : NULL, back[0] != '\0' ? back : NULL);
@@ -312,7 +312,7 @@ HOST_FUNCTION(ui_bar)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -329,8 +329,8 @@ static int32_t value_with_unit(IM3Runtime runtime, void *memory, gfx_t *surface,
     const gfx_font_t *font = font_by_id(font_id);
     char value[HOST_TEXT_MAX + 1], unit[HOST_TEXT_MAX + 1];
     if (font == NULL || !is_drawable(x) || !is_drawable(y) ||
-        !copy_text(runtime, memory, value_offset, value_length, value) ||
-        !copy_text(runtime, memory, unit_offset, unit_length, unit)) {
+        !app_text_copy(runtime, memory, value_offset, value_length, value) ||
+        !app_text_copy(runtime, memory, unit_offset, unit_length, unit)) {
         return HOST_ERR_ARGUMENT;
     }
     return kit_value(surface, x, y, font, is_tabular(font_id), value, unit);
@@ -348,7 +348,7 @@ HOST_FUNCTION(ui_value)
     m3ApiGetArg(int32_t, unit_length);
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     m3ApiReturn(value_with_unit(runtime, _mem, app->surface, x, y, font_id, value, value_length,
                                 unit, unit_length));
@@ -392,7 +392,7 @@ HOST_FUNCTION(ui_reason)
     };
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     if (status >= 200 && status < 300) {
         m3ApiReturn(0); /* an answer came: what is wrong, if anything, is the application's to say */
@@ -423,7 +423,7 @@ HOST_FUNCTION(ui_frame)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || width < 1 || !is_drawable(width) || height < 1 ||
         !is_drawable(height)) {
@@ -441,9 +441,9 @@ HOST_FUNCTION(ui_picker)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
-    const uint8_t *given = in_app_memory(runtime, _mem, picker_offset, sizeof(host_picker_t));
+    const uint8_t *given = app_memory_at(runtime, _mem, picker_offset, sizeof(host_picker_t));
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -468,14 +468,14 @@ HOST_FUNCTION(ui_picker)
 static bool cell_of(IM3Runtime runtime, void *memory, uint32_t cell_offset, uint32_t picture_offset,
                     host_cell_t *asked, kit_cell_t *cell)
 {
-    const uint8_t *given = in_app_memory(runtime, memory, cell_offset, sizeof *asked);
+    const uint8_t *given = app_memory_at(runtime, memory, cell_offset, sizeof *asked);
     if (given == NULL) {
         return false;
     }
     memcpy(asked, given, sizeof *asked);
     const uint8_t *picture = NULL;
     if (picture_offset != 0) {
-        picture = picture_of(runtime, memory, picture_offset);
+        picture = app_picture_at(runtime, memory, picture_offset);
         if (picture == NULL) {
             return false;
         }
@@ -503,7 +503,7 @@ HOST_FUNCTION(ui_cell_fit)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     host_cell_t asked;
     kit_cell_t  cell;
@@ -521,7 +521,7 @@ HOST_FUNCTION(ui_cell)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     host_cell_t asked;
     kit_cell_t  cell;
@@ -550,10 +550,10 @@ HOST_FUNCTION(ui_chart)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     host_chart_t   asked;
-    const uint8_t *given = in_app_memory(runtime, _mem, chart_offset, sizeof asked);
+    const uint8_t *given = app_memory_at(runtime, _mem, chart_offset, sizeof asked);
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -567,7 +567,7 @@ HOST_FUNCTION(ui_chart)
     /* A copy: the application's memory need not be aligned for numbers. */
     int32_t        values[HOST_CHART_VALUES_MAX];
     size_t         values_size = (size_t)asked.count * sizeof values[0];
-    const uint8_t *numbers = in_app_memory(runtime, _mem, values_offset, values_size);
+    const uint8_t *numbers = app_memory_at(runtime, _mem, values_offset, values_size);
     if (numbers == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -591,9 +591,9 @@ HOST_FUNCTION(ui_date)
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
-        m3ApiReturn(not_drawing(APP_OF(runtime)));
+        m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
-    const uint8_t *given = in_app_memory(runtime, _mem, date_offset, sizeof(host_date_t));
+    const uint8_t *given = app_memory_at(runtime, _mem, date_offset, sizeof(host_date_t));
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -636,7 +636,7 @@ HOST_FUNCTION(header_text)
     m3ApiGetArg(int32_t, side);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, length);
-    const uint8_t *text = in_app_memory(runtime, _mem, text_offset, length);
+    const uint8_t *text = app_memory_at(runtime, _mem, text_offset, length);
     if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || text == NULL ||
         length > HOST_HEADER_TEXT_MAX) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -659,7 +659,7 @@ HOST_FUNCTION(header_status)
     bool is_valid_icon = icon == HOST_ICON_NONE || (icon >= 0 && icon < GFX_ICON_COUNT);
     if ((side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) || !is_valid_icon ||
         length > HOST_STATUS_TEXT_MAX ||
-        !copy_text(runtime, _mem, text_offset, length, text)) {
+        !app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     if (app->services->header_status != NULL) {
@@ -674,7 +674,7 @@ HOST_FUNCTION(notify)
     m3ApiGetArg(uint32_t, notice_offset);
 
     app_t *app = APP_OF(runtime);
-    const uint8_t *given = in_app_memory(runtime, _mem, notice_offset, sizeof(host_notice_t));
+    const uint8_t *given = app_memory_at(runtime, _mem, notice_offset, sizeof(host_notice_t));
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }

@@ -94,43 +94,17 @@ static inline bool is_tabular(int32_t font)
 
 /* An offset and a length from the application, which is not trusted, as
  * a place in its memory; NULL when any of it lies outside. */
-static inline const uint8_t *in_app_memory(IM3Runtime runtime, void *memory, uint32_t offset,
-                                    int32_t length)
-{
-    uint32_t memory_size = m3_GetMemorySize(runtime);
-    bool inside = length >= 0 && offset <= memory_size &&
-                  (uint32_t)length <= memory_size - offset;
-    return inside ? (const uint8_t *)memory + offset : NULL;
-}
+const uint8_t *app_memory_at(IM3Runtime runtime, void *memory, uint32_t offset,
+                                    int32_t length);
 
 /* The same for memory the host is about to fill for the application. */
-static inline uint8_t *in_app_memory_to_fill(IM3Runtime runtime, void *memory, uint32_t offset,
-                                      int32_t capacity)
-{
-    return in_app_memory(runtime, memory, offset, capacity) != NULL ? (uint8_t *)memory + offset
-                                                                    : NULL;
-}
+uint8_t *app_memory_to_fill(IM3Runtime runtime, void *memory, uint32_t offset,
+                                      int32_t capacity);
 
 /* The application's bytes as a terminated string the drawing code takes.
  * False when they are not the application's to give. */
-static inline bool copy_text(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
-                      char terminated[HOST_TEXT_MAX + 1])
-{
-    const uint8_t *text = in_app_memory(runtime, memory, offset, length);
-    if (text == NULL) {
-        return false;
-    }
-    if (length > HOST_TEXT_MAX) {
-        /* Cut between characters, not inside one of several bytes. */
-        length = HOST_TEXT_MAX;
-        while (length > 0 && gfx_is_utf8_tail(text[length])) {
-            length--;
-        }
-    }
-    memcpy(terminated, text, (size_t)length);
-    terminated[length] = '\0';
-    return true;
-}
+bool app_text_copy(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                      char terminated[HOST_TEXT_MAX + 1]);
 
 /* Far beyond any surface, and small enough that sums of two of them
  * cannot overflow: a coordinate or a size outside it is refused. */
@@ -159,49 +133,13 @@ static inline bool is_drawable(int32_t coordinate)
 /* A drawing call from a handler draws nothing, and an application that
  * ignores what it returns shows an empty screen with no word of why: the
  * log says it, once an instance. */
-static inline int32_t not_drawing(app_t *app)
-{
-    static const char TOLD[] = "a drawing call outside app_on_draw() draws nothing: "
-                               "change the state and call request_redraw()";
-    if (!app->not_drawing_logged && app->services != NULL && app->services->log != NULL) {
-        app->not_drawing_logged = true;
-        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
-    }
-    return HOST_ERR_NOT_DRAWING;
-}
+int32_t app_not_drawing(app_t *app);
 
 /* A file's name from the application, terminated; false when it is not
  * the application's memory or not a name a file can have. */
-static inline bool copy_file_name(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
-                           char name[HOST_FILE_NAME_MAX + 1])
-{
-    const uint8_t *text = length >= 1 && length <= HOST_FILE_NAME_MAX
-                              ? in_app_memory(runtime, memory, offset, length)
-                              : NULL;
-    if (text == NULL) {
-        return false;
-    }
-    for (int32_t i = 0; i < length; i++) {
-        char character = (char)text[i];
-        bool allowed = (character >= 'a' && character <= 'z') ||
-                       (character >= '0' && character <= '9') || character == '-' ||
-                       character == '_' || (character == '.' && i > 0);
-        if (!allowed) {
-            return false;
-        }
-        name[i] = character;
-    }
-    name[length] = '\0';
-    return true;
-}
+bool app_file_name_copy(IM3Runtime runtime, void *memory, uint32_t offset, int32_t length,
+                           char name[HOST_FILE_NAME_MAX + 1]);
 
 /* A picture in the application's memory, whole: its two bytes of size and
  * every row they promise. */
-static inline const uint8_t *picture_of(IM3Runtime runtime, void *memory, uint32_t offset)
-{
-    const uint8_t *header = in_app_memory(runtime, memory, offset, GFX_PICTURE_HEADER);
-    if (header == NULL || header[0] == 0 || header[1] == 0) {
-        return NULL;
-    }
-    return in_app_memory(runtime, memory, offset, (uint32_t)gfx_picture_bytes(header));
-}
+const uint8_t *app_picture_at(IM3Runtime runtime, void *memory, uint32_t offset);
