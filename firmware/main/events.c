@@ -82,9 +82,14 @@ void events_set_host_loop_task(void)
     s_host_loop = xTaskGetCurrentTaskHandle();
 }
 
+bool events_is_host_loop(void)
+{
+    return xTaskGetCurrentTaskHandle() == s_host_loop;
+}
+
 bool events_call(events_call_fn run, void *argument)
 {
-    if (xTaskGetCurrentTaskHandle() == s_host_loop) {
+    if (events_is_host_loop()) {
         run(argument);
         return true;
     }

@@ -2517,10 +2517,18 @@ static void load_strings(app_t *app)
     free(table);
 }
 
+/* The one instance there is room for. The area under it is reset when it is
+ * unloaded, so a second one started beside it would be handed the first's
+ * memory: it is refused instead, whoever forgot to unload the first. */
+static app_t *s_loaded;
+
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
                            bool with_system, const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
+    if (s_loaded != NULL) {
+        return APP_ERR_NO_MEMORY;
+    }
     app_load_result_t imports = check_imports(wasm, wasm_size, with_system);
     if (imports != APP_OK) {
         return imports;
@@ -2531,6 +2539,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     }
     app->services = services;
     app->name = name;
+    s_loaded = app;
     app_load_result_t result = load_module(app, wasm, wasm_size);
     if (result != APP_OK) {
         app_unload(app);
@@ -2578,7 +2587,12 @@ void app_unload(app_t *app)
     if (app->environment != NULL) {
         m3_FreeEnvironment(app->environment);
     }
+    bool was_loaded = app == s_loaded;
     free(app);
+    if (!was_loaded) {
+        return;
+    }
+    s_loaded = NULL;
 #ifdef d_m3ApplicationArea
     /* The next application starts in an area nobody has been in. */
     m3_area_reset();

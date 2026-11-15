@@ -454,7 +454,7 @@ static void change_glyphs(void *argument)
     glyphs_command_t *command = argument;
     command->is_done = command->pack != NULL ? glyphs_install(command->pack, command->size)
                                              : glyphs_remove(command->name);
-    host_redraw();
+    host_redraw(true);
 }
 
 /* POST /api/glyphs, the body a pack as tools/fontgen/mkpack.py makes it. */

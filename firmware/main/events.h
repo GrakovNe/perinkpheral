@@ -70,6 +70,10 @@ void events_call_patiently(events_call_fn run, void *argument);
 void events_set_host_loop_task(void);
 void events_answer_call(void *call);
 
+/* Whether the caller is the host loop: for what waits for it, and so must
+ * never be called from it. */
+bool events_is_host_loop(void);
+
 /* Something happened that applications may have asked to be told of (a
  * HOST_INTENT_*). Safe from any task; false when the queue is full. */
 bool events_post_intent(int intent);

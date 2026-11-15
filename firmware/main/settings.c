@@ -317,6 +317,7 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
         return SETTINGS_NOT_STORED;
     }
     bool power_changed = wanted->power_saving != s_live.power_saving;
+    bool dither_changed = wanted->dither != s_live.dither;
     bool language_changed = strcmp(wanted->language, s_live.language) != 0;
     bool zone_changed = strcmp(wanted->tz, s_live.tz) != 0;
     if (needs_restart != NULL) {
@@ -325,22 +326,28 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
                          strcmp(wanted->wifi_ssid, s_live.wifi_ssid) != 0 ||
                          strcmp(wanted->wifi_password, s_live.wifi_password) != 0 ||
                          /* The system applications take their titles at start. */
-                         strcmp(wanted->language, s_live.language) != 0;
+                         language_changed;
     }
     publish(wanted);
 
     net_time_set_zone(s_live.tz);
     net_time_set_automatic(s_live.time_auto != 0);
     app_host_set_dithering(s_live.dither != 0);
-    if (gfx_font_family() != (gfx_family_t)s_live.font) {
-        /* Every letter on the screen is another one now. */
+    bool font_changed = gfx_font_family() != (gfx_family_t)s_live.font;
+    if (font_changed) {
         gfx_font_use((gfx_family_t)s_live.font);
-        host_redraw();
     }
     /* The host's own words follow the language at once; an application
      * speaks it from the next time it is loaded. */
     words_use(s_live.language);
-    host_redraw();
+    /* The picture is drawn anew only when it is another: every letter after a
+     * typeface or a language, the greys after the dithering. A step through
+     * any other setting leaves the panel alone. */
+    if (font_changed || language_changed) {
+        host_redraw(true);
+    } else if (dither_changed) {
+        host_redraw(false);
+    }
     if (language_changed) {
         host_reload_apps_later(); /* their titles are other words now */
     }

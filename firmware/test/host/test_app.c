@@ -568,7 +568,15 @@ static void test_bad_modules(void)
     /* A module that imports every call of host_api.h, each as the header
      * declares it: the host's table has them all, with those signatures. */
     CHECK(app_load("x", every_call_wasm, sizeof every_call_wasm, true, &SERVICES, &app) == APP_OK);
+
+    /* One instance at a time: a second is refused while the first is loaded,
+     * and the first keeps running. */
+    app_t *second = (app_t *)1;
+    CHECK(app_load("y", every_call_wasm, sizeof every_call_wasm, true, &SERVICES, &second) ==
+          APP_ERR_NO_MEMORY && second == NULL);
     app_unload(app);
+    CHECK(app_load("y", every_call_wasm, sizeof every_call_wasm, true, &SERVICES, &second) == APP_OK);
+    app_unload(second);
 
     /* a name the host has, asked of another module */
     static const uint8_t other_module[] = { 0x00, 'a',  's',  'm',  0x01, 0x00, 0x00, 0x00,

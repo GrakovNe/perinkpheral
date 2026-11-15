@@ -35,6 +35,7 @@ typedef enum {
     DEADLINE_CONFIRM,         /* timeout of the question on the screen */
     DEADLINE_MENU_IDLE,       /* idle timeout of the menu: the default application opens */
 } deadline_kind_t;
+#define DEADLINE_KINDS (DEADLINE_MENU_IDLE + 1) /* the last kind above, and one */
 
 /* `some_are_due` is called from the timer task when a deadline is due
  * and not yet reported. It returns true when the notification was

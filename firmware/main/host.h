@@ -29,9 +29,10 @@ typedef enum {
 } host_stop_t;
 void host_stop_soon(host_stop_t why);
 
-/* Something every picture depends on changed - the typeface: whatever is
- * on the screen is drawn anew. In the host loop. */
-void host_redraw(void);
+/* Something every picture depends on changed: whatever is on the screen is
+ * drawn anew and shown now - with a full refresh when every letter is
+ * another (the typeface, the language), else a partial one. In the host loop. */
+void host_redraw(bool is_clean);
 
 /* Ends an answer an application is taking off the screen, before the
  * screen is given to somebody: there is room for one application. In the

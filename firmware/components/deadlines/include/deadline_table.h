@@ -17,7 +17,8 @@ extern "C" {
  * relative deadline is shifted, an absolute one is not.
  * Pure, host-tested. */
 
-#define DEADLINES_MAX 80
+/* As many as can be set at once: see main/deadline_budget.c. */
+#define DEADLINES_MAX 104
 #define DEADLINE_NONE INT64_MAX
 
 /* Deadline identity: kind, owner within the kind (application id; 0 for

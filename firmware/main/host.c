@@ -56,16 +56,25 @@ static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
 /* What applications keep in the header while they are away: on each side
  * an icon and a line, the application's that set it last. */
-#define HEADER_SIDES           2 /* HOST_HEADER_LEFT, HOST_HEADER_RIGHT of host_api.h */
-#define HEADER_LEFT            0
-#define HEADER_RIGHT           1
-#define HEADER_STATUS_TEXT_MAX 15
-#define HEADER_NO_ICON         (-1)
+#define HEADER_LEFT    HOST_HEADER_LEFT
+#define HEADER_RIGHT   HOST_HEADER_RIGHT
+#define HEADER_SIDES   2
+#define HEADER_NO_ICON (-1)
 static struct {
     uint32_t app_id; /* 0: nobody has this side */
     int      icon;
-    char     text[HEADER_STATUS_TEXT_MAX + 1];
+    char     text[HOST_STATUS_TEXT_MAX + 1];
 } s_header_status[HEADER_SIDES];
+
+/* A text into a field of the host's: as much of it as fits, cut between
+ * characters, never inside one. */
+static void copy_text(char *field, size_t size, const char *text)
+{
+    size_t length = gfx_text_cut(text != NULL ? text : "", size - 1);
+    memcpy(field, text != NULL ? text : "", length);
+    field[length] = '\0';
+}
+#define COPY_TEXT(field, text) copy_text((field), sizeof(field), (text))
 
 /* Each side is, in this order: what an application keeps there, what the
  * scene on the screen gave, the host's own - the Wi-Fi icon on the left,
@@ -397,14 +406,14 @@ void host_set_header_status(uint32_t app_id, int side, int icon, const char *tex
     } else {
         s_header_status[side].app_id = app_id;
         s_header_status[side].icon = icon;
-        strlcpy(s_header_status[side].text, text, sizeof s_header_status[side].text);
+        COPY_TEXT(s_header_status[side].text, text);
     }
     wm_invalidate(&wm, WM_CHANGED_BY_DATA);
 }
 
-void host_redraw(void)
+void host_redraw(bool is_clean)
 {
-    wm_invalidate(&wm, WM_CHANGED_CLEANLY);
+    wm_invalidate(&wm, is_clean ? WM_CHANGED_CLEANLY : WM_CHANGED_URGENTLY);
 }
 
 void host_stop_soon(host_stop_t why)
@@ -492,10 +501,10 @@ static void open_confirm(void *argument)
  * What applications asked to be told to the user. One is on the screen,
  * the rest wait their turn; a restart forgets them. */
 #define NOTICES_MAX      4
-#define NOTICE_LINE_MAX  63
-#define NOTICE_DETAIL_MAX 95
+/* The fields are the contract's, as an application hands them over. */
+#define NOTICE_FIELD(name) sizeof(((host_notice_t *)0)->name)
 typedef struct {
-    char first[NOTICE_LINE_MAX + 1], second[NOTICE_LINE_MAX + 1], detail[NOTICE_DETAIL_MAX + 1];
+    char first[NOTICE_FIELD(first)], second[NOTICE_FIELD(second)], detail[NOTICE_FIELD(detail)];
     int  icon;
 } told_t;
 static struct {
@@ -512,9 +521,9 @@ bool host_notify(const char *first, const char *second, const char *detail, int 
         return false;
     }
     told_t *told = &s_notices.waiting[s_notices.count++];
-    strlcpy(told->first, first != NULL ? first : "", sizeof told->first);
-    strlcpy(told->second, second != NULL ? second : "", sizeof told->second);
-    strlcpy(told->detail, detail != NULL ? detail : "", sizeof told->detail);
+    COPY_TEXT(told->first, first);
+    COPY_TEXT(told->second, second);
+    COPY_TEXT(told->detail, detail);
     told->icon = icon;
     return true;
 }
@@ -574,13 +583,15 @@ static void close_unanswered_confirm(void)
 host_answer_t host_confirm_on_device(const char *first, const char *second, int icon,
                                      const char *action)
 {
+    /* The answer comes from the host loop: asked there, it would never come. */
+    configASSERT(!events_is_host_loop());
     if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
         return HOST_ANSWER_BUSY;
     }
-    strlcpy(s_confirm.first, first, sizeof s_confirm.first);
-    strlcpy(s_confirm.second, second, sizeof s_confirm.second);
+    COPY_TEXT(s_confirm.first, first);
+    COPY_TEXT(s_confirm.second, second);
     s_confirm.icon = icon;
-    strlcpy(s_confirm.action, action, sizeof s_confirm.action);
+    COPY_TEXT(s_confirm.action, action);
     host_answer_t answer = HOST_ANSWER_BUSY;
     if (events_call(open_confirm, NULL)) {
         /* The host loop answers for certain: by a press, or by the deadline. */

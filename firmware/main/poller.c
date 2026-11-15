@@ -461,6 +461,8 @@ static bool run_fetch_job(void)
 bool poller_fetch(const char *url, size_t max_bytes, poller_take_fn take, void *context,
                   int *http_status)
 {
+    /* The poller may itself be waiting for the host loop to take an answer. */
+    configASSERT(!events_is_host_loop());
     *http_status = 0;
     if (s_lock == NULL || !wifi_is_online()) {
         return false;
