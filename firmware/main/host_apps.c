@@ -192,15 +192,11 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
 /* An alarm that has come is handed to its application like an answer. */
 void host_ring_alarm(uint32_t app_id, int alarm_number)
 {
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (installed[i].id == app_id) {
-            app_host_alarm_rang(app_id, alarm_number);
-            app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-            host_deliver(installed[i].name, &alarm);
-            return;
-        }
+    const app_manifest_t *app = launcher_find_id(app_id);
+    if (app != NULL) {
+        app_host_alarm_rang(app_id, alarm_number);
+        app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
+        host_deliver(app->name, &alarm);
     }
 }
 

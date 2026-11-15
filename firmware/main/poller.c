@@ -101,10 +101,18 @@ typedef struct {
     const app_delivery_t *delivery;
 } handed_t;
 
+/* Whose request is under way, by id: an application updated meanwhile has
+ * another id and the same name, and the answer was asked for by the
+ * version that is gone. One request at a time, so one is enough. */
+static volatile uint32_t s_answering_app;
+
 static void deliver_in_host_loop(void *argument)
 {
-    const handed_t *handed = argument;
-    host_deliver(handed->app_name, handed->delivery);
+    const handed_t       *handed = argument;
+    const app_manifest_t *app = launcher_find(handed->app_name);
+    if (app != NULL && app->id == s_answering_app) {
+        host_deliver(handed->app_name, handed->delivery);
+    }
 }
 
 static void hand_over(const char *app_name, const app_delivery_t *delivery)
@@ -269,6 +277,7 @@ static bool run_pending_request(int why_not)
 {
     /* Only this task makes requests, and this is too large for its stack. */
     static struct {
+        int          app;
         int          number;
         int          method;
         char         url[APP_URL_MAX + 1];
@@ -284,6 +293,7 @@ static bool run_pending_request(int why_not)
     if (slot >= 0) {
         const pending_t *request = s_pending[slot];
         const char      *at = request->text;
+        taken.app = request->app;
         taken.number = request->number;
         taken.method = request->method;
         strlcpy(taken.url, at, sizeof taken.url);
@@ -309,6 +319,7 @@ static bool run_pending_request(int why_not)
             .headers = taken.headers, .header_count = taken.header_count,
             .body = taken.body, .body_length = taken.body_length,
         };
+        s_answering_app = (uint32_t)taken.app;
         if (why_not != 0) {
             poller_net_tell_failure(app_name, ask.number, why_not);
         } else {
@@ -403,6 +414,7 @@ static bool fail_request_without_network(void)
         if (waited_ms > RADIO_WAIT_MS) {
             number = s_pending[i]->number;
             found = name_of(s_pending[i]->app, app_name);
+            s_answering_app = (uint32_t)s_pending[i]->app;
             drop_pending(i);
         } else {
             schedule_recheck(RADIO_WAIT_MS - waited_ms + 1);
@@ -659,6 +671,7 @@ static bool run_wanted_poll(void)
         unlock();
     }
     if (is_installed) {
+        s_answering_app = (uint32_t)app;
         if (why_not == 0) {
             items = poller_net_poll(name, poll, item);
         } else {

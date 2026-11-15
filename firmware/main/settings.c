@@ -271,11 +271,17 @@ static appconf_t         s_live;
 static volatile uint32_t s_version; /* odd while s_live is being rewritten */
 static char              s_device_id[APPCONF_DEVICE_ID_SIZE];
 
+/* The compiler keeps the copy between the two looks at the version: one
+ * core, so nothing else would move it. */
+#define FENCE() __atomic_signal_fence(__ATOMIC_SEQ_CST)
+
 static void publish(const appconf_t *settings)
 {
     s_version++;
+    FENCE();
     s_live = *settings;
     appconf_derive(&s_live, s_device_id);
+    FENCE();
     s_version++;
 }
 
@@ -299,7 +305,9 @@ void settings_read(appconf_t *copy)
             vTaskDelay(1);
             continue;
         }
+        FENCE();
         *copy = s_live;
+        FENCE();
         if (version == s_version) {
             return;
         }

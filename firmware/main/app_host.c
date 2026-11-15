@@ -184,14 +184,8 @@ static void clear_recurrence(uint32_t app_id, int alarm)
 
 static uint32_t id_of(const char *app_name)
 {
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (strcmp(installed[i].name, app_name) == 0) {
-            return installed[i].id;
-        }
-    }
-    return 0;
+    const app_manifest_t *app = launcher_find(app_name);
+    return app != NULL ? app->id : 0;
 }
 
 static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s, int32_t first_in_s)
@@ -263,24 +257,19 @@ static void header_status(const char *app_name, int side, int icon, const char *
  * or - `is_absolute` - a moment in unix seconds. */
 static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_absolute)
 {
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (strcmp(installed[i].name, app_name) != 0) {
-            continue;
-        }
-        uint32_t app_id = installed[i].id;
-        clear_recurrence(app_id, alarm); /* set another way: once */
-        if (is_absolute) {
-            return deadlines_set_at(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
-        }
-        if (when == 0) {
-            deadlines_cancel(DEADLINE_ALARM, app_id, alarm);
-            return true;
-        }
-        return deadlines_set_in(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
+    uint32_t app_id = id_of(app_name);
+    if (app_id == 0) {
+        return false;
     }
-    return false;
+    clear_recurrence(app_id, alarm); /* set another way: once */
+    if (is_absolute) {
+        return deadlines_set_at(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
+    }
+    if (when == 0) {
+        deadlines_cancel(DEADLINE_ALARM, app_id, alarm);
+        return true;
+    }
+    return deadlines_set_in(DEADLINE_ALARM, app_id, alarm, when * MS_PER_SECOND);
 }
 
 static bool s_dithers = true;

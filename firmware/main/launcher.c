@@ -218,6 +218,10 @@ bool launcher_remove(const char *app_name, bool forgets)
     return true;
 }
 
+/* The compiler keeps the copy between the two looks at the version: one
+ * core, so nothing else would move it. */
+#define FENCE() __atomic_signal_fence(__ATOMIC_SEQ_CST)
+
 int launcher_read_installed(app_manifest_t *copy, int capacity)
 {
     for (;;) {
@@ -229,8 +233,10 @@ int launcher_read_installed(app_manifest_t *copy, int capacity)
             vTaskDelay(1);
             continue;
         }
+        FENCE();
         int count = s_installed_count < capacity ? s_installed_count : capacity;
         memcpy(copy, s_installed, (size_t)count * sizeof *copy);
+        FENCE();
         if (version == s_installed_version) {
             return count;
         }
@@ -247,7 +253,9 @@ void launcher_reload(launcher_drop_fn drop, void *context)
         }
     }
     s_installed_version++;
+    FENCE();
     read_installed();
+    FENCE();
     s_installed_version++;
     list_entries();
 }
@@ -335,6 +343,26 @@ const app_manifest_t *launcher_installed(int *count)
 {
     *count = s_installed_count;
     return s_installed;
+}
+
+const app_manifest_t *launcher_find(const char *app_name)
+{
+    for (int i = 0; i < s_installed_count; i++) {
+        if (strcmp(s_installed[i].name, app_name) == 0) {
+            return &s_installed[i];
+        }
+    }
+    return NULL;
+}
+
+const app_manifest_t *launcher_find_id(uint32_t app_id)
+{
+    for (int i = 0; i < s_installed_count; i++) {
+        if (s_installed[i].id == app_id) {
+            return &s_installed[i];
+        }
+    }
+    return NULL;
 }
 
 scene_t *launcher_app_scene(const char *app_name)

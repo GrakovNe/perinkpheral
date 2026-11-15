@@ -70,6 +70,11 @@ int launcher_read_installed(app_manifest_t *copy, int capacity);
  * held. */
 const app_manifest_t *launcher_installed(int *count);
 
+/* One of them, by its name or by its id; NULL when it is not installed.
+ * As the list: the host loop's. */
+const app_manifest_t *launcher_find(const char *app_name);
+const app_manifest_t *launcher_find_id(uint32_t app_id);
+
 /* The scene of an installed application; NULL when there is none by that
  * name. */
 scene_t *launcher_app_scene(const char *app_name);

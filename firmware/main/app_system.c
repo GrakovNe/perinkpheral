@@ -233,22 +233,9 @@ int32_t app_system_app_list(uint32_t *ids, int32_t capacity)
     return count;
 }
 
-/* The installed application with the id; NULL when there is none. */
-static const app_manifest_t *installed_with(uint32_t id)
-{
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (installed[i].id == id) {
-            return &installed[i];
-        }
-    }
-    return NULL;
-}
-
 int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity)
 {
-    const app_manifest_t *app = installed_with(id);
+    const app_manifest_t *app = launcher_find_id(id);
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -262,7 +249,7 @@ int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity)
 
 int32_t app_system_app_remove(uint32_t id)
 {
-    const app_manifest_t *app = installed_with(id);
+    const app_manifest_t *app = launcher_find_id(id);
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -281,19 +268,13 @@ uint32_t app_system_app_default(void)
 {
     appconf_t settings;
     settings_read(&settings);
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (strcmp(installed[i].name, settings.default_app) == 0) {
-            return installed[i].id;
-        }
-    }
-    return 0;
+    const app_manifest_t *app = launcher_find(settings.default_app);
+    return app != NULL ? app->id : 0;
 }
 
 int32_t app_system_app_set_default(uint32_t id)
 {
-    const app_manifest_t *app = id != 0 ? installed_with(id) : NULL;
+    const app_manifest_t *app = id != 0 ? launcher_find_id(id) : NULL;
     if (id != 0 && app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }

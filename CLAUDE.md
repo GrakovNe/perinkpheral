@@ -421,8 +421,9 @@ TRMNL is a thin client: once per `refresh_rate` the device does `GET /api/displa
 An architecture review on 2026-11-12 found the structure behind most of the open items; these are the owner's decisions on it. Until a line here is built the code is as the sections above describe it, and where the two disagree this section is where the code is going.
 
 **Who may change what.** *(Built. The poller keeps its own copy of the list of applications and takes a new one, in the host loop, after the list was read anew; nothing of it is held while applications run their last handlers.)*
-- The host loop owns the host's state: the settings, the list of installed applications, the scenes. Every other task - the web server, the poller, Wi-Fi - reads a **published snapshot** and changes nothing.
-- A snapshot carries a version: a reader notes it, copies, and copies again if it changed meanwhile. No lock on reading, anywhere; a reader may see what was true a moment ago.
+- The host loop owns the host's state: the settings, the list of installed applications, the scenes. Every other task - the web server, the poller, Wi-Fi - reads a **published snapshot** of the settings and of the list, and changes nothing of them.
+- A snapshot carries a version: a reader notes it, copies, and copies again if it changed meanwhile, with a compiler fence on each side of the copy; no lock on reading them. A reader may see what was true a moment ago.
+- What a service keeps of its own is its own, under its own mutex: Wi-Fi's state, the status, the power profile, the display service, the poller's schedule and queue, the deadlines. The host loop asks them like anybody else. Looked at on 2026-11-15: the model is the host loop for the screen and the applications, and services for themselves; this line was stricter than the code and was the one to change.
 - A change is a **command through the event queue**: the handler posts it and waits for the host loop's answer, as the development tools do. A page waits up to the length of a refresh; that is fine.
 - Posting into the queue may be refused when it is full, and says so: the caller decides (a command answers "Device busy.", a deadline stays due, a press is lost).
 - `settings.c` holds the settings and the one function that checks, stores and applies them.
