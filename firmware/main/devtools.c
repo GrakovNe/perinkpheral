@@ -29,7 +29,6 @@
 static const char *TAG = "devtools";
 
 #define FRAME_BYTES       (DISPLAY_WIDTH / 8 * DISPLAY_HEIGHT)
-#define HOST_ANSWER_MS    6000 /* the host may be in the middle of a full panel refresh */
 #define QUERY_VALUE_MAX   24
 #define UPLOAD_CHUNK      2048
 #define NUMBER_TEXT_MAX   12

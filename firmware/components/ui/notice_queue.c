@@ -14,14 +14,6 @@ void notice_queue_init(notice_queue_t *queue)
     memset(queue, 0, sizeof *queue);
 }
 
-static void copy_text(char *field, size_t size, const char *text)
-{
-    text = text != NULL ? text : "";
-    size_t length = gfx_text_cut(text, size - 1);
-    memcpy(field, text, length);
-    field[length] = '\0';
-}
-
 bool notice_queue_add(notice_queue_t *queue, const char *first, const char *second,
                       const char *detail, int icon)
 {
@@ -29,9 +21,9 @@ bool notice_queue_add(notice_queue_t *queue, const char *first, const char *seco
         return false;
     }
     notice_told_t *told = &queue->waiting[queue->count++];
-    copy_text(told->first, sizeof told->first, first);
-    copy_text(told->second, sizeof told->second, second);
-    copy_text(told->detail, sizeof told->detail, detail);
+    gfx_text_copy(told->first, sizeof told->first, first);
+    gfx_text_copy(told->second, sizeof told->second, second);
+    gfx_text_copy(told->detail, sizeof told->detail, detail);
     told->icon = icon;
     return true;
 }

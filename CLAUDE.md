@@ -456,7 +456,7 @@ An architecture review on 2026-11-12 found the structure behind most of the open
 - The header's icon says whether the last use of the network worked.
 - The system API gives applications by id, not by their place in a list.
 - `"system": true` stays one consent for all of it.
-- *(Built.)* `main/poller.c` is three: which polls are wanted and at what pace (`poll_schedule.c`, pure - when each is due is a deadline, the alarms are deadlines outright), the one that talks to the network (`poller_net.c`), and what ties them to the host (`poller.c`: the task, the radio, the requests waiting). The task sleeps until it is woken and has no clock of its own. Calling the host loop and waiting for it is `events_call_patiently()`.
+- *(Built.)* `main/poller.c` is four: which polls are wanted and at what pace (`poll_schedule.c`, pure - when each is due is a deadline, the alarms are deadlines outright), the one that talks to the network (`poller_net.c`), the requests applications make, waiting their turn (`components/appsys/request_queue.c`, pure), and what ties them to the host (`poller.c`: the task, the radio). The task sleeps until it is woken and has no clock of its own. Calling the host loop and waiting for it is `events_call_patiently()`.
 
 Looked at and left: the settings as one table instead of a field in five places (it is only typing, once applying them is one function); memory an application declares in its manifest (a developer cannot know the number - the area is the same for all); blocks that move and a heap that is compacted, as the systems of the nineties had (the host is C over ESP-IDF, and one application at a time with an area that is reset gives the same for nothing).
 

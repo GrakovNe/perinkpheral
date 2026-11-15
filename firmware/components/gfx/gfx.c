@@ -681,6 +681,14 @@ size_t gfx_text_cut(const char *text, size_t max_bytes)
     return length;
 }
 
+void gfx_text_copy(char *field, size_t size, const char *text)
+{
+    text = text != NULL ? text : "";
+    size_t length = gfx_text_cut(text, size - 1);
+    memcpy(field, text, length);
+    field[length] = '\0';
+}
+
 void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
                   size_t capacity)
 {

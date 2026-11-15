@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "app_delivery.h"
 #include "gfx.h"
@@ -64,14 +63,7 @@ void host_apps_after_event(void);
 
 /* A text into a field of the host's: as much of it as fits, cut between
  * characters, never inside one. */
-static inline void host_copy_text(char *field, size_t size, const char *text)
-{
-    text = text != NULL ? text : "";
-    size_t length = gfx_text_cut(text, size - 1);
-    memcpy(field, text, length);
-    field[length] = '\0';
-}
-#define HOST_COPY_TEXT(field, text) host_copy_text((field), sizeof(field), (text))
+#define HOST_COPY_TEXT(field, text) gfx_text_copy((field), sizeof(field), (text))
 
 #ifdef __cplusplus
 }

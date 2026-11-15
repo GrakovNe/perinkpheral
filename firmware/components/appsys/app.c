@@ -7,6 +7,9 @@
  * on a budget, its strings put in place. The calls themselves are
  * app_api_<area>.c.
  */
+#include <assert.h>
+#include <stdio.h>
+
 #include "app_internal.h"
 
 /* The interpreter's own stack of values, apart from the application's
@@ -444,6 +447,14 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
 {
     *loaded = NULL;
     if (s_loaded != NULL) {
+        /* The host's mistake, not the application's: said so, since the
+         * screen can only say there is no room. */
+        if (services->log != NULL) {
+            char told[HOST_LOG_TEXT_MAX + 1];
+            int  length = snprintf(told, sizeof told, "%s: not loaded, %s is", name, s_loaded->name);
+            services->log(HOST_LOG_ERROR, told,
+                          length < (int)sizeof told ? length : (int)sizeof told - 1);
+        }
         return APP_ERR_NO_MEMORY;
     }
     app_load_result_t imports = check_imports(wasm, wasm_size, with_system);
@@ -492,11 +503,9 @@ void app_unload(app_t *app)
     if (app->environment != NULL) {
         m3_FreeEnvironment(app->environment);
     }
-    bool was_loaded = app == s_loaded;
+    /* Every instance is the one app_load() noted. */
+    assert(app == s_loaded);
     free(app);
-    if (!was_loaded) {
-        return;
-    }
     s_loaded = NULL;
 #ifdef d_m3ApplicationArea
     /* The next application starts in an area nobody has been in. */

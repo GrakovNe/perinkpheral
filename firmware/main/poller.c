@@ -326,16 +326,22 @@ static bool fail_request_without_network(void)
     int  number = 0;
     bool found = false;
     lock();
-    int64_t recheck_in_ms;
-    int     slot = request_queue_overdue(&s_queue, uptime_ms(), RADIO_WAIT_MS, &recheck_in_ms);
-    const queued_request_t *request = request_queue_at(&s_queue, slot);
-    if (request != NULL) {
+    /* One of an application that is gone has nobody to tell: it is dropped,
+     * and the next overdue one is looked at. */
+    while (!found) {
+        int64_t recheck_in_ms;
+        int slot = request_queue_overdue(&s_queue, uptime_ms(), RADIO_WAIT_MS, &recheck_in_ms);
+        const queued_request_t *request = request_queue_at(&s_queue, slot);
+        if (request == NULL) {
+            if (recheck_in_ms >= 0) {
+                schedule_recheck(recheck_in_ms);
+            }
+            break;
+        }
         number = request->number;
         found = name_of(request->app, app_name);
         s_answering_app = (uint32_t)request->app;
         request_queue_drop(&s_queue, slot, false);
-    } else if (recheck_in_ms >= 0) {
-        schedule_recheck(recheck_in_ms);
     }
     unlock();
     if (found) {

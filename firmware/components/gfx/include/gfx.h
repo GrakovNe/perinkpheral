@@ -233,6 +233,10 @@ int gfx_font_cap_height(const gfx_font_t *font);
  * characters. */
 size_t gfx_text_cut(const char *text, size_t max_bytes);
 
+/* `text` (NULL: none) into a field of `size` bytes, terminated: as much of
+ * it as fits, cut between characters. */
+void gfx_text_copy(char *field, size_t size, const char *text);
+
 #ifdef __cplusplus
 }
 #endif
