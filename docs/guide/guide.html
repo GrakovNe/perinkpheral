@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 2, 2026-11-14 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 3, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -163,7 +163,7 @@
   <tr><td>Resolution</td><td class="n">400 x 300 px</td><td>About 120 px per inch</td></tr>
   <tr><td>Application surface</td><td class="n">400 x 260 px</td><td>Below the host header. 400 x 300 with <code>"fullscreen": true</code></td></tr>
   <tr><td>Depth</td><td class="n">1 bit</td><td>17 grey levels by fixed 4 x 4 dithering; for filled areas</td></tr>
-  <tr><td>Partial refresh</td><td class="n">0.46 - 0.53 s</td><td>Only the changed rectangle is sent</td></tr>
+  <tr><td>Partial refresh</td><td class="n">0.46 - 0.7 s</td><td>Only the changed rectangle is sent. 0.6 - 0.7 s when the panel has been idle for more than 1.5 s and is woken first</td></tr>
   <tr><td>Full refresh</td><td class="n">2.2 s (2.7 s)</td><td>Fast waveform (default waveform). The panel flashes</td></tr>
   <tr><td>Full refresh interval</td><td class="n">every 5 partial refreshes</td><td>User setting. Removes ghosting left by partial refreshes</td></tr>
   <tr><td>Refresh after a button press</td><td class="n">immediate</td><td></td></tr>
@@ -287,19 +287,22 @@
   <li><b>Python 3</b>. The tools use the standard library only.</li>
   <li>A checkout of the <b>perinkpheral</b> repository. It contains <code>sdk/</code> and <code>tools/</code>.</li>
   <li>A <b>device</b> on the same network, running a firmware with the development tools enabled (the default). The device shows its address on the second page of About. Set <code>PERINKPHERAL_HOST</code> to this address.</li>
+  <li>Without a device: the <b>simulator</b> (section 14). It needs a C compiler to be built, or comes built with the CLion plugin.</li>
 </ul>
 
 <h2 id="start-new">Create, build, run</h2>
 <pre>tools/devtool/devtool.py new my-app --title "My app"     # create a folder from the SDK sample
 tools/devtool/devtool.py run my-app                      # build, upload, restart into the application
-tools/devtool/devtool.py serve my-app                    # local page: live screen, buttons, log, Run</pre>
-<p><code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.</p>
+tools/devtool/devtool.py serve my-app                    # local page: live screen, buttons, log, Run
+tools/devtool/devtool.py sim my-app                      # run it in the simulator on this computer</pre>
+<p><code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.</p>
 <p>The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.</p>
 <p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons.</p>
 
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.</p>
 <p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page).</p>
 <p>Set <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the CMake environment of the IDE.</p>
+<p>The perINKpheral plugin for CLion (repository <code>perinkpheral-clion-plugin</code>) does this setup itself. It downloads the SDK and wasi-sdk on request, opens an application folder as a CMake project, and adds two run configurations: on the device and in the simulator. Its device window shows the live screen, the buttons, the log and the status of the device or the simulator.</p>
 <h2 id="start-sample">Sample application</h2>
 <pre>#include "app_text.h"
 #include "host_api.h"
@@ -835,7 +838,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><th style="width:44%">Command</th><th>Function</th></tr>
   <tr><td class="c">tools/mkapp/mkapp.py &lt;dir&gt; --out &lt;dir&gt;</td><td>Builds one application: compile, link with the SDK library, check, measure</td></tr>
   <tr><td class="c">tools/devtool/devtool.py new &lt;dir&gt; [--title T]</td><td>Creates a new application folder from the SDK sample</td></tr>
-  <tr><td class="c">tools/devtool/devtool.py run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads and restarts the device into the application</td></tr>
+  <tr><td class="c">tools/devtool/devtool.py run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads, restarts the device and opens the application</td></tr>
+  <tr><td class="c">tools/devtool/devtool.py sim &lt;dir&gt; [--language ru] [--mocks m.json]</td><td>Builds the application and runs it in the simulator (below)</td></tr>
   <tr><td class="c">tools/devtool/devtool.py serve [dir]</td><td>Local web page: live screen, buttons, log, Run</td></tr>
   <tr><td class="c">tools/devtool/devtool.py shot [f.png]</td><td>Saves the current panel frame as an image</td></tr>
   <tr><td class="c">tools/devtool/devtool.py press 3 3 2L [--shot f.png]</td><td>Sends button presses: 1 - 4 short, 1L - 4L long, in device order</td></tr>
@@ -849,6 +853,30 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 </table>
 <p><code>host_log(level, text, length)</code> writes one line of up to 200 characters to the device log. It replaces <code>printf</code>.</p>
 <p><code>press ... --shot</code> waits for the panel to finish and saves the frame. This can be used to script regression tests of the application's screens.</p>
+
+<h2 id="tools-simulator">Simulator</h2>
+<p>The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. A frame in the simulator is the frame the panel shows. It runs on macOS and Linux.</p>
+<p>It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.</p>
+<table>
+  <tr><th style="width:34%">Device</th><th>Simulator</th></tr>
+  <tr><td>Store, files</td><td>A folder on the computer, with the device's limits. Kept between runs</td></tr>
+  <tr><td>Network</td><td>The computer's. Answers can be replaced by mocks</td></tr>
+  <tr><td>Clock</td><td>The computer's. Moved forward on request</td></tr>
+  <tr><td>Language, font, glyph packs</td><td><code>--language</code>, <code>--font</code>, <code>--glyphs</code></td></tr>
+</table>
+<p>Requests that the device does not have:</p>
+<table>
+  <tr><th style="width:44%">Request (POST)</th><th>Effect</th></tr>
+  <tr><td class="c">/api/sim/background</td><td>The application leaves the screen. From then on it is loaded only for what is delivered to it, as on the device</td></tr>
+  <tr><td class="c">/api/sim/foreground</td><td>The application takes the screen again</td></tr>
+  <tr><td class="c">/api/sim/intent?kind=started</td><td>Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Only an intent the manifest declares</td></tr>
+  <tr><td class="c">/api/sim/alarm?id=N</td><td>Alarm <code>N</code> expires now</td></tr>
+  <tr><td class="c">/api/sim/forward?seconds=N</td><td>The clock and every pending poll, alarm and timer move forward</td></tr>
+</table>
+<p>Mocks are a JSON file of address to answer. An address that ends with <code>*</code> matches every address that begins with the rest:</p>
+<pre>{ "https://api.example.com/quote*": { "status": 200, "file": "quote.json" },
+  "https://api.example.com/login":  { "status": 401, "body": "{}" } }</pre>
+<p>Not simulated: the menu and other applications, the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.</p>
 
 <h2 id="tools-problems">Common problems</h2>
 <table>
@@ -1054,6 +1082,10 @@ int32_t         app_list_first(app_list_t *list);                    /* call in 
 typedef struct { int32_t count; int32_t chosen; bool wraps; } app_picker_t;
 app_ui_result_t app_picker_button(app_picker_t *picker, int32_t event);
 void            app_picker_draw(const app_picker_t *picker, const char *const *labels);
+void            app_picker_draw_texts(const app_picker_t *picker, const char *above, const char *chosen,
+                                      const char *below);    /* the three visible texts, made by the caller */
+int32_t         app_picker_above(const app_picker_t *picker);         /* index shown above the chosen one; -1: none */
+int32_t         app_picker_below(const app_picker_t *picker);         /* index shown below; -1: none */
 
 typedef struct { int32_t year, month, day, hour, minute, has, part, year_first, year_last; } app_date_t;
 void            app_date_start(app_date_t *date, int32_t has, int32_t year_first, int32_t year_last);

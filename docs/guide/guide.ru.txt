@@ -55,8 +55,8 @@ about 10 s, no reflashing
 <b>III</b>Reference: host API and SDK library
 <b>III</b>Справочник: API хоста и библиотека SDK
 
-revision 2, 2026-11-14 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 2, 2026-11-14 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+revision 3, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 3, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
 
 Contents
 Содержание
@@ -178,8 +178,8 @@ Partial refresh
 0.46 - 0.53 s
 0,46 - 0,53 с
 
-Only the changed rectangle is sent
-Передаётся только изменившийся прямоугольник
+Only the changed rectangle is sent. 0.6 - 0.7 s when the panel has been idle for more than 1.5 s and is woken first
+Передаётся только изменившийся прямоугольник. 0,6 - 0,7 с, если панель простаивала больше 1,5 с и её сначала будят
 
 Full refresh
 Полное обновление
@@ -1539,8 +1539,8 @@ Builds one application: compile, link with the SDK library, check, measure
 Creates a new application folder from the SDK sample
 Создаёт папку нового приложения из примера SDK
 
-Builds, uploads and restarts the device into the application
-Собирает, загружает и перезапускает устройство в приложение
+Builds, uploads, restarts the device and opens the application
+Собирает, загружает, перезапускает устройство и открывает приложение
 
 Local web page: live screen, buttons, log, Run
 Локальная веб-страница: экран устройства, кнопки, журнал, Run
@@ -2150,8 +2150,8 @@ Loaded by the host
 
 <code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.
 <code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.
-<code>run</code> builds the application, uploads it and restarts the device into it. This takes about ten seconds. The firmware is not reflashed.
-<code>run</code> собирает приложение, загружает его и перезапускает устройство в него. Это занимает около десяти секунд. Прошивка не перезаписывается.
+<code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.
+<code>run</code> собирает приложение, загружает его, перезапускает устройство и открывает приложение. Это занимает около десяти секунд. Прошивка не перезаписывается.
 
 The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.
 Сборка считает предупреждения компилятора ошибками (<code>-Wall -Wextra -Werror</code>). Неиспользуемый параметр помечается <code>(void)name;</code>.
@@ -2548,3 +2548,81 @@ Per application, counted as stored: 64 bytes for a value plus its length rounded
 
 Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)
 Ключ хранилища; значение; всего на приложение, как хранится (64 байта плюс длина, округлённая вверх до 32, на каждое значение)
+
+Without a device: the <b>simulator</b> (section 14). It needs a C compiler to be built, or comes built with the CLion plugin.
+Без устройства: <b>симулятор</b> (раздел 14). Для сборки ему нужен компилятор C; с плагином для CLion он поставляется собранным.
+
+run it in the simulator on this computer
+запустить в симуляторе на этом компьютере
+
+The perINKpheral plugin for CLion (repository <code>perinkpheral-clion-plugin</code>) does this setup itself. It downloads the SDK and wasi-sdk on request, opens an application folder as a CMake project, and adds two run configurations: on the device and in the simulator. Its device window shows the live screen, the buttons, the log and the status of the device or the simulator.
+Плагин perINKpheral для CLion (репозиторий <code>perinkpheral-clion-plugin</code>) делает эту настройку сам. Он по запросу скачивает SDK и wasi-sdk, открывает папку приложения как проект CMake и добавляет две конфигурации запуска: на устройстве и в симуляторе. Его окно устройства показывает живой экран, кнопки, лог и состояние устройства или симулятора.
+
+Builds the application and runs it in the simulator (below)
+Собирает приложение и запускает его в симуляторе (ниже)
+
+Simulator
+Симулятор
+
+The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. A frame in the simulator is the frame the panel shows. It runs on macOS and Linux.
+Симулятор запускает одно приложение на компьютере на собственных интерпретаторе, API хоста, наборе элементов, шапке и шрифтах прошивки. Кадр в симуляторе - это кадр, который показывает панель. Работает на macOS и Linux.
+
+It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.
+Он отвечает на <code>127.0.0.1:8401</code> как устройство. Остальные команды работают с ним через <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.
+
+Device
+Устройство
+
+Store, files
+Хранилище, файлы
+
+A folder on the computer, with the device's limits. Kept between runs
+Папка на компьютере, с ограничениями устройства. Сохраняется между запусками
+
+The computer's. Answers can be replaced by mocks
+Сеть компьютера. Ответы можно подменить моками
+
+The computer's. Moved forward on request
+Часы компьютера. Переводятся вперёд по запросу
+
+Language, font, glyph packs
+Язык, шрифт, пакеты глифов
+
+Requests that the device does not have:
+Запросы, которых нет у устройства:
+
+Request (POST)
+Запрос (POST)
+
+Effect
+Действие
+
+The application leaves the screen. From then on it is loaded only for what is delivered to it, as on the device
+Приложение уходит с экрана. Дальше оно загружается только для того, что ему доставляют, как на устройстве
+
+The application takes the screen again
+Приложение снова занимает экран
+
+Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Only an intent the manifest declares
+Доставляет интент: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Только объявленный в манифесте
+
+Alarm <code>N</code> expires now
+Будильник <code>N</code> срабатывает сейчас
+
+The clock and every pending poll, alarm and timer move forward
+Часы и все ожидающие опросы, будильники и таймеры сдвигаются вперёд
+
+Mocks are a JSON file of address to answer. An address that ends with <code>*</code> matches every address that begins with the rest:
+Моки - это файл JSON: адрес и ответ на него. Адрес, который заканчивается на <code>*</code>, подходит ко всем адресам, начинающимся с остального:
+
+Not simulated: the menu and other applications, the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
+Не симулируются: меню и другие приложения, системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
+
+the three visible texts, made by the caller
+три видимых текста, их готовит вызывающий
+
+index shown above the chosen one; -1: none
+индекс над выбранным; -1: нет
+
+index shown below; -1: none
+индекс под выбранным; -1: нет
