@@ -13,16 +13,18 @@ idf_component_register(SRCS ${srcs}
                               app_update esp_app_format esp_driver_usb_serial_jtag
                               esp_http_server esp_http_client mbedtls)
 
-# The page goes into the firmware packed - 17 KB of its 55 - and to the
-# browser as it is: every browser unpacks gzip.
+# The page is made of its parts (web/page.html, style.css, js/), put together
+# by web/assemble.py, and goes into the firmware packed - and to the browser as
+# it is: every browser unpacks gzip.
 idf_build_get_property(python PYTHON)
-set(page "${CMAKE_CURRENT_LIST_DIR}/web/index.html")
+set(web_dir "${CMAKE_CURRENT_LIST_DIR}/web")
+file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js"
+                                              "${web_dir}/assemble.py")
+set(page "${CMAKE_BINARY_DIR}/index.html")
 set(packed_page "${CMAKE_BINARY_DIR}/index.html.gz")
-add_custom_command(OUTPUT "${packed_page}"
-                   COMMAND "${python}" -c
-                           "import gzip, sys; open(sys.argv[2], 'wb').write(gzip.compress(open(sys.argv[1], 'rb').read(), 9, mtime=0))"
-                           "${page}" "${packed_page}"
-                   DEPENDS "${page}"
+add_custom_command(OUTPUT "${page}" "${packed_page}"
+                   COMMAND "${python}" "${web_dir}/assemble.py" "${web_dir}" "${page}" "${packed_page}"
+                   DEPENDS ${web_parts}
                    VERBATIM)
 add_custom_target(packed_page DEPENDS "${packed_page}")
 target_add_binary_data(${COMPONENT_LIB} "${packed_page}" BINARY DEPENDS packed_page)

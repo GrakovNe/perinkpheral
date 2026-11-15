@@ -28,6 +28,8 @@
 #include "display.h"
 #include "log_capture.h"
 #include "net_time.h"
+#include "app_system.h"
+#include "host_api.h"
 #include "events.h"
 #include "gfx_icons.h"
 #include "host.h"
@@ -54,7 +56,7 @@ static const char *TAG = "web";
 #define HOST_HEADER_MAX       64
 #define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
-#define OWN_ROUTES            11
+#define OWN_ROUTES            12
 
 /* The page, packed with gzip when the firmware was built. */
 extern const char index_html_start[] asm("_binary_index_html_gz_start");
@@ -499,6 +501,47 @@ static esp_err_t handle_time(httpd_req_t *request)
     return change_settings_as_asked(request, edit_time_zone, false, NULL);
 }
 
+/* The clock set by hand, as Settings on the device sets it: in the host loop. The
+ * network's time sets it again while "time_auto" is on. */
+typedef struct {
+    int64_t unix_seconds;
+    bool    is_set;
+} clock_command_t;
+
+static void set_clock(void *argument)
+{
+    clock_command_t *command = argument;
+    command->is_set = app_system_time_set(command->unix_seconds) == HOST_OK;
+}
+
+/* After 2020 and before 2100: a clock set by hand is in the years a person means. */
+#define CLOCK_LEAST_S 1577836800LL
+#define CLOCK_MOST_S  4102444800LL
+
+static esp_err_t handle_clock(httpd_req_t *request)
+{
+    char body[SETTINGS_BODY_MAX];
+    if (!read_body(request, body, sizeof body)) {
+        return send_error(request, "Invalid request.");
+    }
+    json_t *json = json_parse(body);
+    const json_t *unix_seconds = json_get(json, "unix");
+    clock_command_t command = { 0 };
+    bool is_valid = json_is_number(unix_seconds) && unix_seconds->is_whole &&
+                    unix_seconds->number >= CLOCK_LEAST_S && unix_seconds->number < CLOCK_MOST_S;
+    if (is_valid) {
+        command.unix_seconds = unix_seconds->number;
+    }
+    json_free(json);
+    if (!is_valid) {
+        return send_error(request, "Invalid value.");
+    }
+    if (!events_call(set_clock, &command)) {
+        return send_failure(request, STATUS_BUSY, "Device busy.");
+    }
+    return command.is_set ? send_ok(request, "Saved.") : send_error(request, "Invalid value.");
+}
+
 /* ---- the host's own settings ---- */
 
 static esp_err_t handle_settings(httpd_req_t *request)
@@ -790,6 +833,7 @@ void web_server_start(void)
         { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
         { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
         { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+        { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
         { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
         { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
         { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },

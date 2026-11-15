@@ -1,0 +1,177 @@
+/* SPDX-License-Identifier: MIT
+ * The device's page in the device's own black and paper: square boxes, one face, nothing
+ * that moves but what says work is under way. */
+:root { --ink: #141413; --paper: #e9e7e1; --dim: #6b6862; --line: #c9c6be; accent-color: var(--ink); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink);
+       font: 16px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+.shell { display: grid; grid-template-columns: 13rem minmax(0, 1fr); min-height: 100vh; }
+nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; display: flex;
+      flex-direction: column; position: sticky; top: 0; height: 100vh; }
+nav h1 { font-size: 1.15rem; letter-spacing: .08em; margin: 0 1.25rem 1.5rem; }
+nav a { display: block; padding: .5rem 1.25rem; color: var(--ink); text-decoration: none; }
+nav a.current { background: var(--ink); color: var(--paper); }
+nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; overflow-wrap: anywhere; }
+
+main { padding: 1.5rem 2rem 4rem; min-width: 0; }
+section { display: none; }
+section.current { display: block; }
+h2 { font-size: 1.4rem; margin: 0; }
+h3 { font-size: 1rem; border-bottom: 1px solid var(--ink); padding-bottom: .25rem; margin: 2rem 0 .75rem; }
+.head { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.dim, .count { color: var(--dim); }
+.note { color: var(--dim); margin: .5rem 0 0; }
+.rows { display: grid; gap: .5rem; margin-top: .75rem; }
+.rows div { display: flex; gap: .5rem; }
+.rows button { margin: 0; min-width: 2.6rem; padding: 0 .85rem; }
+/* Tiles take all the room there is; text and forms keep a line a person can read. */
+.narrow { max-width: 56rem; }
+
+/* ---- what happened, in the corner ---- */
+.toasts { position: fixed; top: 1rem; right: 1rem; z-index: 10; display: grid; gap: .5rem;
+          width: min(22rem, calc(100vw - 2rem)); }
+.toast { padding: .7rem 1rem; color: var(--ink); background: var(--paper); border: 1px solid var(--ink);
+         box-shadow: 4px 4px 0 var(--ink); cursor: pointer; animation: drop .15s ease-out; }
+.toast.error { color: var(--paper); background: var(--ink); box-shadow: 4px 4px 0 var(--dim); }
+.toast.busy::after { content: ""; animation: dots 1.2s steps(1) infinite; }
+@keyframes drop { from { opacity: 0; transform: translateY(-.5rem); } }
+
+/* ---- facts: a name and its value a line ---- */
+dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .15rem 1rem; margin: 0; }
+dt { color: var(--dim); }
+dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.facts { gap: .4rem 1.25rem; margin: .75rem 0; }
+.facts dd { text-align: left; }
+
+/* ---- forms ---- */
+label { display: block; margin: .75rem 0 .2rem; color: var(--dim); }
+input, select, textarea { width: 100%; padding: .5rem; font: inherit; color: var(--ink); background: transparent;
+                          border: 1px solid var(--ink); border-radius: 0; }
+input, select, button { height: 2.6rem; }
+textarea { resize: vertical; }
+/* The ring the browser draws in its own blue is drawn in ink: inside a field, around a button. */
+:focus { outline: none; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+button:focus-visible, a:focus-visible, label.file:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* A list's arrow is the page's own: a chevron of two strokes. */
+select { appearance: none; padding-right: 2.2rem; cursor: pointer;
+         background: no-repeat right .75rem center / .7rem .45rem
+         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23141413' stroke-width='2'/%3E%3C/svg%3E"); }
+/* A number is typed, not stepped with the browser's arrows. */
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input:disabled { color: var(--dim); border-color: var(--line); }
+/* A box with a square of ink in it, the way the panel would draw one. */
+label.check { display: flex; align-items: center; gap: .7rem; margin: .9rem 0; color: var(--ink);
+              cursor: pointer; user-select: none; }
+input[type=checkbox] { appearance: none; flex: none; display: grid; place-content: center;
+                       width: 1.4rem; height: 1.4rem; margin: 0; padding: 0; cursor: pointer; }
+input[type=checkbox]::before { content: ""; width: .7rem; height: .7rem; background: var(--ink); transform: scale(0); }
+input[type=checkbox]:checked::before { transform: scale(1); }
+input[type=checkbox]:focus-visible { outline-offset: 2px; }
+/* A file is chosen with a button of the page's own; what was chosen is named beside it. */
+label.file { display: flex; align-items: center; gap: .75rem; margin: 0; color: var(--ink); cursor: pointer; }
+label.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+label.file .button { display: inline-flex; align-items: center; height: 2.6rem; padding: 0 1rem;
+                     border: 1px solid var(--ink); white-space: nowrap; }
+label.file .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.place { position: relative; }
+.place ul { position: absolute; z-index: 1; left: 0; right: 0; top: 100%; margin: -1px 0 0; padding: 0;
+            list-style: none; background: var(--paper); border: 1px solid var(--ink); }
+.place ul:empty { display: none; }
+.place li { padding: .5rem; cursor: pointer; }
+.place li:hover, .place li.current { background: var(--ink); color: var(--paper); }
+/* What is hidden stays hidden whatever its own display is. */
+[hidden] { display: none !important; }
+
+/* ---- buttons ---- */
+button { margin-top: 1rem; padding: 0 1rem; font: inherit; cursor: pointer; color: var(--paper);
+         background: var(--ink); border: 1px solid var(--ink); border-radius: 0; display: inline-flex;
+         align-items: center; justify-content: center; white-space: nowrap; }
+button.busy::after { content: ""; width: 1.9em; text-align: left; animation: dots 1.2s steps(1) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+button.done::before { content: ""; width: .35em; height: .7em; margin: 0 .6em .2em 0;
+                      border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+button.quiet { color: var(--ink); background: transparent; }
+button:disabled { opacity: .45; cursor: default; }
+button.busy, button.done { opacity: 1; }
+button.icon { margin: 0; padding: .3rem; height: auto; line-height: 0; color: var(--ink);
+              background: transparent; border-color: transparent; }
+button.icon:hover { border-color: var(--ink); }
+/* A row of buttons is one line: whatever stands in it, a button or a box to tick. */
+.buttons { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
+.buttons > button, .buttons > label.check { margin: 0; }
+svg.pixels { display: block; fill: currentColor; shape-rendering: crispEdges; }
+
+/* ---- applications ---- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 1rem; }
+.tile { border: 1px solid var(--ink); padding: 1rem; display: flex; flex-direction: column; position: relative;
+        min-height: 13rem; min-width: 0; }
+button.tile.add { margin: 0; height: auto; font-size: 2.5rem; color: var(--ink); background: transparent; }
+button.tile.add:disabled { border-color: var(--line); color: var(--line); opacity: 1; }
+.tile .action + .action { margin-top: .5rem; }
+.tile .picture { margin-bottom: .75rem; }
+.tile b { display: block; overflow-wrap: anywhere; }
+.tile small { color: var(--dim); }
+.tile .mark { align-self: flex-start; margin-top: .4rem; padding: 0 .4rem; font-size: .8rem;
+              color: var(--paper); background: var(--ink); }
+.tile .spring { flex: 1; }
+.tile button.action { width: 100%; }
+.tile .tools { position: absolute; top: .5rem; right: .5rem; display: flex; gap: .25rem; }
+.picture { flex: none; }
+.picture.none { border: 1px solid var(--line); }
+.offers { display: grid; margin: .5rem 0; max-height: 60vh; overflow: auto; }
+.offer { display: flex; align-items: center; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+.offer > div:not(.picture) { flex: 1; min-width: 0; }
+.offer b, .offer small { display: block; }
+.offer small { color: var(--dim); }
+.offer button { margin: 0; }
+
+/* ---- settings: tabs over forms ---- */
+.tabs { display: flex; border-bottom: 1px solid var(--ink); margin-bottom: 1rem; overflow-x: auto;
+        scrollbar-width: none; }
+.tabs button { margin: 0; flex: none; min-width: 6.5rem; color: var(--ink); background: transparent;
+               border: 1px solid transparent; border-bottom: none; }
+.tabs button.current { color: var(--paper); background: var(--ink); }
+.pane { display: none; max-width: 36rem; }
+.pane.current { display: block; }
+
+/* ---- the device ---- */
+pre { margin: 0; padding: .75rem; border: 1px solid var(--line); max-height: 22rem; overflow: auto;
+      font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+pre:empty::before { content: "Empty."; color: var(--dim); }
+.screen { display: grid; gap: .5rem; max-width: 30rem; }
+.screen img { display: block; width: 100%; aspect-ratio: 4 / 3; image-rendering: pixelated;
+              border: 1px solid var(--ink); background: var(--paper); }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+.keys button { margin: 0; padding: 0; }
+.keys button.held { background: var(--paper); color: var(--ink); }
+
+/* ---- dialogs ---- */
+dialog { width: min(32rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 1.5rem; color: var(--ink);
+         background: var(--paper); border: 1px solid var(--ink); border-radius: 0; }
+dialog::backdrop { background: rgba(20, 20, 19, .55); }
+dialog h2 { font-size: 1.15rem; margin-bottom: .5rem; }
+dialog p { margin: 0 0 .5rem; }
+dialog .buttons { justify-content: flex-end; margin-top: .5rem; }
+ul.plain { list-style: none; padding: 0; margin: 0; }
+ul.plain li { padding: .35rem 0; border-bottom: 1px solid var(--line); }
+ul.plain small { color: var(--dim); display: block; }
+a { color: var(--ink); }
+
+/* ---- a phone: the menu on top, one column, nothing wider than the screen ---- */
+@media (max-width: 44rem) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  nav { border-right: none; border-bottom: 1px solid var(--ink); padding: .75rem 0 0; flex-direction: row;
+        flex-wrap: wrap; align-items: center; position: static; height: auto; }
+  nav h1 { margin: 0 1rem .5rem; width: 100%; }
+  nav a { padding: .5rem 1rem; }
+  nav p { display: none; }
+  main { padding: 1.25rem 1rem 3rem; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .75rem; }
+  .tile { padding: .75rem; min-height: 11rem; }
+  .tabs button { min-width: 0; padding: 0 .9rem; }
+  dd { text-align: left; }
+  dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  dt { margin-top: .4rem; }
+}

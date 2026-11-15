@@ -1,0 +1,234 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT
+     The device's page: its markup. assemble.py puts style.css and the scripts of js/ into it,
+     in the order it names them, and packs the one page the device serves. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>perINKpheral</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 15' shape-rendering='crispEdges'%3E%3Crect width='15' height='15' fill='%23E9E7E1'/%3E%3Cpath fill='%23141413' d='M6 3h6v4h-1V4H6zM3 8h1v3h5v1H3z'/%3E%3C/svg%3E">
+<!-- style: style.css -->
+</head>
+<body>
+<div class="shell">
+<nav>
+  <h1>perINKpheraL</h1>
+  <a href="#apps">Apps</a>
+  <a href="#device">Device</a>
+  <a href="#settings">Settings</a>
+  <a href="#about">About</a>
+  <p><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
+</nav>
+<main>
+
+<section id="apps">
+  <div class="head">
+    <span class="count" id="app-count"></span>
+    <button class="icon" id="open-sources" title="Sources"></button>
+  </div>
+  <div class="tiles" id="tiles"><p class="note">Loading</p></div>
+</section>
+
+<section id="device">
+  <div class="narrow">
+    <dl id="status"><dt>Loading</dt><dd></dd></dl>
+
+    <div id="screen-block" hidden>
+      <h3>Screen</h3>
+      <div class="screen">
+        <img id="screen" alt="The device's screen">
+        <div class="keys" id="keys">
+          <button class="quiet" data-key="1" title="Hold: long press">Up</button>
+          <button class="quiet" data-key="2" title="Hold: long press">OK</button>
+          <button class="quiet" data-key="3" title="Hold: long press">Down</button>
+          <button class="quiet" data-key="4" title="Hold: long press">Back</button>
+        </div>
+      </div>
+    </div>
+
+    <h3>Firmware</h3>
+    <form id="firmware">
+      <label class="file"><input id="image" type="file" accept=".bin" required>
+        <span class="button">Choose file</span><span class="name" id="image-name">No file chosen</span></label>
+      <div class="buttons">
+        <button>Install</button>
+        <button type="button" class="quiet" id="check-release">Check for updates</button>
+      </div>
+    </form>
+
+    <h3>Log</h3>
+    <pre id="log"></pre>
+    <div class="buttons">
+      <button class="quiet" id="load-log">Refresh</button>
+      <label class="check"><input id="follow-log" type="checkbox">Follow</label>
+    </div>
+
+    <h3>Reset</h3>
+    <div class="buttons">
+      <button class="quiet" id="restart">Restart</button>
+      <button class="quiet" id="reset">Factory reset</button>
+    </div>
+  </div>
+</section>
+
+<section id="settings">
+  <div class="tabs narrow" id="tabs">
+    <button data-pane="general">General</button>
+    <button data-pane="time">Time</button>
+    <button data-pane="display">Display</button>
+    <button data-pane="network">Network</button>
+    <button data-pane="language">Language</button>
+  </div>
+
+  <form class="pane" id="general">
+    <label for="device_name">Device name</label>
+    <input id="device_name" maxlength="32" autocomplete="off" required>
+    <label for="hostname">Hostname</label>
+    <input id="hostname" disabled>
+    <label for="default_app">Default app</label>
+    <select id="default_app"></select>
+    <label for="menu_idle_min">Idle timeout</label>
+    <select id="menu_idle_min">
+      <option value="1">1 min</option>
+      <option value="5">5 min</option>
+      <option value="15">15 min</option>
+      <option value="30">30 min</option>
+      <option value="60">1 h</option>
+    </select>
+    <button>Save</button>
+  </form>
+
+  <div class="pane" id="time">
+    <form id="time-zone">
+      <label for="tz">Time zone (POSIX)</label>
+      <div class="rows"><div>
+        <input id="tz" maxlength="47" autocomplete="off" required>
+        <button type="button" class="quiet" id="tz-detect">Detect</button>
+      </div></div>
+      <label class="check"><input id="time_auto" type="checkbox">Set time automatically</label>
+      <label for="ntp_server">NTP server</label>
+      <input id="ntp_server" maxlength="64" autocomplete="off" required>
+      <button>Save</button>
+    </form>
+    <form id="clock" hidden>
+      <h3>Date and time</h3>
+      <input id="clock-value" type="datetime-local" step="60" required>
+      <div class="buttons">
+        <button>Set</button>
+        <button type="button" class="quiet" id="clock-now">Now</button>
+      </div>
+    </form>
+  </div>
+
+  <form class="pane" id="display">
+    <label for="refresh_full_every">Full refresh</label>
+    <select id="refresh_full_every">
+      <option value="0">Every update</option>
+      <option value="2">Every 2 updates</option>
+      <option value="5">Every 5 updates</option>
+      <option value="10">Every 10 updates</option>
+      <option value="20">Every 20 updates</option>
+      <option value="50">Every 50 updates</option>
+      <option value="255">Never</option>
+    </select>
+    <label for="font">Font</label>
+    <select id="font">
+      <option value="0">Departure Mono</option>
+      <option value="1">Jersey</option>
+    </select>
+    <label for="refresh_min_data_s">Minimum update interval, s</label>
+    <input id="refresh_min_data_s" type="number" min="10" max="3600" required>
+    <label for="refresh_keepalive_h">Keep-alive refresh, h</label>
+    <input id="refresh_keepalive_h" type="number" min="1" max="168" required>
+    <label class="check"><input id="refresh_fast" type="checkbox">Fast refresh</label>
+    <label class="check"><input id="header_clock" type="checkbox">Clock in header</label>
+    <label class="check"><input id="dither" type="checkbox">Dithering</label>
+    <label for="power_saving">Power saving</label>
+    <select id="power_saving">
+      <option value="1">Always</option>
+      <option value="2">Auto</option>
+      <option value="0">Disabled</option>
+    </select>
+    <button>Save</button>
+  </form>
+
+  <div class="pane" id="network">
+    <dl id="network-now"></dl>
+    <form id="wifi">
+      <h3>Change network</h3>
+      <label for="ssid">SSID</label>
+      <input id="ssid" maxlength="32" autocomplete="off" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" maxlength="64" autocomplete="off">
+      <button>Connect</button>
+    </form>
+  </div>
+
+  <div class="pane" id="language">
+    <form id="language-form">
+      <label for="language-choice">Language</label>
+      <select id="language-choice"></select>
+      <button>Save</button>
+    </form>
+    <h3>Glyph packs</h3>
+    <div class="offers" id="glyph-rows"></div>
+  </div>
+</section>
+
+<!-- include: about.html -->
+
+</main>
+</div>
+
+<dialog id="sources-dialog">
+  <form id="sources">
+    <h2>Sources</h2>
+    <div class="rows" id="source-rows"></div>
+    <div class="buttons">
+      <button>Save</button>
+      <button type="button" class="quiet" id="refresh-catalogs">Update</button>
+      <button type="button" class="quiet" data-close>Close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="store-dialog">
+  <h2>Add app</h2>
+  <div class="offers" id="store-rows"></div>
+  <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
+</dialog>
+
+<dialog id="confirm-dialog">
+  <form method="dialog">
+    <p id="confirm-text"></p>
+    <div class="buttons">
+      <button value="yes" id="confirm-yes"></button>
+      <button value="no" class="quiet">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="info-dialog">
+  <h2 id="info-dialog-title"></h2>
+  <dl class="facts" id="info-facts"></dl>
+  <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
+</dialog>
+
+<dialog id="app-dialog">
+  <form id="app-settings">
+    <h2 id="app-dialog-title"></h2>
+    <div id="app-fields"></div>
+    <div class="buttons">
+      <button>Save</button>
+      <button type="button" class="quiet" id="app-companion" hidden>Set up</button>
+      <button type="button" class="quiet" data-close>Close</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts"></div>
+
+<!-- script: js/core.js js/apps.js js/device.js js/settings.js js/main.js -->
+</body>
+</html>
