@@ -30,7 +30,6 @@ static const char *TAG = "devtools";
 
 #define FRAME_BYTES       (DISPLAY_WIDTH / 8 * DISPLAY_HEIGHT)
 #define HOST_ANSWER_MS    6000 /* the host may be in the middle of a full panel refresh */
-#define QUERY_MAX         96
 #define QUERY_VALUE_MAX   24
 #define UPLOAD_CHUNK      2048
 #define NUMBER_TEXT_MAX   12
@@ -68,23 +67,9 @@ static void open_app(void *argument)
 
 /* ---- the routes ---- */
 
-static esp_err_t send_text(httpd_req_t *http, const char *status, const char *text)
-{
-    httpd_resp_set_status(http, status);
-    httpd_resp_set_type(http, "text/plain; charset=utf-8");
-    return httpd_resp_sendstr(http, text);
-}
-
 static esp_err_t refuse(httpd_req_t *http, const char *why)
 {
-    return send_text(http, "400 Bad Request", why);
-}
-
-static bool query_value(httpd_req_t *http, const char *key, char *value, size_t value_size)
-{
-    char query[QUERY_MAX];
-    return httpd_req_get_url_query_str(http, query, sizeof query) == ESP_OK &&
-           httpd_query_key_value(query, key, value, value_size) == ESP_OK;
+    return web_send_text(http, "400 Bad Request", why);
 }
 
 /* A 1-bit BMP: two colours, rows from the bottom up, each padded to four
@@ -139,11 +124,11 @@ static esp_err_t handle_screen(httpd_req_t *http)
 {
     screen_look_t look = { .frame = malloc(FRAME_BYTES) };
     if (look.frame == NULL) {
-        return send_text(http, "503 Service Unavailable", "no memory");
+        return web_send_text(http, "503 Service Unavailable", "no memory");
     }
     if (!events_call(look_at_screen, &look)) {
         free(look.frame);
-        return send_text(http, "503 Service Unavailable", "the host did not answer");
+        return web_send_text(http, "503 Service Unavailable", "the host did not answer");
     }
     char frames_shown[NUMBER_TEXT_MAX];
     snprintf(frames_shown, sizeof frames_shown, "%u", (unsigned)look.frames_shown);
@@ -174,10 +159,10 @@ static esp_err_t handle_button(httpd_req_t *http)
         [EVENT_PRESS_LONG] = "long",
     };
     char button_text[QUERY_VALUE_MAX], press_text[QUERY_VALUE_MAX] = "short";
-    if (!query_value(http, "button", button_text, sizeof button_text)) {
+    if (!web_query_value(http, "button", button_text, sizeof button_text)) {
         return refuse(http, "button=1..4 is missing");
     }
-    query_value(http, "press", press_text, sizeof press_text);
+    web_query_value(http, "press", press_text, sizeof press_text);
     int button = atoi(button_text);
     int press = -1;
     for (int i = 0; i < (int)(sizeof PRESSES / sizeof PRESSES[0]); i++) {
@@ -189,21 +174,21 @@ static esp_err_t handle_button(httpd_req_t *http)
         return refuse(http, "button is 1..4, press is short, long, down or up");
     }
     events_post_button((uint8_t)(button - 1), (event_press_t)press);
-    return send_text(http, "200 OK", "pressed");
+    return web_send_text(http, "200 OK", "pressed");
 }
 
 static esp_err_t handle_open(httpd_req_t *http)
 {
     char app_name[APP_NAME_MAX + 1];
-    if (!query_value(http, "app", app_name, sizeof app_name)) {
+    if (!web_query_value(http, "app", app_name, sizeof app_name)) {
         return refuse(http, "app=<name> is missing");
     }
     open_command_t command = { .app_name = app_name };
     if (!events_call(open_app, &command)) {
-        return send_text(http, "503 Service Unavailable", "Device busy.");
+        return web_send_text(http, "503 Service Unavailable", "Device busy.");
     }
-    return command.is_opened ? send_text(http, "200 OK", "opened")
-                : send_text(http, "404 Not Found", "no such application is installed");
+    return command.is_opened ? web_send_text(http, "200 OK", "opened")
+                : web_send_text(http, "404 Not Found", "no such application is installed");
 }
 
 /* The body goes to the file a chunk at a time; false when the client went
@@ -213,7 +198,7 @@ static bool receive_into(httpd_req_t *http, FILE *file)
     static char chunk[UPLOAD_CHUNK]; /* one handler runs at a time */
     size_t left = http->content_len;
     while (left > 0) {
-        int count = httpd_req_recv(http, chunk, left < sizeof chunk ? left : sizeof chunk);
+        int count = web_receive(http, chunk, left < sizeof chunk ? left : sizeof chunk);
         if (count <= 0 || fwrite(chunk, 1, (size_t)count, file) != (size_t)count) {
             return false;
         }
@@ -225,8 +210,8 @@ static bool receive_into(httpd_req_t *http, FILE *file)
 static esp_err_t handle_app_file(httpd_req_t *http)
 {
     char name[QUERY_VALUE_MAX], file_name[QUERY_VALUE_MAX];
-    if (!query_value(http, "name", name, sizeof name) ||
-        !query_value(http, "file", file_name, sizeof file_name)) {
+    if (!web_query_value(http, "name", name, sizeof name) ||
+        !web_query_value(http, "file", file_name, sizeof file_name)) {
         return refuse(http, "name=<application>&file=<its file>");
     }
     const char *file = file_name;
@@ -245,10 +230,10 @@ static esp_err_t handle_app_file(httpd_req_t *http)
     bool stored = incoming != NULL && fclose(incoming) == 0 && received;
     if (!stored || !app_store_commit_file(STORAGE_APPS_ROOT, name, file)) {
         remove(path);
-        return send_text(http, "500 Internal Server Error", "the file could not be stored");
+        return web_send_text(http, "500 Internal Server Error", "the file could not be stored");
     }
     ESP_LOGI(TAG, "%s of \"%s\" replaced, %u bytes", file_name, name, (unsigned)http->content_len);
-    return send_text(http, "200 OK", "stored");
+    return web_send_text(http, "200 OK", "stored");
 }
 
 /* A firmware image, as /api/ota takes it, with nobody asked at the device:
@@ -265,12 +250,12 @@ static esp_err_t handle_flash(httpd_req_t *http)
 static esp_err_t handle_run(httpd_req_t *http)
 {
     char name[QUERY_VALUE_MAX];
-    if (!query_value(http, "app", name, sizeof name) || !app_manifest_is_valid_name(name)) {
+    if (!web_query_value(http, "app", name, sizeof name) || !app_manifest_is_valid_name(name)) {
         return refuse(http, "app=<name> is missing or is not an application's name");
     }
     settings_save_last_app(name);
     ESP_LOGW(TAG, "restarting into \"%s\"", name);
-    esp_err_t err = send_text(http, "200 OK", "restarting");
+    esp_err_t err = web_send_text(http, "200 OK", "restarting");
     host_stop_soon(HOST_STOP_RESTART);
     return err;
 }
@@ -303,7 +288,7 @@ static esp_err_t handle_kv(httpd_req_t *http)
 {
     char app[QUERY_VALUE_MAX], key[QUERY_VALUE_MAX];
     static char value[HOST_KV_VALUE_MAX]; /* one handler runs at a time */
-    if (!query_value(http, "app", app, sizeof app) || !query_value(http, "key", key, sizeof key) ||
+    if (!web_query_value(http, "app", app, sizeof app) || !web_query_value(http, "key", key, sizeof key) ||
         !app_manifest_is_valid_name(app) || key[0] == '\0' || strlen(key) > HOST_KV_KEY_MAX) {
         return refuse(http, "app=<name>&key=<key>, the value as the body");
     }
@@ -312,7 +297,7 @@ static esp_err_t handle_kv(httpd_req_t *http)
     }
     size_t received = 0;
     while (received < http->content_len) {
-        int count = httpd_req_recv(http, value + received, http->content_len - received);
+        int count = web_receive(http, value + received, http->content_len - received);
         if (count <= 0) {
             return refuse(http, "the value did not arrive");
         }
@@ -320,10 +305,10 @@ static esp_err_t handle_kv(httpd_req_t *http)
     }
     kv_command_t command = { app, key, value, (int32_t)received, HOST_ERR_ARGUMENT };
     if (!events_call(store_value, &command)) {
-        return send_text(http, "503 Service Unavailable", "Device busy.");
+        return web_send_text(http, "503 Service Unavailable", "Device busy.");
     }
-    return command.result == HOST_OK ? send_text(http, "200 OK", "stored")
-                             : send_text(http, "500 Internal Server Error", "not stored");
+    return command.result == HOST_OK ? web_send_text(http, "200 OK", "stored")
+                             : web_send_text(http, "500 Internal Server Error", "not stored");
 }
 
 /* POST /api/dev/crash?kind=wdt|abort: a deliberate fault, for testing what
@@ -331,10 +316,8 @@ static esp_err_t handle_kv(httpd_req_t *http)
  * interrupt watchdog fires. */
 static esp_err_t handle_crash(httpd_req_t *http)
 {
-    char query[QUERY_MAX], kind[QUERY_VALUE_MAX] = "";
-    if (httpd_req_get_url_query_str(http, query, sizeof query) == ESP_OK) {
-        httpd_query_key_value(query, "kind", kind, sizeof kind);
-    }
+    char kind[QUERY_VALUE_MAX] = "";
+    web_query_value(http, "kind", kind, sizeof kind);
     if (strcmp(kind, "wdt") == 0) {
         static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
         portENTER_CRITICAL(&lock);
@@ -350,24 +333,20 @@ static esp_err_t handle_crash(httpd_req_t *http)
 static esp_err_t handle_restart(httpd_req_t *http)
 {
     ESP_LOGW(TAG, "restart asked for");
-    esp_err_t err = send_text(http, "200 OK", "restarting");
+    esp_err_t err = web_send_text(http, "200 OK", "restarting");
     host_stop_soon(HOST_STOP_RESTART);
     return err;
 }
 
-void devtools_register(httpd_handle_t server)
-{
-    static const web_route_t ROUTES[DEVTOOLS_ROUTES] = {
-        { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/open", HTTP_POST, handle_open, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/app", HTTP_POST, handle_app_file, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/run", HTTP_POST, handle_run, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/flash", HTTP_POST, handle_flash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    };
-    web_server_register(server, ROUTES, DEVTOOLS_ROUTES);
-    ESP_LOGW(TAG, "development tools are on at /api/dev");
-}
+const web_route_t DEVTOOLS_ROUTES[] = {
+    { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/open", HTTP_POST, handle_open, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/app", HTTP_POST, handle_app_file, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/run", HTTP_POST, handle_run, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/flash", HTTP_POST, handle_flash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+};
+const size_t DEVTOOLS_ROUTE_COUNT = WEB_ROUTE_COUNT(DEVTOOLS_ROUTES);

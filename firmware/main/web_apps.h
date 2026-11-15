@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "esp_http_server.h"
+#include "web_util.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,9 +33,8 @@ extern "C" {
  *                                   sizes and SHA-256, the manifest read, and put
  *                                   in place by the host loop
  */
-void web_apps_register(httpd_handle_t server);
-
-#define WEB_APPS_ROUTES 11
+extern const web_route_t WEB_APPS_ROUTES[];
+extern const size_t      WEB_APPS_ROUTE_COUNT;
 
 #ifdef __cplusplus
 }

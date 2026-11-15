@@ -34,34 +34,11 @@
 
 static const char *TAG = "web_apps";
 
-#define QUERY_MAX       64
 #define APP_NAME_BUFFER (APP_NAME_MAX + 1)
 #define BODY_MAX        2048
 #define SHA256_BYTES    32
 /* 500 applications of a few hundred bytes each. */
 #define CATALOG_INDEX_MAX_BYTES (512 * 1024)
-
-static esp_err_t send_json(httpd_req_t *request, const char *status, json_t *json)
-{
-    char *text = json_print(json);
-    json_free(json);
-    if (text == NULL) {
-        return httpd_resp_send_500(request);
-    }
-    httpd_resp_set_status(request, status);
-    httpd_resp_set_type(request, "application/json");
-    esp_err_t err = httpd_resp_sendstr(request, text);
-    free(text);
-    return err;
-}
-
-static esp_err_t send_message(httpd_req_t *request, const char *status, const char *field,
-                              const char *message)
-{
-    json_t *json = json_new_object();
-    json_add_string(json, field, message);
-    return send_json(request, status, json);
-}
 
 /* The application the request names, if it is installed. */
 /* The installed applications as this task last read them: the list is the
@@ -86,10 +63,7 @@ static bool is_installed(const char *app_name)
 
 static bool asked_app(httpd_req_t *request, char name[APP_NAME_BUFFER])
 {
-    char query[QUERY_MAX];
-    return httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK &&
-           httpd_query_key_value(query, "app", name, APP_NAME_BUFFER) == ESP_OK &&
-           is_installed(name);
+    return web_query_value(request, "app", name, APP_NAME_BUFFER) && is_installed(name);
 }
 
 /* A setting as text: what is in the store under its key, or empty. */
@@ -264,28 +238,7 @@ static esp_err_t handle_list(httpd_req_t *request)
         add_settings(app, installed[i].name);
         json_array_add(apps, app);
     }
-    return send_json(request, "200 OK", apps);
-}
-
-static char *read_body(httpd_req_t *request)
-{
-    if (request->content_len == 0 || request->content_len > BODY_MAX) {
-        return NULL;
-    }
-    char *body = malloc(request->content_len + 1);
-    size_t received = 0;
-    while (body != NULL && received < request->content_len) {
-        int count = httpd_req_recv(request, body + received, request->content_len - received);
-        if (count <= 0) {
-            free(body);
-            return NULL;
-        }
-        received += (size_t)count;
-    }
-    if (body != NULL) {
-        body[received] = '\0';
-    }
-    return body;
+    return web_send_json(request, "200 OK", apps);
 }
 
 /* A form is checked as a whole before any of it is stored: one value
@@ -391,18 +344,18 @@ static esp_err_t handle_settings(httpd_req_t *request)
 {
     char app_name[APP_NAME_BUFFER];
     if (!asked_app(request, app_name)) {
-        return send_message(request, "404 Not Found", "error", "App not found.");
+        return web_send_message(request, "404 Not Found", "error", "App not found.");
     }
-    char  *body = read_body(request);
+    char  *body = web_read_body_alloc(request, BODY_MAX);
     json_t *wanted = body != NULL ? json_parse(body) : NULL;
     free(body);
     app_settings_command_t command = { .app_name = app_name, .wanted = wanted };
     bool is_asked = events_call(change_app_settings, &command);
     json_free(wanted);
     if (!is_asked) {
-        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
-    return send_message(request, command.status,
+    return web_send_message(request, command.status,
                         strcmp(command.status, "200 OK") == 0 ? "ok" : "error", command.message);
 }
 
@@ -418,7 +371,7 @@ static esp_err_t handle_removed(httpd_req_t *request)
     for (int i = 0; i < count; i++) {
         json_array_add(list, json_new_string(names[i]));
     }
-    return send_json(request, "200 OK", list);
+    return web_send_json(request, "200 OK", list);
 }
 
 /* ---- glyph packs: letters beyond ASCII ---- */
@@ -437,7 +390,7 @@ static esp_err_t handle_glyphs(httpd_req_t *request)
     json_t *json = json_new_object();
     json_add_item(json, "packs", list);
     json_add_number(json, "free", (int64_t)glyphs_free_bytes());
-    return send_json(request, "200 OK", json);
+    return web_send_json(request, "200 OK", json);
 }
 
 typedef struct {
@@ -460,7 +413,7 @@ static void change_glyphs(void *argument)
 static esp_err_t handle_glyphs_install(httpd_req_t *request)
 {
     if (request->content_len < 1 || request->content_len > GLYPHS_PACK_MAX_BYTES) {
-        return send_message(request, "400 Bad Request", "error", "Invalid pack.");
+        return web_send_message(request, "400 Bad Request", "error", "Invalid pack.");
     }
     uint8_t *pack = malloc(request->content_len);
     if (pack == NULL) {
@@ -480,24 +433,22 @@ static esp_err_t handle_glyphs_install(httpd_req_t *request)
     bool             is_asked = events_call(change_glyphs, &command);
     free(pack);
     if (!is_asked) {
-        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
-    return command.is_done ? send_message(request, "200 OK", "ok", "Installed.")
-                           : send_message(request, "400 Bad Request", "error", "Invalid pack.");
+    return command.is_done ? web_send_message(request, "200 OK", "ok", "Installed.")
+                           : web_send_message(request, "400 Bad Request", "error", "Invalid pack.");
 }
 
 static esp_err_t handle_glyphs_remove(httpd_req_t *request)
 {
-    char name[GFX_PACK_NAME_MAX + 1] = "", query[QUERY_MAX];
-    if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
-        httpd_query_key_value(query, "name", name, sizeof name);
-    }
+    char name[GFX_PACK_NAME_MAX + 1] = "";
+    web_query_value(request, "name", name, sizeof name);
     glyphs_command_t command = { .name = name };
     if (!events_call(change_glyphs, &command)) {
-        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
-    return command.is_done ? send_message(request, "200 OK", "ok", "Removed.")
-                           : send_message(request, "404 Not Found", "error", "Not installed.");
+    return command.is_done ? web_send_message(request, "200 OK", "ok", "Removed.")
+                           : web_send_message(request, "404 Not Found", "error", "Not installed.");
 }
 
 /* ---- where applications come from ---- */
@@ -517,12 +468,12 @@ static esp_err_t handle_sources(httpd_req_t *request)
     free(sources);
     json_t *json = json_new_object();
     json_add_item(json, "sources", list);
-    return send_json(request, "200 OK", json);
+    return web_send_json(request, "200 OK", json);
 }
 
 static esp_err_t handle_set_sources(httpd_req_t *request)
 {
-    char  *body = read_body(request);
+    char  *body = web_read_body_alloc(request, BODY_MAX);
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
     const json_t *list = json_get(json, "sources");
@@ -544,15 +495,15 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
     }
     esp_err_t result;
     if (fits && catalog_source_count(sources) > CATALOG_ADDED_SOURCES_MAX) {
-        result = send_message(request, "400 Bad Request", "error", "Too many sources.");
+        result = web_send_message(request, "400 Bad Request", "error", "Too many sources.");
     } else if (!fits || !catalog_sources_are_valid(sources)) {
-        result = send_message(request, "400 Bad Request", "error",
+        result = web_send_message(request, "400 Bad Request", "error",
                               "Invalid source URL.");
     } else if (settings_save_sources(sources) != ESP_OK) {
-        result = send_message(request, "500 Internal Server Error", "error",
+        result = web_send_message(request, "500 Internal Server Error", "error",
                               "Storage error.");
     } else {
-        result = send_message(request, "200 OK", "ok", "Saved.");
+        result = web_send_message(request, "200 OK", "ok", "Saved.");
     }
     json_free(json);
     free(sources);
@@ -562,9 +513,8 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
 /* The source the request names by its number, as an address. */
 static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MAX + 1])
 {
-    char query[QUERY_MAX], number[INT32_TEXT_BYTES];
-    if (httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
-        httpd_query_key_value(query, "source", number, sizeof number) != ESP_OK) {
+    char number[INT32_TEXT_BYTES];
+    if (!web_query_value(request, "source", number, sizeof number)) {
         return false;
     }
     char *sources = malloc(CATALOG_SOURCES_TEXT_MAX);
@@ -599,7 +549,7 @@ static esp_err_t handle_catalog(httpd_req_t *request)
     char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
     if (!asked_source(request, source) ||
         !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
-        return send_message(request, "404 Not Found", "error", "Source not found.");
+        return web_send_message(request, "404 Not Found", "error", "Source not found.");
     }
     passing_t passing = { request, false };
     int       http_status;
@@ -609,7 +559,7 @@ static esp_err_t handle_catalog(httpd_req_t *request)
         char message[WEB_MESSAGE_MAX];
         snprintf(message, sizeof message, "Source unavailable (HTTP %d).",
                  http_status);
-        return send_message(request, "502 Bad Gateway", "error", message);
+        return web_send_message(request, "502 Bad Gateway", "error", message);
     }
     /* Cut short after the beginning went out: closing the connection
      * without the last chunk is how the page learns of it. */
@@ -784,26 +734,24 @@ static bool is_sound_file_list(const json_t *files)
 
 static esp_err_t handle_install(httpd_req_t *request)
 {
-    char query[QUERY_MAX], app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];
-    if (!asked_source(request, source) ||
-        httpd_req_get_url_query_str(request, query, sizeof query) != ESP_OK ||
-        httpd_query_key_value(query, "app", app_name, sizeof app_name) != ESP_OK ||
+    char app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];
+    if (!asked_source(request, source) || !web_query_value(request, "app", app_name, sizeof app_name) ||
         !app_manifest_is_valid_name(app_name)) {
-        return send_message(request, "400 Bad Request", "error", "Invalid request.");
+        return web_send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
     bool was_installed = is_installed(app_name);
     int  count = read_installed();
     if (!was_installed && count >= CATALOG_INSTALLED_MAX) {
-        return send_message(request, "409 Conflict", "error",
+        return web_send_message(request, "409 Conflict", "error",
                             "No free slots.");
     }
-    char  *body = read_body(request);
+    char  *body = web_read_body_alloc(request, BODY_MAX);
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
     const json_t *files = json_get(json, "files");
     if (!is_sound_file_list(files)) {
         json_free(json);
-        return send_message(request, "400 Bad Request", "error",
+        return web_send_message(request, "400 Bad Request", "error",
                             "Invalid request.");
     }
     const char  *problem = NULL;
@@ -854,10 +802,10 @@ static esp_err_t handle_install(httpd_req_t *request)
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
                              : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden"
                                                                       : "502 Bad Gateway";
-        return send_message(request, status, "error", problem);
+        return web_send_message(request, status, "error", problem);
     }
     ESP_LOGI(TAG, "\"%s\" installed", app_name);
-    return send_message(request, "200 OK", "ok", "Installed.");
+    return web_send_message(request, "200 OK", "ok", "Installed.");
 }
 
 /* What the application stored - its settings among it - stays unless the
@@ -865,38 +813,33 @@ static esp_err_t handle_install(httpd_req_t *request)
  * go, and one that comes back should not have to be set up again. */
 static esp_err_t handle_remove(httpd_req_t *request)
 {
-    char app_name[APP_NAME_BUFFER], query[QUERY_MAX], forget[INT32_TEXT_BYTES] = "";
+    char app_name[APP_NAME_BUFFER], forget[INT32_TEXT_BYTES] = "";
     if (!asked_app(request, app_name)) {
-        return send_message(request, "404 Not Found", "error", "App not found.");
+        return web_send_message(request, "404 Not Found", "error", "App not found.");
     }
-    if (httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK) {
-        httpd_query_key_value(query, "forget", forget, sizeof forget);
-    }
+    web_query_value(request, "forget", forget, sizeof forget);
     remove_command_t command = { .app_name = app_name, .forgets = strcmp(forget, "1") == 0 };
     if (!events_call(remove_command, &command)) {
-        return send_message(request, "503 Service Unavailable", "error", "Device busy.");
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
     if (!command.is_done) {
-        return send_message(request, "500 Internal Server Error", "error", "Storage error.");
+        return web_send_message(request, "500 Internal Server Error", "error", "Storage error.");
     }
     ESP_LOGI(TAG, "\"%s\" removed", app_name);
-    return send_message(request, "200 OK", "ok", "Removed.");
+    return web_send_message(request, "200 OK", "ok", "Removed.");
 }
 
-void web_apps_register(httpd_handle_t server)
-{
-    static const web_route_t ROUTES[WEB_APPS_ROUTES] = {
-        { "/api/apps", HTTP_GET, handle_list, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-        { "/api/apps/settings", HTTP_POST, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/apps/removed", HTTP_GET, handle_removed, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/glyphs", HTTP_GET, handle_glyphs, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/glyphs", HTTP_POST, handle_glyphs_install, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-        { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
-        { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
-        { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    };
-    web_server_register(server, ROUTES, WEB_APPS_ROUTES);
-}
+const web_route_t WEB_APPS_ROUTES[] = {
+    { "/api/apps", HTTP_GET, handle_list, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+    { "/api/apps/settings", HTTP_POST, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/apps/removed", HTTP_GET, handle_removed, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/glyphs", HTTP_GET, handle_glyphs, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/glyphs", HTTP_POST, handle_glyphs_install, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+    { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
+    { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
+    { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+};
+const size_t WEB_APPS_ROUTE_COUNT = WEB_ROUTE_COUNT(WEB_APPS_ROUTES);

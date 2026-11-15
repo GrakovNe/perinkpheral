@@ -51,11 +51,9 @@ static const char *TAG = "web";
 #define VALIDATION_TEXT_MAX   128
 /* How long a sender may say nothing in the middle of a request. */
 #define RECEIVE_TIMEOUT_S     10
-#define QUIET_PERIODS_MAX     3
 #define HOST_HEADER_MAX       64
 #define ORIGIN_HEADER_MAX     (HOST_HEADER_MAX + 8) /* with "https://" in front */
 #define LOCAL_TIME_MAX        24
-#define OWN_ROUTES            12
 
 /* The page, packed with gzip when the firmware was built. */
 extern const char index_html_start[] asm("_binary_index_html_gz_start");
@@ -112,20 +110,6 @@ static bool refuses_cross_site(httpd_req_t *request)
     return true;
 }
 
-static esp_err_t send_json(httpd_req_t *request, const char *http_status, json_t *json)
-{
-    char *text = json_print(json);
-    json_free(json);
-    if (text == NULL) {
-        return httpd_resp_send_500(request);
-    }
-    httpd_resp_set_status(request, http_status);
-    httpd_resp_set_type(request, "application/json");
-    esp_err_t err = httpd_resp_sendstr(request, text);
-    free(text);
-    return err;
-}
-
 /* The page reads the message; the status says whose fault it was: the
  * request's, the device's being busy, or its storage's. */
 #define STATUS_BAD_REQUEST "400 Bad Request"
@@ -134,9 +118,7 @@ static esp_err_t send_json(httpd_req_t *request, const char *http_status, json_t
 
 static esp_err_t send_failure(httpd_req_t *request, const char *http_status, const char *message)
 {
-    json_t *json = json_new_object();
-    json_add_string(json, "error", message);
-    return send_json(request, http_status, json);
+    return web_send_message(request, http_status, "error", message);
 }
 
 static esp_err_t send_error(httpd_req_t *request, const char *message);
@@ -181,9 +163,7 @@ static esp_err_t send_error(httpd_req_t *request, const char *message)
 
 static esp_err_t send_ok(httpd_req_t *request, const char *message)
 {
-    json_t *json = json_new_object();
-    json_add_string(json, "ok", message);
-    return send_json(request, "200 OK", json);
+    return web_send_message(request, "200 OK", "ok", message);
 }
 
 static esp_err_t handle_page(httpd_req_t *request)
@@ -262,22 +242,7 @@ static esp_err_t handle_status(httpd_req_t *request)
     memory_read(&memory);
     json_add_number(json, "memory_refusals", memory.refusals);
     json_add_number(json, "failed_allocations", memory.failed_allocations);
-    return send_json(request, "200 OK", json);
-}
-
-/* The next bytes of the request body; 0 or less when the client is gone
- * or has stopped sending. One handler runs at a time, so a client that
- * goes quiet must not be waited for without end: it would hold the server
- * and, in an upload, the firmware slot. */
-static int receive(httpd_req_t *request, char *buffer, size_t length)
-{
-    for (int quiet_periods = 0; quiet_periods < QUIET_PERIODS_MAX; quiet_periods++) {
-        int count = httpd_req_recv(request, buffer, length);
-        if (count != HTTPD_SOCK_ERR_TIMEOUT) {
-            return count;
-        }
-    }
-    return 0;
+    return web_send_json(request, "200 OK", json);
 }
 
 static httpd_handle_t s_server;
@@ -320,7 +285,7 @@ static esp_err_t answer_route(httpd_req_t *request)
     return route->handler(request);
 }
 
-void web_server_register(httpd_handle_t server, const web_route_t *routes, size_t count)
+static void register_routes(httpd_handle_t server, const web_route_t *routes, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
         const httpd_uri_t uri = { .uri = routes[i].uri, .method = routes[i].method,
@@ -357,25 +322,6 @@ static esp_err_t handle_log(httpd_req_t *request)
     esp_err_t err = httpd_resp_send(request, log + skipped, (ssize_t)(length - skipped));
     free(log);
     return err;
-}
-
-/* The whole body as a terminated string; false when it is missing, too
- * long or the client went away. */
-static bool read_body(httpd_req_t *request, char *body, size_t body_size)
-{
-    if (request->content_len == 0 || request->content_len >= body_size) {
-        return false;
-    }
-    size_t received = 0;
-    while (received < request->content_len) {
-        int count = receive(request, body + received, request->content_len - received);
-        if (count <= 0) {
-            return false;
-        }
-        received += (size_t)count;
-    }
-    body[received] = '\0';
-    return true;
 }
 
 /* False when the field is there and is not a string that fits. A missing
@@ -431,7 +377,7 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
                                           bool restarts, const confirmation_t *confirmation)
 {
     char body[SETTINGS_BODY_MAX];
-    if (!read_body(request, body, sizeof body)) {
+    if (!web_read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
     }
     json_t *json = json_parse(body);
@@ -520,7 +466,7 @@ static void set_clock(void *argument)
 static esp_err_t handle_clock(httpd_req_t *request)
 {
     char body[SETTINGS_BODY_MAX];
-    if (!read_body(request, body, sizeof body)) {
+    if (!web_read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
     }
     json_t *json = json_parse(body);
@@ -583,7 +529,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
         json_add_item(json, "languages", languages);
     }
     json_add_number(json, "menu_idle_min", settings.menu_idle_min);
-    return send_json(request, "200 OK", json);
+    return web_send_json(request, "200 OK", json);
 }
 
 
@@ -690,7 +636,7 @@ static bool take_release_piece(void *context, const uint8_t *piece, size_t lengt
 static esp_err_t handle_ota_release(httpd_req_t *request)
 {
     char body[SETTINGS_BODY_MAX];
-    if (!read_body(request, body, sizeof body)) {
+    if (!web_read_body(request, body, sizeof body)) {
         return send_error(request, "Invalid request.");
     }
     json_t *json = json_parse(body);
@@ -762,7 +708,7 @@ esp_err_t web_server_take_firmware(httpd_req_t *request)
     }
     size_t remaining = request->content_len;
     while (error == NULL && remaining > 0) {
-        int count = receive(request, (char *)chunk,
+        int count = web_receive(request, (char *)chunk,
                             remaining < UPLOAD_CHUNK_BYTES ? remaining : UPLOAD_CHUNK_BYTES);
         if (count <= 0) {
             /* The sender is gone: there is nobody to answer. */
@@ -816,6 +762,22 @@ static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
     return httpd_resp_send(request, NULL, 0);
 }
 
+/* The page, the device and its settings. */
+static const web_route_t ROUTES[] = {
+    { "/", HTTP_GET, handle_page, WEB_NO_MEMORY_NEED, WEB_OPEN },
+    { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
+    { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/settings", HTTP_GET, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+};
+
 void web_server_start(void)
 {
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
@@ -823,7 +785,10 @@ void web_server_start(void)
     /* Installing an application hashes files and reads a manifest on this task. */
     server_config.stack_size = STACK_WEB_SERVER;
     server_config.task_priority = PRIORITY_SERVER;
-    server_config.max_uri_handlers = OWN_ROUTES + WEB_APPS_ROUTES + DEVTOOLS_ROUTES;
+    server_config.max_uri_handlers = WEB_ROUTE_COUNT(ROUTES) + WEB_APPS_ROUTE_COUNT;
+#ifdef CONFIG_APP_DEV_CONSOLE
+    server_config.max_uri_handlers += DEVTOOLS_ROUTE_COUNT;
+#endif
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &server_config);
     if (err != ESP_OK) {
@@ -832,24 +797,11 @@ void web_server_start(void)
     }
     s_server = server;
     memory_on_pressure(close_connections);
-    static const web_route_t ROUTES[OWN_ROUTES] = {
-        { "/", HTTP_GET, handle_page, WEB_NO_MEMORY_NEED, WEB_OPEN },
-        { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-        { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/settings", HTTP_GET, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-        { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    };
-    web_server_register(server, ROUTES, OWN_ROUTES);
-    web_apps_register(server);
+    register_routes(server, ROUTES, WEB_ROUTE_COUNT(ROUTES));
+    register_routes(server, WEB_APPS_ROUTES, WEB_APPS_ROUTE_COUNT);
 #ifdef CONFIG_APP_DEV_CONSOLE
-    devtools_register(server);
+    register_routes(server, DEVTOOLS_ROUTES, DEVTOOLS_ROUTE_COUNT);
+    ESP_LOGW(TAG, "development tools are on at /api/dev");
 #endif
     ESP_ERROR_CHECK(httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, handle_not_found));
     s_is_up = true;

@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-#include "esp_http_server.h"
+#include "web_util.h"
 
 
 #ifdef __cplusplus
@@ -32,10 +32,8 @@ extern "C" {
  *   POST /api/dev/restart                   restart, to read the list of applications anew
  *
  * Like the rest of the device's API these ask for nothing. */
-void devtools_register(httpd_handle_t server);
-
-/* How many routes devtools_register() adds. */
-#define DEVTOOLS_ROUTES 9
+extern const web_route_t DEVTOOLS_ROUTES[];
+extern const size_t      DEVTOOLS_ROUTE_COUNT;
 
 #ifdef __cplusplus
 }
