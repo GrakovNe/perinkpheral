@@ -186,8 +186,10 @@ static void cancel_due(due_kind_t kind, int number)
 
 static void deliver(const app_delivery_t *delivery)
 {
+    bool is_more_of_an_answer = delivery->kind == APP_DELIVERY_PIECE &&
+                                (delivery->flags & (HOST_DATA_FIRST | HOST_DATA_FAILED)) == 0;
     if (s_app_scene != NULL && (s_wm.current != s_app_scene || s_wm.suspended) &&
-        !delivery->only_on_screen) {
+        !delivery->only_on_screen && !is_more_of_an_answer) {
         say('I', "sim", "%s is off the screen: loaded for this, and unloaded after it", s_options.app);
     }
     if (s_app_scene != NULL) {
@@ -295,31 +297,26 @@ static int32_t kv_set(const char *app_name, const char *key, const void *value, 
     return fclose(file) == 0 && is_written ? HOST_OK : HOST_ERR_FAILED;
 }
 
-/* A setting as the host puts it into an address: what is stored, else the
- * manifest's default. */
+/* A setting as the host puts it into an address: what is stored, and
+ * nothing else - a manifest's default is what the page shows, as on the
+ * device. With a context, the item of a list a poll with "each" stands for. */
+typedef struct {
+    const char *key;
+    const char *item;
+} list_item_t;
+
 static bool setting_of(void *context, const char *key, char *value, size_t value_size)
 {
-    (void)context;
+    const list_item_t *each = context;
+    if (each != NULL && strcmp(key, each->key) == 0) {
+        return snprintf(value, value_size, "%s", each->item) < (int)value_size;
+    }
     int32_t length = kv_get(s_options.app, key, value, (int32_t)value_size - 1);
     if (length > 0) {
         value[length] = '\0';
         return true;
     }
-    json_t *root = json_parse(s_manifest_json);
-    const json_t *setting;
-    bool found = false;
-    json_for_each(setting, json_get(root, "settings"))
-    {
-        const json_t *named = json_get(setting, "key");
-        const json_t *preset = json_get(setting, "default");
-        if (json_is_string(named) && strcmp(named->text, key) == 0 && json_is_string(preset) &&
-            strlen(preset->text) < value_size) {
-            strcpy(value, preset->text);
-            found = true;
-        }
-    }
-    json_free(root);
-    return found;
+    return false;
 }
 
 /* ---- the network: the computer's, on a thread, answers replaced by mocks ---- */
@@ -336,6 +333,7 @@ typedef struct job {
     size_t      body_length;
     char        pick[JSON_PICK_PATHS_MAX][JSON_PICK_PATH_MAX + 1];
     int         pick_count;
+    int         item; /* of the list a poll with "each" goes over; -1: none */
     /* the answer */
     int             status; /* HTTP, or a HOST_FAILED_* */
     uint8_t        *answer;
@@ -344,6 +342,7 @@ typedef struct job {
 } job_t;
 
 static pthread_mutex_t s_jobs_lock = PTHREAD_MUTEX_INITIALIZER;
+static int             s_requests_waiting; /* of the application's own: HOST_HTTP_PENDING_MAX */
 static pthread_cond_t  s_jobs_waiting = PTHREAD_COND_INITIALIZER;
 static job_t          *s_jobs_asked;
 static int             s_jobs_done[2]; /* a pipe: the thread writes a finished job's pointer */
@@ -629,33 +628,46 @@ static void free_job(job_t *job)
 static void hand_over(job_t *job)
 {
     const char *kind = job->is_poll ? "poll" : "request";
+    char        item[16] = "";
+    if (job->item >= 0) {
+        snprintf(item, sizeof item, ", item %d", job->item);
+    }
+    if (!job->is_poll) {
+        s_requests_waiting--;
+    }
     if (job->status < 0) {
-        say('W', "sim", "%s/%s %d: failed (%d)", s_options.app, kind, job->number, job->status);
+        say('W', "sim", "%s/%s %d%s: failed (%d)", s_options.app, kind, job->number, item,
+            job->status);
         app_delivery_t failed = {
             .kind = job->wants_values ? APP_DELIVERY_VALUES : APP_DELIVERY_PIECE,
             .request = job->number, .http_status = job->status, .flags = HOST_DATA_FAILED,
+            .has_item = job->item >= 0, .item = job->item,
         };
         deliver(&failed);
         return;
     }
-    say('I', "sim", "%s/%s %d: HTTP %d, %zu bytes", s_options.app, kind, job->number, job->status,
-        job->answer_length);
+    say('I', "sim", "%s/%s %d%s: HTTP %d, %zu bytes", s_options.app, kind, job->number, item,
+        job->status, job->answer_length);
     if (job->wants_values) {
         const char *paths[JSON_PICK_PATHS_MAX];
         for (int i = 0; i < job->pick_count; i++) {
             paths[i] = job->pick[i];
         }
         static json_pick_t pick;
+        static char        list[HOST_LIST_BYTES];
         json_pick_init(&pick, paths, job->pick_count);
-        json_pick_feed(&pick, (const char *)job->answer, job->answer_length);
+        json_pick_lists(&pick, list, sizeof list);
+        bool is_json = json_pick_feed(&pick, (const char *)job->answer, job->answer_length);
         json_pick_finish(&pick);
-        const char *values[JSON_PICK_PATHS_MAX];
-        for (int i = 0; i < job->pick_count; i++) {
-            values[i] = json_pick_value(&pick, i);
+        if (json_pick_is_cut(&pick)) {
+            say('W', "sim", "%s/%s %d: list elements beyond %d bytes were dropped", s_options.app,
+                kind, job->number, HOST_LIST_BYTES);
         }
         app_delivery_t delivery = {
-            .kind = APP_DELIVERY_VALUES, .request = job->number, .http_status = job->status,
-            .response = &job->response, .values = values, .value_count = job->pick_count,
+            .kind = APP_DELIVERY_VALUES, .request = job->number,
+            .http_status = is_json ? job->status : HOST_FAILED_NO_ANSWER,
+            .response = &job->response, .picked = &pick,
+            .has_item = job->item >= 0, .item = job->item,
         };
         deliver(&delivery);
         return;
@@ -671,6 +683,7 @@ static void hand_over(job_t *job)
         app_delivery_t delivery = {
             .kind = APP_DELIVERY_PIECE, .request = job->number, .http_status = job->status,
             .response = &job->response, .data = job->answer + at, .length = piece, .flags = flags,
+            .has_item = job->item >= 0, .item = job->item,
         };
         deliver(&delivery);
         at += piece;
@@ -688,25 +701,26 @@ static void add_header(char **headers, const char *name, const char *value)
     }
 }
 
-static void start_poll(int number)
+/* One request of a poll: for item `item` of the list it goes over, or -1. */
+static void start_poll_request(const app_poll_t *poll, int number, const list_item_t *each,
+                               int item)
 {
-    app_poll_t poll;
-    if (app_manifest_parse_poll(s_manifest_json, number, &poll) != APP_MANIFEST_OK) {
-        return;
-    }
     job_t *job = calloc(1, sizeof *job);
     job->is_poll = true;
     job->number = number;
+    job->item = item;
     job->method = HOST_HTTP_GET;
-    job->wants_values = poll.pick_count > 0;
-    job->pick_count = poll.pick_count;
-    memcpy(job->pick, poll.pick, sizeof poll.pick);
-    bool is_ready = text_template_fill_url(poll.url, setting_of, NULL, job->url, sizeof job->url);
-    for (int i = 0; is_ready && i < poll.header_count; i++) {
+    job->wants_values = poll->pick_count > 0;
+    job->pick_count = poll->pick_count;
+    memcpy(job->pick, poll->pick, sizeof poll->pick);
+    bool is_ready = text_template_fill_url(poll->url, setting_of, (void *)each, job->url,
+                                           sizeof job->url);
+    for (int i = 0; is_ready && i < poll->header_count; i++) {
         char value[APP_HEADER_VALUE_MAX + 1];
-        is_ready = text_template_fill(poll.headers[i].value, setting_of, NULL, value, sizeof value) &&
+        is_ready = text_template_fill(poll->headers[i].value, setting_of, (void *)each, value,
+                                      sizeof value) &&
                    strpbrk(value, "\r\n") == NULL;
-        add_header(&job->headers, poll.headers[i].name, value);
+        add_header(&job->headers, poll->headers[i].name, value);
     }
     if (!is_ready) {
         job->status = HOST_FAILED_NOT_READY;
@@ -715,6 +729,30 @@ static void start_poll(int number)
         return;
     }
     ask(job);
+}
+
+/* A poll: one request, or one for every item of the list it goes over. */
+static void start_poll(int number)
+{
+    static app_poll_t poll;
+    if (app_manifest_parse_poll(s_manifest_json, number, &poll) != APP_MANIFEST_OK) {
+        return;
+    }
+    char list[APP_SETTING_VALUE_MAX + 1];
+    if (poll.each_key[0] == '\0' || !setting_of(NULL, poll.each_key, list, sizeof list)) {
+        start_poll_request(&poll, number, NULL, -1);
+        return;
+    }
+    char *at = list;
+    for (int item = 0; at != NULL && item < APP_LIST_ITEMS_MAX; item++) {
+        char *end = strchr(at, '\n');
+        if (end != NULL) {
+            *end = '\0';
+        }
+        list_item_t each = { .key = poll.each_key, .item = at };
+        start_poll_request(&poll, number, &each, item);
+        at = end != NULL ? end + 1 : NULL;
+    }
 }
 
 /* ---- the services the application's host calls ---- */
@@ -736,7 +774,9 @@ static uint32_t services_boot_id(void) { return s_boot_id; }
 static void services_log(int level, const char *text, int length)
 {
     static const char LEVELS[] = "EWID";
-    say(level >= 0 && level < 4 ? LEVELS[level] : 'I', s_options.app, "%.*s", length, text);
+    /* HOST_LOG_ERROR is 1. */
+    say(level >= HOST_LOG_ERROR && level <= HOST_LOG_DEBUG ? LEVELS[level - HOST_LOG_ERROR] : 'I',
+        s_options.app, "%.*s", length, text);
 }
 
 static void services_timer(int id, int32_t milliseconds)
@@ -773,6 +813,9 @@ static bool services_poll_interval(const char *app_name, int poll, uint32_t ever
 
 static int32_t services_request(const char *app_name, const app_request_t *request)
 {
+    if (s_requests_waiting >= HOST_HTTP_PENDING_MAX) {
+        return HOST_ERR_NO_SPACE;
+    }
     char url[APP_URL_MAX + 1];
     if (!text_template_fill_url(request->url, setting_of, NULL, url, sizeof url) ||
         !app_manifest_allows_url(s_manifest_json, url, setting_of, NULL)) {
@@ -781,6 +824,7 @@ static int32_t services_request(const char *app_name, const app_request_t *reque
     }
     job_t *job = calloc(1, sizeof *job);
     job->number = request->tag;
+    job->item = -1;
     job->method = request->method;
     snprintf(job->url, sizeof job->url, "%s", url);
     for (int i = 0; i < request->header_count; i++) {
@@ -794,6 +838,7 @@ static int32_t services_request(const char *app_name, const app_request_t *reque
         memcpy(job->body, request->body, (size_t)request->body_length);
         job->body_length = (size_t)request->body_length;
     }
+    s_requests_waiting++;
     ask(job);
     return HOST_OK;
 }
@@ -1029,6 +1074,46 @@ static void intent(int kind)
     deliver(&delivery);
 }
 
+/* An application that has not run here before, or ran as another version,
+ * is told so, as the device tells it: what ran last is kept in the state. */
+static void tell_new_version(void)
+{
+    /* What the device calls the version: its module and its manifest. */
+    uint32_t id = 2166136261u;
+    char     path[PATH_BYTES];
+    snprintf(path, sizeof path, "%s/%s/app.wasm", s_options.apps, s_options.app);
+    FILE *file = fopen(path, "rb");
+    for (int byte; file != NULL && (byte = fgetc(file)) != EOF;) {
+        id = (id ^ (uint8_t)byte) * 16777619u;
+    }
+    if (file != NULL) {
+        fclose(file);
+    }
+    for (const char *at = s_manifest_json; *at != '\0'; at++) {
+        id = (id ^ (uint8_t)*at) * 16777619u;
+    }
+    snprintf(path, sizeof path, "%s/seen", s_options.state);
+    uint32_t seen = 0;
+    file = fopen(path, "rb");
+    if (file != NULL) {
+        if (fread(&seen, sizeof seen, 1, file) != 1) {
+            seen = 0;
+        }
+        fclose(file);
+    }
+    if (seen == id) {
+        return;
+    }
+    file = fopen(path, "wb");
+    if (file != NULL) {
+        fwrite(&id, sizeof id, 1, file);
+        fclose(file);
+    }
+    say('I', "sim", "%s: %s", s_options.app, seen != 0 ? "updated" : "installed");
+    app_delivery_t delivery = { .kind = seen != 0 ? APP_DELIVERY_UPDATED : APP_DELIVERY_INSTALLED };
+    deliver(&delivery);
+}
+
 static bool load_app(void)
 {
     if (s_app_scene != NULL) {
@@ -1080,6 +1165,7 @@ static bool load_app(void)
     set_due(DUE_MINUTE, 0, (SECONDS_PER_MINUTE - unix_now() % SECONDS_PER_MINUTE) * MS_PER_SECOND);
     say('I', "sim", "%s %s loaded", s_manifest.name, s_manifest.version);
     /* As after a restart of the device: news for whoever asked, then the screen. */
+    tell_new_version();
     intent(HOST_INTENT_STARTED);
     wm_open_from_home(&s_wm, s_app_scene);
     return true;
@@ -1334,8 +1420,16 @@ static void handle(int socket_fd, const request_t *request)
                    : strcmp(name, "time_changed") == 0  ? HOST_INTENT_TIME_CHANGED
                    : strcmp(name, "network_up") == 0    ? HOST_INTENT_NETWORK_UP
                                                         : 0;
+        bool is_installed = strcmp(name, "installed") == 0, is_updated = strcmp(name, "updated") == 0;
+        if (is_installed || is_updated) {
+            app_delivery_t delivery = { .kind = is_installed ? APP_DELIVERY_INSTALLED
+                                                             : APP_DELIVERY_UPDATED };
+            deliver(&delivery);
+            answer_text(socket_fd, 200, "told");
+            return;
+        }
         if (kind == 0) {
-            answer_text(socket_fd, 400, "kind=started|time_changed|network_up");
+            answer_text(socket_fd, 400, "kind=started|time_changed|network_up|installed|updated");
             return;
         }
         intent(kind);

@@ -59,13 +59,15 @@ static void note_network_use(bool worked)
     s_host->network_worked(worked);
 }
 
+/* The item of a list a poll with "each" goes over: -1 for any other. */
+static int s_item = -1;
+
 static void hand_over_values(const char *app_name, int request, int http_status,
-                             const host_response_t *response, const char *const *values,
-                             int count)
+                             const host_response_t *response, json_pick_t *picked)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = request,
                                 .http_status = http_status, .response = response,
-                                .values = values, .value_count = count };
+                                .picked = picked, .has_item = s_item >= 0, .item = s_item };
     hand_over(app_name, &delivery);
 }
 
@@ -75,7 +77,8 @@ static void hand_over_piece(const char *app_name, int request, int http_status,
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = request,
                                 .http_status = http_status, .response = response,
-                                .data = data, .length = length, .flags = flags };
+                                .data = data, .length = length, .flags = flags,
+                                .has_item = s_item >= 0, .item = s_item };
     hand_over(app_name, &delivery);
 }
 
@@ -99,11 +102,25 @@ typedef struct {
     char       header_value[APP_HEADER_VALUE_MAX + 1];
     host_response_t response; /* what the headers of the answer said */
     const char *paths[JSON_PICK_PATHS_MAX];
-    const char *values[JSON_PICK_PATHS_MAX];
     json_pick_t pick;
     uint8_t     piece[HOST_DATA_CHUNK_MAX];
     uint8_t     next_piece[HOST_DATA_CHUNK_MAX];
+    /* Whose settings fill the templates, and the item of the list a poll
+     * with "each" stands for. */
+    const char *app_name;
+    char        item[APP_LIST_ITEM_MAX + 1];
 } request_t;
+
+/* A setting for a request's templates: the item, for the key of the list
+ * the poll goes over; the stored value for any other. */
+static bool request_value_of(void *context, const char *key, char *value, size_t value_size)
+{
+    const request_t *request = context;
+    if (request->poll.each_key[0] != '\0' && strcmp(key, request->poll.each_key) == 0) {
+        return strlcpy(value, request->item, value_size) < value_size;
+    }
+    return poller_net_setting_of((void *)request->app_name, key, value, value_size);
+}
 
 /* Reads poll number `poll_number` of the manifest into the request. */
 static bool load_poll(request_t *request, const char *app_name, int poll_number)
@@ -170,7 +187,8 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
 static bool prepare(request_t *request, const char *app_name, int method,
                     esp_http_client_handle_t *client)
 {
-    if (!text_template_fill_url(request->poll.url, poller_net_setting_of, (void *)app_name, request->url,
+    request->app_name = app_name;
+    if (!text_template_fill_url(request->poll.url, request_value_of, request, request->url,
                                 sizeof request->url)) {
         return false;
     }
@@ -190,7 +208,7 @@ static bool prepare(request_t *request, const char *app_name, int method,
     }
     for (int i = 0; i < request->poll.header_count; i++) {
         const app_header_t *header = &request->poll.headers[i];
-        if (!text_template_fill(header->value, poller_net_setting_of, (void *)app_name,
+        if (!text_template_fill(header->value, request_value_of, request,
                                 request->header_value, sizeof request->header_value)) {
             esp_http_client_cleanup(*client);
             *client = NULL;
@@ -231,6 +249,14 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
         request->paths[i] = request->poll.pick[i];
     }
     json_pick_init(&request->pick, request->paths, path_count);
+    /* Room for the elements of list paths, only when there are some. */
+    char *list = NULL;
+    for (int i = 0; i < path_count && list == NULL; i++) {
+        if (json_pick_is_list(&request->pick, i)) {
+            list = malloc(HOST_LIST_BYTES);
+        }
+    }
+    json_pick_lists(&request->pick, list, HOST_LIST_BYTES);
     size_t total = 0;
     int    length;
     bool   is_whole = true;
@@ -249,11 +275,12 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
          * an answer, and half of one must not pass for a whole one. */
         http_status = total > ANSWER_MAX_BYTES ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER;
     }
-    for (int i = 0; i < path_count; i++) {
-        request->values[i] = json_pick_value(&request->pick, i);
+    if (json_pick_is_cut(&request->pick)) {
+        ESP_LOGW(TAG, "%s/%d: list elements beyond %d bytes were dropped", app_name, poll_number,
+                 HOST_LIST_BYTES);
     }
-    hand_over_values(app_name, poll_number, http_status, &request->response, request->values,
-                     path_count);
+    hand_over_values(app_name, poll_number, http_status, &request->response, &request->pick);
+    free(list);
 }
 
 /* The answer as it comes. A piece is handed over once the next one is in
@@ -296,7 +323,8 @@ static void tell_failure_to(const char *app_name, int poll_number, bool wants_va
                             bool only_on_screen)
 {
     app_delivery_t delivery = { .request = poll_number, .http_status = why,
-                                .only_on_screen = only_on_screen };
+                                .only_on_screen = only_on_screen, .has_item = s_item >= 0,
+                                .item = s_item };
     if (wants_values) {
         delivery.kind = APP_DELIVERY_VALUES;
     } else {
@@ -509,17 +537,53 @@ void poller_net_poll_not_made(const char *app_name, int poll_number, int why)
     free(request);
 }
 
-void poller_net_poll(const char *app_name, int poll_number)
+/* Item number `item` of a list setting, and how many there are. */
+static int list_item(const char *app_name, const char *key, int item, char *text, size_t size)
+{
+    char list[APP_SETTING_VALUE_MAX + 1];
+    text[0] = '\0';
+    if (!poller_net_setting_of((void *)app_name, key, list, sizeof list) || list[0] == '\0') {
+        return 0;
+    }
+    int count = 0;
+    for (char *at = list;; count++) {
+        char *end = strchr(at, '\n');
+        if (end != NULL) {
+            *end = '\0';
+        }
+        if (count == item) {
+            strlcpy(text, at, size);
+        }
+        if (end == NULL) {
+            return count + 1;
+        }
+        at = end + 1;
+    }
+}
+
+int poller_net_poll(const char *app_name, int poll_number, int item)
 {
     request_t *request = calloc(1, sizeof *request);
     if (request == NULL) {
         ESP_LOGW(TAG, "%s/%d: no memory for the request", app_name, poll_number);
-        return;
+        return 0;
     }
+    int items = 0;
     if (load_poll(request, app_name, poll_number)) {
+        if (request->poll.each_key[0] != '\0') {
+            items = list_item(app_name, request->poll.each_key, item, request->item,
+                              sizeof request->item);
+        }
+        /* An empty list leaves the key without a value: "not ready". */
+        s_item = items > 0 ? item : -1;
+        if (items == 0 && request->poll.each_key[0] != '\0') {
+            request->poll.each_key[0] = '\0';
+        }
         perform(request, app_name, poll_number, HOST_HTTP_GET, NULL, 0, false);
+        s_item = -1;
     }
     free(request);
+    return items;
 }
 
 void poller_net_request(const char *app_name, const poller_ask_t *ask)

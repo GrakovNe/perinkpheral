@@ -160,11 +160,25 @@ static void start_on(scene_t *first)
     app_delivery_init(&state);
 }
 
+/* What a poll's "pick" took out of an answer: a number, a text, and a path
+ * the answer does not have. */
+static json_pick_t *picked_values(void)
+{
+    static const char *const PATHS[] = { "t", "w", "none", "l[*]" };
+    static const char        ANSWER[] = "{\"t\":-3.46,\"w\":\"Rain\",\"l\":[\"a\",\"b\"]}";
+    static json_pick_t       picked;
+    static char              list[64];
+    json_pick_init(&picked, PATHS, 4);
+    json_pick_lists(&picked, list, sizeof list);
+    json_pick_feed(&picked, ANSWER, sizeof ANSWER - 1);
+    json_pick_finish(&picked);
+    return &picked;
+}
+
 static void deliver_values(int64_t now_ms)
 {
-    static const char *const PICKED[] = { "-3.46", "Rain", NULL };
     app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = 3, .http_status = 200,
-                                .values = PICKED, .value_count = 3 };
+                                .picked = picked_values() };
     app_deliver(&state, &wm, probe, &delivery, now_ms);
 }
 

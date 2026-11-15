@@ -27,6 +27,18 @@ extern "C" {
  * as written. Strings are returned without quotes, with escapes resolved,
  * as UTF-8, cut between characters if too long. A path that points to an
  * object, to an array or to nothing has no value.
+ *
+ * A list path has one "[*]" in place of an index: every element of that
+ * array, in order.
+ *
+ *     chart.result[0].indicators.quote[0].close[*]     items[*].title
+ *
+ * The elements are kept in a buffer the caller gives with
+ * json_pick_lists(), each as its text and a terminator plus one byte;
+ * elements that do not fit are dropped. An element without the rest of the
+ * path ("items[*].title" in an item that has no title) is skipped, so two
+ * lists of one array have the same order but may differ in length. A
+ * value goes to the first path that names it.
  * No dependencies; covered by host tests. */
 
 #define JSON_PICK_PATHS_MAX 16
@@ -34,6 +46,7 @@ extern "C" {
 #define JSON_PICK_VALUE_MAX 63 /* longer values are cut */
 #define JSON_PICK_DEPTH_MAX 8  /* deeper levels are not extracted */
 #define JSON_PICK_KEY_MAX   31 /* longer keys never match */
+#define JSON_PICK_ANY       "[*]" /* in a path: every element of the array */
 
 typedef struct {
     bool is_array;
@@ -65,6 +78,19 @@ typedef struct {
     int      target;         /* path index of the value being read, or -1 */
     size_t   length;         /* length of the key or value collected so far */
     bool     broken;
+
+    /* List paths: their elements, one after another, each the path's index
+     * in a byte and the text with its terminator. */
+    char    *list;
+    size_t   list_size;
+    size_t   list_used;
+    bool     list_is_cut; /* an element did not fit and was dropped */
+    uint16_t counts[JSON_PICK_PATHS_MAX];
+    /* Where the last element asked for was found: the next one is read on
+     * from there. */
+    int      read_path;
+    int      read_element;
+    size_t   read_at;
 } json_pick_t;
 
 /* Initializes the extractor. `paths` must remain valid while it is used.
@@ -80,8 +106,27 @@ bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);
 void json_pick_finish(json_pick_t *pick);
 
 /* Returns the value of path number `index`, or NULL if the document had
- * none. */
+ * none. NULL for a list path: see json_pick_element(). */
 const char *json_pick_value(const json_pick_t *pick, int index);
+
+/* Gives the buffer for the elements of list paths; before the first
+ * json_pick_feed(). Without one, list paths have no elements. */
+void json_pick_lists(json_pick_t *pick, char *buffer, size_t size);
+
+/* Whether path number `index` has "[*]". */
+bool json_pick_is_list(const json_pick_t *pick, int index);
+
+/* The number of values of path number `index`: the elements kept of a list
+ * path; 1 or 0 for any other path, as it has a value or not. */
+int json_pick_count(const json_pick_t *pick, int index);
+
+/* Value number `element` of path number `index`, or NULL: an element of a
+ * list path, or the value of any other path as element 0. Reading the
+ * elements in order is fast; any other order is a search from the start. */
+const char *json_pick_element(json_pick_t *pick, int index, int element);
+
+/* Whether an element of a list path was dropped for want of room. */
+bool json_pick_is_cut(const json_pick_t *pick);
 
 #ifdef __cplusplus
 }

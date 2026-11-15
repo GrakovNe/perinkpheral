@@ -35,6 +35,12 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
 uint32_t app_kv_poll_pace(const char *app_name, int poll);
 void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
 
+/* The id of the version of an application that last ran here, for telling
+ * an installation and an update apart; 0: none - it is new, or was
+ * removed. */
+uint32_t app_kv_seen_id(const char *app_name);
+void app_kv_set_seen_id(const char *app_name, uint32_t id);
+
 /* The names of applications that are not on the device and left a store
  * behind: what would come back with its settings. Returns how many. */
 int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity);

@@ -2626,3 +2626,258 @@ index shown above the chosen one; -1: none
 
 index shown below; -1: none
 индекс под выбранным; -1: нет
+
+revision 4, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 4, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+
+Data: the host extracts values and lists from JSON answers; any answer can be streamed in 1 KB pieces
+Данные: хост извлекает значения и списки из ответов JSON; любой ответ можно получать потоком кусками по 1 КБ
+
+Interval 10 s to 1 day; minimum 300 s on battery. One poll can go over a list setting: one request per item, up to 16
+Интервал от 10 с до 1 суток; от батареи не меньше 300 с. Один опрос может проходить по настройке-списку: по запросу на пункт, до 16
+
+Per device. Applications and polls take turns
+На устройство. Приложения и опросы чередуются
+
+Requests from code waiting
+Запросы из кода в ожидании
+
+Per application
+На приложение
+
+JSON; up to 16 paths; value up to 63 bytes; elements of lists up to 8 KB as text
+JSON; до 16 путей; значение до 63 байт; элементы списков до 8 КБ текстом
+
+Installation, update
+Установка, обновление
+
+once each
+по разу
+
+Installed, or updated to another version
+Установлено или обновлено до другой версии
+
+Once, on or off the screen
+Один раз, на экране или вне его
+
+Scheduled requests performed by the host (below). One of them can go over a list setting
+Запросы по расписанию, которые выполняет хост (ниже). Один из них может проходить по настройке-списку
+
+<code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required
+<code>{{key}}</code> любой настройки заменяется сохранённым значением в процентной кодировке: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Настройка <code>url</code> в начале и настройка <code>link</code> вставляются без изменений. Настройка <code>list</code> вставляется своими пунктами, каждый закодирован, через запятую: <code>symbols={{tickers}}</code> становится <code>symbols=AAPL,MSFT</code>. Опрос с пустой настройкой в URL или заголовках завершается с <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен
+
+JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed
+Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> вместо одного индекса берёт все элементы массива: <code>close[*]</code> (раздел 9). Значения извлекает хост. Без <code>pick</code> ответ приходит потоком
+
+key of a <code>list</code> setting
+ключ настройки <code>list</code>
+
+One request for every item of the list, up to 16, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for. One poll per manifest
+По запросу на каждый пункт списка, до 16, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>data_item()</code> сообщает, к какому пункту относится ответ. Один опрос на манифест
+
+A line per item; items are added and removed
+Строка на пункт; пункты добавляются и удаляются
+
+Up to 16 items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code>
+До 16 пунктов по 1 - 63 печатных символа ASCII, разделённых переводом строки (<code>\n</code>); всего 255 байт. Читается через <code>app_setting_count()</code> и <code>app_setting_item()</code>
+
+<code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.
+<code>default</code> только для показа: страница показывает его, пока настройка пуста, а хранилище остаётся пустым, и у <code>{{key}}</code> нет значения. Код применяет то же значение по умолчанию, когда <code>kv_get()</code> ничего не находит. Значение по умолчанию у <code>list</code> - список пунктов.
+
+Files written by the code are kept when the application is updated. They are removed with the application; the store is kept.
+Файлы, записанные кодом, сохраняются при обновлении приложения. Они удаляются вместе с приложением; хранилище остаётся.
+
+A write starts inside the file or at its end. To replace a file with a shorter one, delete it first: <code>file_write()</code> with length 0 at offset 0.
+Запись начинается внутри файла или в его конце. Чтобы заменить файл более коротким, сначала удалите его: <code>file_write()</code> с длиной 0 по смещению 0.
+
+Each file takes whole blocks of 4 KB of the 64 KB. Keep related records in one file.
+Каждый файл занимает целые блоки по 4 КБ из 64 КБ. Храните связанные записи в одном файле.
+
+Poll with <code>each</code>
+Опрос с <code>each</code>
+
+Schedule; one request per item of a list setting
+Расписание; по запросу на пункт настройки-списка
+
+As above, once per item. <code>data_item()</code> gives the item
+Как выше, по разу на пункт. <code>data_item()</code> сообщает пункт
+
+Lists
+Списки
+
+A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:
+Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_chart()</code>:
+
+"pick": ["meta.longName", "indicators.close[*]"]
+=
+
+which ticker of the list
+какой тикер из списка
+
+hundredths; "null": a gap
+сотые; "null" - пропуск
+
+A null element is kept, as a gap in the series, so that two lists of one array stay in step. An element without the rest of the path (<code>items[*].title</code> in an item without a title) is skipped.
+Элемент null сохраняется как пропуск в ряду, чтобы два списка одного массива шли в ногу. Элемент без остатка пути (<code>items[*].title</code> у пункта без title) пропускается.
+
+The elements of one answer take up to 8 KB as text (<code>HOST_LIST_BYTES</code>); each costs its length and 2 bytes. Elements beyond that are dropped and the log says so.
+Элементы одного ответа занимают до 8 КБ текстом (<code>HOST_LIST_BYTES</code>); каждый стоит своей длины и 2 байт. Элементы сверх этого отбрасываются, и лог об этом сообщает.
+
+With more elements than the capacity, <code>app_value_series()</code> takes evenly spread elements, the first and the last among them.
+Если элементов больше, чем места, <code>app_value_series()</code> берёт равномерно распределённые элементы, включая первый и последний.
+
+A value goes to the first path that names it: <code>a[*]</code> before <code>a[0]</code> takes the element.
+Значение достаётся первому пути, который его называет: <code>a[*]</code> перед <code>a[0]</code> забирает элемент.
+
+Numbers
+Числа
+
+Floating point is not available. A number is an integer with a fixed number of decimals: 356.27 is 35627 with 2 decimals. <code>app_fixed.h</code> reads, converts and writes such numbers in 64 bits:
+Плавающей точки нет. Число - целое с фиксированным числом знаков после запятой: 356.27 - это 35627 с 2 знаками. <code>app_fixed.h</code> читает, переводит и записывает такие числа в 64 битах:
+
+Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).
+Обрабатывайте каждый кусок по приходу и храните только данные для показа. Используйте конечный автомат, <code>json_pick</code> из SDK или свой разборщик. Ответ может занимать несколько мегабайт; у приложения 64 КБ. <code>json_pick</code> принимает и пути списков, с буфером, который даёт приложение (раздел 23).
+
+An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as answers arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.
+У приложения может ждать 16 запросов (<code>HOST_HTTP_PENDING_MAX</code>). Если нужно больше, ставьте следующие по мере прихода ответов; в конце концов выполняется каждый запрос. Приложения чередуются, и опросы чередуются с запросами. <code>HOST_ERR_NO_SPACE</code> означает, что ждут 16 или что у устройства нет памяти ещё на один.
+
+The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.
+Хост отправляет <code>User-Agent: perinkpheral</code>. Заголовок <code>User-Agent</code> от приложения заменяет его, в опросе и в запросе.
+
+An answer to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the answer is still needed.
+Прерванный ответ на запрос из кода (раздел 3) отбрасывается: запрос не повторяется. Если ответ ещё нужен, запросите снова из <code>app_on_terminate()</code> или позже.
+
+Set up after installation or an update
+Настройка после установки или обновления
+
+Once. A new version does not inherit the alarms and poll intervals of the old one: set them here
+Один раз. Новая версия не наследует будильники и интервалы опросов старой: задайте их здесь
+
+Builds the application and runs it in the simulator (below). Ctrl+C stops it
+Собирает приложение и запускает его в симуляторе (ниже). Ctrl+C останавливает
+
+Writes a value to an application's store, as the web page saves a setting: <code>app_on_settings()</code> is called and the polls are repeated. A list is its items with line breaks
+Записывает значение в хранилище приложения, как веб-страница сохраняет настройку: вызывается <code>app_on_settings()</code>, опросы повторяются. Список - это пункты через перевод строки
+
+A folder on the computer, with the device's limits. Kept between runs, as across an update on the device
+Папка на компьютере, с ограничениями устройства. Сохраняется между запусками, как при обновлении на устройстве
+
+Where it keeps its state
+Где хранится состояние
+
+<code>--state &lt;folder&gt;</code>; by default <code>~/.perinkpheral/simulator/&lt;name&gt;</code>
+<code>--state &lt;папка&gt;</code>; по умолчанию <code>~/.perinkpheral/simulator/&lt;имя&gt;</code>
+
+Port, time in the header
+Порт, время в шапке
+
+The first run of an application in a state folder calls <code>app_on_installed()</code>; a run of another build calls <code>app_on_updated()</code>.
+Первый запуск приложения в папке состояния вызывает <code>app_on_installed()</code>; запуск другой сборки вызывает <code>app_on_updated()</code>.
+
+Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>, only if the manifest declares it. <code>installed</code> and <code>updated</code> call <code>app_on_installed()</code> and <code>app_on_updated()</code>
+Доставляет интент: <code>started</code>, <code>time_changed</code>, <code>network_up</code>, только если он объявлен в манифесте. <code>installed</code> и <code>updated</code> вызывают <code>app_on_installed()</code> и <code>app_on_updated()</code>
+
+<code>status</code> is an HTTP status, or a negative <code>HOST_FAILED_*</code> code: -1 is no network, -5 a timeout.
+<code>status</code> - статус HTTP или отрицательный код <code>HOST_FAILED_*</code>: -1 - нет сети, -5 - тайм-аут.
+
+<code>file</code> is read relative to the mocks file, again for every request: change the file to change the answer while the simulator runs. The mocks file itself is read once, at start.
+<code>file</code> читается относительно файла моков, заново на каждый запрос: поменяйте файл, чтобы поменять ответ, пока симулятор работает. Сам файл моков читается один раз, при запуске.
+
+16 of the application's requests are waiting. Queue more as answers arrive
+Ждут 16 запросов приложения. Ставьте новые по мере прихода ответов
+
+A poll fails with -3 in the simulator and on the device, though the page shows a value
+Опрос завершается с -3 в симуляторе и на устройстве, хотя страница показывает значение
+
+The value is the setting's <code>default</code>, which is shown and not stored. Apply the default in the code, or save the settings once
+Это <code>default</code> настройки: он показывается, но не хранится. Примените значение по умолчанию в коде или сохраните настройки один раз
+
+Once after the application is installed: it has not run on this device before, or was removed and installed again
+Один раз после установки приложения: оно ещё не запускалось на этом устройстве или было удалено и установлено снова
+
+Once after another version replaced the one that ran before. The store and the files are kept; alarms and poll intervals are not
+Один раз после того, как другая версия заменила прежнюю. Хранилище и файлы сохраняются; будильники и интервалы опросов - нет
+
+Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect
+Задаёт текст приложения в шапке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Можно вызывать из любого обработчика; вне экрана не действует
+
+Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines
+Ставит запрос в очередь; у приложения ждут до 16. Методы: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Заголовки: строки "Name: value"
+
+Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value
+Внутри <code>app_on_values()</code>: копирует значение пути <code>index</code> текстом без завершающего нуля. Возвращает его длину. У пути списка значения нет
+
+Inside <code>app_on_values()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path
+Внутри <code>app_on_values()</code>: число элементов пути списка <code>index</code>; 1 или 0 для любого другого пути
+
+Inside <code>app_on_values()</code>: copies element <code>element</code> of path <code>index</code>, as <code>data_value()</code> does
+Внутри <code>app_on_values()</code>: копирует элемент <code>element</code> пути <code>index</code>, как <code>data_value()</code>
+
+Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other answer
+Внутри <code>app_on_data()</code> и <code>app_on_values()</code>: пункт списка, для которого опрос с <code>each</code> сделал этот запрос, от 0; -1 для любого другого ответа
+
+length; 0: not set or too long
+длина; 0 - не задана или слишком длинная
+
+items of a list
+пункты списка
+
+length; 0: none
+длина; 0 - нет
+
+The text is always null-terminated. A value that does not fit is not cut: the result is empty and the length 0.
+Текст всегда завершается нулём. Значение, которое не помещается, не обрезается: результат пуст, длина 0.
+
+false: absent or buffer too small
+false - нет значения или мал буфер
+
+the same in 64 bits
+то же в 64 битах
+
+elements of a list path; 1 or 0 for others
+элементы пути списка; 1 или 0 для остальных
+
+numbers for ui_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit
+числа для ui_chart(): HOST_CHART_NO_VALUE для "null"; равномерно прорежены, чтобы поместиться
+
+These functions work only inside <code>app_on_values()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.
+Эти функции работают только внутри <code>app_on_values()</code>, кроме <code>app_parse_number()</code>, которая работает везде. <code>index</code> - позиция пути в списке <code>pick</code> манифеста. Числа с экспонентой читаются: <code>"1.2e-05"</code>.
+
+"356.27", 2 -> 35627; exponents too
+"356.27", 2 -> 35627; с экспонентой тоже
+
+part / whole; 0 if whole is 0
+part / whole; 0, если whole равно 0
+
+35627, 2 -> "356.27"; APP_FIXED_SIGN: "+"
+=
+
+Rounding is half away from zero. Up to 9 decimals (<code>APP_FIXED_DECIMALS_MAX</code>).
+Округление - половина от нуля. До 9 знаков после запятой (<code>APP_FIXED_DECIMALS_MAX</code>).
+
+about 1.5 KB: static, not on the stack
+около 1,5 КБ: статически, не на стеке
+
+room for list elements; after init
+место для элементов списков; после init
+
+NULL: value absent, or a list path
+NULL - нет значения или путь списка
+
+elements of a list path
+элементы пути списка
+
+in order is fast
+по порядку быстро
+
+an element did not fit the buffer
+элемент не поместился в буфер
+
+Request headers; body; waiting requests per application
+Заголовки запроса; тело; ждущие запросы на приложение
+
+Elements of the list paths of one answer, as text
+Элементы путей списков одного ответа, текстом
+
+Items of a list setting, each in bytes; requests of a poll with <code>each</code>
+Пункты настройки-списка, каждый в байтах; запросы опроса с <code>each</code>

@@ -12,7 +12,7 @@
 #include "app_text.h"
 #include "host_api.h"
 
-#define MARGIN      16
+#define MARGIN      HOST_UI_MARGIN
 
 static const char PRESSES_KEY[] = "presses";
 #define PRESSES_KEY_LENGTH ((int32_t)sizeof PRESSES_KEY - 1)

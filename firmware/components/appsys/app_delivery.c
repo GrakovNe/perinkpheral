@@ -25,9 +25,12 @@ static void call_handler(app_t *app, const app_delivery_t *delivery)
         app_intent(app, delivery->request);
     } else if (delivery->kind == APP_DELIVERY_SETTINGS) {
         app_settings_changed(app);
+    } else if (delivery->kind == APP_DELIVERY_INSTALLED) {
+        app_installed(app);
+    } else if (delivery->kind == APP_DELIVERY_UPDATED) {
+        app_updated(app);
     } else if (delivery->kind == APP_DELIVERY_VALUES) {
-        app_values(app, delivery->request, delivery->http_status, delivery->values,
-                   delivery->value_count);
+        app_values(app, delivery->request, delivery->http_status, delivery->picked);
     } else {
         app_data(app, delivery->request, delivery->data, delivery->length, delivery->flags,
                  delivery->http_status);
@@ -39,7 +42,8 @@ static void call(app_t *app, const app_delivery_t *delivery)
     bool is_answer = delivery->kind == APP_DELIVERY_PIECE ||
                         delivery->kind == APP_DELIVERY_VALUES;
     if (is_answer) {
-        app_answer_begins(app, delivery->response, delivery->http_status);
+        app_answer_begins(app, delivery->response, delivery->http_status,
+                          delivery->has_item ? delivery->item : -1);
     }
     call_handler(app, delivery);
     if (is_answer) {

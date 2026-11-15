@@ -137,19 +137,21 @@ void app_draw(app_t *app, gfx_t *surface);
 struct host_response; /* host_response_t of host_api.h */
 
 /* Bracket the handler calls of one answer and define the result of
- * data_response() between them. `response` NULL: no answer was received;
- * only `http_status` is known. */
-void app_answer_begins(app_t *app, const struct host_response *response, int http_status);
+ * data_response() and data_item() between them. `response` NULL: no answer
+ * was received; only `http_status` is known. `item`: the item of the list a
+ * poll with "each" went over, or -1. */
+void app_answer_begins(app_t *app, const struct host_response *response, int http_status,
+                       int item);
 void app_answer_ends(app_t *app);
 
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
               int http_status);
 
 /* Calls app_on_values() (host_api.h) with the values picked from a JSON
- * answer. `values[i]`: text of path i of the poll; NULL when the answer
- * has no such path. http_status < 0: the request failed, the value is
+ * answer, which data_value(), data_count() and data_element() read; NULL
+ * when there are none. http_status < 0: the request failed, the value is
  * HOST_FAILED_*. The values are valid only during the call. */
-void app_values(app_t *app, int request, int http_status, const char *const *values, int count);
+void app_values(app_t *app, int request, int http_status, json_pick_t *picked);
 
 /* Calls app_on_alarm(). */
 void app_alarm(app_t *app, int id);
@@ -159,6 +161,10 @@ void app_settings_changed(app_t *app);
 
 /* Calls app_on_intent(). */
 void app_intent(app_t *app, int intent);
+
+/* Calls app_on_installed() or app_on_updated(). */
+void app_installed(app_t *app);
+void app_updated(app_t *app);
 
 /* True once after a request_focus() call. */
 bool app_take_focus_request(app_t *app);

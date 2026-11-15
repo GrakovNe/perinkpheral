@@ -58,13 +58,16 @@ struct app {
     IM3Function on_settings;
     IM3Function on_intent;
     IM3Function on_alarm;
+    IM3Function on_installed;
+    IM3Function on_updated;
     /* Set only while app_on_values() runs: what data_value() reads. */
-    const char *const *values;
-    int                value_count;
-    /* Set only while a handler of an answer runs: what data_response() says. */
+    json_pick_t *picked;
+    /* Set only while a handler of an answer runs: what data_response() and
+     * data_item() say. */
     bool                   is_in_answer;
     const host_response_t *response;
     int                    response_status;
+    int                    answer_item;
     uint32_t    data_buffer_offset; /* where in its memory the application takes data */
     bool        has_data_buffer;
 
@@ -1104,16 +1107,59 @@ HOST_FUNCTION(host_data_value)
     if (text == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    bool has_value = index >= 0 && index < app->value_count && app->values[index] != NULL;
-    if (!has_value) {
+    const char *value = app->picked != NULL ? json_pick_value(app->picked, index) : NULL;
+    if (value == NULL) {
         m3ApiReturn(HOST_ERR_NOT_FOUND);
     }
-    size_t length = strlen(app->values[index]);
+    size_t length = strlen(value);
     if (length > (size_t)capacity) {
         m3ApiReturn(HOST_ERR_NO_SPACE);
     }
-    memcpy(text, app->values[index], length);
+    memcpy(text, value, length);
     m3ApiReturn((int32_t)length);
+}
+
+HOST_FUNCTION(host_data_count)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, index);
+
+    app_t *app = APP_OF(runtime);
+    m3ApiReturn(app->picked != NULL ? (int32_t)json_pick_count(app->picked, index) : 0);
+}
+
+HOST_FUNCTION(host_data_element)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, index);
+    m3ApiGetArg(int32_t, element);
+    m3ApiGetArg(uint32_t, text_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    app_t *app = APP_OF(runtime);
+    uint8_t *text = in_app_memory_to_fill(runtime, _mem, text_offset, capacity);
+    if (text == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    const char *value =
+        app->picked != NULL ? json_pick_element(app->picked, index, element) : NULL;
+    if (value == NULL) {
+        m3ApiReturn(HOST_ERR_NOT_FOUND);
+    }
+    size_t length = strlen(value);
+    if (length > (size_t)capacity) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    memcpy(text, value, length);
+    m3ApiReturn((int32_t)length);
+}
+
+HOST_FUNCTION(host_data_item)
+{
+    m3ApiReturnType(int32_t);
+
+    app_t *app = APP_OF(runtime);
+    m3ApiReturn(app->is_in_answer ? (int32_t)app->answer_item : -1);
 }
 
 HOST_FUNCTION(host_data_response)
@@ -2504,6 +2550,8 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
     app->on_settings = find_export(app, "app_on_settings", 0, false);
     app->on_intent = find_export(app, "app_on_intent", 1, false);
     app->on_alarm = find_export(app, "app_on_alarm", 1, false);
+    app->on_installed = find_export(app, "app_on_installed", 0, false);
+    app->on_updated = find_export(app, "app_on_updated", 0, false);
     IM3Function init = find_export(app, "app_init", 0, false);
     if (!app->has_wrong_export) {
         find_data_buffer(app);
@@ -2584,11 +2632,12 @@ void app_draw(app_t *app, gfx_t *surface)
     app->exit_requested = false;
 }
 
-void app_answer_begins(app_t *app, const host_response_t *response, int http_status)
+void app_answer_begins(app_t *app, const host_response_t *response, int http_status, int item)
 {
     app->is_in_answer = true;
     app->response = response;
     app->response_status = http_status;
+    app->answer_item = item;
 }
 
 void app_answer_ends(app_t *app)
@@ -2613,13 +2662,11 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
                  (int32_t)length, (int32_t)flags, (int32_t)http_status);
 }
 
-void app_values(app_t *app, int request, int http_status, const char *const *values, int count)
+void app_values(app_t *app, int request, int http_status, json_pick_t *picked)
 {
-    app->values = values;
-    app->value_count = count;
+    app->picked = picked;
     CALL_HANDLER(app, app->on_values, (int32_t)request, (int32_t)http_status);
-    app->values = NULL;
-    app->value_count = 0;
+    app->picked = NULL;
 }
 
 void app_alarm(app_t *app, int id)
@@ -2635,6 +2682,16 @@ void app_settings_changed(app_t *app)
 void app_intent(app_t *app, int intent)
 {
     CALL_HANDLER(app, app->on_intent, (int32_t)intent);
+}
+
+void app_installed(app_t *app)
+{
+    CALL_HANDLER(app, app->on_installed);
+}
+
+void app_updated(app_t *app)
+{
+    CALL_HANDLER(app, app->on_updated);
 }
 
 const char *app_header_text(const app_t *app, int side)

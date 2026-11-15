@@ -4,15 +4,11 @@
  */
 #include "app_values.h"
 
+#include "app_fixed.h"
 #include "host_api.h"
 
-#define DECIMAL_BASE     10
-#define ROUND_UP_FROM    5
-#define WHOLE_DIGITS_MAX 9 /* what fits in 32 bits with room to scale */
-
-bool app_value_text(int32_t index, char *text, int32_t text_size)
+static bool to_text(int32_t length, char *text, int32_t text_size)
 {
-    int32_t length = text_size > 0 ? data_value(index, text, text_size - 1) : HOST_ERR_NO_SPACE;
     if (length < 0) {
         if (text_size > 0) {
             text[0] = '\0';
@@ -23,55 +19,19 @@ bool app_value_text(int32_t index, char *text, int32_t text_size)
     return true;
 }
 
-static bool is_digit(char character)
+bool app_value_text(int32_t index, char *text, int32_t text_size)
 {
-    return character >= '0' && character <= '9';
+    int32_t length = text_size > 0 ? data_value(index, text, text_size - 1) : HOST_ERR_NO_SPACE;
+    return to_text(length, text, text_size);
 }
 
 bool app_parse_number(const char *text, int32_t decimals, int32_t *number)
 {
-    const char *at = text;
-    bool is_negative = *at == '-';
-    if (is_negative) {
-        at++;
-    }
-    if (!is_digit(*at)) {
+    int64_t value;
+    if (!app_fixed_parse(text, decimals, &value) || value > INT32_MAX || value < -INT32_MAX) {
         return false;
     }
-    int64_t magnitude = 0;
-    int32_t digits = 0;
-    for (; is_digit(*at); at++) {
-        if (++digits > WHOLE_DIGITS_MAX) {
-            return false;
-        }
-        magnitude = magnitude * DECIMAL_BASE + (*at - '0');
-    }
-    int32_t kept = 0;
-    bool round_up = false;
-    if (*at == '.') {
-        at++;
-        for (; is_digit(*at); at++) {
-            if (kept < decimals) {
-                magnitude = magnitude * DECIMAL_BASE + (*at - '0');
-                kept++;
-            } else if (kept == decimals) {
-                round_up = *at - '0' >= ROUND_UP_FROM;
-                kept++; /* only the first dropped digit decides */
-            }
-        }
-    }
-    for (; kept < decimals; kept++) {
-        magnitude *= DECIMAL_BASE;
-    }
-    /* An exponent or anything else after the digits: not a number a
-     * screen can show as it is. */
-    if (*at != '\0' || magnitude > INT32_MAX - 1) {
-        return false;
-    }
-    if (round_up) {
-        magnitude++;
-    }
-    *number = (int32_t)(is_negative ? -magnitude : magnitude);
+    *number = (int32_t)value;
     return true;
 }
 
@@ -79,4 +39,47 @@ bool app_value_number(int32_t index, int32_t decimals, int32_t *number)
 {
     char text[HOST_VALUE_MAX + 1];
     return app_value_text(index, text, sizeof text) && app_parse_number(text, decimals, number);
+}
+
+bool app_value_fixed(int32_t index, int32_t decimals, int64_t *number)
+{
+    char text[HOST_VALUE_MAX + 1];
+    return app_value_text(index, text, sizeof text) && app_fixed_parse(text, decimals, number);
+}
+
+int32_t app_value_count(int32_t index)
+{
+    int32_t count = data_count(index);
+    return count > 0 ? count : 0;
+}
+
+bool app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size)
+{
+    int32_t length = text_size > 0 ? data_element(index, element, text, text_size - 1)
+                                   : HOST_ERR_NO_SPACE;
+    return to_text(length, text, text_size);
+}
+
+bool app_value_element_fixed(int32_t index, int32_t element, int32_t decimals, int64_t *number)
+{
+    char text[HOST_VALUE_MAX + 1];
+    return app_value_element_text(index, element, text, sizeof text) &&
+           app_fixed_parse(text, decimals, number);
+}
+
+int32_t app_value_series(int32_t index, int32_t decimals, int32_t *values, int32_t capacity)
+{
+    int32_t count = app_value_count(index);
+    int32_t taken = count < capacity ? count : capacity;
+    for (int32_t i = 0; i < taken; i++) {
+        /* Spread over all of them: the first, the last, and evenly between. */
+        int32_t element = taken < count && taken > 1
+                              ? (int32_t)((int64_t)i * (count - 1) / (taken - 1))
+                              : i;
+        int64_t number;
+        bool    fits = app_value_element_fixed(index, element, decimals, &number) &&
+                       number <= INT32_MAX && number > HOST_CHART_NO_VALUE;
+        values[i] = fits ? (int32_t)number : HOST_CHART_NO_VALUE;
+    }
+    return taken;
 }

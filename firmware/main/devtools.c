@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "app_delivery.h"
 #include "app_kv.h"
 #include "app_store.h"
 #include "display.h"
@@ -19,6 +20,7 @@
 #include "host_api.h"
 #include "host.h"
 #include "launcher.h"
+#include "poller.h"
 #include "scene.h"
 #include "settings.h"
 #include "storage.h"
@@ -346,8 +348,19 @@ static esp_err_t handle_run(httpd_req_t *http)
     return err;
 }
 
-/* A value into an application's store, as its own kv_set would put it:
- * how a setting is given to an application before there is a form for it. */
+/* In the host loop: the application is told its settings changed and its
+ * polls are asked again, as when the page saves them. */
+static void settings_were_set(void *argument)
+{
+    const char    *app = argument;
+    app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
+    host_deliver(app, &changed);
+    poller_hurry(app);
+}
+
+/* A value into an application's store, as its own kv_set would put it, and
+ * the application told as when the page saves its settings: how a setting
+ * is given to an application from the command line. */
 static esp_err_t handle_kv(httpd_req_t *http)
 {
     char app[QUERY_VALUE_MAX], key[QUERY_VALUE_MAX];
@@ -368,6 +381,9 @@ static esp_err_t handle_kv(httpd_req_t *http)
         received += (size_t)count;
     }
     int32_t result = app_kv_set(app, key, value, (int32_t)received);
+    if (result == HOST_OK) {
+        events_call(settings_were_set, app);
+    }
     return result == HOST_OK ? send_text(http, "200 OK", "stored")
                              : send_text(http, "500 Internal Server Error", "not stored");
 }

@@ -55,6 +55,17 @@ APP_EXPORT(app_on_blur, void app_on_blur(void));
  * app_on_blur() is called first if the application was on the screen. */
 APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 
+/* app_on_installed: the application was installed - from a catalog, by the
+ * development tools, or with the firmware - and has not run on this device
+ * before, or was removed and installed again.
+ * app_on_updated: another version of it replaced the one that ran before.
+ * Called once, on or off the screen, after app_init(); off the screen the
+ * application is loaded for the call. A new version does not inherit the
+ * alarms and poll intervals set by the old one: set them again here. The
+ * store and the files are kept across an update. */
+APP_EXPORT(app_on_installed, void app_on_installed(void));
+APP_EXPORT(app_on_updated, void app_on_updated(void));
+
 /* Buttons, in their order on the device. The host uses these meanings on
  * all of its screens. Applications should keep them. */
 #define BTN_UP   1
@@ -138,8 +149,12 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * Delivery can stop without HOST_DATA_LAST and without HOST_DATA_FAILED:
  * a background instance is unloaded when the user presses a button. Only
  * app_on_terminate() is called then. The next HOST_DATA_FIRST starts a
- * new answer. The host repeats an interrupted poll after one minute.
- * Discard partially read data.
+ * new answer. The host repeats an interrupted poll after one minute; an
+ * interrupted answer to http_request() is dropped, and the application
+ * asks again if it still needs it. Discard partially read data.
+ *
+ * A poll with "each" in the manifest is one request for every item of a
+ * list setting: data_item() tells which item the answer is for.
  *
  * Called on and off the screen. Off the screen the application is loaded
  * for the delivery and unloaded after it. Save the result to the store.
@@ -181,10 +196,28 @@ APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, i
  * is cut between characters.
  * Returns HOST_ERR_NOT_FOUND if the answer does not contain the path,
  * HOST_ERR_NO_SPACE if the buffer is too small.
+ *
+ * A list path has "[*]" in place of one index - "close[*]",
+ * "items[*].title" - and gives every element of that array, in order.
+ * data_count() returns the number of elements, data_element() copies one
+ * the way data_value() copies a value; data_value() has none for it. Any
+ * other path has one element, its value, or none. A null element is kept
+ * as "null", so that two lists of one array stay in step. The elements of
+ * one answer take at most HOST_LIST_BYTES as text, each its length plus
+ * 2 bytes; elements beyond that are dropped and the log says so.
  * sdk/lib/app_values.h converts values to numbers and text. */
-#define HOST_VALUE_MAX 63
+#define HOST_VALUE_MAX  63
+#define HOST_LIST_BYTES 8192
 APP_EXPORT(app_on_values, void app_on_values(int32_t request, int32_t http_status));
 HOST_IMPORT(data_value, int32_t data_value(int32_t index, char *text, int32_t capacity));
+HOST_IMPORT(data_count, int32_t data_count(int32_t index));
+HOST_IMPORT(data_element,
+            int32_t data_element(int32_t index, int32_t element, char *text, int32_t capacity));
+
+/* The item of the list setting the answer being delivered is for: its
+ * number in the list, from 0, for a poll with "each"; -1 for any other
+ * answer. Valid inside app_on_data() and app_on_values(). */
+HOST_IMPORT(data_item, int32_t data_item(void));
 
 /* Response metadata. Valid inside app_on_data() and app_on_values(), for
  * the answer being delivered. The same for every piece of one answer.
@@ -247,7 +280,8 @@ HOST_IMPORT(text_fill, int32_t text_fill(const char *pattern, int32_t pattern_le
 
 /* The user has saved the application settings on the device web page.
  * Settings are declared in the manifest. Each value is stored as text
- * under the key of the setting and is read with kv_get().
+ * under the key of the setting and is read with kv_get(). A "list" setting
+ * is its items separated by '\n'; sdk/lib/app_state.h reads them.
  * Called on and off the screen, like the data handlers. */
 APP_EXPORT(app_on_settings, void app_on_settings(void));
 
@@ -401,7 +435,8 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
  * Length 0 returns the side to the host. A text of one space leaves the
  * side empty.
  * Not a drawing call: callable from any handler. The text is cleared when
- * the application leaves the screen. */
+ * the application leaves the screen; called off the screen, it has no
+ * effect. */
 #define HOST_HEADER_LEFT     0
 #define HOST_HEADER_RIGHT    1
 #define HOST_HEADER_TEXT_MAX 63
@@ -809,8 +844,11 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *
  * Destination: only hosts listed under "hosts" in the manifest.
  * Queue:       the host performs one request at a time for the whole
- *              device and keeps at most HOST_HTTP_PENDING_MAX waiting,
- *              for all applications together.
+ *              device. An application has at most HOST_HTTP_PENDING_MAX
+ *              requests waiting; with more to ask, it queues the next
+ *              ones as answers arrive. The applications take turns, and
+ *              polls take turns with requests, so every request is made
+ *              in the end. A request is about 6 s over HTTPS.
  * Answer:      delivered through app_on_data() in pieces, with `tag` as
  *              the request number, on or off the screen. The instance
  *              that receives the answer is not the one that made the
@@ -820,7 +858,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *
  *                  enum { REQUEST_TOKEN = HOST_REQUEST_FIRST, REQUEST_EVENTS };
  *
- * headers:     lines "Name: value" separated by '\n', at most four.
+ * headers:     lines "Name: value" separated by '\n', at most four. The
+ *              host sends "User-Agent: perinkpheral"; a User-Agent header
+ *              given here replaces it. The same for polls.
  * {{key}}      in the URL and in header values is replaced by the setting
  *              with that key, as in a poll.
  *
@@ -835,7 +875,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  * read the values after the last one.
  *
  * Returns HOST_OK; HOST_ERR_ARGUMENT for a URL outside the manifest hosts
- * or malformed arguments; HOST_ERR_NO_SPACE if the queue is full. */
+ * or malformed arguments; HOST_ERR_NO_SPACE if HOST_HTTP_PENDING_MAX of the
+ * application's requests are waiting, or the device has no memory for
+ * another. */
 #define HOST_HTTP_GET    0
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
@@ -847,7 +889,7 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 #define HOST_HTTP_METHOD_LAST HOST_HTTP_REPORT
 #define HOST_HTTP_HEADERS_MAX 1023
 #define HOST_HTTP_BODY_MAX    512
-#define HOST_HTTP_PENDING_MAX 2
+#define HOST_HTTP_PENDING_MAX 16
 #define HOST_REQUEST_FIRST    16
 #define HOST_REQUEST_LAST     255
 HOST_IMPORT(http_request,

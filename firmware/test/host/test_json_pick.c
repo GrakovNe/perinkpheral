@@ -177,8 +177,85 @@ static void test_broken_documents(void)
     CHECK(json_pick_value(&pick, 0) == NULL && json_pick_value(&pick, 1) == NULL);
 }
 
+static char list[256];
+
+/* The same document read with list paths, the list given after init. */
+static void read_lists(const char *const *paths, int count, const char *json, size_t piece,
+                       size_t list_size)
+{
+    json_pick_init(&pick, paths, count);
+    json_pick_lists(&pick, list_size > 0 ? list : NULL, list_size);
+    size_t length = strlen(json);
+    for (size_t at = 0; at < length; at += piece) {
+        json_pick_feed(&pick, json + at, length - at < piece ? length - at : piece);
+    }
+    json_pick_finish(&pick);
+}
+
+static const char *element(int index, int number)
+{
+    const char *found = json_pick_element(&pick, index, number);
+    return found != NULL ? found : "(none)";
+}
+
+static void test_lists(void)
+{
+    static const char *const PATHS[] = {
+        "daily.weather_code[*]", "daily.temperature_2m_max[*]", "alerts[*].title",
+        "current.weather_code",  "daily.weather_code[0]",       "nothing[*]",
+    };
+    for (size_t piece = 1; piece <= sizeof WEATHER; piece += 5) {
+        read_lists(PATHS, 6, WEATHER, piece, sizeof list);
+        CHECK(json_pick_is_list(&pick, 0) && !json_pick_is_list(&pick, 3));
+        CHECK(json_pick_count(&pick, 0) == 3);
+        CHECK_STR(element(0, 0), "3");
+        CHECK_STR(element(0, 1), "61");
+        CHECK_STR(element(0, 2), "95");
+        CHECK_STR(element(0, 3), "(none)");
+        CHECK(json_pick_count(&pick, 1) == 3);
+        CHECK_STR(element(1, 2), "-0.2");
+        CHECK_STR(element(1, 0), "4.1"); /* back to the start: a search, still found */
+        CHECK(json_pick_count(&pick, 2) == 2);
+        CHECK_STR(element(2, 0), "Ice \"black\" ice");
+        CHECK_STR(element(2, 1), "Wind");
+        /* a list path has no single value; any other has its value as element 0 */
+        CHECK(json_pick_value(&pick, 0) == NULL);
+        CHECK(json_pick_count(&pick, 3) == 1);
+        CHECK_STR(element(3, 0), "71");
+        CHECK_STR(element(3, 1), "(none)");
+        /* a value goes to the first path that names it: the list here */
+        CHECK(json_pick_value(&pick, 4) == NULL);
+        CHECK(json_pick_count(&pick, 5) == 0);
+        CHECK(!json_pick_is_cut(&pick));
+    }
+
+    /* nulls stay, so that two lists of one array keep step */
+    static const char *const SERIES[] = { "t[*]", "close[*]" };
+    read_lists(SERIES, 2, "{\"t\":[1,2,3],\"close\":[10.5,null,11]}", 3, sizeof list);
+    CHECK(json_pick_count(&pick, 0) == 3 && json_pick_count(&pick, 1) == 3);
+    CHECK_STR(element(1, 1), "null");
+    CHECK_STR(element(0, 2), "3");
+    CHECK_STR(element(1, 2), "11");
+
+    /* without a buffer a list has nothing; with a small one, what fits */
+    read_lists(SERIES, 2, "{\"t\":[1,2,3]}", 4, 0);
+    CHECK(json_pick_count(&pick, 0) == 0 && !json_pick_is_cut(&pick));
+    read_lists(SERIES, 2, "{\"t\":[100,200,300]}", 4, 10); /* two of 5 bytes each */
+    CHECK(json_pick_count(&pick, 0) == 2 && json_pick_is_cut(&pick));
+    CHECK_STR(element(0, 1), "200");
+
+    /* "[*]" matches an index and nothing else */
+    static const char *const NESTED[] = { "a[*].b[*]", "a[*]" };
+    read_lists(NESTED, 2, "{\"a\":[{\"b\":[1,2]},{\"b\":[3]},5]}", 2, sizeof list);
+    CHECK(json_pick_count(&pick, 0) == 3);
+    CHECK_STR(element(0, 2), "3");
+    CHECK(json_pick_count(&pick, 1) == 1);
+    CHECK_STR(element(1, 0), "5");
+}
+
 int main(void)
 {
+    test_lists();
     test_picks_by_path();
     test_what_has_no_value();
     test_documents_that_are_not_objects();

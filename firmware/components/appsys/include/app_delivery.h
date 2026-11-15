@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "json_pick.h"
 #include "scene.h"
 #include "wm.h"
 
@@ -37,6 +38,8 @@ typedef enum {
     APP_DELIVERY_INTENT,   /* news it asked for: app_on_intent(); `request` is which */
     APP_DELIVERY_ALARM,    /* the alarm it set has come: app_on_alarm() */
     APP_DELIVERY_SETTINGS, /* the user changed its settings: app_on_settings() */
+    APP_DELIVERY_INSTALLED, /* it is new on this device: app_on_installed() */
+    APP_DELIVERY_UPDATED,   /* it replaced another version of itself: app_on_updated() */
 } app_delivery_kind_t;
 
 typedef struct {
@@ -48,13 +51,16 @@ typedef struct {
     bool only_on_screen;
     /* PIECE and VALUES: what else is known of the answer, or NULL */
     const struct host_response *response;
+    /* PIECE and VALUES of a poll with "each": the item of the list it went
+     * over. Without has_item, none. */
+    bool has_item;
+    int  item;
     /* PIECE */
     const uint8_t *data;
     size_t         length;
     int            flags; /* HOST_DATA_* */
-    /* VALUES */
-    const char *const *values;
-    int                value_count;
+    /* VALUES: what was picked out of the answer, or NULL */
+    json_pick_t *picked;
 } app_delivery_t;
 
 /* For how long after its settings were saved an application on the screen

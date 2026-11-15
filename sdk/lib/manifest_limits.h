@@ -45,6 +45,8 @@
 #define MANIFEST_SETTING_VALUE_MAX   255
 #define MANIFEST_SETTING_OPTIONS_MAX 8
 #define MANIFEST_SETTING_OPTION_MAX  23
+#define MANIFEST_LIST_ITEMS_MAX      16 /* items of a list setting; requests of a poll with "each" */
+#define MANIFEST_LIST_ITEM_MAX       63
 
 /* Module size. The code slot is 52 KB. Code that actually runs is limited
  * further by the interpreter memory: about four bytes per byte of code. */

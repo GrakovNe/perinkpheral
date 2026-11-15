@@ -56,6 +56,44 @@ static bool encode_in_place(char *value, size_t capacity)
     return true;
 }
 
+#define LIST_SEPARATOR '\n' /* between the items of a list setting, as stored */
+#define LIST_JOINED    ','  /* between them in a URL or a header */
+#define VALUE_MAX      256  /* a setting's value and its terminator */
+
+/* The items of a list, each encoded, joined with commas: "AAPL,BRK.B". */
+static bool encode_list_in_place(char *value, size_t capacity)
+{
+    char items[VALUE_MAX];
+    if (strlen(value) >= sizeof items) {
+        return false;
+    }
+    strcpy(items, value);
+    size_t used = 0;
+    for (char *item = items;;) {
+        char *end = strchr(item, LIST_SEPARATOR);
+        if (end != NULL) {
+            *end = '\0';
+        }
+        if (used + strlen(item) >= capacity) {
+            return false;
+        }
+        strcpy(value + used, item);
+        if (!encode_in_place(value + used, capacity - used)) {
+            return false;
+        }
+        used += strlen(value + used);
+        if (end == NULL) {
+            return true;
+        }
+        if (used + 1 >= capacity) {
+            return false;
+        }
+        value[used++] = LIST_JOINED;
+        value[used] = '\0';
+        item = end + 1;
+    }
+}
+
 static bool fill(const char *template_text, text_template_value_fn value_of, void *context,
                  char *filled, size_t filled_size, bool for_url)
 {
@@ -94,8 +132,17 @@ static bool fill(const char *template_text, text_template_value_fn value_of, voi
          * must not bring a line break along: that would be a header of its
          * own making. Whatever wrote the value, it is looked at here. */
         bool is_verbatim = !for_url || is_server_prefix;
-        if (is_verbatim ? !is_printable(filled + used)
-                             : !encode_in_place(filled + used, filled_size - used)) {
+        /* A list setting goes in as its items with commas between them. */
+        char *value = filled + used;
+        bool  is_list = strchr(value, LIST_SEPARATOR) != NULL;
+        if (is_list && is_verbatim) {
+            for (char *at = value; (at = strchr(at, LIST_SEPARATOR)) != NULL;) {
+                *at = LIST_JOINED;
+            }
+        }
+        if (is_verbatim ? !is_printable(value)
+            : is_list   ? !encode_list_in_place(value, filled_size - used)
+                        : !encode_in_place(value, filled_size - used)) {
             return false;
         }
         used += strlen(filled + used);

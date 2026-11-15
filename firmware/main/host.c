@@ -15,6 +15,8 @@
 #include "app_manifest.h"
 #include "devconsole.h"
 #include "app_delivery.h"
+#include "app_kv.h"
+#include "host_api.h"
 #include "deadlines.h"
 #include "app_host.h"
 #include "gfx_icons.h"
@@ -821,6 +823,8 @@ void host_close_app(const char *app_name)
     wm_close(&wm, scene);
 }
 
+static void tell_new_versions(void);
+
 void host_reload_apps(void)
 {
     /* An application loaded off the screen for an answer is unloaded
@@ -851,6 +855,7 @@ void host_reload_apps(void)
         wm_open_from_home(&wm, again);
     }
     wm_invalidate(&wm, WM_CHANGED_URGENTLY);
+    tell_new_versions();
 }
 
 static bool s_reload_is_due;
@@ -872,6 +877,37 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
 
 /* Tells every application that asked for this kind of news, loading each
  * for the call. Those that did not ask are left asleep. */
+/* An application that has not run here before, or ran as another version,
+ * is told so once: loaded for the call when it is not on the screen. */
+static void tell_new_versions(void)
+{
+    int count;
+    const app_manifest_t *installed = launcher_installed(&count);
+    struct {
+        char     name[APP_NAME_MAX + 1];
+        uint32_t id;
+        bool     is_update;
+    } news[LAUNCHER_INSTALLED_MAX];
+    int told = 0;
+    for (int i = 0; i < count && told < LAUNCHER_INSTALLED_MAX; i++) {
+        uint32_t seen = app_kv_seen_id(installed[i].name);
+        if (seen != installed[i].id) {
+            strcpy(news[told].name, installed[i].name);
+            news[told].id = installed[i].id;
+            news[told++].is_update = seen != 0;
+        }
+    }
+    for (int i = 0; i < told; i++) {
+        /* Noted first: a version that crashes in the handler is not told
+         * again at every start. */
+        app_kv_set_seen_id(news[i].name, news[i].id);
+        ESP_LOGI(TAG, "%s: %s", news[i].name, news[i].is_update ? "updated" : "installed");
+        app_delivery_t delivery = { .kind = news[i].is_update ? APP_DELIVERY_UPDATED
+                                                              : APP_DELIVERY_INSTALLED };
+        host_deliver(news[i].name, &delivery);
+    }
+}
+
 static void broadcast(int intent)
 {
     int count;
@@ -964,6 +1000,10 @@ void host_run(void)
             events_answer_call(event.call);
             break;
         case EVENT_INTENT:
+            /* At a start, what is new is told before that the device started. */
+            if (event.intent == HOST_INTENT_STARTED) {
+                tell_new_versions();
+            }
             broadcast(event.intent);
             break;
         case EVENT_DEV_REQUEST:

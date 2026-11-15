@@ -20,6 +20,58 @@ void json_pick_init(json_pick_t *pick, const char *const *paths, int path_count)
     pick->paths = paths;
     pick->path_count = path_count < JSON_PICK_PATHS_MAX ? path_count : JSON_PICK_PATHS_MAX;
     pick->target = NO_TARGET;
+    pick->read_path = NO_TARGET;
+}
+
+void json_pick_lists(json_pick_t *pick, char *buffer, size_t size)
+{
+    pick->list = buffer;
+    pick->list_size = buffer != NULL ? size : 0;
+    pick->list_used = 0;
+}
+
+/* Whether the pattern has "[*]". */
+static bool has_any(const char *pattern)
+{
+    for (; *pattern != '\0'; pattern++) {
+        if (pattern[0] == '[' && pattern[1] == '*' && pattern[2] == ']') {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool json_pick_is_list(const json_pick_t *pick, int index)
+{
+    return index >= 0 && index < pick->path_count && has_any(pick->paths[index]);
+}
+
+static bool is_digit(char character)
+{
+    return character >= '0' && character <= '9';
+}
+
+/* Whether the path of a value is the one a pattern describes: the same,
+ * but "[*]" stands for any index. */
+static bool path_matches(const char *pattern, const char *path)
+{
+    while (*pattern != '\0') {
+        if (pattern[0] == '[' && pattern[1] == '*' && pattern[2] == ']') {
+            if (*path++ != '[' || !is_digit(*path)) {
+                return false;
+            }
+            while (is_digit(*path)) {
+                path++;
+            }
+            if (*path++ != ']') {
+                return false;
+            }
+            pattern += 3;
+        } else if (*pattern++ != *path++) {
+            return false;
+        }
+    }
+    return *path == '\0';
 }
 
 static bool is_recorded(const json_pick_t *pick)
@@ -102,8 +154,10 @@ static void aim(json_pick_t *pick)
     }
     for (int i = 0; i < pick->path_count; i++) {
         /* The first occurrence wins: a document that repeats a key does
-         * not get to overwrite what was read. */
-        if (!pick->found[i] && is_same_text(pick->paths[i], path)) {
+         * not get to overwrite what was read. A list takes every one. */
+        bool is_list = has_any(pick->paths[i]);
+        if (is_list ? path_matches(pick->paths[i], path)
+                    : !pick->found[i] && is_same_text(pick->paths[i], path)) {
             pick->target = i;
             pick->values[i][0] = '\0';
             return;
@@ -174,10 +228,36 @@ static void collect_character(json_pick_t *pick, uint32_t code_point)
     pick->values[pick->target][pick->length] = '\0';
 }
 
+/* An element of a list path, read whole: into the list, when it fits. */
+static void keep_element(json_pick_t *pick, int index)
+{
+    const char *text = pick->values[index];
+    size_t      length = 0;
+    while (text[length] != '\0') {
+        length++;
+    }
+    size_t needed = 1 + length + 1; /* the path's index, the text, its terminator */
+    if (pick->list == NULL || pick->list_size - pick->list_used < needed ||
+        pick->counts[index] == UINT16_MAX) {
+        pick->list_is_cut = pick->list_is_cut || pick->list != NULL;
+        return;
+    }
+    char *at = pick->list + pick->list_used;
+    at[0] = (char)index;
+    for (size_t i = 0; i <= length; i++) {
+        at[1 + i] = text[i];
+    }
+    pick->list_used += needed;
+    pick->counts[index]++;
+}
+
 static void value_ended(json_pick_t *pick)
 {
     if (pick->target != NO_TARGET) {
         pick->found[pick->target] = true;
+        if (has_any(pick->paths[pick->target])) {
+            keep_element(pick, pick->target);
+        }
         pick->target = NO_TARGET;
     }
     pick->state = JSON_PICK_BETWEEN;
@@ -385,6 +465,52 @@ void json_pick_finish(json_pick_t *pick)
 
 const char *json_pick_value(const json_pick_t *pick, int index)
 {
-    bool has_value = index >= 0 && index < pick->path_count && pick->found[index];
+    bool has_value = index >= 0 && index < pick->path_count && pick->found[index] &&
+                     !has_any(pick->paths[index]);
     return has_value ? pick->values[index] : NULL;
+}
+
+int json_pick_count(const json_pick_t *pick, int index)
+{
+    if (json_pick_is_list(pick, index)) {
+        return pick->counts[index];
+    }
+    return json_pick_value(pick, index) != NULL ? 1 : 0;
+}
+
+const char *json_pick_element(json_pick_t *pick, int index, int element)
+{
+    if (!json_pick_is_list(pick, index)) {
+        return element == 0 ? json_pick_value(pick, index) : NULL;
+    }
+    if (element < 0 || element >= pick->counts[index]) {
+        return NULL;
+    }
+    /* On from the element asked for last, when this one is after it. */
+    bool   goes_on = pick->read_path == index && element >= pick->read_element;
+    size_t at = goes_on ? pick->read_at : 0;
+    int    number = goes_on ? pick->read_element : 0;
+    while (at < pick->list_used) {
+        const char *text = pick->list + at + 1;
+        size_t      length = 0;
+        while (text[length] != '\0') {
+            length++;
+        }
+        if ((unsigned char)pick->list[at] == (unsigned char)index) {
+            if (number == element) {
+                pick->read_path = index;
+                pick->read_element = element;
+                pick->read_at = at;
+                return text;
+            }
+            number++;
+        }
+        at += 1 + length + 1;
+    }
+    return NULL;
+}
+
+bool json_pick_is_cut(const json_pick_t *pick)
+{
+    return pick->list_is_cut;
 }

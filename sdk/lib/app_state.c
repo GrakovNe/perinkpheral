@@ -61,3 +61,43 @@ bool app_setting_number(const char *key, int32_t decimals, int32_t *number)
     char value[SETTING_TEXT_MAX];
     return app_setting(key, value, sizeof value) > 0 && app_parse_number(value, decimals, number);
 }
+
+int32_t app_setting_count(const char *key)
+{
+    char    value[SETTING_TEXT_MAX];
+    int32_t length = app_setting(key, value, sizeof value);
+    int32_t count = length > 0 ? 1 : 0;
+    for (int32_t i = 0; i < length; i++) {
+        count += value[i] == '\n';
+    }
+    return count;
+}
+
+int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size)
+{
+    char    value[SETTING_TEXT_MAX];
+    int32_t length = app_setting(key, value, sizeof value);
+    int32_t start = 0;
+    for (int32_t item = 0; start < length; item++) {
+        int32_t end = start;
+        while (end < length && value[end] != '\n') {
+            end++;
+        }
+        if (item == index) {
+            int32_t item_length = end - start;
+            if (item_length >= text_size) {
+                break;
+            }
+            for (int32_t i = 0; i < item_length; i++) {
+                text[i] = value[start + i];
+            }
+            text[item_length] = '\0';
+            return item_length;
+        }
+        start = end + 1;
+    }
+    if (text_size > 0) {
+        text[0] = '\0';
+    }
+    return 0;
+}

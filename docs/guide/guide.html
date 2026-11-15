@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 3, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 4, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -136,7 +136,7 @@
   <li>Input: four buttons; short press, long press, key down and key up events</li>
   <li>Sandbox: 64 KB of private memory; network access through the host only</li>
   <li>Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code</li>
-  <li>Data: the host extracts values from JSON answers; any answer can be streamed in 1 KB pieces</li>
+  <li>Data: the host extracts values and lists from JSON answers; any answer can be streamed in 1 KB pieces</li>
   <li>Background work: answers, alarms and device events are delivered while the application is off the screen</li>
 </ul>
 <ul>
@@ -210,10 +210,11 @@
   <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>Performed by the host</td></tr>
   <tr><td>HTTPS trust</td><td class="n">browser root set</td><td>Self-signed certificates are rejected. Plain <code>http</code> is available for home networks</td></tr>
   <tr><td>Hosts for requests from code</td><td class="n">4</td><td>Listed in the manifest, or taken from a <code>url</code> or <code>link</code> setting. Polls use the address in their <code>url</code></td></tr>
-  <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery</td></tr>
-  <tr><td>Concurrent requests</td><td class="n">1</td><td>Per device. Queue: 2 more</td></tr>
+  <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. One poll can go over a list setting: one request per item, up to 16</td></tr>
+  <tr><td>Concurrent requests</td><td class="n">1</td><td>Per device. Applications and polls take turns</td></tr>
+  <tr><td>Requests from code waiting</td><td class="n">16</td><td>Per application</td></tr>
   <tr><td>Request headers / body</td><td class="n">1023 / 512 bytes</td><td>Up to 4 header lines</td></tr>
-  <tr><td>Answer with extracted values</td><td class="n">256 KB</td><td>JSON; up to 16 paths; value up to 63 bytes</td></tr>
+  <tr><td>Answer with extracted values</td><td class="n">256 KB</td><td>JSON; up to 16 paths; value up to 63 bytes; elements of lists up to 8 KB as text</td></tr>
   <tr><td>Streamed answer</td><td class="n">4 MB</td><td>Pieces of up to 1024 bytes; about 90 KB/s over plain HTTP</td></tr>
   <tr><td>Redirects</td><td class="n">3</td><td><code>GET</code> only. Requests from code stay within the hosts list</td></tr>
   <tr><td>HTTPS request time</td><td class="n">about 6 s</td><td>Mostly the TLS handshake</td></tr>
@@ -225,6 +226,7 @@
   <tr><td>Timers</td><td class="n">4</td><td>One-shot, milliseconds. Active while the application is on the screen</td></tr>
   <tr><td>Alarms</td><td class="n">4</td><td>Relative, absolute, or repeating every 60 s to 1 day. Active on and off the screen. Cleared by a restart</td></tr>
   <tr><td>Device events (intents)</td><td class="n">3</td><td>Started, time changed, network up</td></tr>
+  <tr><td>Installation, update</td><td class="n">once each</td><td><code>app_on_installed()</code>, <code>app_on_updated()</code></td></tr>
   <tr><td>Queued notifications</td><td class="n">4</td><td>Per device</td></tr>
   <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>request_focus()</code>; granted by the host</td></tr>
   <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network. 0 until first set. The time zone is a host setting</td></tr>
@@ -251,6 +253,7 @@
   <tr><td>The user opens the application</td><td>Loaded; stays while it has the screen</td><td class="c">app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
   <tr><td>An answer, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
   <tr><td>The same while off the screen</td><td>Loaded for the call, unloaded after it. The current screen is suspended and restored</td><td class="c">app_init, the handler, app_on_terminate</td></tr>
+  <tr><td>Installed, or updated to another version</td><td>Once, on or off the screen</td><td class="c">app_on_installed / app_on_updated</td></tr>
   <tr><td><code>request_focus()</code> granted by the host</td><td>Stays, on top of the stack</td><td class="c">... app_on_focus, app_on_draw</td></tr>
   <tr><td>The application leaves the screen: BACK, the menu, another application on top</td><td>Unloaded</td><td class="c">app_on_blur, app_on_terminate</td></tr>
 </table>
@@ -307,7 +310,7 @@ tools/devtool/devtool.py sim my-app                      # run it in the simulat
 <pre>#include "app_text.h"
 #include "host_api.h"
 
-#define MARGIN 16
+#define MARGIN HOST_UI_MARGIN
 
 static const char PRESSES_KEY[] = "presses";
 #define PRESSES_KEY_LENGTH ((int32_t)sizeof PRESSES_KEY - 1)
@@ -422,7 +425,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
-  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below)</td></tr>
+  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). One of them can go over a list setting</td></tr>
   <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
   <tr><td class="c">settings</td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
@@ -434,12 +437,16 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 <h2 id="package-polls">Polls</h2>
 <table>
   <tr><th style="width:13%">Field</th><th style="width:30%">Format</th><th>Description</th></tr>
-  <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required</td></tr>
+  <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required</td></tr>
   <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token</td></tr>
-  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
+  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
+  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, up to 16, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for. One poll per manifest</td></tr>
 </table>
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
+<pre>"settings": [ { "key": "tickers", "type": "list", "title": "Tickers", "default": ["AAPL", "MSFT"] } ],
+"polls": [ { "url": "https://query1.example.com/v8/chart/{{tickers}}?range=1d", "every": 900,
+             "each": "tickers", "pick": ["meta.longName", "indicators.close[*]"] } ]</pre>
 
 <h2 id="package-settings">Settings</h2>
 <p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
@@ -455,9 +462,10 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">place</td><td>Place search by name</td><td>The place name. The page also fills the two <code>number</code> settings named in <code>latitude</code> and <code>longitude</code></td></tr>
   <tr><td class="c">url</td><td>Address of the user's server</td><td>Scheme, host and optional port: <code>http://192.168.1.10:8123</code></td></tr>
   <tr><td class="c">link</td><td>Complete URL supplied by the user</td><td><code>https://host/path?key</code>, up to 255 bytes. Hidden on the web page like a secret. <code>webcal://</code> is converted to <code>https://</code></td></tr>
+  <tr><td class="c">list</td><td>A line per item; items are added and removed</td><td>Up to 16 items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code></td></tr>
 </table>
 <ul>
-  <li><code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty. The code applies the same default when <code>kv_get()</code> finds no value.</li>
+  <li><code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.</li>
   <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
 </ul>
@@ -653,6 +661,11 @@ void app_init(void)
 <p>Use files for data that does not fit in a store value: a downloaded list, a cache, a picture.</p>
 <p><code>file_read()</code> and <code>file_write()</code> take an offset. A file can be read and extended in parts, so it never has to be held in memory in full.</p>
 <p>The files from the <code>files/</code> folder of the package are installed with the application.</p>
+<ul>
+  <li>Files written by the code are kept when the application is updated. They are removed with the application; the store is kept.</li>
+  <li>A write starts inside the file or at its end. To replace a file with a shorter one, delete it first: <code>file_write()</code> with length 0 at offset 0.</li>
+  <li>Each file takes whole blocks of 4 KB of the 64 KB. Keep related records in one file.</li>
+</ul>
 
 <h1 id="network">9. Network</h1>
 <p>All network access goes through the host. The application describes a request; the host performs it and delivers the answer. The host performs one request at a time for the whole device. Delivery is independent of whether the application is on the screen.</p>
@@ -661,6 +674,7 @@ void app_init(void)
   <tr><th style="width:20%">Method</th><th style="width:33%">Trigger</th><th>Delivery</th></tr>
   <tr><td>Poll with <code>pick</code></td><td>Schedule</td><td><code>app_on_values()</code>, once, with the extracted values</td></tr>
   <tr><td>Poll without <code>pick</code></td><td>Schedule</td><td><code>app_on_data()</code> in pieces, with the poll number</td></tr>
+  <tr><td>Poll with <code>each</code></td><td>Schedule; one request per item of a list setting</td><td>As above, once per item. <code>data_item()</code> gives the item</td></tr>
   <tr><td><code>http_request()</code></td><td>Code: after a button press, or as a follow-up request</td><td><code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)</td></tr>
 </table>
 
@@ -681,6 +695,32 @@ void app_on_values(int32_t request, int32_t http_status)
 }</pre>
 <p>Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.</p>
 <p>A path that is absent from the answer has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
+<h3>Lists</h3>
+<p>A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:</p>
+<pre>/* "pick": ["meta.longName", "indicators.close[*]"] */
+static int32_t prices[HOST_CHART_VALUES_MAX];
+static int32_t count;
+
+void app_on_values(int32_t request, int32_t http_status)
+{
+    int32_t item = data_item();                                    /* which ticker of the list */
+    if (http_status == 200) {
+        count = app_value_series(1, 2, prices, HOST_CHART_VALUES_MAX);  /* hundredths; "null": a gap */
+    }
+}</pre>
+<ul>
+  <li>A null element is kept, as a gap in the series, so that two lists of one array stay in step. An element without the rest of the path (<code>items[*].title</code> in an item without a title) is skipped.</li>
+  <li>The elements of one answer take up to 8 KB as text (<code>HOST_LIST_BYTES</code>); each costs its length and 2 bytes. Elements beyond that are dropped and the log says so.</li>
+  <li>With more elements than the capacity, <code>app_value_series()</code> takes evenly spread elements, the first and the last among them.</li>
+  <li>A value goes to the first path that names it: <code>a[*]</code> before <code>a[0]</code> takes the element.</li>
+</ul>
+<h3>Numbers</h3>
+<p>Floating point is not available. A number is an integer with a fixed number of decimals: 356.27 is 35627 with 2 decimals. <code>app_fixed.h</code> reads, converts and writes such numbers in 64 bits:</p>
+<pre>int64_t price, previous;
+app_value_fixed(VALUE_PRICE, 2, &amp;price);                       /* "356.2699890136719" -> 35627 */
+app_value_fixed(VALUE_PREVIOUS, 2, &amp;previous);
+int64_t percent = app_fixed_ratio((price - previous) * 100, previous, 2);  /* -> 39: +0.39 % */
+app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+1.39" */</pre>
 
 <h2 id="network-pieces">Streamed answers</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
@@ -700,7 +740,7 @@ void app_on_values(int32_t request, int32_t http_status)
     }
 }</pre>
 <ul>
-  <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB.</li>
+  <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).</li>
   <li>Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new answer.</li>
   <li>Inside the handler, <code>data_response()</code> returns the response metadata: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After.</li>
 </ul>
@@ -714,7 +754,9 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
              body, body_length);</pre>
 <ul>
   <li>Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.</li>
-  <li><code>HOST_ERR_NO_SPACE</code> means that the request queue of the device is full (two waiting requests). Retry later.</li>
+  <li>An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as answers arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.</li>
+  <li>The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
+  <li>An answer to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the answer is still needed.</li>
   <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is sent once; its redirect response is delivered as the answer.</li>
   <li><code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
@@ -752,6 +794,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td>Bring the application to the screen</td><td class="c">request_focus</td><td>Granted by the host, at most once per 30 s</td></tr>
   <tr><td>Status in the header</td><td class="c">header_status</td><td>An icon and a short text in the header above every screen while the application is off the screen</td></tr>
   <tr><td>Reaction to device start, network connection or clock change</td><td>Intent in the manifest</td><td><code>app_on_intent()</code></td></tr>
+  <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms and poll intervals of the old one: set them here</td></tr>
 </table>
 
 <h2 id="background-notify">Notifications</h2>
@@ -839,13 +882,13 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">tools/mkapp/mkapp.py &lt;dir&gt; --out &lt;dir&gt;</td><td>Builds one application: compile, link with the SDK library, check, measure</td></tr>
   <tr><td class="c">tools/devtool/devtool.py new &lt;dir&gt; [--title T]</td><td>Creates a new application folder from the SDK sample</td></tr>
   <tr><td class="c">tools/devtool/devtool.py run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads, restarts the device and opens the application</td></tr>
-  <tr><td class="c">tools/devtool/devtool.py sim &lt;dir&gt; [--language ru] [--mocks m.json]</td><td>Builds the application and runs it in the simulator (below)</td></tr>
+  <tr><td class="c">tools/devtool/devtool.py sim &lt;dir&gt; [--language ru] [--mocks m.json]</td><td>Builds the application and runs it in the simulator (below). Ctrl+C stops it</td></tr>
   <tr><td class="c">tools/devtool/devtool.py serve [dir]</td><td>Local web page: live screen, buttons, log, Run</td></tr>
   <tr><td class="c">tools/devtool/devtool.py shot [f.png]</td><td>Saves the current panel frame as an image</td></tr>
   <tr><td class="c">tools/devtool/devtool.py press 3 3 2L [--shot f.png]</td><td>Sends button presses: 1 - 4 short, 1L - 4L long, in device order</td></tr>
   <tr><td class="c">tools/devtool/devtool.py open &lt;name&gt;</td><td>Opens an installed application</td></tr>
   <tr><td class="c">tools/devtool/devtool.py log [--follow] [--app]</td><td>Prints the device log. <code>--app</code>: application lines only</td></tr>
-  <tr><td class="c">tools/devtool/devtool.py set &lt;app&gt; &lt;key&gt; &lt;value&gt;</td><td>Writes a value to an application's store, for example a setting</td></tr>
+  <tr><td class="c">tools/devtool/devtool.py set &lt;app&gt; &lt;key&gt; &lt;value&gt;</td><td>Writes a value to an application's store, as the web page saves a setting: <code>app_on_settings()</code> is called and the polls are repeated. A list is its items with line breaks</td></tr>
   <tr><td class="c">tools/devtool/devtool.py status</td><td>Prints firmware, network, free memory and the last reset reason</td></tr>
   <tr><td class="c">tools/mkpicture/mkpicture.py &lt;files&gt; --show</td><td>Prints pictures as rows of # and . as <code>mkapp</code> reads them</td></tr>
   <tr><td class="c">tools/mkvideo/mkvideo.py &lt;video&gt; --out &lt;bin&gt;</td><td>Converts a video to a 1-bit stream that fits in an application file</td></tr>
@@ -859,23 +902,31 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>.</p>
 <table>
   <tr><th style="width:34%">Device</th><th>Simulator</th></tr>
-  <tr><td>Store, files</td><td>A folder on the computer, with the device's limits. Kept between runs</td></tr>
+  <tr><td>Store, files</td><td>A folder on the computer, with the device's limits. Kept between runs, as across an update on the device</td></tr>
   <tr><td>Network</td><td>The computer's. Answers can be replaced by mocks</td></tr>
   <tr><td>Clock</td><td>The computer's. Moved forward on request</td></tr>
   <tr><td>Language, font, glyph packs</td><td><code>--language</code>, <code>--font</code>, <code>--glyphs</code></td></tr>
+  <tr><td>Where it keeps its state</td><td><code>--state &lt;folder&gt;</code>; by default <code>~/.perinkpheral/simulator/&lt;name&gt;</code></td></tr>
+  <tr><td>Port, time in the header</td><td><code>--port</code> (8401), <code>--clock</code></td></tr>
 </table>
+<p>The first run of an application in a state folder calls <code>app_on_installed()</code>; a run of another build calls <code>app_on_updated()</code>.</p>
 <p>Requests that the device does not have:</p>
 <table>
   <tr><th style="width:44%">Request (POST)</th><th>Effect</th></tr>
   <tr><td class="c">/api/sim/background</td><td>The application leaves the screen. From then on it is loaded only for what is delivered to it, as on the device</td></tr>
   <tr><td class="c">/api/sim/foreground</td><td>The application takes the screen again</td></tr>
-  <tr><td class="c">/api/sim/intent?kind=started</td><td>Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>. Only an intent the manifest declares</td></tr>
+  <tr><td class="c">/api/sim/intent?kind=started</td><td>Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>network_up</code>, only if the manifest declares it. <code>installed</code> and <code>updated</code> call <code>app_on_installed()</code> and <code>app_on_updated()</code></td></tr>
   <tr><td class="c">/api/sim/alarm?id=N</td><td>Alarm <code>N</code> expires now</td></tr>
   <tr><td class="c">/api/sim/forward?seconds=N</td><td>The clock and every pending poll, alarm and timer move forward</td></tr>
 </table>
 <p>Mocks are a JSON file of address to answer. An address that ends with <code>*</code> matches every address that begins with the rest:</p>
 <pre>{ "https://api.example.com/quote*": { "status": 200, "file": "quote.json" },
-  "https://api.example.com/login":  { "status": 401, "body": "{}" } }</pre>
+  "https://api.example.com/login":  { "status": 401, "body": "{}" },
+  "https://api.example.com/down":   { "status": -1 } }</pre>
+<ul>
+  <li><code>status</code> is an HTTP status, or a negative <code>HOST_FAILED_*</code> code: -1 is no network, -5 a timeout.</li>
+  <li><code>file</code> is read relative to the mocks file, again for every request: change the file to change the answer while the simulator runs. The mocks file itself is read once, at start.</li>
+</ul>
 <p>Not simulated: the menu and other applications, the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.</p>
 
 <h2 id="tools-problems">Common problems</h2>
@@ -887,7 +938,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td>"&lt;title&gt; cannot start", "Update the app."</td><td>Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall</td></tr>
   <tr><td>Poll fails with -3</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
   <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate. Use <code>http</code> within a home network</td></tr>
-  <tr><td><code>http_request()</code> returns -4</td><td>The device request queue is full. Retry from a later handler</td></tr>
+  <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting. Queue more as answers arrive</td></tr>
+  <tr><td>A poll fails with -3 in the simulator and on the device, though the page shows a value</td><td>The value is the setting's <code>default</code>, which is shown and not stored. Apply the default in the code, or save the settings once</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
   <tr><td>A press is ignored shortly after start</td><td>A background delivery was in progress. The press interrupted it and the screen is being redrawn</td></tr>
@@ -938,6 +990,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void app_on_values(int32_t request, int32_t http_status)</td><td>The answer to a poll with <code>pick</code> arrives. Values are readable inside the handler</td></tr>
   <tr><td class="c">void app_on_settings(void)</td><td>The user saves the application's settings on the web page</td></tr>
   <tr><td class="c">void app_on_intent(int32_t intent)</td><td>A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>_NETWORK_UP</code> (2), <code>_STARTED</code> (3)</td></tr>
+  <tr><td class="c">void app_on_installed(void)</td><td>Once after the application is installed: it has not run on this device before, or was removed and installed again</td></tr>
+  <tr><td class="c">void app_on_updated(void)</td><td>Once after another version replaced the one that ran before. The store and the files are kept; alarms and poll intervals are not</td></tr>
   <tr><td class="c">uint8_t *app_data_buffer(void)</td><td>Returns the buffer for one piece of data (1 KB). Provided by <code>sdk/lib</code></td></tr>
   <tr><td class="c">uint8_t *app_strings_buffer(void)</td><td>Returns the buffer for the strings of the device's language. Generated by <code>mkapp</code></td></tr>
 </table>
@@ -959,7 +1013,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">gfx_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by the host from an application file, starting at <code>offset</code></td></tr>
   <tr><td class="c">gfx_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
   <tr><td class="c">void request_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code></td></tr>
-  <tr><td class="c">header_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler</td></tr>
+  <tr><td class="c">header_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
 </table>
 
 <h1 id="ref-kit">19. Kit</h1>
@@ -1005,8 +1059,11 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">file_write(name, name_length, offset, bytes, length)</td><td>Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file</td></tr>
   <tr><td class="c">poll_now(poll)</td><td>Runs a manifest poll immediately</td></tr>
   <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Sets the poll interval, 10 s to 1 day. Kept across restarts</td></tr>
-  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines</td></tr>
-  <tr><td class="c">data_value(index, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length</td></tr>
+  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines</td></tr>
+  <tr><td class="c">data_value(index, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value</td></tr>
+  <tr><td class="c">data_count(index)</td><td>Inside <code>app_on_values()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path</td></tr>
+  <tr><td class="c">data_element(index, element, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies element <code>element</code> of path <code>index</code>, as <code>data_value()</code> does</td></tr>
+  <tr><td class="c">data_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other answer</td></tr>
   <tr><td class="c">data_response(response)</td><td>Inside a data handler: fills a <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
   <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Replaces <code>{0}</code> .. <code>{3}</code> in the pattern with <code>host_text_argument_t</code> values (a number, or a text and its length). Returns the length</td></tr>
   <tr><td class="c">void host_log(level, text, length)</td><td>Writes one log line of up to 200 characters. Levels: <code>HOST_LOG_ERROR</code>, <code>_WARN</code>, <code>_INFO</code>, <code>_DEBUG</code></td></tr>
@@ -1063,15 +1120,33 @@ void    app_draw_right(int32_t right, int32_t y, int32_t font, const char *text)
 bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);  /* first field: int32_t version */
 void    app_state_save(const char *key, const void *state, int32_t size);             /* one flash write */
 void    app_state_forget(const char *key);
-int32_t app_setting(const char *key, char *text, int32_t text_size);                  /* length; 0: not set */
+int32_t app_setting(const char *key, char *text, int32_t text_size);   /* length; 0: not set or too long */
+int32_t app_setting_count(const char *key);                                           /* items of a list */
+int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);  /* length; 0: none */
 bool    app_setting_is(const char *key, const char *wanted);
 bool    app_setting_is_on(const char *key);                                           /* toggle: true unless "0" */
 bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);</pre>
+<p>The text is always null-terminated. A value that does not fit is not cut: the result is empty and the length 0.</p>
 <h2 id="lib-values">app_values.h: what the host picked</h2>
-<pre>bool app_value_text(int32_t index, char *text, int32_t text_size);        /* false: value absent or buffer too small */
-bool app_value_number(int32_t index, int32_t decimals, int32_t *number);  /* "-3.46", 1 -> -35; false: value absent */
-bool app_parse_number(const char *text, int32_t decimals, int32_t *number);    /* the same for a given text */</pre>
-<p>These functions work only inside <code>app_on_values()</code>. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest.</p>
+<pre>bool    app_value_text(int32_t index, char *text, int32_t text_size);      /* false: absent or buffer too small */
+bool    app_value_number(int32_t index, int32_t decimals, int32_t *number); /* "-3.46", 1 -> -35; false: absent, no
+                                                                               number, or over 32 bits */
+bool    app_value_fixed(int32_t index, int32_t decimals, int64_t *number);  /* the same in 64 bits */
+bool    app_parse_number(const char *text, int32_t decimals, int32_t *number);   /* the same for a given text */
+
+int32_t app_value_count(int32_t index);                             /* elements of a list path; 1 or 0 for others */
+bool    app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size);
+bool    app_value_element_fixed(int32_t index, int32_t element, int32_t decimals, int64_t *number);
+int32_t app_value_series(int32_t index, int32_t decimals, int32_t *values, int32_t capacity);
+                         /* numbers for ui_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit */</pre>
+<p>These functions work only inside <code>app_on_values()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.</p>
+<h2 id="lib-fixed">app_fixed.h: numbers with decimals</h2>
+<pre>bool    app_fixed_parse(const char *text, int32_t decimals, int64_t *value);   /* "356.27", 2 -> 35627; exponents too */
+int64_t app_fixed_rescale(int64_t value, int32_t from_decimals, int32_t to_decimals);  /* rounded */
+int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals);        /* part / whole; 0 if whole is 0 */
+void    app_text_add_fixed(app_text_t *text, int64_t value, int32_t decimals, int32_t flags);
+                                                             /* 35627, 2 -> "356.27"; APP_FIXED_SIGN: "+" */</pre>
+<p>Rounding is half away from zero. Up to 9 decimals (<code>APP_FIXED_DECIMALS_MAX</code>).</p>
 <h2 id="lib-ui">app_ui.h: what the buttons do on the kit's screens</h2>
 <pre>typedef enum { APP_UI_IGNORED, APP_UI_CHANGED, APP_UI_DONE, APP_UI_CANCELLED } app_ui_result_t;
 
@@ -1099,10 +1174,15 @@ int32_t app_alloc_left(void);
 int32_t app_alloc_mark(void);                /* app_alloc_release(mark) frees everything allocated after the mark */
 void    app_alloc_release(int32_t mark);
 
+json_pick_t pick;                                                      /* about 1.5 KB: static, not on the stack */
 void        json_pick_init(json_pick_t *pick, const char *const *paths, int path_count);    /* up to 16 */
+void        json_pick_lists(json_pick_t *pick, char *buffer, size_t size);   /* room for list elements; after init */
 bool        json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);      /* one piece of the answer */
 void        json_pick_finish(json_pick_t *pick);
-const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL: value absent */
+const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL: value absent, or a list path */
+int         json_pick_count(const json_pick_t *pick, int index);         /* elements of a list path */
+const char *json_pick_element(json_pick_t *pick, int index, int element);   /* in order is fast */
+bool        json_pick_is_cut(const json_pick_t *pick);                   /* an element did not fit the buffer */
 
 #include "strings.h"      /* generated from strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
 #include "pictures.h"     /* generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
@@ -1124,7 +1204,9 @@ const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL
   <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>One piece of an answer</td></tr>
   <tr><td class="c">HOST_ANSWER_MAX / HOST_ANSWER_PIECES_MAX</td><td>256 KB / 4 MB</td><td>Answer with extracted values; streamed answer</td></tr>
   <tr><td class="c">HOST_VALUE_MAX</td><td>63 bytes</td><td>One extracted value</td></tr>
-  <tr><td class="c">HOST_HTTP_HEADERS_MAX / _BODY_MAX / _PENDING_MAX</td><td>1023 / 512 / 2</td><td>Request headers; body; queued requests per device</td></tr>
+  <tr><td class="c">HOST_HTTP_HEADERS_MAX / _BODY_MAX / _PENDING_MAX</td><td>1023 / 512 / 16</td><td>Request headers; body; waiting requests per application</td></tr>
+  <tr><td class="c">HOST_LIST_BYTES</td><td>8192</td><td>Elements of the list paths of one answer, as text</td></tr>
+  <tr><td class="c">MANIFEST_LIST_ITEMS_MAX / _ITEM_MAX</td><td>16 / 63</td><td>Items of a list setting, each in bytes; requests of a poll with <code>each</code></td></tr>
   <tr><td class="c">HOST_REQUEST_FIRST .. _LAST</td><td>16 .. 255</td><td>Tags for requests from code</td></tr>
   <tr><td class="c">HOST_TIMER_COUNT / HOST_ALARM_COUNT</td><td>4 / 4</td><td>Timers and alarms per application</td></tr>
   <tr><td class="c">HOST_ALARM_EVERY_MIN .. _MAX</td><td>60 .. 86400 s</td><td>Period of a repeating alarm</td></tr>

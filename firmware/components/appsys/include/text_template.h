@@ -25,7 +25,8 @@ typedef bool (*text_template_value_fn)(void *context, const char *key, char *val
 
 /* False when the result does not fit, a key has no value, or braces are
  * left open; `filled` is then empty. Text without braces is copied as it
- * is. */
+ * is. A value with line breaks is a list setting, and goes in as its items
+ * with commas between them. */
 bool text_template_fill(const char *template_text, text_template_value_fn value_of,
                         void *context, char *filled, size_t filled_size);
 

@@ -196,21 +196,26 @@ def command_new(options):
         manifest = json.load(f)
     manifest["name"] = name
     manifest["title"] = options.title or name.replace("-", " ").replace("_", " ").capitalize()
+    manifest["version"] = "0.1.0"  # a new application's, not the sample's
     os.makedirs(options.dir)
     with open(os.path.join(options.dir, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
-    shutil.copy(os.path.join(sample, "hello.c"), os.path.join(options.dir, name + ".c"))
+    # The sample's code, without the line that says whose it is: the new one is its author's.
+    with open(os.path.join(sample, "hello.c")) as f:
+        code = [line for line in f if not line.startswith(" * Copyright")]
+    with open(os.path.join(options.dir, name + ".c"), "w") as f:
+        f.writelines(code)
     # For an IDE that reads CMake: the code is understood, and building, running and the
-    # page are targets. The checkout is found by PERINKPHERAL, or where it was just now.
-    checkout = os.path.relpath(os.path.join(os.path.dirname(SDK_APPS), ".."),
-                               os.path.abspath(options.dir)).replace(os.sep, "/")
+    # page are targets. The checkout is found by PERINKPHERAL, or where it is now - an
+    # absolute path, so that the folder can be moved.
+    checkout = os.path.abspath(os.path.join(os.path.dirname(SDK_APPS), "..")).replace(os.sep, "/")
     with open(os.path.join(options.dir, "CMakeLists.txt"), "w") as f:
         f.write("cmake_minimum_required(VERSION 3.20)\n\n"
                 "if(DEFINED ENV{PERINKPHERAL})\n"
                 "    set(PERINKPHERAL \"$ENV{PERINKPHERAL}\")\n"
                 "else()\n"
-                "    set(PERINKPHERAL \"${CMAKE_CURRENT_LIST_DIR}/%s\")\n"
+                "    set(PERINKPHERAL \"%s\")\n"
                 "endif()\n"
                 "include(\"${PERINKPHERAL}/sdk/cmake/perinkpheral.cmake\")\n\n"
                 "project(%s C)\n"
@@ -350,11 +355,14 @@ def command_sim(options):
         name = json.load(manifest)["name"]
     state = options.state or os.path.join(os.path.expanduser("~"), ".perinkpheral", "simulator", name)
     apps = os.path.join(state, "apps")
-    shutil.rmtree(os.path.join(apps, name), ignore_errors=True)
-    built = subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"), options.app_dir,
-                            "--out", os.path.join(apps, name)])
-    if built.returncode != 0:
-        sys.exit(built.returncode)
+    # The package goes over what is there: the files the application wrote stay, as they do
+    # on the device when it is updated.
+    with tempfile.TemporaryDirectory() as built_dir:
+        built = subprocess.run([sys.executable, os.path.join(TOOLS, "mkapp", "mkapp.py"),
+                                options.app_dir, "--out", built_dir])
+        if built.returncode != 0:
+            sys.exit(built.returncode)
+        shutil.copytree(built_dir, os.path.join(apps, name), dirs_exist_ok=True)
     command = [simulator_binary(options.binary), "--apps", apps, "--app", name,
                "--state", state, "--port", str(options.port), "--language", options.language,
                "--font", options.font, "--python", sys.executable,

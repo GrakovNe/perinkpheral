@@ -24,7 +24,9 @@ void app_state_save(const char *key, const void *state, int32_t size);
 void app_state_forget(const char *key);
 
 /* Copies a setting to `text` as a null-terminated string. Returns its
- * length; 0 if the setting is not set or does not fit. */
+ * length; 0 if the setting is not set or does not fit, `text` then being
+ * empty. A `list` setting comes as its items, each ended by '\n' but the
+ * last: see app_setting_item(). */
 int32_t app_setting(const char *key, char *text, int32_t text_size);
 
 /* True if the setting equals `wanted`. */
@@ -36,3 +38,9 @@ bool app_setting_is_on(const char *key);
 /* A `number` setting scaled by 10^decimals, as app_parse_number() reads it.
  * Returns false if the setting is not set or is not a number. */
 bool app_setting_number(const char *key, int32_t decimals, int32_t *number);
+
+/* A `list` setting: the number of its items, and item number `index` as a
+ * null-terminated string. app_setting_item() returns its length; 0 if there
+ * is no such item or it does not fit, `text` then being empty. */
+int32_t app_setting_count(const char *key);
+int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);

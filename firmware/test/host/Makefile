@@ -130,7 +130,7 @@ build/every_call_wasm.h: build/every_call/app.wasm
 
 test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
-		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
+		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(SDK_LIB)/json_pick.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
@@ -150,7 +150,7 @@ test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildca
 test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
 
-MANIFEST_SRCS := $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c
+MANIFEST_SRCS := $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c $(SDK_LIB)/json_pick.c
 MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
 
 	$(CC) -std=c11 -w -c -o $@ $<

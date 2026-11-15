@@ -94,8 +94,11 @@ static bool read_pick(const json_t *pick, app_poll_t *poll)
     const json_t *path;
     json_for_each(path, pick)
     {
+        /* One "[*]" at most: a list of lists would be one list. */
+        const char *any = json_is_string(path) ? strstr(path->text, JSON_PICK_ANY) : NULL;
         if (!json_is_string(path) || path->text[0] == '\0' ||
-            strlen(path->text) > JSON_PICK_PATH_MAX) {
+            strlen(path->text) > JSON_PICK_PATH_MAX ||
+            (any != NULL && strstr(any + 1, JSON_PICK_ANY) != NULL)) {
             return false;
         }
         strcpy(poll->pick[poll->pick_count++], path->text);
@@ -219,6 +222,25 @@ static bool read_poll(const json_t *poll, const json_t *settings, app_poll_t *pa
     } else {
         parsed->every_s = (uint32_t)every->number;
     }
+    /* "each": one request for every item of a list setting. */
+    const json_t *each = json_get(poll, "each");
+    parsed->each_key[0] = '\0';
+    if (each != NULL) {
+        bool is_list = false;
+        const json_t *setting;
+        json_for_each(setting, settings)
+        {
+            const json_t *key = json_get(setting, "key");
+            const json_t *type = json_get(setting, "type");
+            is_list = is_list || (json_is_string(each) && json_is_string(key) &&
+                                  json_is_string(type) && strcmp(key->text, each->text) == 0 &&
+                                  strcmp(type->text, "list") == 0);
+        }
+        if (!is_list) {
+            return false;
+        }
+        strcpy(parsed->each_key, each->text);
+    }
     return read_headers(json_get(poll, "headers"), parsed) &&
            read_pick(json_get(poll, "pick"), parsed);
 }
@@ -228,6 +250,7 @@ static const char *const SETTING_TYPES[] = {
     [APP_SETTING_NUMBER] = "number", [APP_SETTING_CHOICE] = "choice",
     [APP_SETTING_TOGGLE] = "toggle", [APP_SETTING_PLACE] = "place",
     [APP_SETTING_URL] = "url", [APP_SETTING_LINK] = "link",
+    [APP_SETTING_LIST] = "list",
 };
 #define SETTING_TYPE_COUNT ((int)(sizeof SETTING_TYPES / sizeof SETTING_TYPES[0]))
 
@@ -334,10 +357,28 @@ static bool is_printable(const char *text);
 /* What the page shows while nothing is set; the application has to mean
  * the same when it finds nothing in its store. A secret has none, and a
  * place is not a place without its numbers. */
+static bool is_list_value(const char *value);
+
 static bool has_sound_default(const json_t *setting, int type)
 {
     const json_t *value = json_get(setting, "default");
     if (value == NULL) {
+        return true;
+    }
+    if (type == APP_SETTING_LIST) {
+        /* A list's is a list of items. */
+        int count = json_is_array(value) ? json_count(value) : 0;
+        if (count < 1 || count > APP_LIST_ITEMS_MAX) {
+            return false;
+        }
+        const json_t *item;
+        json_for_each(item, value)
+        {
+            if (!json_is_string(item) || !is_list_value(item->text) ||
+                strchr(item->text, '\n') != NULL) {
+                return false;
+            }
+        }
         return true;
     }
     return type != APP_SETTING_SECRET && type != APP_SETTING_PLACE &&
@@ -427,6 +468,8 @@ static bool fits_type(const json_t *setting, int type, const char *value)
         return is_server_value(value);
     case APP_SETTING_LINK:
         return is_link_value(value);
+    case APP_SETTING_LIST:
+        return is_list_value(value);
     case APP_SETTING_CHOICE: {
         const json_t *option;
         json_for_each(option, json_get(setting, "options"))
@@ -454,6 +497,29 @@ static bool is_printable(const char *text)
     return true;
 }
 
+/* Items separated by '\n': none empty, none too long, printable, a few. */
+static bool is_list_value(const char *value)
+{
+    int    items = 1;
+    size_t length = 0;
+    for (const char *at = value;; at++) {
+        if (*at == '\n' || *at == '\0') {
+            if (length == 0 || length > APP_LIST_ITEM_MAX) {
+                return false;
+            }
+            if (*at == '\0') {
+                return items <= APP_LIST_ITEMS_MAX;
+            }
+            items++;
+            length = 0;
+        } else if (*at < ' ' || *at > '~') {
+            return false;
+        } else {
+            length++;
+        }
+    }
+}
+
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret)
 {
@@ -467,7 +533,10 @@ bool app_manifest_accepts_setting(const char *json, const char *key, const char 
             strcmp(json_get(setting, "key")->text, key) != 0) {
             continue;
         }
-        accepted = strlen(value) <= APP_SETTING_VALUE_MAX && is_printable(value) &&
+        /* A list's items are each looked at by fits_type(); between them,
+         * the only line breaks a value may have. */
+        accepted = strlen(value) <= APP_SETTING_VALUE_MAX &&
+                   (type == APP_SETTING_LIST || is_printable(value)) &&
                    fits_type(setting, type, value);
         if (is_secret != NULL) {
             *is_secret = type == APP_SETTING_SECRET;
@@ -816,9 +885,13 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
         return APP_MANIFEST_BAD_POLL;
     }
     app_manifest_result_t result = APP_MANIFEST_OK;
+    int                   going_over_lists = 0;
     json_for_each(poll, polls)
     {
-        if (!read_poll(poll, json_get(root, "settings"), parsed)) {
+        /* One poll goes over a list: APP_LIST_ITEMS_MAX requests at most, and
+         * the host does not become one application's crawler. */
+        if (!read_poll(poll, json_get(root, "settings"), parsed) ||
+            (parsed->each_key[0] != '\0' && ++going_over_lists > 1)) {
             result = APP_MANIFEST_BAD_POLL;
             break;
         }
@@ -884,8 +957,9 @@ const char *app_manifest_result_text(app_manifest_result_t result)
     case APP_MANIFEST_OTHER_ABI:
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:
-        return "\"polls\" has more than 4 entries, or one without an http(s) \"url\" and "
-               "an \"every\" of 10 seconds to a day";
+        return "\"polls\" has more than 4 entries, one without an http(s) \"url\" and "
+               "an \"every\" of 10 seconds to a day, or more than one with \"each\" of a "
+               "list setting";
     }
     return "?";
 }

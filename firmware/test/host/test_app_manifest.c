@@ -359,8 +359,36 @@ static void test_hosts(void)
     }
 }
 
+static void test_list_setting(void)
+{
+    const char *json = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\","
+                       "\"type\":\"list\",\"title\":\"Tickers\",\"default\":[\"AAPL\",\"MSFT\"]}]}";
+    CHECK(parse(json) == APP_MANIFEST_OK);
+    CHECK(app_manifest_setting_type(json, "t") == APP_SETTING_LIST);
+    CHECK(app_manifest_accepts_setting(json, "t", "AAPL", NULL));
+    CHECK(app_manifest_accepts_setting(json, "t", "AAPL\nBRK.B\nSAP.DE", NULL));
+    CHECK(app_manifest_accepts_setting(json, "t", "", NULL)); /* not set */
+    CHECK(!app_manifest_accepts_setting(json, "t", "AAPL\n\nMSFT", NULL)); /* an empty item */
+    CHECK(!app_manifest_accepts_setting(json, "t", "AAPL\n", NULL));
+    CHECK(!app_manifest_accepts_setting(json, "t", "AA\tPL", NULL));
+    CHECK(!app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ",
+                                        NULL)); /* 17 items */
+    CHECK(app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP",
+                                       NULL));
+    /* a line break is a list's alone */
+    const char *text = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\","
+                       "\"type\":\"text\",\"title\":\"K\"}]}";
+    CHECK(!app_manifest_accepts_setting(text, "k", "a\nb", NULL));
+    /* a list's default is a list */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
+                "\"list\",\"title\":\"T\",\"default\":\"AAPL\"}]}") == APP_MANIFEST_BAD_SETTING);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
+                "\"list\",\"title\":\"T\",\"default\":[\"\"]}]}") == APP_MANIFEST_BAD_SETTING);
+}
+
 int main(void)
 {
+    test_list_setting();
     test_complete();
     test_defaults_and_unknown_fields();
     test_not_json();

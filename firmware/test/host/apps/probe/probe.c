@@ -247,7 +247,11 @@ void app_on_values(int32_t request, int32_t http_status)
                         data_value(2, text, sizeof text) == HOST_ERR_NOT_FOUND &&
                         data_value(1, too_small, sizeof too_small) == HOST_ERR_NO_SPACE &&
                         data_value(1, (char *)0xFFFFFF00u, 4) == HOST_ERR_ARGUMENT &&
-                        data_value(99, text, sizeof text) == HOST_ERR_NOT_FOUND;
+                        data_value(99, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        /* a list path: its elements, and no single value */
+                        app_value_count(3) == 2 && app_value_element_text(3, 1, text, sizeof text) &&
+                        same_text(text, "b") && data_value(3, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        app_value_count(0) == 1 && app_value_count(2) == 0 && data_item() == -1;
     request_redraw(HOST_REDRAW_NORMAL);
 }
 
@@ -311,7 +315,8 @@ static bool numbers_parse(void)
            app_parse_number("7.5", 0, &number) && number == 8 &&
            app_parse_number("2.999", 2, &number) && number == 300 &&
            !app_parse_number("", 0, &number) && !app_parse_number("-", 0, &number) &&
-           !app_parse_number("true", 0, &number) && !app_parse_number("1e5", 0, &number) &&
+           !app_parse_number("true", 0, &number) && app_parse_number("1e5", 0, &number) &&
+           number == 100000 && app_parse_number("1.25e-02", 3, &number) && number == 13 &&
            !app_parse_number("12345678901", 0, &number) && !app_parse_number("1.2x", 1, &number);
 }
 

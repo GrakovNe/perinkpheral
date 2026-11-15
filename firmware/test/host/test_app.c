@@ -453,7 +453,7 @@ static void test_data(void)
 
     /* what the headers said is there for the handler to ask, and only then */
     host_response_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };
-    app_answer_begins(app, &described, 304);
+    app_answer_begins(app, &described, 304, -1);
     app_data(app, 3, response, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 304);
     app_answer_ends(app);
     CHECK(app_take_focus_request(app));
@@ -586,13 +586,27 @@ static void test_bad_modules(void)
     app_unload(NULL); /* allowed */
 }
 
+/* What a poll's "pick" took out of an answer: a number, a text, and a path
+ * the answer does not have. */
+static json_pick_t *picked_values(void)
+{
+    static const char *const PATHS[] = { "t", "w", "none", "l[*]" };
+    static const char        ANSWER[] = "{\"t\":-3.46,\"w\":\"Rain\",\"l\":[\"a\",\"b\"]}";
+    static json_pick_t       picked;
+    static char              list[64];
+    json_pick_init(&picked, PATHS, 4);
+    json_pick_lists(&picked, list, sizeof list);
+    json_pick_feed(&picked, ANSWER, sizeof ANSWER - 1);
+    json_pick_finish(&picked);
+    return &picked;
+}
+
 static void test_values(void)
 {
     app_t *app = load_probe();
-    static const char *const PICKED[] = { "-3.46", "Rain", NULL };
-    app_values(app, 3, 200, PICKED, 3);
+    app_values(app, 3, 200, picked_values());
     CHECK(app_take_redraw_request(app));
-    app_values(app, 5, 0, NULL, 0); /* the request could not be made */
+    app_values(app, 5, 0, NULL); /* the request could not be made */
     draw(app);
     /* read right, the failure told apart, nothing to read outside the handler,
      * and the SDK's numbers */

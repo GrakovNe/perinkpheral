@@ -335,6 +335,32 @@ void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s)
     nvs_close(store);
 }
 
+#define SEEN_KEY "seen"
+
+uint32_t app_kv_seen_id(const char *app_name)
+{
+    nvs_handle_t store;
+    uint32_t     id = 0;
+    if (open_host_store(app_name, NVS_READONLY, &store) == ESP_OK) {
+        nvs_get_u32(store, SEEN_KEY, &id);
+        nvs_close(store);
+    }
+    return id;
+}
+
+void app_kv_set_seen_id(const char *app_name, uint32_t id)
+{
+    nvs_handle_t store;
+    if (open_host_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
+        return;
+    }
+    esp_err_t err = id != 0 ? nvs_set_u32(store, SEEN_KEY, id) : nvs_erase_key(store, SEEN_KEY);
+    if (err == ESP_OK) {
+        nvs_commit(store);
+    }
+    nvs_close(store);
+}
+
 void app_kv_erase(const char *app_name)
 {
     char host_namespace[NVS_NS_NAME_MAX_SIZE];

@@ -207,45 +207,100 @@ static void rest(void)
 
 /* ---- requests the applications make themselves ---- */
 
-#define PENDING_MAX 2 /* for the whole device */
+/* Each application has HOST_HTTP_PENDING_MAX waiting at most; a request is
+ * kept in a block of its own size, and all of them together in no more
+ * than PENDING_BYTES_MAX - a request is a URL and a few headers, a hundred
+ * bytes or two, and a body is rare. */
+#define PENDING_PER_APP   HOST_HTTP_PENDING_MAX
+#define PENDING_SLOTS     (LAUNCHER_INSTALLED_MAX * PENDING_PER_APP)
+#define PENDING_BYTES_MAX (16 * 1024)
 
 typedef struct {
-    bool         is_waiting;
-    int          app;
-    int          number; /* what the answer is delivered under: the application's tag */
-    uint32_t     order;  /* the oldest goes first */
-    int64_t      queued_ms;
-    int          method;
-    char         url[APP_URL_MAX + 1];
-    app_header_t headers[APP_HEADERS_MAX];
-    int          header_count;
-    uint8_t      body[HOST_HTTP_BODY_MAX];
-    int          body_length;
+    int      app;
+    int      number; /* what the answer is delivered under: the application's tag */
+    uint32_t order;  /* the oldest goes first */
+    int64_t  queued_ms;
+    int      method;
+    int      header_count;
+    int      body_length;
+    size_t   bytes;  /* of the whole block */
+    /* The URL, terminated; each header's name and value, terminated; the body. */
+    char     text[];
 } pending_t;
 
-static pending_t s_pending[PENDING_MAX];
-static uint32_t  s_next_order;
+static pending_t *s_pending[PENDING_SLOTS];
+static size_t     s_pending_bytes;
+static uint32_t   s_next_order;
+static int        s_last_app_served = NO_APP; /* the applications take turns */
 
-/* Makes the oldest request an application queued, if there is one. */
-/* Takes the request that has waited longest and makes it - or, with
- * `why_not` a HOST_FAILED_*, answers it with that instead. */
+/* With the lock. */
+static void drop_pending(int slot)
+{
+    s_pending_bytes -= s_pending[slot]->bytes;
+    free(s_pending[slot]);
+    s_pending[slot] = NULL;
+}
+
+/* The slot of the request to make next: the oldest of an application that
+ * was not served last, so that one with sixteen waiting does not keep the
+ * others waiting for all of them; -1 when none waits. With the lock. */
+static int next_pending(void)
+{
+    int oldest = -1, oldest_of_another = -1;
+    for (int i = 0; i < PENDING_SLOTS; i++) {
+        const pending_t *request = s_pending[i];
+        if (request == NULL) {
+            continue;
+        }
+        if (oldest < 0 || request->order < s_pending[oldest]->order) {
+            oldest = i;
+        }
+        if (request->app != s_last_app_served &&
+            (oldest_of_another < 0 || request->order < s_pending[oldest_of_another]->order)) {
+            oldest_of_another = i;
+        }
+    }
+    return oldest_of_another >= 0 ? oldest_of_another : oldest;
+}
+
+/* Takes the request that is next and makes it - or, with `why_not` a
+ * HOST_FAILED_*, answers it with that instead. */
 static bool run_pending_request(int why_not)
 {
-    static pending_t taken; /* only this task makes requests; too large for its stack */
+    /* Only this task makes requests, and this is too large for its stack. */
+    static struct {
+        int          number;
+        int          method;
+        char         url[APP_URL_MAX + 1];
+        app_header_t headers[APP_HEADERS_MAX];
+        int          header_count;
+        uint8_t      body[HOST_HTTP_BODY_MAX];
+        int          body_length;
+    } taken;
     char app_name[APP_NAME_MAX + 1]; /* its own: the list may change while the request runs */
     bool is_taken = false, is_installed = false;
     lock();
-    pending_t *oldest = NULL;
-    for (int i = 0; i < PENDING_MAX; i++) {
-        if (s_pending[i].is_waiting && (oldest == NULL || s_pending[i].order < oldest->order)) {
-            oldest = &s_pending[i];
+    int slot = next_pending();
+    if (slot >= 0) {
+        const pending_t *request = s_pending[slot];
+        const char      *at = request->text;
+        taken.number = request->number;
+        taken.method = request->method;
+        strlcpy(taken.url, at, sizeof taken.url);
+        at += strlen(at) + 1;
+        taken.header_count = request->header_count;
+        for (int i = 0; i < request->header_count; i++) {
+            strlcpy(taken.headers[i].name, at, sizeof taken.headers[i].name);
+            at += strlen(at) + 1;
+            strlcpy(taken.headers[i].value, at, sizeof taken.headers[i].value);
+            at += strlen(at) + 1;
         }
-    }
-    if (oldest != NULL) {
-        taken = *oldest;
-        oldest->is_waiting = false;
+        taken.body_length = request->body_length;
+        memcpy(taken.body, at, (size_t)request->body_length);
         is_taken = true;
-        is_installed = name_of(taken.app, app_name);
+        is_installed = name_of(request->app, app_name);
+        s_last_app_served = request->app;
+        drop_pending(slot);
     }
     unlock();
     if (is_installed) {
@@ -285,29 +340,43 @@ int32_t poller_request(const char *app_name, const app_request_t *asked)
         ESP_LOGW(TAG, "%s: a request to a host its manifest does not list", app_name);
         return HOST_ERR_ARGUMENT;
     }
+    size_t bytes = sizeof(pending_t) + strlen(url) + 1 + (size_t)asked->body_length;
+    for (int i = 0; i < asked->header_count; i++) {
+        bytes += strlen(asked->headers[i].name) + 1 + strlen(asked->headers[i].value) + 1;
+    }
     int32_t result = HOST_ERR_NO_SPACE;
     lock();
-    int        own_waiting = 0;
-    pending_t *free_slot = NULL;
-    for (int i = 0; i < PENDING_MAX; i++) {
-        if (!s_pending[i].is_waiting) {
-            free_slot = &s_pending[i];
-        } else if (s_pending[i].app == app) {
+    int own_waiting = 0, free_slot = -1;
+    for (int i = 0; i < PENDING_SLOTS; i++) {
+        if (s_pending[i] == NULL) {
+            free_slot = i;
+        } else if (s_pending[i]->app == app) {
             own_waiting++;
         }
     }
-    if (free_slot != NULL && own_waiting < HOST_HTTP_PENDING_MAX) {
-        free_slot->app = app;
-        free_slot->number = asked->tag;
-        free_slot->order = s_next_order++;
-        free_slot->queued_ms = uptime_ms();
-        free_slot->method = asked->method;
-        strcpy(free_slot->url, url);
-        memcpy(free_slot->headers, asked->headers, sizeof free_slot->headers);
-        free_slot->header_count = asked->header_count;
-        free_slot->body_length = asked->body_length;
-        memcpy(free_slot->body, asked->body, (size_t)asked->body_length);
-        free_slot->is_waiting = true;
+    pending_t *request = NULL;
+    if (free_slot >= 0 && own_waiting < PENDING_PER_APP &&
+        s_pending_bytes + bytes <= PENDING_BYTES_MAX && memory_has(MEMORY_FOR_A_PAGE)) {
+        request = malloc(bytes);
+    }
+    if (request != NULL) {
+        request->app = app;
+        request->number = asked->tag;
+        request->order = s_next_order++;
+        request->queued_ms = uptime_ms();
+        request->method = asked->method;
+        request->header_count = asked->header_count;
+        request->body_length = asked->body_length;
+        request->bytes = bytes;
+        char *at = request->text;
+        at = stpcpy(at, url) + 1;
+        for (int i = 0; i < asked->header_count; i++) {
+            at = stpcpy(at, asked->headers[i].name) + 1;
+            at = stpcpy(at, asked->headers[i].value) + 1;
+        }
+        memcpy(at, asked->body, (size_t)asked->body_length);
+        s_pending[free_slot] = request;
+        s_pending_bytes += bytes;
         result = HOST_OK;
     }
     unlock();
@@ -326,15 +395,15 @@ static bool fail_request_without_network(void)
     int  number = 0;
     bool found = false;
     lock();
-    for (int i = 0; i < PENDING_MAX && !found; i++) {
-        if (!s_pending[i].is_waiting) {
+    for (int i = 0; i < PENDING_SLOTS && !found; i++) {
+        if (s_pending[i] == NULL) {
             continue;
         }
-        int64_t waited_ms = uptime_ms() - s_pending[i].queued_ms;
+        int64_t waited_ms = uptime_ms() - s_pending[i]->queued_ms;
         if (waited_ms > RADIO_WAIT_MS) {
-            number = s_pending[i].number;
-            s_pending[i].is_waiting = false;
-            found = name_of(s_pending[i].app, app_name);
+            number = s_pending[i]->number;
+            found = name_of(s_pending[i]->app, app_name);
+            drop_pending(i);
         } else {
             schedule_recheck(RADIO_WAIT_MS - waited_ms + 1);
         }
@@ -352,8 +421,8 @@ static bool has_pending_request(void)
 {
     bool has = false;
     lock();
-    for (int i = 0; i < PENDING_MAX && !has; i++) {
-        has = s_pending[i].is_waiting;
+    for (int i = 0; i < PENDING_SLOTS && !has; i++) {
+        has = s_pending[i] != NULL;
     }
     unlock();
     return has;
@@ -484,11 +553,22 @@ static bool has_waited_for_memory_enough(void)
     return true;
 }
 
+/* A poll with "each" is a round of requests, an item of the list each,
+ * made one at a time between the others: the one under way. The task's
+ * alone. */
+static struct {
+    bool is_on;
+    int  app;
+    int  poll;
+    int  item; /* the next to ask */
+} s_round;
+
 /* Whether anything is waiting for the network now. */
 static bool wants_network(void)
 {
     lock();
-    bool wanted = s_fetch_job != NULL || poll_schedule_next_wanted(&s_schedule) != NULL;
+    bool wanted = s_fetch_job != NULL || poll_schedule_next_wanted(&s_schedule) != NULL ||
+                  s_round.is_on;
     unlock();
     return wanted || has_pending_request();
 }
@@ -528,8 +608,9 @@ static void keep_radio_for_work(void)
     }
 }
 
+
 /* Asks the poll that has waited longest, if one is wanted and can be
- * asked now. */
+ * asked now - or the next item of the round under way. */
 static bool run_wanted_poll(void)
 {
     /* The entry may be moved by another task once the lock is gone, and the
@@ -538,11 +619,18 @@ static bool run_wanted_poll(void)
     char name[APP_NAME_MAX + 1] = "";
     lock();
     const poll_entry_t *wanted = poll_schedule_next_wanted(&s_schedule);
-    int  app = wanted != NULL ? wanted->app : NO_APP, poll = wanted != NULL ? wanted->poll : 0;
-    bool is_installed = wanted != NULL && name_of(app, name);
+    bool is_round = s_round.is_on;
+    int  app = is_round ? s_round.app : wanted != NULL ? wanted->app : NO_APP;
+    int  poll = is_round ? s_round.poll : wanted != NULL ? wanted->poll : 0;
+    int  item = is_round ? s_round.item : 0;
+    bool is_installed = (is_round || wanted != NULL) && name_of(app, name);
     unlock();
-    if (wanted == NULL) {
+    if (!is_round && wanted == NULL) {
         return false;
+    }
+    if (is_round && !is_installed) {
+        s_round.is_on = false; /* removed meanwhile, its round with it */
+        return true;
     }
     bool has_network = wifi_is_online();
     int  why_not = has_network ? 0 : HOST_FAILED_NO_NETWORK;
@@ -559,12 +647,21 @@ static bool run_wanted_poll(void)
         schedule_recheck(RADIO_WAIT_MS);
         return false;
     }
+    int items = 0;
     if (is_installed) {
         if (why_not == 0) {
-            poller_net_poll(name, poll);
+            items = poller_net_poll(name, poll, item);
         } else {
             poller_net_poll_not_made(name, poll, why_not);
         }
+    }
+    /* More items to ask: the round goes on, between whatever else waits. */
+    s_round.is_on = item + 1 < items && item + 1 < APP_LIST_ITEMS_MAX;
+    if (s_round.is_on) {
+        s_round.app = app;
+        s_round.poll = poll;
+        s_round.item = item + 1;
+        return true;
     }
     /* By id: if the application is gone meanwhile, so is its poll. */
     lock();
@@ -596,9 +693,17 @@ static void poller_task(void *arg)
             continue;
         }
         bool has_network = wifi_is_online();
+        /* Polls and requests take turns: a queue of requests does not keep
+         * the polls of every application waiting, nor the other way round. */
+        static bool was_request;
+        if (was_request && has_network && run_wanted_poll()) {
+            was_request = false;
+            continue;
+        }
         if (has_network && has_pending_request()) {
             if (has_memory_for_session()) {
                 run_pending_request(0);
+                was_request = true;
                 continue;
             }
             if (has_waited_for_memory_enough()) {
@@ -611,6 +716,7 @@ static void poller_task(void *arg)
             continue;
         }
         if (run_wanted_poll()) {
+            was_request = false;
             continue;
         }
         rest();
@@ -637,10 +743,10 @@ static int schedule_installed(void)
     }
     poll_schedule_keep_only(&s_schedule, apps, s_known_count);
     deadlines_keep_only(DEADLINE_POLL, owners, s_known_count);
-    for (int i = 0; i < PENDING_MAX; i++) {
+    for (int i = 0; i < PENDING_SLOTS; i++) {
         char name[APP_NAME_MAX + 1];
-        if (s_pending[i].is_waiting && !name_of(s_pending[i].app, name)) {
-            s_pending[i].is_waiting = false;
+        if (s_pending[i] != NULL && !name_of(s_pending[i]->app, name)) {
+            drop_pending(i);
         }
     }
     /* From a battery no poll is closer to its last than this. */

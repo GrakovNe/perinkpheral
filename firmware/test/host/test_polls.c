@@ -94,7 +94,7 @@ static bool settings_value(void *context, const char *key, char *value, size_t v
                         : strcmp(key, "base") == 0   ? "http://10.0.0.2:8123"
                         : strcmp(key, "city") == 0   ? "New York&x=1/~a"
                         : strcmp(key, "evil") == 0   ? "x\r\nHost: other"
-                        : strcmp(key, "evil") == 0   ? "x\r\nHost: other"
+                        : strcmp(key, "tickers") == 0 ? "AAPL\nBRK.B\nA&B"
                                                      : NULL;
     if (found == NULL || strlen(found) >= value_size) {
         return false;
@@ -145,12 +145,21 @@ static void test_template(void)
     CHECK_STR(filled, "http://10.0.0.2/x?t=s3cret");
     CHECK(text_template_fill("{{token}}", settings_value, NULL, filled, sizeof filled));
     CHECK_STR(filled, "s3cret");
-    /* a value with a line break in it is no header and no server, whoever
-     * stored it; in a path it is only bytes, and goes in encoded */
+    /* a value with a carriage return in it is no header and no server,
+     * whoever stored it; in a path it is only bytes, and goes in encoded. A
+     * line feed is what separates the items of a list: they go in with
+     * commas, never as a line of their own. */
     CHECK(!text_template_fill("Bearer {{evil}}", settings_value, NULL, filled, sizeof filled));
     CHECK(!text_template_fill_url("{{evil}}/api", settings_value, NULL, filled, sizeof filled));
     CHECK(text_template_fill_url("http://a/{{evil}}", settings_value, NULL, filled, sizeof filled));
-    CHECK_STR(filled, "http://a/x%0D%0AHost%3A%20other");
+    CHECK_STR(filled, "http://a/x%0D,Host%3A%20other");
+    /* a list: its items, each encoded, with commas between them */
+    CHECK(text_template_fill_url("http://a/q?s={{tickers}}", settings_value, NULL, filled,
+                                 sizeof filled));
+    CHECK_STR(filled, "http://a/q?s=AAPL,BRK.B,A%26B");
+    CHECK(text_template_fill("X-Symbols: {{tickers}}", settings_value, NULL, filled,
+                             sizeof filled));
+    CHECK_STR(filled, "X-Symbols: AAPL,BRK.B,A&B");
     CHECK(text_template_fill("a{{empty}}b", settings_value, NULL, filled, sizeof filled));
     CHECK_STR(filled, "ab");
 
@@ -293,6 +302,34 @@ static void test_pick(void)
     };
     for (int i = 0; i < 4; i++) {
         CHECK(app_manifest_parse(bad[i], &manifest) == APP_MANIFEST_BAD_POLL);
+    }
+
+    /* lists: "[*]" once in a path, and a poll that goes over a list setting */
+#define LIST_SETTINGS "\"settings\":[{\"key\":\"t\",\"type\":\"list\",\"title\":\"Tickers\"}," \
+                      "{\"key\":\"x\",\"type\":\"text\",\"title\":\"X\"}]"
+    const char *each =
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"https://q.example/chart/{{t}}\",\"every\":600,\"each\":\"t\",\"pick\":[\"c[*]\",\"m.n\"]}]}";
+    CHECK(app_manifest_parse(each, &manifest) == APP_MANIFEST_OK);
+    CHECK(app_manifest_parse_poll(each, 0, &poll) == APP_MANIFEST_OK);
+    CHECK_STR(poll.each_key, "t");
+    CHECK_STR(poll.pick[0], "c[*]");
+    const char *bad_lists[] = {
+        /* two "[*]" in one path */
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,"
+        "\"pick\":[\"a[*].b[*]\"]}]}",
+        /* "each" of a setting that is no list, and of none */
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{x}}\",\"every\":60,\"each\":\"x\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{t}}\",\"every\":60,\"each\":\"nope\"}]}",
+        /* two polls over lists */
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\"},{\"url\":\"http://b/{{t}}\",\"every\":60,"
+        "\"each\":\"t\"}]}",
+    };
+    for (int i = 0; i < 4; i++) {
+        CHECK(app_manifest_parse(bad_lists[i], &manifest) == APP_MANIFEST_BAD_POLL);
     }
 }
 

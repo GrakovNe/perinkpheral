@@ -663,12 +663,54 @@ function settingFields(app) {
   return parts;
 }
 
+/* A list setting: a line an item, each removed by its button, one added at
+ * the end. Stored as the items with a line break between them. */
+const LIST_ITEMS_MAX = 16, LIST_ITEM_MAX = 63;
+
+function listField(value) {
+  const box = make("div", { className: "rows" });
+  const row = item => {
+    const line = make("div");
+    const input = make("input", { value: item, maxLength: LIST_ITEM_MAX, spellcheck: false,
+                                  autocomplete: "off" });
+    const remove = make("button", { type: "button", className: "quiet", textContent: "\u2212",
+                                    title: "Remove" });
+    remove.addEventListener("click", () => { line.remove(); drawAdd(); });
+    line.append(input, remove);
+    return line;
+  };
+  const drawAdd = () => {
+    for (const old of box.querySelectorAll(".add")) old.remove();
+    if (box.querySelectorAll("input").length >= LIST_ITEMS_MAX) return;
+    const add = make("button", { type: "button", className: "quiet add", textContent: "+",
+                                 title: "Add" });
+    add.addEventListener("click", () => {
+      const line = row("");
+      add.before(line);
+      line.querySelector("input").focus();
+      drawAdd();
+    });
+    box.append(add);
+  };
+  box.setValue = text => {
+    box.replaceChildren(...(text ? text.split("\n") : []).map(row));
+    drawAdd();
+  };
+  box.listValue = () => [...box.querySelectorAll("input")].map(input => input.value.trim())
+    .filter(item => item).join("\n");
+  box.setValue(value);
+  return box;
+}
+
 /* One field of an application's settings, as its manifest describes it. */
 function settingField(app, setting) {
-  const id = "setting-" + setting.key, value = app.values[setting.key] || setting.default || "";
+  const preset = Array.isArray(setting.default) ? setting.default.join("\n") : setting.default;
+  const id = "setting-" + setting.key, value = app.values[setting.key] || preset || "";
   const label = make("label", { htmlFor: id, textContent: setting.title });
   let input;
-  if (setting.type === "choice") {
+  if (setting.type === "list") {
+    input = listField(value);
+  } else if (setting.type === "choice") {
     input = make("select");
     /* An option is what is stored; its label, when the device gives one, what is read. */
     const labels = setting.labels || setting.options;
@@ -741,6 +783,7 @@ function fillFromCompanion(values) {
     const value = values[input.dataset.key];
     if (typeof value !== "string" || value.length > 255) continue;
     if (input.dataset.type === "toggle") input.checked = value === "1";
+    else if (input.dataset.type === "list") input.setValue(value);
     else input.value = value;
     if (input.dataset.type === "place") input.dataset.chosen = value;
     filled++;
@@ -1038,6 +1081,7 @@ byId("app-settings").addEventListener("submit", async event => {
   }
   for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
     if (input.dataset.type === "toggle") settings[input.dataset.key] = input.checked ? "1" : "0";
+    else if (input.dataset.type === "list") settings[input.dataset.key] = input.listValue();
     /* A calendar's address is often given as webcal://, which is https. */
     else if (input.dataset.type === "link") {
       if (input.value.trim())

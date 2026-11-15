@@ -94,6 +94,9 @@ typedef struct {
      * application takes the answer as it comes, in pieces. */
     char         pick[JSON_PICK_PATHS_MAX][JSON_PICK_PATH_MAX + 1];
     int          pick_count;
+    /* "each": the list setting the poll goes over, one request an item,
+     * {{key}} of it being that item; empty for a poll of one request. */
+    char         each_key[MANIFEST_SETTING_KEY_MAX + 1];
 } app_poll_t;
 
 typedef enum {
@@ -162,7 +165,10 @@ typedef enum {
     APP_SETTING_PLACE,  /* the name of a place; see below */
     APP_SETTING_URL,    /* a server of the user's own: "https://ha.example.org", no path */
     APP_SETTING_LINK,   /* a whole address the user was given: a calendar's "https://host/path?key" */
+    APP_SETTING_LIST,   /* items separated by '\n', APP_LIST_ITEMS_MAX at most */
 } app_setting_type_t;
+#define APP_LIST_ITEMS_MAX MANIFEST_LIST_ITEMS_MAX
+#define APP_LIST_ITEM_MAX  MANIFEST_LIST_ITEM_MAX
 
 /* Whether `value` may be stored under `key`: the manifest has such a
  * setting, and the value fits its type. `is_secret` may be NULL. The
