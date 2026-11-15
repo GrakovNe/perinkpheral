@@ -25,7 +25,6 @@
 #include <time.h>
 
 #include "devtools.h"
-#include "display.h"
 #include "log_capture.h"
 #include "net_time.h"
 #include "app_system.h"

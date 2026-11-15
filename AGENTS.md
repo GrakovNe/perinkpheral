@@ -56,8 +56,9 @@ EOF
 
 Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`
 set they include `test_app`, which builds a real module
-(`test/host/apps/probe`) and runs it in the real interpreter; with
-`IDF_PATH` set, the manifest and store tests, which need its cJSON.
+(`test/host/apps/probe`) and runs it in the real interpreter, and
+`test_delivery`, the whole way of an answer to an application. Nothing of
+ESP-IDF is needed.
 
 The tools are `tools/perinkpheral` (Kotlin, `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`

@@ -10,19 +10,14 @@
 
 #include "memory.h"
 
-#include "appconf.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* The device's own web page and the API behind it:
- *
- *   GET  /            the page
- *   GET  /api/status  what the device is and how it is doing, as JSON
- *   GET  /api/log     the end of the device's log, as text
- *   POST /api/wifi    {"ssid": "...", "password": "..."}: store and restart
- *   POST /api/ota     a firmware image as the request body: install and restart
+/* The device's own web page and the API behind it. The routes are tables:
+ * the page, the device and its settings in web_server.c, the applications,
+ * catalogs and glyph packs in web_apps.c, the development tools in
+ * devtools.c; CLAUDE.md (Web UI) says what each does.
  *
  * The server changes nothing itself: a handler asks the host loop
  * (events_call()) and answers with what came of it. */

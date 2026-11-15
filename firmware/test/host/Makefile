@@ -23,14 +23,7 @@ GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog
-
-# The manifest is JSON; the parser comes with ESP-IDF.
-ifdef IDF_PATH
-TESTS   += test_app_manifest test_app_store test_polls
-else
-$(info IDF_PATH is not set: skipping test_app_manifest and test_app_store)
-endif
+TESTS   := test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls
 
 # Running a real application needs wasi-sdk to build it.
 ifdef WASI_SDK_PATH
@@ -39,12 +32,9 @@ else
 $(info WASI_SDK_PATH is not set: skipping test_app)
 endif
 
-# The whole way of an answer to an application needs the manifest reader
-# and a built application both.
-ifdef IDF_PATH
+# The whole way of an answer to an application needs a built application.
 ifdef WASI_SDK_PATH
 TESTS   += test_delivery
-endif
 endif
 
 .PHONY: test clean

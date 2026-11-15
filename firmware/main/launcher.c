@@ -25,7 +25,7 @@
 
 static const char *TAG = "launcher";
 
-#define BUILT_IN_PAGES     3 /* the system applications: Settings, Device and About */
+#define BUILT_IN_PAGES     3 /* the system applications: Settings, About and Setup */
 #define INSTALLED_APPS_MAX LAUNCHER_INSTALLED_MAX
 _Static_assert(LAUNCHER_INSTALLED_MAX == LAUNCHER_ENTRIES_MAX - BUILT_IN_PAGES,
                "the menu has a row for every application and every system one");

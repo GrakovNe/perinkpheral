@@ -17,7 +17,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "events.h"
 #include "host.h"
 #include "gfx.h"
 #include "app_host.h"

@@ -25,7 +25,6 @@
 #include "events.h"
 #include "launcher.h"
 #include "memory.h"
-#include "ota.h"
 #include "poller.h"
 #include "reset.h"
 #include "power.h"
@@ -886,8 +885,6 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
     }
 }
 
-/* Tells every application that asked for this kind of news, loading each
- * for the call. Those that did not ask are left asleep. */
 /* An application that has not run here before, or ran as another version,
  * is told so once: loaded for the call when it is not on the screen. */
 static void tell_new_versions(void)
@@ -919,6 +916,8 @@ static void tell_new_versions(void)
     }
 }
 
+/* Tells every application that asked for this kind of news, loading each
+ * for the call. Those that did not ask are left asleep. */
 static void broadcast(int intent)
 {
     int count;

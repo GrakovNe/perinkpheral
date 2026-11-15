@@ -20,7 +20,6 @@
 #include "catalog.h"
 #include "host_api.h"
 #include "events.h"
-#include "app_code.h"
 #include "gfx_icons.h"
 #include "glyphs.h"
 #include "words.h"

@@ -37,7 +37,6 @@
 #include "status.h"
 #include "storage.h"
 #include "sysinfo.h"
-#include "timers.h"
 #include "web_server.h"
 #include "wifi.h"
 

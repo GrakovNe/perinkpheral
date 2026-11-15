@@ -20,7 +20,6 @@
 #include "net_time.h"
 #include "poller.h"
 #include "settings.h"
-#include "wifi.h"
 #include "timers.h"
 #include "units.h"
 

@@ -28,7 +28,8 @@ const uint8_t *launcher_system_file(const char *app_name, const char *file, size
 /* The store changed: the scenes of the installed applications are made
  * anew. `drop` is called for every old one before it is freed, for whoever
  * holds its pointer; the system applications stay as they are. Only in
- * the host loop, with the poller held (poller_hold()). */
+ * the host loop, and with nothing of the poller's held: the applications
+ * that leave run their last handlers, and those may ask the poller. */
 typedef void (*launcher_drop_fn)(scene_t *scene, void *context);
 void launcher_reload(launcher_drop_fn drop, void *context);
 
