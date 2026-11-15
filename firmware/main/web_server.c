@@ -536,6 +536,12 @@ static esp_err_t handle_clock(httpd_req_t *request)
     if (!is_valid) {
         return send_error(request, "Invalid value.");
     }
+    /* While the network's time is taken, it is the network's to set. */
+    appconf_t settings;
+    settings_read(&settings);
+    if (settings.time_auto) {
+        return send_error(request, "Time is set automatically.");
+    }
     if (!events_call(set_clock, &command)) {
         return send_failure(request, STATUS_BUSY, "Device busy.");
     }
