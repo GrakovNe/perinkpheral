@@ -6,12 +6,13 @@
     gen_imports.py <sdk/host_api.h> <out folder>
 
 Writes host_imports.inc and system_imports.inc: for every HOST_IMPORT and
-HOST_SYSTEM_IMPORT of the header a row { "name", "signature", host_name }
-of the table firmware/components/appsys/app.c links into a module. The
+HOST_SYSTEM_IMPORT of the header a row HOST_IMPORT_ROW(name, "signature"),
+which firmware/components/appsys makes into the table it links into a
+module and into the declarations of the functions that answer. The
 signature is the interpreter's: i for a number of 32 bits and for a
 pointer written `*`, I for one of 64, v for no result. The header is the
 one place a call's signature is written; the function that answers the
-call is host_<name>, <name> being the import's - the first argument of
+call is app_api_<name>, <name> being the import's - the first argument of
 the macro, which need not be the name applications call it by.
 
 And host_exports.inc: for every APP_EXPORT a row APP_EXPORT_ROW(name,
@@ -82,7 +83,7 @@ def main():
         with open(os.path.join(out_dir, file_name), "w") as f:
             f.write("/* Made by tools/hostapi/gen_imports.py from sdk/host_api.h - do not edit. */\n")
             for name, signature in found:
-                f.write("{ \"%s\", \"%s\", host_%s },\n" % (name, signature, name))
+                f.write("HOST_IMPORT_ROW(%s, \"%s\")\n" % (name, signature))
     if total < 60:
         sys.exit("%s: only %d calls found - the header is read wrong" % (header, total))
     found = exports(text)

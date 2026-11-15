@@ -165,13 +165,17 @@ Code:
   anything opens NVS. Only `settings.c` touches NVS for the host;
   applications get their own namespaces through the host API `kv_*`.
 - `sdk/host_api.h` is the only contract between host and applications.
-  An import is added in three places and nowhere else: the header, the
-  `HOST_API` table in `appsys/app.c`, and a case in
-  `test/host/apps/probe` with its check in `test_app.c`. After ABI 1
-  freezes, changing a signature means a new `HOST_API_VERSION`.
-- The application is not trusted: `app.c` checks every offset and
-  length against the module's memory before using it. Keep it free of
-  ESP-IDF; what it needs from the device comes in as `app_services_t`.
+  An import is added in three places and nowhere else: the header, its
+  `HOST_FUNCTION` in the `appsys/app_api_<area>.c` of its kind (the table
+  that links it is made from the header), and a case in
+  `test/host/apps/probe` with its check in `test_app.c`. An export the
+  host calls is added to the header and called in `appsys/app.c`, whose
+  count of them stops the build until it is. After ABI 1 freezes,
+  changing a signature means a new `HOST_API_VERSION`.
+- The application is not trusted: `app.c` and the `app_api_*.c` check
+  every offset and length against the module's memory before using it.
+  Keep them free of ESP-IDF; what they need from the device comes in as
+  `app_services_t`.
 - `components/wasm3/wasm3` is upstream v0.9.0 with one local change,
   described in `components/wasm3/README.md`: loops yield, so that an
   application stuck in one can be stopped. Configure the interpreter

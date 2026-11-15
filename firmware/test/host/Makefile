@@ -20,6 +20,8 @@ MAIN    := ../../main
 # Whatever draws is rebuilt when the drawing code changes.
 GFX_SRCS := $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
+APP_SRCS := $(APPSYS)/app.c $(APPSYS)/app_api_draw.c $(APPSYS)/app_api_ui.c $(APPSYS)/app_api_data.c \
+            $(APPSYS)/app_api_time.c $(APPSYS)/app_api_sys.c
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
@@ -122,9 +124,9 @@ build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
 build/every_call_wasm.h: build/every_call/app.wasm
 	(echo "static const unsigned char every_call_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
-test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APPSYS)/app.c $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
+test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
-		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APPSYS)/app.c $(SDK_LIB)/json_pick.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
+		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APP_SRCS) $(SDK_LIB)/json_pick.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
@@ -159,7 +161,7 @@ test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $
 # mkdtemp and friends are POSIX, not C11.
 test_delivery: test_delivery.c tinytest.h build/host_imports.inc build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(WASM3_OBJS) $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -Ibuild -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
-		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
+		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APP_SRCS) $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
 		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
 
 test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
