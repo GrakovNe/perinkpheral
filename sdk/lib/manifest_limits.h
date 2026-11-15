@@ -59,6 +59,12 @@
 #define MANIFEST_FILES_MAX_BYTES (64 * 1024)
 #define MANIFEST_FILE_BLOCK_BYTES 4096
 
+/* Certificate authorities an application trusts beside the browsers' set,
+ * for its own requests only ("certificates"): files of its package, each a
+ * root in PEM or DER. */
+#define MANIFEST_CERTIFICATES_MAX      2
+#define MANIFEST_CERTIFICATE_MAX_BYTES 4096
+
 /* The strings of one language, as a table: what the host takes into its
  * own memory, for a moment, on an application's word. */
 #define MANIFEST_STRINGS_MAX_BYTES (8 * 1024)

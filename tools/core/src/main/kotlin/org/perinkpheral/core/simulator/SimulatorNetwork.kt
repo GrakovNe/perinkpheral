@@ -27,7 +27,8 @@ import javax.net.ssl.SSLHandshakeException
  * headers, which are C and are not written here again.
  *
  * Request:  {"method", "url", "headers": {name: value}, "body": base64, "max": bytes,
- *            "timeout": seconds}
+ *            "timeout": seconds, "trust": [files of certificate authorities the application
+ *            trusts beside the computer's own]}
  * Answer:   {"status": HTTP status, or a HOST_FAILED_* code, "headers": {name: value},
  *            "body": base64, "next": the absolute address a redirect leads to}
  */
@@ -44,9 +45,47 @@ object SimulatorNetwork {
     // What the HTTP client sets itself and refuses to be given.
     private val CLIENTS_OWN = setOf("host", "connection", "content-length", "expect", "upgrade")
 
-    private val client: HttpClient by lazy {
-        HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(15)).build()
+    private val client: HttpClient by lazy { clientTrusting(emptyList()) }
+
+    /** A client a set of authorities: one for each set an application brings, kept. */
+    private val trustingClients = java.util.concurrent.ConcurrentHashMap<List<String>, HttpClient>()
+
+    private fun clientTrusting(files: List<String>): HttpClient {
+        val builder = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
+            .version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(15))
+        if (files.isNotEmpty()) builder.sslContext(contextTrusting(files))
+        return builder.build()
+    }
+
+    /** The computer's own authorities and, beside them, the application's. */
+    private fun contextTrusting(files: List<String>): javax.net.ssl.SSLContext {
+        val factory = java.security.cert.CertificateFactory.getInstance("X.509")
+        val own = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType()).apply { load(null) }
+        files.forEachIndexed { index, file ->
+            java.io.File(file).inputStream().use { own.setCertificateEntry("app-$index", factory.generateCertificate(it)) }
+        }
+        fun managerOf(store: java.security.KeyStore?): javax.net.ssl.X509TrustManager {
+            val managers = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
+            managers.init(store)
+            return managers.trustManagers.filterIsInstance<javax.net.ssl.X509TrustManager>().first()
+        }
+        val computers = managerOf(null)
+        val applications = managerOf(own)
+        val both = object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, type: String) =
+                computers.checkClientTrusted(chain, type)
+
+            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, type: String) {
+                try {
+                    computers.checkServerTrusted(chain, type)
+                } catch (error: java.security.cert.CertificateException) {
+                    applications.checkServerTrusted(chain, type)
+                }
+            }
+
+            override fun getAcceptedIssuers() = computers.acceptedIssuers + applications.acceptedIssuers
+        }
+        return javax.net.ssl.SSLContext.getInstance("TLS").apply { init(null, arrayOf(both), null) }
     }
 
     private var server: ServerSocket? = null
@@ -80,7 +119,9 @@ object SimulatorNetwork {
                 val line = reader.readLine() ?: break
                 val answer = try {
                     fetch(Json.parse(line) as Map<*, *>)
-                } catch (error: Exception) { // an answer for every request, whatever went wrong
+                } catch (error: Exception) {
+                    // An answer for every request, whatever went wrong; and what went wrong said.
+                    System.err.println("simulator network: ${error.javaClass.simpleName}: ${error.message}")
                     mapOf("status" to NO_ANSWER)
                 }
                 writer.write(Json.write(answer))
@@ -97,6 +138,7 @@ object SimulatorNetwork {
         val headers = (asked["headers"] as? Map<*, *>).orEmpty()
         val most = (asked["max"] as? Long) ?: (256L * 1024)
         val timeout = Duration.ofSeconds((asked["timeout"] as? Long) ?: 15L)
+        val trust = (asked["trust"] as? List<*>).orEmpty().map { it as String }
         try {
             val request = HttpRequest.newBuilder(url).timeout(timeout)
                 .method(method, if (body.isEmpty()) HttpRequest.BodyPublishers.noBody()
@@ -109,7 +151,16 @@ object SimulatorNetwork {
                 request.header(name, value as String)
             }
             if (!hasAgent) request.header("User-Agent", USER_AGENT)
-            val response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream())
+            // Kept by the files as they are now: a certificate changed while the IDE runs is read anew.
+            val key = trust.map { it + "@" + java.io.File(it).lastModified() }
+            val chosen = try {
+                if (trust.isEmpty()) client else trustingClients.getOrPut(key) { clientTrusting(trust) }
+            } catch (error: Exception) {
+                // The application's certificates could not be read: nothing it asks is trusted.
+                System.err.println("simulator network: the application's certificates: ${error.message}")
+                return mapOf("status" to NOT_TRUSTED)
+            }
+            val response = chosen.send(request.build(), HttpResponse.BodyHandlers.ofInputStream())
             val content = response.body().use { stream -> stream.readNBytes((most + 1).toInt()) }
             if (content.size > most) return mapOf("status" to TOO_LARGE)
             val kept = LinkedHashMap<String, Any?>()

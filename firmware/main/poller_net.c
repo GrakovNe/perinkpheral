@@ -13,6 +13,8 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/x509_crt.h"
 
 #include "app_kv.h"
 #include "app_manifest.h"
@@ -182,6 +184,76 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
     return ESP_OK;
 }
 
+/* ---- certificate authorities of an application's own ----
+ *
+ * An application may trust a root or two beside the browsers' set
+ * ("certificates" in its manifest: files of its package), for its own
+ * requests and nobody else's. They are read for the request under way and
+ * let go after it; requests go one at a time for the whole device, so one
+ * chain at a time is all there is. A chain they do not vouch for is still
+ * the browsers' set's to judge: esp_crt_bundle's own check runs after them. */
+static mbedtls_x509_crt s_trusted;
+static bool             s_has_trusted;
+
+static void trust_forget(void)
+{
+    if (s_has_trusted) {
+        mbedtls_x509_crt_free(&s_trusted);
+        s_has_trusted = false;
+    }
+}
+
+static void trust_of(const char *app_name)
+{
+    trust_forget();
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    if (manifest == NULL) {
+        return;
+    }
+    char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
+    int  count = app_manifest_certificates(manifest, files, MANIFEST_CERTIFICATES_MAX);
+    free(manifest);
+    if (count == 0) {
+        return;
+    }
+    mbedtls_x509_crt_init(&s_trusted);
+    for (int i = 0; i < count; i++) {
+        long size = app_store_file_size(STORAGE_APPS_ROOT, app_name, files[i]);
+        /* PEM is read with its terminating zero, DER is not. */
+        uint8_t *bytes = size > 0 && size <= MANIFEST_CERTIFICATE_MAX_BYTES ? malloc((size_t)size + 1) : NULL;
+        if (bytes == NULL ||
+            app_store_read_file(STORAGE_APPS_ROOT, app_name, files[i], 0, bytes, (size_t)size) != size) {
+            ESP_LOGW(TAG, "%s: certificate %s cannot be read", app_name, files[i]);
+            free(bytes);
+            continue;
+        }
+        bytes[size] = '\0';
+        bool is_pem = size > 10 && memcmp(bytes, "-----BEGIN", 10) == 0;
+        int  parsed = mbedtls_x509_crt_parse(&s_trusted, bytes, (size_t)size + (is_pem ? 1 : 0));
+        free(bytes);
+        if (parsed != 0) {
+            ESP_LOGW(TAG, "%s: certificate %s is not one (%d)", app_name, files[i], parsed);
+            continue;
+        }
+        s_has_trusted = true;
+    }
+    if (!s_has_trusted) {
+        mbedtls_x509_crt_free(&s_trusted);
+    }
+}
+
+/* The browsers' set, and beside it the application's own roots. */
+static esp_err_t attach_trust(void *conf)
+{
+    esp_err_t err = esp_crt_bundle_attach(conf);
+    if (err == ESP_OK && conf != NULL && s_has_trusted) {
+        /* In place of the placeholder the set leaves as the chain: what these
+         * vouch for passes, the rest is judged by the set's own check. */
+        mbedtls_ssl_conf_ca_chain((mbedtls_ssl_config *)conf, &s_trusted, NULL);
+    }
+    return err;
+}
+
 /* The request of request->poll with the settings put in. False when a
  * setting it needs is not there yet. */
 static bool prepare(request_t *request, const char *app_name, int method,
@@ -196,7 +268,7 @@ static bool prepare(request_t *request, const char *app_name, int method,
         .url = request->url,
         .method = METHODS[method],
         .timeout_ms = REQUEST_TIMEOUT_MS,
-        .crt_bundle_attach = esp_crt_bundle_attach,
+        .crt_bundle_attach = attach_trust,
         .user_agent = USER_AGENT,
         .buffer_size = HOST_DATA_CHUNK_MAX,
         .event_handler = on_http_event,
@@ -439,8 +511,19 @@ static int why_no_answer(esp_http_client_handle_t client, esp_err_t err)
  * to the application under `number`. `only_listed_hosts`: a request of
  * the application's own, which a redirect must not take out of its
  * manifest's "hosts". */
+static void ask_network(request_t *request, const char *app_name, int number, int method,
+                        const uint8_t *body, int body_length, bool only_listed_hosts);
+
 static void perform(request_t *request, const char *app_name, int number, int method,
                     const uint8_t *body, int body_length, bool only_listed_hosts)
+{
+    trust_of(app_name);
+    ask_network(request, app_name, number, method, body, body_length, only_listed_hosts);
+    trust_forget();
+}
+
+static void ask_network(request_t *request, const char *app_name, int number, int method,
+                        const uint8_t *body, int body_length, bool only_listed_hosts)
 {
     bool wants_values = request->poll.pick_count > 0;
     esp_http_client_handle_t client = NULL;

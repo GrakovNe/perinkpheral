@@ -3,6 +3,7 @@ package org.perinkpheral.core.catalog
 
 import org.perinkpheral.core.build.AppBuilder
 import org.perinkpheral.core.build.Built
+import org.perinkpheral.core.build.Certificates
 import org.perinkpheral.core.BuildError
 import org.perinkpheral.core.Json
 import java.io.File
@@ -71,8 +72,15 @@ object Catalog {
         }
         val entry = linkedMapOf<String, Any?>("name" to manifest["name"], "title" to manifest["title"],
             "version" to (manifest["version"] ?: ""), "abi" to manifest["abi"], "files" to files)
-        // The page asks before it installs an application with the system API.
+        // The page asks before it installs an application with the system API, or one that
+        // trusts a certificate authority of its own: it names the authority.
         if (manifest["system"] == true) entry["system"] = true
+        val certificates = (manifest["certificates"] as? List<*>).orEmpty()
+        if (certificates.isNotEmpty()) {
+            entry["trusts"] = certificates.map { file ->
+                Certificates.authority(Certificates.read(File(built.dir, file as String), Long.MAX_VALUE))
+            }
+        }
         // What a page shows of an application before it is installed.
         if ("icon" in manifest) entry["icon"] = manifest["icon"]
         return entry

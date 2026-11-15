@@ -33,6 +33,8 @@ class ManifestCheck(private val sdk: Sdk) {
     private val settingOptionsMax = sdk.limit("SETTING_OPTIONS_MAX")
     private val settingOptionMax = sdk.limit("SETTING_OPTION_MAX")
     private val bytesPerCharacter = sdk.limit("TEXT_BYTES_PER_CHARACTER")
+    private val certificatesMax = sdk.limit("CERTIFICATES_MAX")
+    private val fileNameMax = sdk.limit("FILE_NAME_MAX")
 
     /** Checks `<app>/manifest.json`; returns it parsed. */
     fun check(appDir: File): Map<*, *> {
@@ -68,6 +70,14 @@ class ManifestCheck(private val sdk: Sdk) {
         }
         if ((manifest["fullscreen"] ?: false) !is Boolean) fail("$path: \"fullscreen\" must be true or false")
         if ((manifest["system"] ?: false) !is Boolean) fail("$path: \"system\" must be true or false")
+        val certificates = manifest["certificates"] ?: emptyList<Any>()
+        val fileName = Regex("[a-z0-9_-][a-z0-9._-]{0,${fileNameMax - 1}}")
+        if (certificates !is List<*> || certificates.size > certificatesMax || certificates.any { file ->
+                file !is String || !fileName.matches(file) || file == "app.wasm" || file == "manifest.json"
+            }) {
+            fail("$path: \"certificates\" must be a list of at most $certificatesMax files of the application's " +
+                "\"files\" folder, by names of 1-$fileNameMax of a-z, 0-9, '.', '-' and '_'")
+        }
         val icon = manifest["icon"]
         if (icon != null && (icon !is List<*> || icon.size.toLong() != iconCells ||
                 icon.any { it !is String || !Regex("[#.]{$iconCells}").matches(it) })) {

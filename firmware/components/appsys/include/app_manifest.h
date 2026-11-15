@@ -59,6 +59,9 @@ typedef struct {
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */
+    /* How many certificate authorities it trusts beside the browsers' set,
+     * for its own requests ("certificates": files of its package). */
+    int certificate_count;
     /* The kinds of news it asked for under "intents": bit HOST_INTENT_*
      * of each. */
     uint32_t intents;
@@ -214,6 +217,11 @@ int app_manifest_setting_type(const char *json, const char *key);
 
 /* The keys of the settings of the "secret" type; returns how many. */
 int app_manifest_secret_keys(const char *json, char keys[][16], int capacity);
+
+/* The files of the certificate authorities the application trusts beside
+ * the browsers' set, for its own requests ("certificates"); returns how
+ * many, at most `capacity`. */
+int app_manifest_certificates(const char *json, char files[][MANIFEST_FILE_NAME_MAX + 1], int capacity);
 
 /* Whether two http or https URLs name the same host and port - a port
  * that is not written being the scheme's own, and http and https of one

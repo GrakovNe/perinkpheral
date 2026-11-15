@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
@@ -556,6 +557,22 @@ static void exchange(job_t *job, char *next, size_t next_size)
     json_add_string(asked, "body", body);
     free(body);
     json_add_number(asked, "max", job->wants_values ? HOST_ANSWER_MAX : HOST_ANSWER_PIECES_MAX);
+    /* The application's own certificate authorities, as files: trusted for its requests beside
+     * the computer's, as on the device. */
+    char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
+    int  trusted = s_manifest_json != NULL
+                       ? app_manifest_certificates(s_manifest_json, files, MANIFEST_CERTIFICATES_MAX)
+                       : 0;
+    if (trusted > 0) {
+        json_t *trust = json_new_array();
+        for (int i = 0; i < trusted; i++) {
+            /* Absolute: the network side runs in another process, from another folder. */
+            char path[PATH_BYTES * 2], whole[PATH_MAX];
+            snprintf(path, sizeof path, "%s/%s/%s", s_options.apps, s_options.app, files[i]);
+            json_array_add(trust, json_new_string(realpath(path, whole) != NULL ? whole : path));
+        }
+        json_add_item(asked, "trust", trust);
+    }
     json_add_number(asked, "timeout", REQUEST_TIMEOUT_S);
     char *line = json_print(asked);
     json_free(asked);
@@ -1257,8 +1274,10 @@ static void answer_due(const deadline_id_t *id)
         break;
     }
     case DUE_POLL:
-        start_poll(id->number);
+        /* The next time first: what the poll brings - an answer of "not ready" is delivered
+         * at once - may ask for it sooner (poll_now), and that is not to be undone. */
         set_due(DUE_POLL, id->number, (int64_t)s_poll_every_s[id->number] * MS_PER_SECOND);
+        start_poll(id->number);
         break;
     case DUE_MINUTE:
         wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);

@@ -177,6 +177,26 @@ static void test_settings(void)
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":true}") == APP_MANIFEST_OK && manifest.system);
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":\"yes\"}") == APP_MANIFEST_BAD_FIELD);
 
+    /* certificate authorities of its own: files of the package, two at most */
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && manifest.certificate_count == 0);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"root.pem\"]}") == APP_MANIFEST_OK &&
+          manifest.certificate_count == 1);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"a.pem\",\"b.der\"]}") == APP_MANIFEST_OK &&
+          manifest.certificate_count == 2);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"a\",\"b\",\"c\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":\"root.pem\"}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"../x\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\".hidden\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"app.wasm\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[1]}") == APP_MANIFEST_BAD_FIELD);
+    {
+        char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
+        CHECK(app_manifest_certificates("{\"certificates\":[\"a.pem\",\"b.der\"]}", files, 2) == 2 &&
+              strcmp(files[0], "a.pem") == 0 && strcmp(files[1], "b.der") == 0);
+        CHECK(app_manifest_certificates("{\"certificates\":[\"a.pem\",\"b.der\"]}", files, 1) == 1);
+        CHECK(app_manifest_certificates("{}", files, 2) == 0);
+    }
+
     /* a default is a value the setting itself would take */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"1\"},{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"15\"},{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"b\",\"options\":[\"a\",\"b\"]}]}") == APP_MANIFEST_OK);
     static const char *const BAD_DEFAULTS[] = {

@@ -755,6 +755,63 @@ static const struct {
     { "started", HOST_INTENT_STARTED },
 };
 
+/* "certificates": files of the package, by names a file may have. What is
+ * in them is looked at when a request needs them. */
+static bool is_certificate_file(const char *name)
+{
+    size_t length = strlen(name);
+    if (length == 0 || length > MANIFEST_FILE_NAME_MAX || name[0] == '.' ||
+        strcmp(name, "app.wasm") == 0 || strcmp(name, "manifest.json") == 0) {
+        return false;
+    }
+    for (const char *at = name; *at != '\0'; at++) {
+        bool is_allowed = (*at >= 'a' && *at <= 'z') || (*at >= '0' && *at <= '9') ||
+                          *at == '.' || *at == '-' || *at == '_';
+        if (!is_allowed) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool read_certificates(const json_t *certificates, int *count)
+{
+    *count = 0;
+    if (certificates == NULL) {
+        return true;
+    }
+    if (!json_is_array(certificates) || json_count(certificates) > MANIFEST_CERTIFICATES_MAX) {
+        return false;
+    }
+    const json_t *file;
+    json_for_each(file, certificates)
+    {
+        if (!json_is_string(file) || !is_certificate_file(file->text)) {
+            return false;
+        }
+        (*count)++;
+    }
+    return true;
+}
+
+int app_manifest_certificates(const char *json, char files[][MANIFEST_FILE_NAME_MAX + 1], int capacity)
+{
+    json_t *root = json_parse(json);
+    const json_t *certificates = json_get(root, "certificates");
+    int count = 0;
+    if (json_is_array(certificates)) {
+        const json_t *file;
+        json_for_each(file, certificates)
+        {
+            if (count < capacity && json_is_string(file) && is_certificate_file(file->text)) {
+                strcpy(files[count++], file->text);
+            }
+        }
+    }
+    json_free(root);
+    return count;
+}
+
 /* A kind the host does not know is a mistake, not something to pass over:
  * the application would wait for news that never comes. */
 static bool read_intents(const json_t *intents, uint32_t *asked)
@@ -846,6 +903,9 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
         return APP_MANIFEST_BAD_FIELD;
     }
     manifest->system = json_is_true(system);
+    if (!read_certificates(json_get(root, "certificates"), &manifest->certificate_count)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
 
     const json_t *abi = json_get(root, "abi");
     if (!json_is_number(abi) || !abi->is_whole || abi->number != HOST_API_VERSION) {

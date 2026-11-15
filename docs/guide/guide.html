@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 7, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 8, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -208,7 +208,7 @@
 <table>
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>Performed by the host</td></tr>
-  <tr><td>HTTPS trust</td><td class="n">browser root set</td><td>Self-signed certificates are rejected. Plain <code>http</code> is available for home networks</td></tr>
+  <tr><td>HTTPS trust</td><td class="n">browser root set</td><td>Plus up to 2 roots an application brings, for its own requests. Self-signed server certificates are rejected. Plain <code>http</code> is available for home networks</td></tr>
   <tr><td>Hosts for requests from code</td><td class="n">4</td><td>Listed in the manifest, or taken from a <code>url</code> or <code>link</code> setting. Polls use the address in their <code>url</code></td></tr>
   <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. A poll can go over a list setting: one request per item, one at a time</td></tr>
   <tr><td>Concurrent requests</td><td class="n">1</td><td>Per device. Applications and polls take turns</td></tr>
@@ -432,6 +432,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
   <tr><td class="c">system</td><td>true / false (default)</td><td>Enables the <code>sys_*</code> calls. The web page warns the user before installation</td></tr>
   <tr><td class="c">companion</td><td><code>https</code> URL</td><td>Developer's page opened from the settings form, for setup that a form cannot express</td></tr>
+  <tr><td class="c">certificates</td><td>up to 2 files of <code>files/</code></td><td>Certificate authorities trusted for this application's own requests, beside the browser root set (section 9). The web page names them before installation</td></tr>
 </table>
 <p>The host ignores unknown keys. The build validates the keys listed above.</p>
 
@@ -766,6 +767,16 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li><code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
+<h2 id="network-certificates">Certificate authorities of the application</h2>
+<p>The host verifies HTTPS servers against the browser root set. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
+<pre>"certificates": ["russian-root-ca.pem"]          /* files/russian-root-ca.pem */</pre>
+<ul>
+  <li>Each file is a root certificate of an authority, in PEM or DER, up to 4 KB. The build rejects a file that is missing, is not a certificate, is a server's certificate, or has expired.</li>
+  <li>The roots are trusted for this application's polls and requests only, in addition to the browser root set. Other applications and the host do not trust them.</li>
+  <li>The web page names the authorities before installation, as it does for system access, and on the application's card. The catalog index carries their names.</li>
+  <li>Take a root from its authority's own publication and compare its fingerprint with the one the server presents.</li>
+</ul>
+
 <h2 id="network-failures">Failed requests</h2>
 <table>
   <tr><th style="width:34%">Status</th><th>Cause</th></tr>
@@ -949,7 +960,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td>"&lt;title&gt; crashed" with "memory alloca..."</td><td>Executed code exceeds the interpreter memory. See the build warning and "Memory" in section 13</td></tr>
   <tr><td>"&lt;title&gt; cannot start", "Update the app."</td><td>Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall</td></tr>
   <tr><td>Poll fails with -3</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
-  <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate. Use <code>http</code> within a home network</td></tr>
+  <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network</td></tr>
   <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting. Queue more as answers arrive</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
@@ -1219,6 +1230,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);                   /* an e
   <tr><td class="c">HOST_HTTP_HEADERS_MAX / _BODY_MAX / _PENDING_MAX</td><td>1023 / 512 / 16</td><td>Request headers; body; waiting requests per application</td></tr>
   <tr><td class="c">HOST_LIST_BYTES</td><td>8192</td><td>Elements of the list paths of one answer, as text</td></tr>
   <tr><td class="c">MANIFEST_LIST_ITEM_MAX</td><td>63</td><td>An item of a list setting, in bytes</td></tr>
+  <tr><td class="c">MANIFEST_CERTIFICATES_MAX / _CERTIFICATE_MAX_BYTES</td><td>2 / 4 KB</td><td>Certificate authorities of an application; the size of one</td></tr>
   <tr><td class="c">HOST_REQUEST_FIRST .. _LAST</td><td>16 .. 255</td><td>Tags for requests from code</td></tr>
   <tr><td class="c">HOST_TIMER_COUNT / HOST_ALARM_COUNT</td><td>4 / 4</td><td>Timers and alarms per application</td></tr>
   <tr><td class="c">HOST_ALARM_EVERY_MIN .. _MAX</td><td>60 .. 86400 s</td><td>Period of a repeating alarm</td></tr>

@@ -77,6 +77,10 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             }
             File(appDir, MANIFEST).copyTo(File(outDir, MANIFEST), overwrite = true)
             var filesBytes = copyDataFiles(appDir, outDir)
+            // The authorities it trusts for its own requests: files of the package, held to what one is.
+            for (file in (manifest["certificates"] as? List<*>).orEmpty()) {
+                Certificates.read(File(File(appDir, "files"), file as String), sdk.limit("CERTIFICATE_MAX_BYTES"))
+            }
             // The tables of the languages it speaks beside English, as files of its own.
             for ((code, table) in strings.tables) {
                 File(outDir, "strings.$code").writeBytes(table)

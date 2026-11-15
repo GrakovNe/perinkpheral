@@ -648,6 +648,14 @@ static bool run_wanted_poll(void)
         return false;
     }
     int items = 0;
+    if (!is_round) {
+        /* Taken now, before its answer: what the application does with that
+         * answer - poll_now() of this same poll, when it was not ready - asks
+         * for the next one, and is not to be undone when this one ends. */
+        lock();
+        poll_schedule_answered(&s_schedule, app, poll);
+        unlock();
+    }
     if (is_installed) {
         if (why_not == 0) {
             items = poller_net_poll(name, poll, item);
@@ -665,7 +673,6 @@ static bool run_wanted_poll(void)
     }
     /* By id: if the application is gone meanwhile, so is its poll. */
     lock();
-    poll_schedule_answered(&s_schedule, app, poll);
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
     if (s_abandoned.is_one && s_abandoned.app == app && s_abandoned.poll == poll) {
         /* Its answer was cut short by somebody at the device: again when

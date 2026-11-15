@@ -11,6 +11,7 @@
 #include "json_tree.h"
 #include "esp_log.h"
 #include "mbedtls/sha256.h"
+#include "mbedtls/x509_crt.h"
 
 #include "app_delivery.h"
 #include "app_kv.h"
@@ -147,10 +148,59 @@ static void translate_setting(json_t *setting, const json_t *translated)
 }
 
 /* The manifest's "settings" as they are, and beside them what is set. */
+/* The name of a certificate authority, as its subject's CN says it; empty
+ * when the file is no certificate. */
+static void authority_of(const char *app_name, const char *file, char *name, size_t size)
+{
+    name[0] = '\0';
+    long length = app_store_file_size(STORAGE_APPS_ROOT, app_name, file);
+    uint8_t *bytes = length > 0 && length <= MANIFEST_CERTIFICATE_MAX_BYTES ? malloc((size_t)length + 1) : NULL;
+    if (bytes == NULL || app_store_read_file(STORAGE_APPS_ROOT, app_name, file, 0, bytes, (size_t)length) != length) {
+        free(bytes);
+        return;
+    }
+    bytes[length] = '\0';
+    bool is_pem = length > 10 && memcmp(bytes, "-----BEGIN", 10) == 0;
+    mbedtls_x509_crt certificate;
+    mbedtls_x509_crt_init(&certificate);
+    char subject[256];
+    if (mbedtls_x509_crt_parse(&certificate, bytes, (size_t)length + (is_pem ? 1 : 0)) == 0 &&
+        mbedtls_x509_dn_gets(subject, sizeof subject, &certificate.subject) > 0) {
+        const char *common = strstr(subject, "CN=");
+        if (common != NULL) {
+            common += 3;
+            snprintf(name, size, "%.*s", (int)strcspn(common, ","), common);
+        }
+    }
+    mbedtls_x509_crt_free(&certificate);
+    free(bytes);
+}
+
+/* "trusts": the certificate authorities it trusts beside the browsers'
+ * set, by their names, for the page to say before anything else. */
+static void add_trusts(json_t *app, const char *app_name, const char *manifest_text)
+{
+    char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
+    int  count = app_manifest_certificates(manifest_text, files, MANIFEST_CERTIFICATES_MAX);
+    if (count == 0) {
+        return;
+    }
+    json_t *trusts = json_new_array();
+    for (int i = 0; i < count; i++) {
+        char name[96];
+        authority_of(app_name, files[i], name, sizeof name);
+        json_array_add(trusts, json_new_string(name[0] != '\0' ? name : files[i]));
+    }
+    json_add_item(app, "trusts", trusts);
+}
+
 static void add_settings(json_t *app, const char *app_name)
 {
     char  *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
     json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
+    if (manifest_text != NULL) {
+        add_trusts(app, app_name, manifest_text);
+    }
     free(manifest_text);
     json_t *settings = json_detach(manifest, "settings");
     json_t *icon = json_detach(manifest, "icon");
