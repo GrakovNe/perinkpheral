@@ -13,7 +13,7 @@
  *     perinkpheral-sim --apps <folder> --app <name> --state <folder>
  *                      [--port 8401] [--language en] [--font departure|jersey]
  *                      [--glyphs <folder>] [--mocks <file.json>] [--clock]
- *                      [--python python3] [--fetcher <tools/simulator/fetch.py>]
+ *                      [--python python3] [--fetcher <tools/simulator/fetch.py> | --fetcher-port <port>]
  *
  * <apps>/<name> holds the application as mkapp builds it: app.wasm,
  * manifest.json and its files. <state> keeps what the application stores.
@@ -89,6 +89,7 @@ static struct {
     const char *mocks;
     const char *python;
     const char *fetcher;
+    int         fetcher_port; /* the network of whoever started the simulator, on this port */
     int         port;
     bool        jersey;
     bool        clock;
@@ -466,8 +467,31 @@ static uint8_t *base64_decode(const char *text, size_t *length)
 static FILE *s_fetcher_in;
 static FILE *s_fetcher_out;
 
+/* The network of the program that started the simulator, on a port of this
+ * computer: the same lines over TCP. The CLion plugin answers there, in the
+ * IDE's own process, which the system lets into the local network. */
+static bool connect_fetcher(void)
+{
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in address = { .sin_family = AF_INET,
+                                   .sin_port = htons((uint16_t)s_options.fetcher_port) };
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (fd < 0 || connect(fd, (struct sockaddr *)&address, sizeof address) != 0) {
+        if (fd >= 0) {
+            close(fd);
+        }
+        return false;
+    }
+    s_fetcher_in = fdopen(dup(fd), "w");
+    s_fetcher_out = fdopen(fd, "r");
+    return s_fetcher_in != NULL && s_fetcher_out != NULL;
+}
+
 static bool start_fetcher(void)
 {
+    if (s_options.fetcher_port > 0) {
+        return connect_fetcher();
+    }
     if (s_options.fetcher == NULL) {
         return false;
     }
@@ -1619,7 +1643,7 @@ static void usage(void)
     fprintf(stderr, "perinkpheral-sim --apps <folder> --app <name> --state <folder> [--port 8401]\n"
                     "                 [--language en] [--font departure|jersey] [--glyphs <folder>]\n"
                     "                 [--mocks <file.json>] [--clock] [--python python3]\n"
-                    "                 [--fetcher tools/simulator/fetch.py]\n");
+                    "                 [--fetcher tools/simulator/fetch.py | --fetcher-port <port>]\n");
     exit(2);
 }
 
@@ -1646,6 +1670,7 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--clock") == 0) s_options.clock = true;
         else if (strcmp(argv[i], "--python") == 0 && next) s_options.python = argv[++i];
         else if (strcmp(argv[i], "--fetcher") == 0 && next) s_options.fetcher = argv[++i];
+        else if (strcmp(argv[i], "--fetcher-port") == 0 && next) s_options.fetcher_port = atoi(argv[++i]);
         else usage();
     }
     if (s_options.apps == NULL || s_options.app == NULL || s_options.state == NULL) {

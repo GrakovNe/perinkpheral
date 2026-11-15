@@ -15,7 +15,7 @@ It answers on `http://127.0.0.1:8401` as the device does: `devtool.py --host
 | Buttons | `/api/dev/button` |
 | Store (NVS) | a folder, a file per key, the device's limits |
 | Files (LittleFS) | the application's folder |
-| Network | the computer's, through `fetch.py` and the Python that runs `devtool.py`; answers replaced by mocks |
+| Network | the computer's, through `fetch.py` and the Python that runs `devtool.py` - or, with `--fetcher-port`, through whoever listens on that port of this computer, the same lines over TCP (the CLion plugin, in the IDE's own process); answers replaced by mocks |
 | Clock | the computer's; moved on by `/api/sim/forward` |
 
 Beyond the device's API:

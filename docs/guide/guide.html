@@ -287,7 +287,7 @@
 <h2 id="start-need">Requirements</h2>
 <ul>
   <li><b>wasi-sdk</b> 34 or newer. It provides clang for the wasm32 target. Set <code>WASI_SDK_PATH</code> to its location.</li>
-  <li><b>Python 3</b>. The tools use the standard library only.</li>
+  <li><b>Python 3</b> for the command-line tools; they use the standard library only. The CLion plugin needs none: it builds, uploads and runs the simulator itself.</li>
   <li>A checkout of the <b>perinkpheral</b> repository. It contains <code>sdk/</code> and <code>tools/</code>.</li>
   <li>A <b>device</b> on the same network, running a firmware with the development tools enabled (the default). The device shows its address on the second page of About. Set <code>PERINKPHERAL_HOST</code> to this address.</li>
   <li>Without a device: the <b>simulator</b> (section 14). It needs a C compiler to be built, or comes built with the CLion plugin.</li>

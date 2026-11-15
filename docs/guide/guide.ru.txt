@@ -2920,3 +2920,6 @@ Ctrl+C останавливает симулятор, как перезапус�
 
 Not simulated: other applications (the menu holds only this one), the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
 Не симулируются: другие приложения (в меню только это), системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
+
+<b>Python 3</b> for the command-line tools; they use the standard library only. The CLion plugin needs none: it builds, uploads and runs the simulator itself.
+<b>Python 3</b> для инструментов командной строки; они используют только стандартную библиотеку. Плагину для CLion он не нужен: плагин сам собирает, загружает и запускает симулятор.
