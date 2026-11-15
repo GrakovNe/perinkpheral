@@ -6,7 +6,6 @@
 #include "priorities.h"
 #include "web_server.h"
 #include "crash_note.h"
-#include "delay_guard.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -243,7 +242,6 @@ static esp_err_t handle_status(httpd_req_t *request)
     /* Why the device started this time: a number of esp_reset_reason_t - 1 power, 3 a restart
      * asked for, 4 a fault, 5-7 a watchdog, 9 the supply sagged. */
     json_add_number(json, "reset_reason", esp_reset_reason());
-    json_add_number(json, "delays_cut", delay_guard_shortened());
     static char crash[CRASH_NOTE_TEXT_BYTES];
     if (crash_note_text(crash, sizeof crash)) {
         json_add_string(json, "last_panic", crash);
