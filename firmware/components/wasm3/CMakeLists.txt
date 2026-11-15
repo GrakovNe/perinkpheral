@@ -38,7 +38,7 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
     # built without a C library uses. No floating point: the chip has no
     # FPU and every such operation would be the host's soft float, 34 KB
     # of it; a module with float operations loads and traps when it gets
-    # to one, and tools/mkapp refuses it at build time. No reference
+    # to one, and tools/perinkpheral refuses it at build time. No reference
     # types, extended constants or compact imports: a module may still
     # have its one table of functions and call through it.
     d_m3HasFloat=0

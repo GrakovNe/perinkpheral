@@ -18,7 +18,7 @@
 #include "app_ui.h"
 #include "cities.h"
 #include "host_api.h"
-#include "strings.h" /* made of the `strings` folder by tools/mkapp */
+#include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
 /* ---- where the user is ---- */
 

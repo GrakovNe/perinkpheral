@@ -4,9 +4,9 @@ The device without the device: one application, run by the firmware's own
 interpreter, host API, kit and window manager on a computer. A frame here is
 the frame the panel shows.
 
-    tools/devtool/devtool.py sim <application folder> [--language ru] [--mocks mocks.json]
+    tools/perinkpheral sim <application folder> [--language ru] [--mocks mocks.json]
 
-It answers on `http://127.0.0.1:8401` as the device does: `devtool.py --host
+It answers on `http://127.0.0.1:8401` as the device does: `tools/perinkpheral --host
 127.0.0.1:8401 shot | press | log | serve`, and the CLion plugin, work against it.
 
 | Device | Simulator |
@@ -15,7 +15,7 @@ It answers on `http://127.0.0.1:8401` as the device does: `devtool.py --host
 | Buttons | `/api/dev/button` |
 | Store (NVS) | a folder, a file per key, the device's limits |
 | Files (LittleFS) | the application's folder |
-| Network | the computer's, through `fetch.py` and the Python that runs `devtool.py` - or, with `--fetcher-port`, through whoever listens on that port of this computer, the same lines over TCP (the CLion plugin, in the IDE's own process); answers replaced by mocks |
+| Network | that of the program that started it - tools/perinkpheral, or the CLion plugin in the IDE's own process - asked a JSON line a request on `--fetcher-port`; answers replaced by mocks |
 | Clock | the computer's; moved on by `/api/sim/forward` |
 
 Beyond the device's API:
@@ -38,7 +38,7 @@ every address that begins with the rest.
 
 Not simulated: the menu of several applications, the system API, e-paper
 refresh timing, sleep and the battery. The application area of the device
-(128 KB for the interpreter) is not enforced: `mkapp`'s report is the check.
+(128 KB for the interpreter) is not enforced: the build's report is the check.
 
 Build: `make` for this computer (a C compiler, nothing else). `make platforms`
 builds what the CLion plugin carries: `build/macos` (arm64 and x86_64, on macOS),

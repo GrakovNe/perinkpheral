@@ -9,7 +9,7 @@
  */
 #include "app_text.h"
 #include "host_api.h"
-#include "strings.h" /* made of the `strings` folder by tools/mkapp */
+#include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
 #define TEXT_MAX       95
 #define TOP_GAP        8

@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /* Development tools over the network, off in release builds
- * (APP_DEV_CONSOLE): what tools/devtool talks to. With them the device is
+ * (APP_DEV_CONSOLE): what tools/perinkpheral talks to. With them the device is
  * looked at, driven and given a new build of an application without a
  * cable and without hands on it.
  *

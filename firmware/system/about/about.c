@@ -15,7 +15,7 @@
 #include "app_draw.h"
 #include "app_text.h"
 #include "host_api.h"
-#include "strings.h" /* made of the `strings` folder by tools/mkapp */
+#include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
 #define PROJECT_ADDRESS "https://github.com/GrakovNe/perinkpheral"
 

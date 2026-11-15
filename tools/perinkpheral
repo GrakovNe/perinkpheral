@@ -1,0 +1,15 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# The perINKpheral tools: build, check and run applications, on a device or in the
+# simulator; make a catalog. `perinkpheral` with no arguments says what it does.
+#
+# tools/core, built on first use and again when its sources change; it needs Java 21 or
+# later (JAVA_HOME, or java on PATH). The CLion plugin uses the same core as a library.
+here=$(cd "$(dirname "$0")" && pwd)
+core="$here/core"
+jar="$core/build/libs/perinkpheral.jar"
+if [ ! -f "$jar" ] || [ -n "$(find "$core/src" "$core/build.gradle.kts" -newer "$jar" 2>/dev/null | head -1)" ]; then
+    (cd "$core" && ./gradlew -q cli) >&2 || exit 1
+fi
+if [ -n "$JAVA_HOME" ]; then java="$JAVA_HOME/bin/java"; else java=java; fi
+exec "$java" -Dperinkpheral.root="$(dirname "$here")" -jar "$jar" "$@"

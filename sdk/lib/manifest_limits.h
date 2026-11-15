@@ -3,7 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  *
  * Manifest limits. The single definition: the host validates manifests
- * against these values, and tools/mkapp parses this file to apply the
+ * against these values, and tools/perinkpheral parses this file to apply the
  * same checks at build time. For that reason every value is a plain
  * number or a product of numbers, one definition per line.
  */

@@ -42,7 +42,7 @@ uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)
  * parsed manifest does not keep: a poll in full, the settings. */
 char *app_store_read_manifest(const char *root, const char *name);
 
-/* What of the manifest a person reads, in another language, as tools/mkapp
+/* What of the manifest a person reads, in another language, as tools/perinkpheral
  * wrote it beside the manifest ("manifest.ru"): a title, and for a setting
  * its title, its help and the labels of its options -
  *

@@ -84,7 +84,7 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
  * 1 = white, rows padded to a byte). */
 void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits);
 
-/* A picture as tools/mkpicture writes it: a byte of how many cells wide, a
+/* A picture as the build (tools/perinkpheral) writes it: a byte of how many cells wide, a
  * byte of how many tall, and the cells a bit each - 1 is ink, the leftmost
  * in the high bit, a row padded to a byte. Drawn with a cell so many
  * pixels, so one drawing serves several sizes. */

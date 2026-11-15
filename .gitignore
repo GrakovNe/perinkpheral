@@ -9,6 +9,8 @@ CHANGELOG.md
 hardware/render
 build.log
 build*/
+# A package of the tools' sources is named build: it is code, not output.
+!tools/core/src/main/kotlin/org/perinkpheral/core/build/
 firmware/build*/
 firmware/managed_components/
 firmware/sdkconfig

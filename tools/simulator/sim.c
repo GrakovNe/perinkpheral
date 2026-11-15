@@ -6,16 +6,16 @@
  * own interpreter, host API, kit and window manager, on a computer. The
  * panel is a frame in memory, the buttons and the screen are the device's
  * development API (/api/dev) on localhost, the store and the files are
- * folders, the network is the computer's - asked through
- * tools/simulator/fetch.py, so that this program needs no HTTP library -
- * and answers can be replaced by mocks.
+ * folders, the network is that of the program that started it - asked a
+ * request a line on --fetcher-port, so that this program needs no HTTP
+ * library - and answers can be replaced by mocks.
  *
  *     perinkpheral-sim --apps <folder> --app <name> --state <folder>
  *                      [--port 8401] [--language en] [--font departure|jersey]
  *                      [--glyphs <folder>] [--mocks <file.json>] [--clock]
- *                      [--python python3] [--fetcher <tools/simulator/fetch.py> | --fetcher-port <port>]
+ *                      [--fetcher-port <port>]
  *
- * <apps>/<name> holds the application as mkapp builds it: app.wasm,
+ * <apps>/<name> holds the application as tools/perinkpheral builds it: app.wasm,
  * manifest.json and its files. <state> keeps what the application stores.
  *
  * Beyond the device's API, /api/sim: background and foreground (the
@@ -30,7 +30,6 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
-#include <sys/wait.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -87,13 +86,11 @@ static struct {
     const char *language;
     const char *glyphs;
     const char *mocks;
-    const char *python;
-    const char *fetcher;
     int         fetcher_port; /* the network of whoever started the simulator, on this port */
     int         port;
     bool        jersey;
     bool        clock;
-} s_options = { .language = "en", .port = 8401, .python = "python3" };
+} s_options = { .language = "en", .port = 8401 };
 
 /* ---- time: the computer's, moved on by /api/sim/forward ---- */
 
@@ -420,7 +417,7 @@ static void answer_from_mock(job_t *job, const json_t *mock)
     job->response.length = (int32_t)job->answer_length;
 }
 
-/* ---- base64, for bodies on their way to fetch.py and back ---- */
+/* ---- base64, for bodies on their way to the network and back ---- */
 
 static const char BASE64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -462,7 +459,7 @@ static uint8_t *base64_decode(const char *text, size_t *length)
     return bytes;
 }
 
-/* ---- fetch.py: started once, a request a line in, an answer a line out ---- */
+/* ---- the network: a request a line out, an answer a line in ---- */
 
 static FILE *s_fetcher_in;
 static FILE *s_fetcher_out;
@@ -487,35 +484,10 @@ static bool connect_fetcher(void)
     return s_fetcher_in != NULL && s_fetcher_out != NULL;
 }
 
+/* No port, no network: every request is "no network", as on a device off its Wi-Fi. */
 static bool start_fetcher(void)
 {
-    if (s_options.fetcher_port > 0) {
-        return connect_fetcher();
-    }
-    if (s_options.fetcher == NULL) {
-        return false;
-    }
-    int to_child[2], from_child[2];
-    if (pipe(to_child) != 0 || pipe(from_child) != 0) {
-        return false;
-    }
-    pid_t child = fork();
-    if (child == 0) {
-        dup2(to_child[0], STDIN_FILENO);
-        dup2(from_child[1], STDOUT_FILENO);
-        close(to_child[1]);
-        close(from_child[0]);
-        execlp(s_options.python, s_options.python, s_options.fetcher, (char *)NULL);
-        _exit(127);
-    }
-    close(to_child[0]);
-    close(from_child[1]);
-    if (child < 0) {
-        return false;
-    }
-    s_fetcher_in = fdopen(to_child[1], "w");
-    s_fetcher_out = fdopen(from_child[0], "r");
-    return s_fetcher_in != NULL && s_fetcher_out != NULL;
+    return s_options.fetcher_port > 0 && connect_fetcher();
 }
 
 static void stop_fetcher(void)
@@ -527,8 +499,6 @@ static void stop_fetcher(void)
         fclose(s_fetcher_out);
     }
     s_fetcher_in = s_fetcher_out = NULL;
-    while (waitpid(-1, NULL, WNOHANG) > 0) {
-    }
 }
 
 static void copy_answer_header(const json_t *headers, const char *name, char *to, size_t size)
@@ -594,7 +564,7 @@ static void fetch(job_t *job)
     json_t *answer = got > 0 ? json_parse(answer_line) : NULL;
     free(answer_line);
     if (answer == NULL) {
-        /* fetch.py is gone: it is started again for the next request. */
+        /* The network is gone: it is asked again for the next request. */
         stop_fetcher();
         job->status = HOST_FAILED_NO_ANSWER;
         return;
@@ -1642,8 +1612,7 @@ static void usage(void)
 {
     fprintf(stderr, "perinkpheral-sim --apps <folder> --app <name> --state <folder> [--port 8401]\n"
                     "                 [--language en] [--font departure|jersey] [--glyphs <folder>]\n"
-                    "                 [--mocks <file.json>] [--clock] [--python python3]\n"
-                    "                 [--fetcher tools/simulator/fetch.py | --fetcher-port <port>]\n");
+                    "                 [--mocks <file.json>] [--clock] [--fetcher-port <port>]\n");
     exit(2);
 }
 
@@ -1668,8 +1637,6 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--mocks") == 0 && next) s_options.mocks = argv[++i];
         else if (strcmp(argv[i], "--font") == 0 && next) s_options.jersey = strcmp(argv[++i], "jersey") == 0;
         else if (strcmp(argv[i], "--clock") == 0) s_options.clock = true;
-        else if (strcmp(argv[i], "--python") == 0 && next) s_options.python = argv[++i];
-        else if (strcmp(argv[i], "--fetcher") == 0 && next) s_options.fetcher = argv[++i];
         else if (strcmp(argv[i], "--fetcher-port") == 0 && next) s_options.fetcher_port = atoi(argv[++i]);
         else usage();
     }
@@ -1679,10 +1646,7 @@ int main(int argc, char **argv)
     /* The store's paths are as short as the device's ("/apps/<name>/<file>"):
      * the folder of applications becomes the working one, and the other
      * folders are made absolute before that. */
-    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES], fetcher[PATH_BYTES];
-    if (s_options.fetcher != NULL && realpath(s_options.fetcher, fetcher) != NULL) {
-        s_options.fetcher = fetcher;
-    }
+    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES];
     if (realpath(s_options.state, state) == NULL) {
         mkdir(s_options.state, 0755);
         if (realpath(s_options.state, state) == NULL) {

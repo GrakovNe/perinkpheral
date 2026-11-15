@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: MIT
+rootProject.name = "perinkpheral-core"
+
+pluginManagement {
+    plugins {
+        id("org.jetbrains.kotlin.jvm") version "2.4.21"
+    }
+}
+
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}

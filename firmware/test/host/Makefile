@@ -13,7 +13,8 @@ NET     := $(COMP)/net
 WASM3   := $(COMP)/wasm3/wasm3
 SDK     := ../../../sdk
 SDK_LIB := $(SDK)/lib
-MKAPP   := ../../../tools/mkapp/mkapp.py
+TOOLS   := ../../../tools/perinkpheral
+MKAPP   := $(TOOLS) build
 MAIN    := ../../main
 
 # Whatever draws is rebuilt when the drawing code changes.
@@ -97,20 +98,20 @@ build/wasm3/%.o: $(WASM3)/%.c
 	@mkdir -p build/wasm3
 	$(CC) $(WASM3_FLAGS) -c -o $@ $<
 
-build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(MKAPP)
+build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(TOOLS)
 	$(MKAPP) apps/probe --out build/probe
 
 build/probe_wasm.h: build/probe/app.wasm
 	(echo "static const unsigned char probe_wasm[] = {"; xxd -i < $<; \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
-build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(MKAPP)
+build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(TOOLS)
 	$(MKAPP) apps/wrongret --out build/wrongret
 
 build/wrongret_wasm.h: build/wrongret/app.wasm
 	(echo "static const unsigned char wrongret_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
-build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(MKAPP)
+build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(TOOLS)
 	$(MKAPP) apps/wrongarg --out build/wrongarg
 
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
@@ -122,7 +123,7 @@ build/host_imports.inc: $(SDK)/host_api.h ../../../tools/hostapi/gen_imports.py
 build/src/every-call/every_call.c: gen_every_call.py $(SDK)/host_api.h
 	python3 gen_every_call.py $(SDK)/host_api.h build/src/every-call
 
-build/every_call/app.wasm: build/src/every-call/every_call.c $(MKAPP)
+build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
 	$(MKAPP) build/src/every-call --out build/every_call
 
 build/every_call_wasm.h: build/every_call/app.wasm

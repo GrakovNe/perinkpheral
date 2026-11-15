@@ -5,7 +5,7 @@
  * Arena allocator for application memory.
  *
  * An application has one 64 KB page. The stack and the static data take
- * its beginning (tools/mkapp reports the size). The rest is the arena.
+ * its beginning (tools/perinkpheral build reports the size). The rest is the arena.
  * Allocations are sequential and are released together, back to a mark.
  * There is no free() for a single allocation.
  *

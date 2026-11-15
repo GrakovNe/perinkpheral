@@ -2,7 +2,7 @@
 # Copyright (c) 2026 GrakovNe
 #
 # The compiler applications are built with: clang of wasi-sdk, for wasm32
-# with no system under it. tools/mkapp does the building; this is for a
+# with no system under it, as tools/perinkpheral builds them; this is for a
 # CMake project to describe the same to an IDE.
 if(NOT DEFINED ENV{WASI_SDK_PATH})
     message(FATAL_ERROR "WASI_SDK_PATH is not set. Applications are built with wasi-sdk: "

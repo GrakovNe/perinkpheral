@@ -32,8 +32,7 @@ if(DEFINED ENV{IDF_PATH})
                       WORKING_DIRECTORY "${firmware_dir}"
                       USES_TERMINAL VERBATIM)
     add_custom_target(firmware-send
-                      COMMAND "${Python3_EXECUTABLE}"
-                              "${CMAKE_CURRENT_LIST_DIR}/tools/devtool/devtool.py" flash
+                      COMMAND "${CMAKE_CURRENT_LIST_DIR}/tools/perinkpheral" flash
                       WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
                       USES_TERMINAL VERBATIM)
     add_dependencies(firmware-send firmware)

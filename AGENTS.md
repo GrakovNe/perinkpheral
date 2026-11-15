@@ -59,7 +59,8 @@ set they include `test_app`, which builds a real module
 (`test/host/apps/probe`) and runs it in the real interpreter; with
 `IDF_PATH` set, the manifest and store tests, which need its cJSON.
 
-An application: `tools/mkapp/mkapp.py sdk/apps/<name> --out <dir>`
+The tools are `tools/perinkpheral` (Kotlin, `tools/core`; Java 21, built on first use).
+An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,
 refuses a module that imports anything `sdk/host_api.h` does not
 declare, and checks `manifest.json` by the host's rules. Everything in
@@ -71,22 +72,22 @@ Views before flashing: `tools/preview/preview.py [dir]` compiles `gfx`,
 the window manager and `firmware/main/screens.c` natively and writes a
 PNG per screen. Look at them; the panel shows exactly that.
 
-The device without hands on it, over the network: `tools/devtool/devtool.py`
+The device without hands on it, over the network: `tools/perinkpheral`
 with `PERINKPHERAL_HOST` set to the device's address (the second page of About, in
 its menu shows it).
 - `shot out.png` saves the frame the panel shows;
 - `press 3 3 2 --shot out.png` presses buttons (`1`-`4` short, `1L`-`4L`
   long) and waits for the panel after each;
 - `open clock` puts an installed application on the screen;
-- `run sdk/apps/clock --shot out.png` builds the application, uploads it
-  and restarts the device into it - the loop for working on an
+- `run sdk/apps/clock --shot out.png` builds the application, uploads it,
+  restarts the device and opens it - the loop for working on an
   application, no reflashing;
 - `flash` uploads `firmware/build/perinkpheral.bin` and waits for the
   device to come back; after a change to `sdk/host_api.h` use `flash
   --apps`, or the applications on the device stay built for the old one; `status` and `log` print what the names say.
 
 Verify a change on the real device this way, not only in the preview.
-With no network, `tools/devshot/devshot.py $PORT --keys 3,2 --out
+With no network, `tools/perinkpheral usb $PORT --keys 3,2 --out
 shot.png` does presses and the frame over the USB console (`1`-`4` a
 short press, `q` `w` `e` `r` a long press of button 1-4).
 
@@ -127,13 +128,14 @@ and says the version alone:
 Three projects, each opened as a folder. All need `WASI_SDK_PATH` in the environment the IDE
 gives CMake (CLion: Settings, Build, CMake, Environment).
 
-- **An application, or a folder of them.** `devtool.py new` writes a `CMakeLists.txt` into the
+- **An application, or a folder of them.** `tools/perinkpheral new` writes a `CMakeLists.txt` into the
   application; the perinkpheral-apps repository has one for all of its own. The code is
   understood with the SDK's headers, `strings.h` and `pictures.h`, and every application has
-  build targets: `<name>` (the package, with `mkapp`'s report), `<name>-run` (build, upload,
-  restart the device into it) and `<name>-serve` (the live page). The device's address is
-  `PERINKPHERAL_HOST`, in the environment or as a CMake variable. The module behind it is
-  `sdk/cmake/perinkpheral.cmake`; `mkapp` still does the building.
+  build targets: `<name>` (the code compiled), `<name>-package` (the package, with the build's
+  report), `<name>-run` (build, upload, restart the device and open it) and `<name>-serve` (the
+  live page). The device's address is `PERINKPHERAL_HOST`, in the environment or as a CMake
+  variable. The module behind it is `sdk/cmake/perinkpheral.cmake`; the targets call
+  `tools/perinkpheral`.
 - **This repository's root.** The sample and the system applications the same way, and the
   project's tools as targets: `host-tests`, `guide`, and with `IDF_PATH` set `firmware` and
   `firmware-send`. The firmware's own code is not part of this project.
@@ -143,7 +145,7 @@ gives CMake (CLion: Settings, Build, CMake, Environment).
   the tools where the build finds them; anywhere else, `-DIDF_PATH=` and `-DWASI_SDK_PATH=`
   among the CMake options. The IDE builds into a directory of its own, not `firmware/build`,
   which is `idf.py`'s; what is sent to a device is `idf.py`'s build. Flashing and the monitor
-  stay `idf.py`'s and `devtool.py`'s.
+  stay `idf.py`'s and `tools/perinkpheral`'s.
 
 ## Constraints
 

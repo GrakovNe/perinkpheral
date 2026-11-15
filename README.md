@@ -228,7 +228,8 @@ void app_on_draw(void)
 
 The whole contract is one header, `sdk/host_api.h`; `sdk/apps/hello` is
 the complete sample. Build it with
-`tools/mkapp/mkapp.py sdk/apps/hello --out <dir>`. An application has
+`tools/perinkpheral build sdk/apps/hello --out <dir>` (the tools need Java 21
+or later and are built on first use). An application has
 64 KB for everything and no C library; `sdk/lib` has what it needs to
 build strings. It is unloaded whenever it leaves the screen, so what
 must survive goes into its own small store with `kv_set` and comes
@@ -251,7 +252,7 @@ installs with a click. A device has six places for applications, and
 one that is removed keeps its settings for when it comes back. The
 official applications - a clock, the weather, a timer - are in
 [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps);
-`tools/catalog/mkcatalog.py` makes a catalog of your own, and its
+`tools/perinkpheral catalog` makes a catalog of your own, and its
 address goes onto the device's page next to the official one.
 
 While you work on one, the device takes it over the network, no
@@ -259,14 +260,15 @@ reflashing and no cable:
 
 ```
 export PERINKPHERAL_HOST=<the device's address>
-tools/devtool/devtool.py run sdk/apps/hello --shot hello.png
-tools/devtool/devtool.py press 2 2 --shot pressed.png
+tools/perinkpheral run sdk/apps/hello --shot hello.png
+tools/perinkpheral press 2 2 --shot pressed.png
 ```
 
-`run` builds the application, uploads it and restarts the device into
-it, about ten seconds in all; `--shot` saves what the panel shows as a
-PNG, and `press` presses the buttons for you. `devtool.py --help` has
-the rest: the log, the status, flashing the firmware itself.
+`run` builds the application, uploads it, restarts the device and
+opens it, about ten seconds in all; `--shot` saves what the panel shows
+as a PNG, and `press` presses the buttons for you. `tools/perinkpheral`
+with no arguments lists the rest: the simulator, the log, the status,
+flashing the firmware itself. The CLion plugin does the same from the IDE.
 
 ## Roadmap
 
@@ -310,9 +312,9 @@ sdk/
   apps/                the sample application, hello; the rest are in perinkpheral-apps
 tools/
   preview/             renders the host's screens to PNG without the device
-  devtool/             the device over the network: screenshots, presses, upload and run an app
-  devshot/             the same over USB for a device with no network
-  mkapp/               builds an application to app.wasm and checks it
+  perinkpheral         the tools: build and check an app, run it on a device or in the simulator, catalogs
+  core/                the tools in Kotlin, which the CLion plugin uses too
+  simulator/           the device without the device, built from the firmware's sources
   fontgen/             TTF -> 1-bit bitmap font header
 assets/fonts/          Departure Mono and Jersey (SIL OFL 1.1), the UI fonts, and their licenses
 hardware/              the panel notes, the BOM and assembly page, the case model

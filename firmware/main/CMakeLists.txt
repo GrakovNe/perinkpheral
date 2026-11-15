@@ -80,14 +80,14 @@ if(CONFIG_APP_BUNDLE_APPS)
             file(REMOVE_RECURSE "${packed_dir}")
         endif()
     endforeach()
-    file(GLOB sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
-                                            "${repo_dir}/tools/mkapp/mkapp.py")
+    file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+                                                    "${repo_dir}/tools/core/src/*")
     foreach(app_dir ${app_dirs})
         get_filename_component(app_name "${app_dir}" NAME)
         file(GLOB app_sources CONFIGURE_DEPENDS "${app_dir}/*")
         add_custom_command(OUTPUT "${apps_image_dir}/${app_name}/app.wasm"
                            COMMAND "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}"
-                                   "${repo_dir}/tools/mkapp/mkapp.py" "${app_dir}"
+                                   "${repo_dir}/tools/perinkpheral" build "${app_dir}"
                                    --out "${apps_image_dir}/${app_name}"
                            DEPENDS ${app_sources} ${sdk_sources}
                            VERBATIM)
@@ -104,8 +104,8 @@ if(NOT DEFINED ENV{WASI_SDK_PATH})
                         "own, and building them needs wasi-sdk.")
 endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
-file(GLOB system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
-                                               "${repo_dir}/tools/mkapp/mkapp.py")
+file(GLOB_RECURSE system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+                                                       "${repo_dir}/tools/core/src/*")
 foreach(system_app about settings setup)
     set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
     set(system_app_out "${system_apps_dir}/${system_app}")
@@ -121,7 +121,7 @@ foreach(system_app about settings setup)
     add_custom_command(OUTPUT "${system_app_wasm}" "${system_app_manifest}"
                               "${system_app_strings}" "${system_app_words}"
                        COMMAND "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}"
-                                   "${repo_dir}/tools/mkapp/mkapp.py" "${system_app_dir}"
+                                   "${repo_dir}/tools/perinkpheral" build "${system_app_dir}"
                                --out "${system_app_out}"
                        COMMAND "${CMAKE_COMMAND}" -E copy "${system_app_out}/app.wasm"
                                "${system_app_wasm}"
