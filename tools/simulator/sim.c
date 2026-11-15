@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -39,6 +40,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -1526,13 +1528,28 @@ static void handle(int socket_fd, const request_t *request)
     }
 }
 
-/* One request on one connection: the device's server answers so, and closes. */
+/* A connection that says nothing this long after it was made is one a browser opened ahead of a
+ * request it may never make: it is closed, and the browser opens another when it has one. */
+#define IDLE_CONNECTION_MS 250
+/* A request that stops halfway is given up after this. */
+#define REQUEST_STALL_S 5
+
+/* One request on one connection: the device's server answers so, and closes. The simulator
+ * serves one connection at a time on its only thread, so none may keep it waiting. */
 static void serve(int listening)
 {
     int connection = accept(listening, NULL, NULL);
     if (connection < 0) {
         return;
     }
+    struct pollfd first = { .fd = connection, .events = POLLIN };
+    if (poll(&first, 1, IDLE_CONNECTION_MS) <= 0) {
+        close(connection);
+        return;
+    }
+    struct timeval stall = { .tv_sec = REQUEST_STALL_S };
+    setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, &stall, sizeof stall);
+    setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, &stall, sizeof stall);
     static char head[REQUEST_HEAD_MAX + 1];
     size_t      have = 0;
     char       *end = NULL;
