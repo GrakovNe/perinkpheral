@@ -46,6 +46,8 @@
 #define MANIFEST_SETTING_OPTIONS_MAX 8
 #define MANIFEST_SETTING_OPTION_MAX  23
 #define MANIFEST_LIST_ITEM_MAX       63
+/* "prefix" of a poll over a list: the items it takes begin with it. */
+#define MANIFEST_EACH_PREFIX_MAX     15
 
 /* Module size. The code slot is 52 KB. Code that actually runs is limited
  * further by the interpreter memory: about four bytes per byte of code. */

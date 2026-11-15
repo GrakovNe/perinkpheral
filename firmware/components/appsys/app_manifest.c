@@ -172,6 +172,20 @@ static bool starts_with_server_setting(const json_t *settings, const char *text,
 
 /* A poll goes to a server the manifest names, or to the one the user
  * named in a setting made for it. */
+static bool is_prefix(const json_t *prefix)
+{
+    if (!json_is_string(prefix) || prefix->text[0] == '\0' ||
+        strlen(prefix->text) > MANIFEST_EACH_PREFIX_MAX) {
+        return false;
+    }
+    for (const char *at = prefix->text; *at != '\0'; at++) {
+        if (*at <= ' ' || *at > '~') {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool read_poll(const json_t *poll, const json_t *settings, app_poll_t *parsed)
 {
     if (!json_is_object(poll)) {
@@ -240,6 +254,16 @@ static bool read_poll(const json_t *poll, const json_t *settings, app_poll_t *pa
             return false;
         }
         strcpy(parsed->each_key, each->text);
+    }
+    /* "prefix": of a poll over a list, printable and without spaces. */
+    const json_t *prefix = json_get(poll, "prefix");
+    parsed->each_prefix[0] = '\0';
+    parsed->each_other_count = 0;
+    if (prefix != NULL) {
+        if (each == NULL || !is_prefix(prefix)) {
+            return false;
+        }
+        strcpy(parsed->each_prefix, prefix->text);
     }
     return read_headers(json_get(poll, "headers"), parsed) &&
            read_pick(json_get(poll, "pick"), parsed);
@@ -982,8 +1006,44 @@ app_manifest_result_t app_manifest_parse_poll(const char *json, int poll, app_po
                 read_poll(wanted, json_get(root, "settings"), parsed)
             ? APP_MANIFEST_OK
             : APP_MANIFEST_BAD_POLL;
+    /* A poll over a list without a prefix leaves to the others what they claim. */
+    if (result == APP_MANIFEST_OK && parsed->each_key[0] != '\0' && parsed->each_prefix[0] == '\0') {
+        const json_t *other;
+        json_for_each(other, polls)
+        {
+            const json_t *each = json_get(other, "each");
+            const json_t *prefix = json_get(other, "prefix");
+            if (other != wanted && json_is_string(each) && strcmp(each->text, parsed->each_key) == 0 &&
+                is_prefix(prefix) && parsed->each_other_count < APP_POLLS_MAX) {
+                strcpy(parsed->each_others[parsed->each_other_count++], prefix->text);
+            }
+        }
+    }
     json_free(root);
     return result;
+}
+
+static bool begins_with(const char *text, const char *start)
+{
+    return strncmp(text, start, strlen(start)) == 0;
+}
+
+bool app_manifest_poll_takes(const app_poll_t *poll, const char *item, const char **value)
+{
+    *value = item;
+    if (poll->each_prefix[0] != '\0') {
+        if (!begins_with(item, poll->each_prefix)) {
+            return false;
+        }
+        *value = item + strlen(poll->each_prefix);
+        return **value != '\0'; /* the prefix alone names nothing */
+    }
+    for (int i = 0; i < poll->each_other_count; i++) {
+        if (begins_with(item, poll->each_others[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 const char *app_manifest_result_text(app_manifest_result_t result)

@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 8, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 9, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -444,6 +444,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code></td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
   <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for</td></tr>
+  <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list</td></tr>
 </table>
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
 <pre>"settings": [ { "key": "tickers", "type": "list", "title": "Tickers", "default": ["AAPL", "MSFT"] } ],
@@ -1058,7 +1059,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">ui_cell(cell, picture)</td><td>Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none). Picture size: 88 px in a full-surface cell, 44 px otherwise</td></tr>
   <tr><td class="c">ui_cell_fit(cell, picture)</td><td>Returns the size class that fits the cell; 1 is the largest. Use the largest returned number for all cells of a screen</td></tr>
   <tr><td class="c">ui_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
-  <tr><td class="c">ui_chart(chart, values)</td><td>Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value</td></tr>
+  <tr><td class="c">ui_chart(chart, values)</td><td>Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_RANGE_RIGHT</code> (the same captions at the right, the series from the left edge), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value</td></tr>
   <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code></td></tr>
   <tr><td class="c">ui_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row</td></tr>
   <tr><td class="c">ui_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]</td></tr>

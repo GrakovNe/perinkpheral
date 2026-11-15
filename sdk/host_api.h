@@ -724,8 +724,9 @@ HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *pic
  * flags: HOST_CHART_AXIS - a rule at the baseline; HOST_CHART_FROM_ZERO -
  * the scale includes 0; HOST_CHART_RANGE - the greatest and the least
  * value as captions at the left, printed with `decimals` decimals (215
- * with 1 is "21.5"); HOST_CHART_MARK_LAST - a mark at the last value
- * (LINE, AREA, STEPS).
+ * with 1 is "21.5"); HOST_CHART_RANGE_RIGHT - the same captions at the
+ * right, the series starting at the left edge; HOST_CHART_MARK_LAST - a
+ * mark at the last value (LINE, AREA, STEPS).
  * Returns HOST_OK or HOST_ERR_ARGUMENT. */
 #define HOST_CHART_LINE  0
 #define HOST_CHART_AREA  1
@@ -735,6 +736,7 @@ HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *pic
 #define HOST_CHART_FROM_ZERO 2
 #define HOST_CHART_RANGE     4
 #define HOST_CHART_MARK_LAST 8
+#define HOST_CHART_RANGE_RIGHT 16
 #define HOST_CHART_VALUES_MAX 128
 #define HOST_CHART_NO_VALUE   INT32_MIN
 typedef struct host_chart {

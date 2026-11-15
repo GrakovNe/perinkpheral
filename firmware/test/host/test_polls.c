@@ -331,6 +331,46 @@ static void test_pick(void)
     CHECK(app_manifest_parse("{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":"
                              "[{\"url\":\"http://a/{{t}}\",\"every\":60,\"each\":\"t\"},{\"url\":"
                              "\"http://b/{{t}}\",\"every\":60,\"each\":\"t\"}]}", &manifest) == APP_MANIFEST_OK);
+
+    /* one list, several sources: a poll takes the items of its prefix, without it; the one
+     * without a prefix takes what no other claims */
+    const char *sources =
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":["
+        "{\"url\":\"http://y/{{t}}\",\"every\":60,\"each\":\"t\"},"
+        "{\"url\":\"http://m/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"MOEX:\"},"
+        "{\"url\":\"http://s/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"SPB:\"}]}";
+    CHECK(app_manifest_parse(sources, &manifest) == APP_MANIFEST_OK);
+    const char *value;
+    CHECK(app_manifest_parse_poll(sources, 0, &poll) == APP_MANIFEST_OK && poll.each_other_count == 2);
+    CHECK(app_manifest_poll_takes(&poll, "AAPL", &value) && strcmp(value, "AAPL") == 0);
+    CHECK(app_manifest_poll_takes(&poll, "7203.T", &value));
+    CHECK(!app_manifest_poll_takes(&poll, "MOEX:SBER", &value));
+    CHECK(!app_manifest_poll_takes(&poll, "SPB:SPBE", &value));
+    CHECK(app_manifest_parse_poll(sources, 1, &poll) == APP_MANIFEST_OK);
+    CHECK_STR(poll.each_prefix, "MOEX:");
+    CHECK(app_manifest_poll_takes(&poll, "MOEX:SBER", &value) && strcmp(value, "SBER") == 0);
+    CHECK(!app_manifest_poll_takes(&poll, "AAPL", &value));
+    CHECK(!app_manifest_poll_takes(&poll, "SPB:SBER", &value));
+    CHECK(!app_manifest_poll_takes(&poll, "MOEX:", &value)); /* the prefix alone names nothing */
+    CHECK(app_manifest_parse_poll(sources, 2, &poll) == APP_MANIFEST_OK);
+    CHECK(app_manifest_poll_takes(&poll, "SPB:SPBE", &value) && strcmp(value, "SPBE") == 0);
+    /* a poll of one request takes everything there is, whatever its neighbours */
+    CHECK(app_manifest_parse_poll(each, 0, &poll) == APP_MANIFEST_OK && poll.each_other_count == 0);
+    CHECK(app_manifest_poll_takes(&poll, "MOEX:SBER", &value));
+    /* a prefix needs a list to be of, and has no spaces */
+    const char *bad_prefixes[] = {
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/x\",\"every\":60,\"prefix\":\"MOEX:\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"M X\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"0123456789ABCDEF\"}]}",
+    };
+    for (int i = 0; i < 4; i++) {
+        CHECK(app_manifest_parse(bad_prefixes[i], &manifest) == APP_MANIFEST_BAD_POLL);
+    }
 }
 
 static void test_floor_and_removal(void)

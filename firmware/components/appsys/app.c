@@ -993,6 +993,7 @@ _Static_assert(HOST_CHART_LINE == KIT_CHART_LINE && HOST_CHART_AREA == KIT_CHART
                HOST_CHART_BARS == KIT_CHART_BARS && HOST_CHART_STEPS == KIT_CHART_STEPS &&
                HOST_CHART_AXIS == KIT_CHART_AXIS && HOST_CHART_FROM_ZERO == KIT_CHART_FROM_ZERO &&
                HOST_CHART_RANGE == KIT_CHART_RANGE && HOST_CHART_MARK_LAST == KIT_CHART_MARK_LAST &&
+               HOST_CHART_RANGE_RIGHT == KIT_CHART_RANGE_RIGHT &&
                HOST_CHART_NO_VALUE == KIT_CHART_NO_VALUE,
                "the chart of the contract is the chart of the kit");
 

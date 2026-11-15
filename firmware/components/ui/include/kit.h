@@ -100,6 +100,7 @@ typedef enum {
 #define KIT_CHART_FROM_ZERO 2 /* the scale includes 0 */
 #define KIT_CHART_RANGE     4 /* the greatest and the least value as captions at the left */
 #define KIT_CHART_MARK_LAST 8 /* a mark at the last value; line kinds only */
+#define KIT_CHART_RANGE_RIGHT 16 /* the same captions as KIT_CHART_RANGE, at the right */
 typedef struct {
     int              left, top, width, height;
     const int32_t   *values;

@@ -836,8 +836,13 @@ static void start_poll(int number)
         if (end != NULL) {
             *end = '\0';
         }
-        list_item_t each = { .key = poll.each_key, .item = at };
-        start_poll_request(&poll, number, &each, item);
+        /* An item another poll of the list claims by its prefix is passed over; {{key}} is
+         * the item without this poll's prefix. */
+        const char *value;
+        if (app_manifest_poll_takes(&poll, at, &value)) {
+            list_item_t each = { .key = poll.each_key, .item = value };
+            start_poll_request(&poll, number, &each, item);
+        }
         at = end != NULL ? end + 1 : NULL;
     }
 }

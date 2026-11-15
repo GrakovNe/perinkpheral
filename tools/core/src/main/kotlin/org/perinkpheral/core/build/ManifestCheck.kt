@@ -34,6 +34,7 @@ class ManifestCheck(private val sdk: Sdk) {
     private val settingOptionMax = sdk.limit("SETTING_OPTION_MAX")
     private val bytesPerCharacter = sdk.limit("TEXT_BYTES_PER_CHARACTER")
     private val certificatesMax = sdk.limit("CERTIFICATES_MAX")
+    private val eachPrefixMax = sdk.limit("EACH_PREFIX_MAX")
     private val fileNameMax = sdk.limit("FILE_NAME_MAX")
 
     /** Checks `<app>/manifest.json`; returns it parsed. */
@@ -183,6 +184,12 @@ class ManifestCheck(private val sdk: Sdk) {
         val lists = settings.map { it as Map<*, *> }.filter { it["type"] == "list" }.map { it["key"] }
         if (each != null && each !in lists) {
             fail("$where: \"each\" must be the key of a setting of the \"list\" type")
+        }
+        val prefix = poll["prefix"]
+        if (prefix != null && (each == null || prefix !is String || prefix.isEmpty() ||
+                prefix.length > eachPrefixMax || prefix.any { it <= ' ' || it > '~' })) {
+            fail("$where: \"prefix\" is of a poll with \"each\": 1-$eachPrefixMax printable characters " +
+                "without spaces, which the items it takes begin with")
         }
     }
 

@@ -656,6 +656,17 @@ int poller_net_poll(const char *app_name, int poll_number, int item)
         if (request->poll.each_key[0] != '\0') {
             items = list_item(app_name, request->poll.each_key, item, request->item,
                               sizeof request->item);
+            /* An item another poll of the list claims by its prefix is not this one's:
+             * passed over, and the round goes on. What stands for {{key}} is the item
+             * without this poll's prefix. */
+            const char *value;
+            if (items > 0 && !app_manifest_poll_takes(&request->poll, request->item, &value)) {
+                free(request);
+                return items;
+            }
+            if (items > 0 && value != request->item) {
+                memmove(request->item, value, strlen(value) + 1);
+            }
         }
         /* An empty list leaves the key without a value: "not ready". */
         s_item = items > 0 ? item : -1;

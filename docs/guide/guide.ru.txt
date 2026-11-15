@@ -2353,9 +2353,6 @@ Series of integers as a line, an area, bars or steps, scaled to a box
 History of one value. Changes with the data
 История одного значения. Изменяется вместе с данными
 
-Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value
-График из <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) и <code>count</code> чисел (1 - 128), от старых к новым. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (линия основания), <code>_FROM_ZERO</code> (шкала включает 0), <code>_RANGE</code> (наибольшее и наименьшее значение подписями, с <code>decimals</code> знаками после запятой), <code>_MARK_LAST</code> (отметка на последнем значении). <code>HOST_CHART_NO_VALUE</code> - разрыв. Шкала охватывает наименьшее и наибольшее значение
-
 a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;
 функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у хоста нет;
 
@@ -2803,9 +2800,6 @@ The computer's. Redirects, hosts and headers follow the device's rules. Answers 
 The output folder is created anew on every run. It must be empty or an earlier catalog, and must not contain the applications.
 Выходная папка создаётся заново при каждом запуске. Она должна быть пустой или прежним каталогом и не должна содержать сами приложения.
 
-revision 8, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 8, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
-
 Plus up to 2 roots an application brings, for its own requests. Self-signed server certificates are rejected. Plain <code>http</code> is available for home networks
 Плюс до 2 корневых сертификатов, которые приложение приносит для своих запросов. Самоподписанные сертификаты серверов отклоняются. В домашней сети доступен обычный <code>http</code>
 
@@ -2835,3 +2829,12 @@ Self-signed or expired server certificate, or an authority outside the browser r
 
 Certificate authorities of an application; the size of one
 Удостоверяющие центры приложения; размер одного
+
+revision 9, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 9, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+
+The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list
+Опрос берёт только пункты, которые начинаются с него; <code>{{key}}</code> - пункт без него. Опрос того же списка без префикса берёт пункты, на которые не претендует ни один другой. Так один список обслуживает несколько источников: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> - позиция во всём списке
+
+Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_RANGE_RIGHT</code> (the same captions at the right, the series from the left edge), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value
+График из <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) и <code>count</code> чисел (1 - 128), от старых к новым. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (линия основания), <code>_FROM_ZERO</code> (шкала включает 0), <code>_RANGE</code> (наибольшее и наименьшее значение подписями, с <code>decimals</code> знаками после запятой), <code>_RANGE_RIGHT</code> (те же подписи справа, ряд от левого края), <code>_MARK_LAST</code> (отметка на последнем значении). <code>HOST_CHART_NO_VALUE</code> - разрыв. Шкала охватывает наименьшее и наибольшее значение

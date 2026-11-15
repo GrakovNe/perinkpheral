@@ -100,6 +100,13 @@ typedef struct {
     /* "each": the list setting the poll goes over, one request an item,
      * {{key}} of it being that item; empty for a poll of one request. */
     char         each_key[MANIFEST_SETTING_KEY_MAX + 1];
+    /* "prefix": the poll takes only the items that begin with it, and
+     * {{key}} is the item without it; empty: it takes the items no other
+     * poll of the same list claims by a prefix of its own, which are then in
+     * each_others. One list, several sources: "MOEX:SBER" and "AAPL". */
+    char         each_prefix[MANIFEST_EACH_PREFIX_MAX + 1];
+    char         each_others[APP_POLLS_MAX][MANIFEST_EACH_PREFIX_MAX + 1];
+    int          each_other_count;
 } app_poll_t;
 
 typedef enum {
@@ -222,6 +229,11 @@ int app_manifest_secret_keys(const char *json, char keys[][16], int capacity);
  * the browsers' set, for its own requests ("certificates"); returns how
  * many, at most `capacity`. */
 int app_manifest_certificates(const char *json, char files[][MANIFEST_FILE_NAME_MAX + 1], int capacity);
+
+/* Whether a poll over a list ("each") takes this item of it, by its
+ * "prefix" or by the prefixes of the other polls of the list; `value` is
+ * then what stands for {{key}}: the item without the prefix. */
+bool app_manifest_poll_takes(const app_poll_t *poll, const char *item, const char **value);
 
 /* Whether two http or https URLs name the same host and port - a port
  * that is not written being the scheme's own, and http and https of one

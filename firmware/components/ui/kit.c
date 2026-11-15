@@ -298,7 +298,7 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
         return;
     }
     int left = chart->left, width = chart->width;
-    if (chart->flags & KIT_CHART_RANGE) {
+    if (chart->flags & (KIT_CHART_RANGE | KIT_CHART_RANGE_RIGHT)) {
         const gfx_font_t *font = kit_font(KIT_CAPTION);
         char              most[CHART_LABEL_BYTES], least[CHART_LABEL_BYTES];
         chart_label(most, sizeof most, high, chart->decimals);
@@ -306,12 +306,19 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
         int most_width = gfx_text_font_width(font, most);
         int least_width = gfx_text_font_width(font, least);
         int column = most_width > least_width ? most_width : least_width;
-        /* Digits stand on the baseline: the captions touch the edges of the box. */
-        gfx_text_font(g, left + column - most_width, chart->top + gfx_font_cap_height(font), font,
+        /* At the right the captions end at the box's edge and the series starts at its left
+         * one; at the left they end where the series starts. Either way they are aligned on
+         * their last digit, and the digits stand on the baseline: the captions touch the top
+         * and the bottom of the box. */
+        bool is_right = (chart->flags & KIT_CHART_RANGE_RIGHT) != 0;
+        int  column_end = is_right ? chart->left + chart->width : left + column;
+        gfx_text_font(g, column_end - most_width, chart->top + gfx_font_cap_height(font), font,
                       most, true);
-        gfx_text_font(g, left + column - least_width, chart->top + chart->height - 1, font, least,
+        gfx_text_font(g, column_end - least_width, chart->top + chart->height - 1, font, least,
                       true);
-        left += column + CHART_LABEL_GAP;
+        if (!is_right) {
+            left += column + CHART_LABEL_GAP;
+        }
         width -= column + CHART_LABEL_GAP;
         if (width <= 0) {
             return;
