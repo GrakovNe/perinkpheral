@@ -40,26 +40,39 @@
 
 static const char STOPPED_TOO_LONG[] = "it ran too long";
 
+/* What an application may export, as the contract declares it: the host
+ * looks every one up when the module is loaded, and refuses a module that
+ * exports one otherwise than declared. */
+typedef enum {
+#define APP_EXPORT_ROW(name, arguments, has_result) EXPORT_##name,
+#include "host_exports.inc"
+#undef APP_EXPORT_ROW
+    EXPORT_COUNT
+} export_t;
+
+static const struct {
+    const char *name;
+    uint32_t    arguments;
+    bool        has_result;
+} EXPORTS[EXPORT_COUNT] = {
+#define APP_EXPORT_ROW(name, arguments, has_result) [EXPORT_##name] = { #name, arguments, has_result },
+#include "host_exports.inc"
+#undef APP_EXPORT_ROW
+};
+
+/* An export added to the contract stops the build here until the host
+ * calls it: then the number is moved. */
+_Static_assert(EXPORT_COUNT == 17, "every export of host_api.h is called by the host");
+
+#define HANDLER(app, name) ((app)->exports[EXPORT_##name])
+
 struct app {
     IM3Environment        environment;
     IM3Runtime            runtime;
     const app_services_t *services;
     const char           *name;
 
-    IM3Function on_focus;
-    IM3Function on_blur;
-    IM3Function on_terminate;
-    IM3Function on_back;
-    IM3Function on_button;
-    IM3Function on_timer;
-    IM3Function on_draw;
-    IM3Function on_data;
-    IM3Function on_values;
-    IM3Function on_settings;
-    IM3Function on_intent;
-    IM3Function on_alarm;
-    IM3Function on_installed;
-    IM3Function on_updated;
+    IM3Function exports[EXPORT_COUNT]; /* NULL: not exported */
     /* Set only while app_on_values() runs: what data_value() reads. */
     json_pick_t *picked;
     /* Set only while a handler of an answer runs: what data_response() and
@@ -2374,21 +2387,22 @@ static void note_duration(app_t *app, const char *handler, int64_t took_ms)
         return;
     }
     app->slow_logged = true;
-    const char *name = strrchr(handler, '>');
-    char        told[HOST_LOG_TEXT_MAX + 1];
-    int         length = snprintf(told, sizeof told,
-                                  "slow handler: %s took %d ms; the device waits for it",
-                                  name != NULL ? name + 1 : handler, (int)took_ms);
+    char told[HOST_LOG_TEXT_MAX + 1];
+    int  length = snprintf(told, sizeof told, "slow handler: %s took %d ms; the device waits for it",
+                           handler, (int)took_ms);
     app->services->log(HOST_LOG_WARN, told, length < (int)sizeof told ? length : (int)sizeof told - 1);
 }
 
-#define CALL_HANDLER(app, handler, ...)                                  \
-    do {                                                                 \
-        if ((app)->stop_reason == NULL && (handler) != NULL) {           \
-            start_budget((app)->services);                               \
-            note_result((app), m3_CallV((handler), ##__VA_ARGS__));      \
-            note_duration((app), #handler, stop_budget());               \
-        }                                                                \
+/* Calls the export `name` - app_on_draw - if the application has it; the
+ * log names it without its "app_": on_draw. */
+#define CALL_HANDLER(app, name, ...)                                                   \
+    do {                                                                               \
+        IM3Function handler_ = HANDLER(app, name);                                     \
+        if ((app)->stop_reason == NULL && handler_ != NULL) {                          \
+            start_budget((app)->services);                                             \
+            note_result((app), m3_CallV(handler_, ##__VA_ARGS__));                     \
+            note_duration((app), &#name[sizeof "app_" - 1], stop_budget());            \
+        }                                                                              \
     } while (0)
 
 /* Builds the runtime and loads the module into it; the application is
@@ -2420,7 +2434,7 @@ static app_load_result_t load_module(app_t *app, const uint8_t *wasm, size_t was
  * simply gets none. */
 static void find_data_buffer(app_t *app)
 {
-    IM3Function data_buffer = find_export(app, "app_data_buffer", 0, true);
+    IM3Function data_buffer = HANDLER(app, app_data_buffer);
     uint32_t offset = 0;
     if (data_buffer == NULL) {
         return;
@@ -2473,7 +2487,7 @@ static bool is_strings_table(const uint8_t *table, size_t bytes, uint32_t count)
 
 static void load_strings(app_t *app)
 {
-    IM3Function strings_buffer = find_export(app, "app_strings_buffer", 0, true);
+    IM3Function strings_buffer = HANDLER(app, app_strings_buffer);
     const char *language = app->services->language != NULL ? app->services->language() : "en";
     uint32_t    offset = 0;
     if (strings_buffer == NULL || strcmp(language, "en") == 0 || app->services->file_size == NULL ||
@@ -2546,21 +2560,9 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
         return result;
     }
 
-    app->on_focus = find_export(app, "app_on_focus", 0, false);
-    app->on_blur = find_export(app, "app_on_blur", 0, false);
-    app->on_terminate = find_export(app, "app_on_terminate", 0, false);
-    app->on_back = find_export(app, "app_on_back", 0, false);
-    app->on_button = find_export(app, "app_on_button", 1, false);
-    app->on_timer = find_export(app, "app_on_timer", 1, false);
-    app->on_draw = find_export(app, "app_on_draw", 0, false);
-    app->on_data = find_export(app, "app_on_data", 5, false);
-    app->on_values = find_export(app, "app_on_values", 2, false);
-    app->on_settings = find_export(app, "app_on_settings", 0, false);
-    app->on_intent = find_export(app, "app_on_intent", 1, false);
-    app->on_alarm = find_export(app, "app_on_alarm", 1, false);
-    app->on_installed = find_export(app, "app_on_installed", 0, false);
-    app->on_updated = find_export(app, "app_on_updated", 0, false);
-    IM3Function init = find_export(app, "app_init", 0, false);
+    for (int i = 0; i < EXPORT_COUNT; i++) {
+        app->exports[i] = find_export(app, EXPORTS[i].name, EXPORTS[i].arguments, EXPORTS[i].has_result);
+    }
     if (!app->has_wrong_export) {
         find_data_buffer(app);
         load_strings(app);
@@ -2569,7 +2571,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
         app_unload(app);
         return APP_ERR_BAD_MODULE;
     }
-    CALL_HANDLER(app, init);
+    CALL_HANDLER(app, app_init);
     app->exit_requested = false;
 
     *loaded = app;
@@ -2601,45 +2603,45 @@ void app_unload(app_t *app)
 
 void app_focus(app_t *app)
 {
-    CALL_HANDLER(app, app->on_focus);
+    CALL_HANDLER(app, app_on_focus);
     app->exit_requested = false; /* only a button or a timer may ask to leave */
 }
 
 void app_blur(app_t *app)
 {
-    CALL_HANDLER(app, app->on_blur);
+    CALL_HANDLER(app, app_on_blur);
 }
 
 void app_terminate(app_t *app)
 {
-    CALL_HANDLER(app, app->on_terminate);
+    CALL_HANDLER(app, app_on_terminate);
 }
 
 bool app_handles_back(const app_t *app)
 {
-    return app->on_back != NULL;
+    return HANDLER(app, app_on_back) != NULL;
 }
 
 void app_back(app_t *app)
 {
-    CALL_HANDLER(app, app->on_back);
+    CALL_HANDLER(app, app_on_back);
 }
 
 void app_button(app_t *app, int button, int press)
 {
-    CALL_HANDLER(app, app->on_button, (int32_t)BTN_EVENT(button, press));
+    CALL_HANDLER(app, app_on_button, (int32_t)BTN_EVENT(button, press));
 }
 
 void app_timer(app_t *app, int id)
 {
-    CALL_HANDLER(app, app->on_timer, (int32_t)id);
+    CALL_HANDLER(app, app_on_timer, (int32_t)id);
 }
 
 void app_draw(app_t *app, gfx_t *surface)
 {
     app->surface = surface;
     surface->shade = GFX_SHADE_SOLID;
-    CALL_HANDLER(app, app->on_draw);
+    CALL_HANDLER(app, app_on_draw);
     surface->shade = GFX_SHADE_SOLID;
     app->surface = NULL;
     app->exit_requested = false;
@@ -2662,7 +2664,7 @@ void app_answer_ends(app_t *app)
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
               int http_status)
 {
-    if (app->on_data == NULL || !app->has_data_buffer || length > HOST_DATA_CHUNK_MAX) {
+    if (HANDLER(app, app_on_data) == NULL || !app->has_data_buffer || length > HOST_DATA_CHUNK_MAX) {
         return;
     }
     /* Looked up again every time: the interpreter may move the memory. */
@@ -2671,40 +2673,40 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
         return;
     }
     memcpy(memory + app->data_buffer_offset, data, length);
-    CALL_HANDLER(app, app->on_data, (int32_t)request, (int32_t)app->data_buffer_offset,
+    CALL_HANDLER(app, app_on_data, (int32_t)request, (int32_t)app->data_buffer_offset,
                  (int32_t)length, (int32_t)flags, (int32_t)http_status);
 }
 
 void app_values(app_t *app, int request, int http_status, json_pick_t *picked)
 {
     app->picked = picked;
-    CALL_HANDLER(app, app->on_values, (int32_t)request, (int32_t)http_status);
+    CALL_HANDLER(app, app_on_values, (int32_t)request, (int32_t)http_status);
     app->picked = NULL;
 }
 
 void app_alarm(app_t *app, int id)
 {
-    CALL_HANDLER(app, app->on_alarm, (int32_t)id);
+    CALL_HANDLER(app, app_on_alarm, (int32_t)id);
 }
 
 void app_settings_changed(app_t *app)
 {
-    CALL_HANDLER(app, app->on_settings);
+    CALL_HANDLER(app, app_on_settings);
 }
 
 void app_intent(app_t *app, int intent)
 {
-    CALL_HANDLER(app, app->on_intent, (int32_t)intent);
+    CALL_HANDLER(app, app_on_intent, (int32_t)intent);
 }
 
 void app_installed(app_t *app)
 {
-    CALL_HANDLER(app, app->on_installed);
+    CALL_HANDLER(app, app_on_installed);
 }
 
 void app_updated(app_t *app)
 {
-    CALL_HANDLER(app, app->on_updated);
+    CALL_HANDLER(app, app_on_updated);
 }
 
 const char *app_header_text(const app_t *app, int side)

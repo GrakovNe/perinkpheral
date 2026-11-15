@@ -310,6 +310,66 @@ static void test_suspend_and_resume(void)
     CHECK(page.entered == 2 && page.left == 1);
 }
 
+/* What is told before a scene enters: here, what the host does with an
+ * application taking an answer off the screen - it gives way, and the
+ * suspended scene comes back. */
+static int  befores;
+static int  app_entered_at_before;
+static bool resumes_in_before;
+
+static void before_switch(void *context)
+{
+    wm_t *manager = context;
+    befores++;
+    app_entered_at_before = app.entered;
+    if (resumes_in_before) {
+        wm_resume(manager);
+    }
+}
+
+static void test_before_switch(void)
+{
+    start(&menu.scene);
+    befores = 0;
+    resumes_in_before = false;
+    wm_before_switch(&wm, before_switch, &wm);
+
+    /* every way the screen changes is told, before the scene enters */
+    wm_open(&wm, &app.scene);
+    CHECK(befores == 1 && app_entered_at_before == 0 && app.entered == 1);
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(befores == 2 && wm.current == &menu.scene);
+    wm_open_from_home(&wm, &page.scene);
+    CHECK(befores == 3);
+    wm_close(&wm, &page.scene);
+    CHECK(befores == 4 && wm.current == &menu.scene);
+
+    /* and what changes nothing is not */
+    wm_open(&wm, &menu.scene);
+    wm_close(&wm, &app.scene);
+    wm_invalidate(&wm, WM_CHANGED_BY_DATA);
+    CHECK(befores == 4);
+
+    /* suspended, the scene is gone over: what the hook resumes is left
+     * as it should be - entered once more, and left before the next one */
+    wm_open(&wm, &app.scene);
+    befores = 0;
+    int entered = app.entered, left = app.left;
+    wm_suspend(&wm);
+    resumes_in_before = true;
+    wm_open(&wm, &page.scene);
+    CHECK(befores == 1 && app.entered == entered + 1 && app.left == left + 2);
+    CHECK(wm.current == &page.scene && !wm.suspended);
+
+    /* suspended, and given back to the same scene: the hook's resume is enough */
+    wm_suspend(&wm);
+    int page_entered = page.entered;
+    wm_open(&wm, &page.scene);
+    CHECK(page.entered == page_entered + 1 && !wm.suspended);
+    resumes_in_before = false;
+    wm_before_switch(&wm, NULL, NULL);
+}
+
 static int black_pixels(int x0, int y0, int x1, int y1)
 {
     int count = 0;
@@ -598,6 +658,7 @@ int main(void)
     test_how_a_scene_wants_to_be_shown();
     test_timer();
     test_suspend_and_resume();
+    test_before_switch();
     test_frame_with_header();
     test_fullscreen_frame();
     REPORT();

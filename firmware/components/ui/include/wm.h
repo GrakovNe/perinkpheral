@@ -50,6 +50,10 @@ typedef enum {
 /* Draws the header. `scene`: the scene under it. */
 typedef void (*wm_draw_header_fn)(gfx_t *surface, const scene_t *scene, void *context);
 
+/* Called before a scene enters - whatever made it: an open, a close, BACK,
+ * the long press. See wm_before_switch(). */
+typedef void (*wm_before_switch_fn)(void *context);
+
 typedef struct {
     scene_t *home;    /* the menu; target of a long press of BACK */
     scene_t *current; /* top of the stack, or `home` when the stack is empty */
@@ -60,11 +64,20 @@ typedef struct {
 
     wm_draw_header_fn draw_header;
     void             *header_context;
+    wm_before_switch_fn before_switch;
+    void               *before_switch_context;
 } wm_t;
 
 /* `first` becomes current; it may be `home`. Only `header_context` may be NULL. */
 void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_header,
              void *header_context);
+
+/* `before` is called whenever another scene - or a suspended one again -
+ * is about to enter: whoever holds what the entering scene needs (memory
+ * for one application) lets go of it there, once for every way the screen
+ * changes. It may call wm_resume(); nothing else of the window manager.
+ * NULL: nothing is called. */
+void wm_before_switch(wm_t *wm, wm_before_switch_fn before, void *context);
 
 void wm_button(wm_t *wm, scene_button_t button, scene_press_t press);
 

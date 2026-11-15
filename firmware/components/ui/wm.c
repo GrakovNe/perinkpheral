@@ -23,6 +23,13 @@ static void switch_to_scene(wm_t *wm, scene_t *next)
     if (next == NULL || (next == wm->current && !wm->suspended)) {
         return;
     }
+    if (wm->before_switch != NULL) {
+        wm->before_switch(wm->before_switch_context);
+        /* It may have brought the suspended scene back itself. */
+        if (next == wm->current && !wm->suspended) {
+            return;
+        }
+    }
     /* A suspended scene has left already. */
     if (wm->current != NULL && !wm->suspended && wm->current->ops->leave != NULL) {
         wm->current->ops->leave(wm->current);
@@ -139,7 +146,15 @@ void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_hea
     wm->suspended = false;
     wm->draw_header = draw_header;
     wm->header_context = header_context;
+    wm->before_switch = NULL;
+    wm->before_switch_context = NULL;
     open_over_current(wm, first);
+}
+
+void wm_before_switch(wm_t *wm, wm_before_switch_fn before, void *context)
+{
+    wm->before_switch = before;
+    wm->before_switch_context = context;
 }
 
 /* cause: what a redraw asked for by this reaction is due to. */

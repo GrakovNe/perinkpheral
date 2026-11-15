@@ -13,6 +13,10 @@ pointer written `*`, I for one of 64, v for no result. The header is the
 one place a call's signature is written; the function that answers the
 call is host_<name>, <name> being the import's - the first argument of
 the macro, which need not be the name applications call it by.
+
+And host_exports.inc: for every APP_EXPORT a row APP_EXPORT_ROW(name,
+arguments, has_result) - the functions an application may export and the
+host looks up and calls, with as many arguments as the header gives them.
 """
 import os
 import re
@@ -53,6 +57,18 @@ def rows(header_text, macro):
     return found
 
 
+def exports(header_text):
+    found = []
+    pattern = r"^APP_EXPORT\(\s*(\w+)\s*,\s*([^;]*?)\b(\w+)\s*\(([^;]*?)\)\s*\)\s*;"
+    for name, result, declared, parameters in re.findall(pattern, header_text, re.M | re.S):
+        if declared != name:
+            sys.exit("%s: exported as %s" % (name, declared))
+        parameters = " ".join(parameters.split())
+        arguments = 0 if parameters == "void" else len(parameters.split(","))
+        found.append((name, arguments, 0 if result.strip() == "void" else 1))
+    return found
+
+
 def main():
     header, out_dir = sys.argv[1], sys.argv[2]
     with open(header) as f:
@@ -69,6 +85,13 @@ def main():
                 f.write("{ \"%s\", \"%s\", host_%s },\n" % (name, signature, name))
     if total < 60:
         sys.exit("%s: only %d calls found - the header is read wrong" % (header, total))
+    found = exports(text)
+    if len(found) < 10:
+        sys.exit("%s: only %d exports found - the header is read wrong" % (header, len(found)))
+    with open(os.path.join(out_dir, "host_exports.inc"), "w") as f:
+        f.write("/* Made by tools/hostapi/gen_imports.py from sdk/host_api.h - do not edit. */\n")
+        for name, arguments, has_result in found:
+            f.write("APP_EXPORT_ROW(%s, %d, %d)\n" % (name, arguments, has_result))
 
 
 if __name__ == "__main__":

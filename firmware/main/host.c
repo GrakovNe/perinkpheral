@@ -140,11 +140,13 @@ static void abort_background_delivery(void)
     }
 }
 
-/* For whoever changes what is on the screen from outside the host's own
- * handlers - the development tools: an application taking an answer off
- * the screen is loaded where the next one would be, and has to go first. */
-void host_abort_background_delivery(void)
+/* Whatever is to enter the screen - a question, a notice, the default
+ * application, a scene the development tools open - needs the room the
+ * application taking an answer off the screen is in: it goes first. One
+ * place for every way the screen changes, so that none can forget it. */
+static void before_switch(void *context)
 {
+    (void)context;
     abort_background_delivery();
 }
 
@@ -474,15 +476,12 @@ static void on_confirm_answer(bool is_confirmed)
 static void dismiss_question(void)
 {
     s_confirm.is_dismissed = false;
-    abort_background_delivery();
     wm_close(&wm, s_confirm.scene);
 }
 
 static void open_confirm(void *argument)
 {
     (void)argument;
-    /* An application taking an answer off the screen gives way, as to a press. */
-    abort_background_delivery();
     s_confirm.is_open = true;
     s_confirm.is_dismissed = false;
     s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
@@ -545,7 +544,6 @@ static void process_notifications(void)
         s_notices.is_seen = false;
         if (s_notices.is_open) {
             s_notices.is_open = false;
-            abort_background_delivery();
             wm_close(&wm, s_notices.scene);
             memmove(&s_notices.waiting[0], &s_notices.waiting[1],
                     (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
@@ -562,7 +560,6 @@ static void process_notifications(void)
     }
     if (!s_notices.is_open && s_notices.count > 0 && !s_is_delivering) {
         const told_t *told = &s_notices.waiting[0];
-        abort_background_delivery();
         s_notices.scene = scene_notify(line_or_none(told->first), line_or_none(told->second),
                                        line_or_none(told->detail), told->icon, on_notice_seen);
         s_notices.is_open = true;
@@ -608,7 +605,6 @@ static scene_t *s_working; /* in the stack while it is; NULL otherwise */
 static void open_working(void *argument)
 {
     const char *const *lines = argument;
-    abort_background_delivery();
     /* The question that led here is put away first: it is not what the
      * screen goes back to. */
     if (s_confirm.is_dismissed) {
@@ -624,9 +620,6 @@ static void close_working(void *argument)
     if (s_working == NULL) {
         return;
     }
-    /* One instance at a time: an application taking an answer off the
-     * screen goes before the one that had the screen is loaded again. */
-    abort_background_delivery();
     wm_close(&wm, s_working);
     s_working = NULL;
 }
@@ -792,8 +785,6 @@ static void on_menu_idle_timeout(void)
     s_menu_is_watched = false;
     scene_t *chosen = default_scene();
     if (wm.current == s_menu && chosen != NULL) {
-        /* An application may be taking an answer off the screen just now. */
-        abort_background_delivery();
         wm_open_from_home(&wm, chosen);
     }
 }
@@ -827,6 +818,8 @@ void host_close_app(const char *app_name)
     if (scene == NULL) {
         return;
     }
+    /* Taking an answer off the screen it is not in the stack, and closing
+     * it there changes nothing on the screen: it is ended here. */
     if (delivery_state.in_background == scene) {
         abort_background_delivery();
     }
@@ -966,6 +959,7 @@ void host_run(void)
     app_host_tell_started();
 
     app_delivery_init(&delivery_state);
+    wm_before_switch(&wm, before_switch, NULL);
     events_set_host_loop_task();
     poller_start();
 
