@@ -52,10 +52,16 @@ def read_limited(response, most):
     return None if len(body) > most else body
 
 
+USER_AGENT = "perinkpheral"  # what the device sends unless the application gives its own
+
+
 def fetch(asked):
     body = base64.b64decode(asked.get("body") or "")
+    headers = dict(asked.get("headers") or {})
+    if not any(name.lower() == "user-agent" for name in headers):
+        headers["User-Agent"] = USER_AGENT
     request = urllib.request.Request(asked["url"], data=body or None, method=asked["method"],
-                                     headers=asked.get("headers") or {})
+                                     headers=headers)
     opener = urllib.request.build_opener(Redirects(asked.get("follow", True)))
     most = asked.get("max", 256 * 1024)
     try:

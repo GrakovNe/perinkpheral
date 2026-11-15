@@ -27,6 +27,12 @@ void app_kv_erase_all(void);
 /* The results are the ones of kv_get and kv_set in host_api.h. */
 int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t capacity);
 
+/* The same, but a setting of the manifest that has nothing stored reads as
+ * its "default": what an application and the templates of its requests
+ * see. Not for the page, which tells a value from a default. */
+int32_t app_kv_get_or_default(const char *app_name, const char *key, void *value,
+                              int32_t capacity);
+
 /* value_length 0 removes the key. */
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length);
 

@@ -381,6 +381,13 @@ static void test_list_setting(void)
     /* a list's default is a list */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
                 "\"list\",\"title\":\"T\",\"default\":\"AAPL\"}]}") == APP_MANIFEST_BAD_SETTING);
+    /* a default as it would be stored: what a setting with nothing stored reads as */
+    char preset[16];
+    CHECK(app_manifest_setting_default(json, "t", preset, sizeof preset) == 9);
+    CHECK_STR(preset, "AAPL\nMSFT");
+    CHECK(app_manifest_setting_default(json, "t", preset, 9) == -2);
+    CHECK(app_manifest_setting_default(json, "none", preset, sizeof preset) == -1);
+    CHECK(app_manifest_setting_default(text, "k", preset, sizeof preset) == -1); /* no default */
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
                 "\"list\",\"title\":\"T\",\"default\":[\"\"]}]}") == APP_MANIFEST_BAD_SETTING);
 }

@@ -114,7 +114,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 4, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
+  <div class="facts">revision 5, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
      is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
@@ -439,14 +439,17 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><th style="width:13%">Field</th><th style="width:30%">Format</th><th>Description</th></tr>
   <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required</td></tr>
   <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
-  <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token</td></tr>
+  <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code></td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
   <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for</td></tr>
 </table>
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
 <pre>"settings": [ { "key": "tickers", "type": "list", "title": "Tickers", "default": ["AAPL", "MSFT"] } ],
-"polls": [ { "url": "https://query1.example.com/v8/chart/{{tickers}}?range=1d", "every": 900,
-             "each": "tickers", "pick": ["meta.longName", "indicators.close[*]"] } ]</pre>
+"polls": [ { "url": "https://api.example.com/chart/{{tickers}}", "every": 900,
+             "each": "tickers", "pick": ["quote.name", "quote.closes[*]"] } ]
+
+answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
+<p>A path follows the answer from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the poll makes one request, which fails with <code>HOST_FAILED_NOT_READY</code>; <code>data_item()</code> is then -1.</p>
 
 <h2 id="package-settings">Settings</h2>
 <p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
@@ -465,7 +468,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">list</td><td>A line per item; items are added and removed</td><td>Items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all, about 40 tickers. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code></td></tr>
 </table>
 <ul>
-  <li><code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.</li>
+  <li>A setting with nothing stored reads as its <code>default</code>: <code>kv_get()</code> returns it, <code>{{key}}</code> in a poll or a request is it, and the page shows it. Nothing is stored until the user saves the form. The default of a <code>list</code> is a list of items.</li>
+  <li>The application can write any setting with <code>kv_set()</code> but <code>url</code> and <code>link</code>; a list as its items with line breaks between them.</li>
   <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
 </ul>
@@ -586,7 +590,7 @@ drop:
 <table>
   <tr><th style="width:27%">Flag</th><th>Host behaviour</th><th style="width:36%">Use</th></tr>
   <tr><td class="c">HOST_REDRAW_NORMAL</td><td>From a button handler: immediate. From a timer, alarm or data handler: when the refresh policy allows, by default once a minute</td><td>Default</td></tr>
-  <tr><td class="c">HOST_REDRAW_SOON</td><td>Immediate, without a button press</td><td>Data the user is waiting for, such as the result of a manual refresh</td></tr>
+  <tr><td class="c">HOST_REDRAW_SOON</td><td>Immediate, without a button press</td><td>Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown</td></tr>
   <tr><td class="c">HOST_REDRAW_CLEAN</td><td>Full refresh: 2 - 3 s, one flash, removes ghosting</td><td>Images that must be clean; the end of a frame sequence</td></tr>
   <tr><td class="c">HOST_REDRAW_NO_BLINK</td><td>Immediate; excluded from the periodic full refresh</td><td>List navigation; values that change every second</td></tr>
 </table>
@@ -697,7 +701,7 @@ void app_on_values(int32_t request, int32_t http_status)
 <p>A path that is absent from the answer has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
 <h3>Lists</h3>
 <p>A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:</p>
-<pre>/* "pick": ["meta.longName", "indicators.close[*]"] */
+<pre>/* "pick": ["quote.name", "quote.closes[*]"] */
 static int32_t prices[HOST_CHART_VALUES_MAX];
 static int32_t count;
 
@@ -840,7 +844,7 @@ char line[32];
 int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string(STR_STARTS_IN)),
                            &amp;minutes, 1, line, sizeof line);          /* "In 10 min" */</pre>
 <ul>
-  <li><code>en.json</code> is required. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).</li>
+  <li><code>strings/</code> is optional. When it is there, <code>en.json</code> is required in it. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).</li>
   <li>When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.</li>
   <li><code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Write each string in one form for all numbers, for example "min".</li>
   <li>The <code>manifest</code> key of a translation contains the translated parts of the manifest: the title, the title and help of each setting, and labels for the options of a choice. The stored option value does not change; only its label is translated.</li>
@@ -884,7 +888,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">tools/devtool/devtool.py run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads, restarts the device and opens the application</td></tr>
   <tr><td class="c">tools/devtool/devtool.py sim &lt;dir&gt; [--language ru] [--mocks m.json]</td><td>Builds the application and runs it in the simulator (below). Ctrl+C stops it</td></tr>
   <tr><td class="c">tools/devtool/devtool.py serve [dir]</td><td>Local web page: live screen, buttons, log, Run</td></tr>
-  <tr><td class="c">tools/devtool/devtool.py shot [f.png]</td><td>Saves the current panel frame as an image</td></tr>
+  <tr><td class="c">tools/devtool/devtool.py shot [f.png]</td><td>Saves the current panel frame as a PNG at twice the panel's size, 800 x 600</td></tr>
   <tr><td class="c">tools/devtool/devtool.py press 3 3 2L [--shot f.png]</td><td>Sends button presses: 1 - 4 short, 1L - 4L long, in device order</td></tr>
   <tr><td class="c">tools/devtool/devtool.py open &lt;name&gt;</td><td>Opens an installed application</td></tr>
   <tr><td class="c">tools/devtool/devtool.py log [--follow] [--app]</td><td>Prints the device log. <code>--app</code>: application lines only</td></tr>
@@ -927,7 +931,12 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <li><code>status</code> is an HTTP status, or a negative <code>HOST_FAILED_*</code> code: -1 is no network, -5 a timeout.</li>
   <li><code>file</code> is read relative to the mocks file, again for every request: change the file to change the answer while the simulator runs. The mocks file itself is read once, at start.</li>
 </ul>
-<p>Not simulated: the menu and other applications, the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.</p>
+<ul>
+  <li>The network sends <code>User-Agent: perinkpheral</code>, as the device does. The header's icon shows whether the last request reached the network.</li>
+  <li>Ctrl+C stops the simulator as a restart stops the device: <code>app_on_terminate()</code> is called. A process that is killed loses what was not saved, as at a power loss.</li>
+  <li><code>devtool.py set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in a POSIX shell.</li>
+  <li>Not simulated: other applications (the menu holds only this one), the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.</li>
+</ul>
 
 <h2 id="tools-problems">Common problems</h2>
 <table>
@@ -939,7 +948,6 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td>Poll fails with -3</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
   <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate. Use <code>http</code> within a home network</td></tr>
   <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting. Queue more as answers arrive</td></tr>
-  <tr><td>A poll fails with -3 in the simulator and on the device, though the page shows a value</td><td>The value is the setting's <code>default</code>, which is shown and not stored. Apply the default in the code, or save the settings once</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
   <tr><td>A press is ignored shortly after start</td><td>A background delivery was in progress. The press interrupted it and the screen is being redrawn</td></tr>

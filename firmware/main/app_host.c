@@ -316,7 +316,7 @@ const app_services_t *app_host_services(void)
         .boot_id = boot_id,
         .log = log_from_app,
         .timer_set = timers_set,
-        .kv_get = app_kv_get,
+        .kv_get = app_kv_get_or_default,
         .kv_set = kv_set,
         .dithers = dithers,
         .poll_now = poller_poll_now,

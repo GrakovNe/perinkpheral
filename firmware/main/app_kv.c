@@ -5,6 +5,7 @@
 #include "app_kv.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <sys/stat.h>
@@ -13,6 +14,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
+#include "app_store.h"
 #include "storage.h"
 
 #include "app_manifest.h"
@@ -173,6 +175,31 @@ void app_kv_start(void)
 void app_kv_erase_all(void)
 {
     nvs_flash_erase_partition(PARTITION);
+}
+
+int32_t app_kv_get_or_default(const char *app_name, const char *key, void *value,
+                              int32_t capacity)
+{
+    int32_t result = app_kv_get(app_name, key, value, capacity);
+    if (result != HOST_ERR_NOT_FOUND) {
+        return result;
+    }
+    /* A system application has no manifest of settings on the disk. */
+    char *manifest = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
+    if (manifest == NULL) {
+        return result;
+    }
+    char preset[APP_SETTING_VALUE_MAX + 1];
+    int  length = app_manifest_setting_default(manifest, key, preset, sizeof preset);
+    free(manifest);
+    if (length < 0) {
+        return result;
+    }
+    if (length > capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(value, preset, (size_t)length);
+    return length;
 }
 
 int32_t app_kv_get(const char *app_name, const char *key, void *value, int32_t capacity)

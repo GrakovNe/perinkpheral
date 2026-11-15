@@ -821,7 +821,9 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
 #define HOST_KV_TOTAL_MAX 4096 /* all values of one application, as stored: 64 bytes for a
                                   value and its length rounded up to 32 */
 
-/* Reads a value into `value`. Returns its length. */
+/* Reads a value into `value`. Returns its length. A setting of the manifest
+ * with nothing stored reads as its "default", a list's items with line
+ * breaks between them. */
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,
                                    int32_t capacity));
 

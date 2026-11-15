@@ -87,7 +87,7 @@ static void hand_over_piece(const char *app_name, int request, int http_status,
 bool poller_net_setting_of(void *context, const char *key, char *value, size_t value_size)
 {
     const char *app_name = context;
-    int32_t length = app_kv_get(app_name, key, value, (int32_t)value_size - 1);
+    int32_t length = app_kv_get_or_default(app_name, key, value, (int32_t)value_size - 1);
     if (length < 0) {
         return false;
     }

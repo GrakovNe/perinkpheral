@@ -2881,3 +2881,42 @@ Elements of the list paths of one answer, as text
 
 An item of a list setting, in bytes
 Пункт настройки-списка, в байтах
+
+revision 5, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 5, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
+
+<code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code>
+<code>{{key}}</code> поддерживается в значениях. Используются для отправки токена или собственного <code>User-Agent</code> приложения вместо хостового <code>perinkpheral</code>
+
+A path follows the answer from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the poll makes one request, which fails with <code>HOST_FAILED_NOT_READY</code>; <code>data_item()</code> is then -1.
+Путь идёт от верха ответа: <code>[0]</code> и <code>[*]</code> могут стоять в одном пути, <code>chart.result[0].closes[*]</code>. С пустым списком опрос делает один запрос, который завершается с <code>HOST_FAILED_NOT_READY</code>; <code>data_item()</code> тогда -1.
+
+A setting with nothing stored reads as its <code>default</code>: <code>kv_get()</code> returns it, <code>{{key}}</code> in a poll or a request is it, and the page shows it. Nothing is stored until the user saves the form. The default of a <code>list</code> is a list of items.
+Настройка, для которой ничего не сохранено, читается как её <code>default</code>: его возвращает <code>kv_get()</code>, он подставляется в <code>{{key}}</code> опроса или запроса, его показывает страница. Пока пользователь не сохранит форму, ничего не хранится. Значение по умолчанию у <code>list</code> - список пунктов.
+
+The application can write any setting with <code>kv_set()</code> but <code>url</code> and <code>link</code>; a list as its items with line breaks between them.
+Приложение может записать через <code>kv_set()</code> любую настройку, кроме <code>url</code> и <code>link</code>; список - пунктами через перевод строки.
+
+Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown
+Данные, которых ждёт пользователь, например результат обновления вручную; ритм, запущенный пользователем нажатием, например ротация или обратный отсчёт
+
+"pick": ["quote.name", "quote.closes[*]"]
+=
+
+<code>strings/</code> is optional. When it is there, <code>en.json</code> is required in it. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).
+<code>strings/</code> необязательна. Если она есть, в ней обязателен <code>en.json</code>. Английский встраивается в модуль и используется, когда перевода нет. Каждый другой файл содержит ровно те же ключи. Ключ <code>manifest</code> допустим только в переводах (см. ниже).
+
+Saves the current panel frame as a PNG at twice the panel's size, 800 x 600
+Сохраняет текущий кадр панели в PNG вдвое больше панели, 800 x 600
+
+The network sends <code>User-Agent: perinkpheral</code>, as the device does. The header's icon shows whether the last request reached the network.
+Сеть отправляет <code>User-Agent: perinkpheral</code>, как устройство. Значок в шапке показывает, дошёл ли последний запрос до сети.
+
+Ctrl+C stops the simulator as a restart stops the device: <code>app_on_terminate()</code> is called. A process that is killed loses what was not saved, as at a power loss.
+Ctrl+C останавливает симулятор, как перезапуск останавливает устройство: вызывается <code>app_on_terminate()</code>. Убитый процесс теряет несохранённое, как при пропаже питания.
+
+<code>devtool.py set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in a POSIX shell.
+<code>devtool.py set</code> принимает список пунктами через перевод строки: <code>set stocks tickers $'AAPL\nMSFT'</code> в POSIX-оболочке.
+
+Not simulated: other applications (the menu holds only this one), the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
+Не симулируются: другие приложения (в меню только это), системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.

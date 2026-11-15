@@ -202,6 +202,12 @@ typedef bool (*app_manifest_value_fn)(void *context, const char *key, char *valu
 bool app_manifest_allows_url(const char *json, const char *url,
                              app_manifest_value_fn value_of, void *context);
 
+/* The "default" of the setting under `key`, as it would be stored - a
+ * list's items with a line break between them - terminated in `value`.
+ * Returns its length; -1 when the setting has none or the manifest no such
+ * setting, -2 when it does not fit. */
+int app_manifest_setting_default(const char *json, const char *key, char *value, size_t value_size);
+
 /* The type of the setting under `key`, an app_setting_type_t; -1 when the
  * manifest has none. */
 int app_manifest_setting_type(const char *json, const char *key);

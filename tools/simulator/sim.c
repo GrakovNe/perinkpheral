@@ -230,13 +230,32 @@ static int32_t taken_by(int32_t length)
     return (2 + (length + 31) / 32) * 32;
 }
 
+
+/* A setting of the manifest that has nothing stored reads as its default, as
+ * on the device. */
+static int32_t default_of(const char *key, void *value, int32_t capacity)
+{
+    char preset[APP_SETTING_VALUE_MAX + 1];
+    int  length = s_manifest_json != NULL
+                      ? app_manifest_setting_default(s_manifest_json, key, preset, sizeof preset)
+                      : -1;
+    if (length < 0) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if (length > capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(value, preset, (size_t)length);
+    return length;
+}
+
 static int32_t kv_get(const char *app_name, const char *key, void *value, int32_t capacity)
 {
     char path[PATH_BYTES];
     store_path(path, app_name, key);
     FILE *file = fopen(path, "rb");
     if (file == NULL) {
-        return HOST_ERR_NOT_FOUND;
+        return default_of(key, value, capacity);
     }
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
@@ -341,6 +360,7 @@ typedef struct job {
     host_response_t response;
 } job_t;
 
+static bool            s_last_use_failed; /* what the header's icon says */
 static pthread_mutex_t s_jobs_lock = PTHREAD_MUTEX_INITIALIZER;
 static int             s_requests_waiting; /* of the application's own: HOST_HTTP_PENDING_MAX */
 static pthread_cond_t  s_jobs_waiting = PTHREAD_COND_INITIALIZER;
@@ -627,6 +647,12 @@ static void free_job(job_t *job)
  * picked, or the answer in pieces of HOST_DATA_CHUNK_MAX. */
 static void hand_over(job_t *job)
 {
+    bool failed = job->status == HOST_FAILED_NO_NETWORK || job->status == HOST_FAILED_NO_ANSWER ||
+                  job->status == HOST_FAILED_TIMEOUT;
+    if (failed != s_last_use_failed && job->status != HOST_FAILED_NOT_READY) {
+        s_last_use_failed = failed;
+        wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
+    }
     const char *kind = job->is_poll ? "poll" : "request";
     char        item[16] = "";
     if (job->item >= 0) {
@@ -1035,7 +1061,8 @@ static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
                  local.tm_mday, word((word_t)(WORD_JAN + local.tm_mon)));
     }
     screens_header_t header = {
-        .left_icon = GFX_ICON_SIGNAL,
+        /* As on the device: whether the last use of the network worked. */
+        .left_icon = s_last_use_failed ? GFX_ICON_NO_SIGNAL : GFX_ICON_SIGNAL,
         .left = scene->header_left,
         .right = scene->header_right != NULL ? scene->header_right : when,
         .right_icon = SCREENS_NO_ICON,
@@ -1596,6 +1623,14 @@ static void usage(void)
     exit(2);
 }
 
+static volatile sig_atomic_t s_is_stopping;
+
+static void on_stop(int signal_number)
+{
+    (void)signal_number;
+    s_is_stopping = 1;
+}
+
 int main(int argc, char **argv)
 {
     for (int i = 1; i < argc; i++) {
@@ -1643,6 +1678,10 @@ int main(int argc, char **argv)
     }
     s_options.apps = ".";
     signal(SIGPIPE, SIG_IGN);
+    /* Stopped, the application is unloaded as on a restart of the device:
+     * app_on_terminate() saves what it has. */
+    signal(SIGINT, on_stop);
+    signal(SIGTERM, on_stop);
     s_log = malloc(LOG_KEPT_BYTES);
     s_started_ms = monotonic_ms();
     srand((unsigned)time(NULL));
@@ -1675,7 +1714,7 @@ int main(int argc, char **argv)
     }
     say('I', "sim", "the device is at http://127.0.0.1:%d", s_options.port);
 
-    for (;;) {
+    while (!s_is_stopping) {
         deadline_id_t due;
         while (deadline_table_take_due(&s_deadlines, monotonic_ms(), &due)) {
             answer_due(&due);
@@ -1706,4 +1745,11 @@ int main(int argc, char **argv)
             serve(listening);
         }
     }
+    say('I', "sim", "stopping: %s is unloaded", s_options.app);
+    if (s_app_scene != NULL) {
+        wm_close(&s_wm, s_app_scene);
+        app_scene_destroy(s_app_scene);
+    }
+    stop_fetcher();
+    return 0;
 }

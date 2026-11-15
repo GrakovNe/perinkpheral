@@ -956,6 +956,52 @@ const char *app_manifest_result_text(app_manifest_result_t result)
     return "?";
 }
 
+int app_manifest_setting_default(const char *json, const char *key, char *value, size_t value_size)
+{
+    json_t *root = json_parse(json);
+    int     length = -1;
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings"))
+    {
+        const json_t *named = json_get(setting, "key");
+        const json_t *preset = json_get(setting, "default");
+        if (!json_is_string(named) || strcmp(named->text, key) != 0 || preset == NULL ||
+            setting_type(setting) < 0) {
+            continue;
+        }
+        size_t used = 0;
+        bool   fits = value_size > 0;
+        if (json_is_string(preset)) {
+            used = strlen(preset->text);
+            fits = used < value_size;
+            if (fits) {
+                memcpy(value, preset->text, used + 1);
+            }
+        } else if (json_is_array(preset)) {
+            const json_t *item;
+            json_for_each(item, preset)
+            {
+                size_t item_length = json_is_string(item) ? strlen(item->text) : 0;
+                size_t separator = used > 0 ? 1 : 0;
+                if (!fits || used + separator + item_length >= value_size) {
+                    fits = false;
+                    break;
+                }
+                if (separator) {
+                    value[used++] = '\n';
+                }
+                memcpy(value + used, item->text, item_length);
+                used += item_length;
+                value[used] = '\0';
+            }
+        }
+        length = fits ? (int)used : -2;
+        break;
+    }
+    json_free(root);
+    return length;
+}
+
 int app_manifest_setting_type(const char *json, const char *key)
 {
     json_t *root = json_parse(json);
