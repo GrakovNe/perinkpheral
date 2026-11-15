@@ -323,14 +323,14 @@ static void test_pick(void)
         "\"http://a/{{x}}\",\"every\":60,\"each\":\"x\"}]}",
         "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{t}}\",\"every\":60,\"each\":\"nope\"}]}",
-        /* two polls over lists */
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
-        "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\"},{\"url\":\"http://b/{{t}}\",\"every\":60,"
-        "\"each\":\"t\"}]}",
     };
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         CHECK(app_manifest_parse(bad_lists[i], &manifest) == APP_MANIFEST_BAD_POLL);
     }
+    /* two polls over lists: each makes one request at a time */
+    CHECK(app_manifest_parse("{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":"
+                             "[{\"url\":\"http://a/{{t}}\",\"every\":60,\"each\":\"t\"},{\"url\":"
+                             "\"http://b/{{t}}\",\"every\":60,\"each\":\"t\"}]}", &manifest) == APP_MANIFEST_OK);
 }
 
 static void test_floor_and_removal(void)

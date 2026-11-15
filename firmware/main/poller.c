@@ -656,7 +656,7 @@ static bool run_wanted_poll(void)
         }
     }
     /* More items to ask: the round goes on, between whatever else waits. */
-    s_round.is_on = item + 1 < items && item + 1 < APP_LIST_ITEMS_MAX;
+    s_round.is_on = item + 1 < items;
     if (s_round.is_on) {
         s_round.app = app;
         s_round.poll = poll;

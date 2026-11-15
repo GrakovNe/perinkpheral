@@ -371,9 +371,8 @@ static void test_list_setting(void)
     CHECK(!app_manifest_accepts_setting(json, "t", "AAPL\n\nMSFT", NULL)); /* an empty item */
     CHECK(!app_manifest_accepts_setting(json, "t", "AAPL\n", NULL));
     CHECK(!app_manifest_accepts_setting(json, "t", "AA\tPL", NULL));
-    CHECK(!app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ",
-                                        NULL)); /* 17 items */
-    CHECK(app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP",
+    /* as many items as the value holds */
+    CHECK(app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR",
                                        NULL));
     /* a line break is a list's alone */
     const char *text = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\","

@@ -53,7 +53,6 @@ URL_MAX = LIMITS["URL_MAX"]
 HEADERS_MAX = LIMITS["HEADERS_MAX"]
 PICK_PATHS_MAX = LIMITS["PICK_PATHS_MAX"]
 PICK_PATH_MAX = LIMITS["PICK_PATH_MAX"]
-LIST_ITEMS_MAX = LIMITS["LIST_ITEMS_MAX"]
 LIST_ITEM_MAX = LIMITS["LIST_ITEM_MAX"]
 ICON_CELLS = LIMITS["ICON_CELLS"]
 HOSTS_MAX = LIMITS["HOSTS_MAX"]
@@ -684,13 +683,12 @@ def check_settings(path, settings):
         if default is None:
             continue
         if kind == "list":
-            if (not isinstance(default, list) or not 0 < len(default) <= LIST_ITEMS_MAX
+            if (not isinstance(default, list) or not default
                     or any(not isinstance(item, str) or not 0 < len(item) <= LIST_ITEM_MAX
                            or any(not " " <= character <= "~" for character in item)
                            for item in default)):
-                sys.exit("%s: setting %d: the \"default\" of a list is a list of 1-%d items of "
-                         "1-%d printable ASCII characters" % (path, number, LIST_ITEMS_MAX,
-                                                               LIST_ITEM_MAX))
+                sys.exit("%s: setting %d: the \"default\" of a list is a list of items of "
+                         "1-%d printable ASCII characters" % (path, number, LIST_ITEM_MAX))
             continue
         fits = (isinstance(default, str) and default and kind not in ("secret", "place")
                 and (kind != "toggle" or default in ("0", "1"))
@@ -766,9 +764,6 @@ def check_manifest(app_dir):
     polls = manifest.get("polls", [])
     if not isinstance(polls, list) or len(polls) > POLLS_MAX:
         sys.exit("%s: \"polls\" must be a list of at most %d" % (path, POLLS_MAX))
-    if sum(1 for poll in polls if isinstance(poll, dict) and "each" in poll) > 1:
-        sys.exit("%s: one poll at most has \"each\": a list makes up to %d requests"
-                 % (path, LIST_ITEMS_MAX))
     for number, poll in enumerate(polls):
         check_poll(path, number, poll, servers, manifest.get("settings", []))
         # A link is the whole address: nothing stands after it.

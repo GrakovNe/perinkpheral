@@ -2633,8 +2633,8 @@ revision 4, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the ho
 Data: the host extracts values and lists from JSON answers; any answer can be streamed in 1 KB pieces
 Данные: хост извлекает значения и списки из ответов JSON; любой ответ можно получать потоком кусками по 1 КБ
 
-Interval 10 s to 1 day; minimum 300 s on battery. One poll can go over a list setting: one request per item, up to 16
-Интервал от 10 с до 1 суток; от батареи не меньше 300 с. Один опрос может проходить по настройке-списку: по запросу на пункт, до 16
+Interval 10 s to 1 day; minimum 300 s on battery. A poll can go over a list setting: one request per item, one at a time
+Интервал от 10 с до 1 суток; от батареи не меньше 300 с. Опрос может проходить по настройке-списку: по запросу на пункт, по одному за раз
 
 Per device. Applications and polls take turns
 На устройство. Приложения и опросы чередуются
@@ -2660,8 +2660,8 @@ Installed, or updated to another version
 Once, on or off the screen
 Один раз, на экране или вне его
 
-Scheduled requests performed by the host (below). One of them can go over a list setting
-Запросы по расписанию, которые выполняет хост (ниже). Один из них может проходить по настройке-списку
+Scheduled requests performed by the host (below). A poll can go over a list setting
+Запросы по расписанию, которые выполняет хост (ниже). Опрос может проходить по настройке-списку
 
 <code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required
 <code>{{key}}</code> любой настройки заменяется сохранённым значением в процентной кодировке: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Настройка <code>url</code> в начале и настройка <code>link</code> вставляются без изменений. Настройка <code>list</code> вставляется своими пунктами, каждый закодирован, через запятую: <code>symbols={{tickers}}</code> становится <code>symbols=AAPL,MSFT</code>. Опрос с пустой настройкой в URL или заголовках завершается с <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен
@@ -2672,14 +2672,14 @@ JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]
 key of a <code>list</code> setting
 ключ настройки <code>list</code>
 
-One request for every item of the list, up to 16, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for. One poll per manifest
-По запросу на каждый пункт списка, до 16, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>data_item()</code> сообщает, к какому пункту относится ответ. Один опрос на манифест
+One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for
+По запросу на каждый пункт списка, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>data_item()</code> сообщает, к какому пункту относится ответ
 
 A line per item; items are added and removed
 Строка на пункт; пункты добавляются и удаляются
 
-Up to 16 items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code>
-До 16 пунктов по 1 - 63 печатных символа ASCII, разделённых переводом строки (<code>\n</code>); всего 255 байт. Читается через <code>app_setting_count()</code> и <code>app_setting_item()</code>
+Items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all, about 40 tickers. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code>
+Пункты по 1 - 63 печатных символа ASCII, разделённые переводом строки (<code>\n</code>); всего 255 байт, около 40 тикеров. Читается через <code>app_setting_count()</code> и <code>app_setting_item()</code>
 
 <code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.
 <code>default</code> только для показа: страница показывает его, пока настройка пуста, а хранилище остаётся пустым, и у <code>{{key}}</code> нет значения. Код применяет то же значение по умолчанию, когда <code>kv_get()</code> ничего не находит. Значение по умолчанию у <code>list</code> - список пунктов.
@@ -2879,5 +2879,5 @@ Request headers; body; waiting requests per application
 Elements of the list paths of one answer, as text
 Элементы путей списков одного ответа, текстом
 
-Items of a list setting, each in bytes; requests of a poll with <code>each</code>
-Пункты настройки-списка, каждый в байтах; запросы опроса с <code>each</code>
+An item of a list setting, in bytes
+Пункт настройки-списка, в байтах

@@ -744,7 +744,7 @@ static void start_poll(int number)
         return;
     }
     char *at = list;
-    for (int item = 0; at != NULL && item < APP_LIST_ITEMS_MAX; item++) {
+    for (int item = 0; at != NULL; item++) {
         char *end = strchr(at, '\n');
         if (end != NULL) {
             *end = '\0';

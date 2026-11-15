@@ -210,7 +210,7 @@
   <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>Performed by the host</td></tr>
   <tr><td>HTTPS trust</td><td class="n">browser root set</td><td>Self-signed certificates are rejected. Plain <code>http</code> is available for home networks</td></tr>
   <tr><td>Hosts for requests from code</td><td class="n">4</td><td>Listed in the manifest, or taken from a <code>url</code> or <code>link</code> setting. Polls use the address in their <code>url</code></td></tr>
-  <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. One poll can go over a list setting: one request per item, up to 16</td></tr>
+  <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. A poll can go over a list setting: one request per item, one at a time</td></tr>
   <tr><td>Concurrent requests</td><td class="n">1</td><td>Per device. Applications and polls take turns</td></tr>
   <tr><td>Requests from code waiting</td><td class="n">16</td><td>Per application</td></tr>
   <tr><td>Request headers / body</td><td class="n">1023 / 512 bytes</td><td>Up to 4 header lines</td></tr>
@@ -425,7 +425,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
-  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). One of them can go over a list setting</td></tr>
+  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
   <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
   <tr><td class="c">settings</td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
@@ -441,7 +441,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token</td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
-  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, up to 16, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for. One poll per manifest</td></tr>
+  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for</td></tr>
 </table>
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
 <pre>"settings": [ { "key": "tickers", "type": "list", "title": "Tickers", "default": ["AAPL", "MSFT"] } ],
@@ -462,7 +462,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">place</td><td>Place search by name</td><td>The place name. The page also fills the two <code>number</code> settings named in <code>latitude</code> and <code>longitude</code></td></tr>
   <tr><td class="c">url</td><td>Address of the user's server</td><td>Scheme, host and optional port: <code>http://192.168.1.10:8123</code></td></tr>
   <tr><td class="c">link</td><td>Complete URL supplied by the user</td><td><code>https://host/path?key</code>, up to 255 bytes. Hidden on the web page like a secret. <code>webcal://</code> is converted to <code>https://</code></td></tr>
-  <tr><td class="c">list</td><td>A line per item; items are added and removed</td><td>Up to 16 items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code></td></tr>
+  <tr><td class="c">list</td><td>A line per item; items are added and removed</td><td>Items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all, about 40 tickers. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code></td></tr>
 </table>
 <ul>
   <li><code>default</code> is display-only: the page shows it while the setting is empty, and the store stays empty, and <code>{{key}}</code> has no value. The code applies the same default when <code>kv_get()</code> finds no value. The default of a <code>list</code> is a list of items.</li>
@@ -1206,7 +1206,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);                   /* an e
   <tr><td class="c">HOST_VALUE_MAX</td><td>63 bytes</td><td>One extracted value</td></tr>
   <tr><td class="c">HOST_HTTP_HEADERS_MAX / _BODY_MAX / _PENDING_MAX</td><td>1023 / 512 / 16</td><td>Request headers; body; waiting requests per application</td></tr>
   <tr><td class="c">HOST_LIST_BYTES</td><td>8192</td><td>Elements of the list paths of one answer, as text</td></tr>
-  <tr><td class="c">MANIFEST_LIST_ITEMS_MAX / _ITEM_MAX</td><td>16 / 63</td><td>Items of a list setting, each in bytes; requests of a poll with <code>each</code></td></tr>
+  <tr><td class="c">MANIFEST_LIST_ITEM_MAX</td><td>63</td><td>An item of a list setting, in bytes</td></tr>
   <tr><td class="c">HOST_REQUEST_FIRST .. _LAST</td><td>16 .. 255</td><td>Tags for requests from code</td></tr>
   <tr><td class="c">HOST_TIMER_COUNT / HOST_ALARM_COUNT</td><td>4 / 4</td><td>Timers and alarms per application</td></tr>
   <tr><td class="c">HOST_ALARM_EVERY_MIN .. _MAX</td><td>60 .. 86400 s</td><td>Period of a repeating alarm</td></tr>

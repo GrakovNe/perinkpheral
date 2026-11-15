@@ -367,8 +367,7 @@ static bool has_sound_default(const json_t *setting, int type)
     }
     if (type == APP_SETTING_LIST) {
         /* A list's is a list of items. */
-        int count = json_is_array(value) ? json_count(value) : 0;
-        if (count < 1 || count > APP_LIST_ITEMS_MAX) {
+        if (!json_is_array(value) || json_count(value) < 1) {
             return false;
         }
         const json_t *item;
@@ -497,10 +496,9 @@ static bool is_printable(const char *text)
     return true;
 }
 
-/* Items separated by '\n': none empty, none too long, printable, a few. */
+/* Items separated by '\n': none empty, none too long, printable. */
 static bool is_list_value(const char *value)
 {
-    int    items = 1;
     size_t length = 0;
     for (const char *at = value;; at++) {
         if (*at == '\n' || *at == '\0') {
@@ -508,9 +506,8 @@ static bool is_list_value(const char *value)
                 return false;
             }
             if (*at == '\0') {
-                return items <= APP_LIST_ITEMS_MAX;
+                return true;
             }
-            items++;
             length = 0;
         } else if (*at < ' ' || *at > '~') {
             return false;
@@ -885,13 +882,9 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
         return APP_MANIFEST_BAD_POLL;
     }
     app_manifest_result_t result = APP_MANIFEST_OK;
-    int                   going_over_lists = 0;
     json_for_each(poll, polls)
     {
-        /* One poll goes over a list: APP_LIST_ITEMS_MAX requests at most, and
-         * the host does not become one application's crawler. */
-        if (!read_poll(poll, json_get(root, "settings"), parsed) ||
-            (parsed->each_key[0] != '\0' && ++going_over_lists > 1)) {
+        if (!read_poll(poll, json_get(root, "settings"), parsed)) {
             result = APP_MANIFEST_BAD_POLL;
             break;
         }
@@ -958,8 +951,7 @@ const char *app_manifest_result_text(app_manifest_result_t result)
         return "\"abi\" is missing or is not the one this host speaks";
     case APP_MANIFEST_BAD_POLL:
         return "\"polls\" has more than 4 entries, one without an http(s) \"url\" and "
-               "an \"every\" of 10 seconds to a day, or more than one with \"each\" of a "
-               "list setting";
+               "an \"every\" of 10 seconds to a day, or with \"each\" of no list setting";
     }
     return "?";
 }

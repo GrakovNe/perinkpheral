@@ -165,9 +165,8 @@ typedef enum {
     APP_SETTING_PLACE,  /* the name of a place; see below */
     APP_SETTING_URL,    /* a server of the user's own: "https://ha.example.org", no path */
     APP_SETTING_LINK,   /* a whole address the user was given: a calendar's "https://host/path?key" */
-    APP_SETTING_LIST,   /* items separated by '\n', APP_LIST_ITEMS_MAX at most */
+    APP_SETTING_LIST,   /* items separated by '\n', as many as the value holds */
 } app_setting_type_t;
-#define APP_LIST_ITEMS_MAX MANIFEST_LIST_ITEMS_MAX
 #define APP_LIST_ITEM_MAX  MANIFEST_LIST_ITEM_MAX
 
 /* Whether `value` may be stored under `key`: the manifest has such a

@@ -665,7 +665,7 @@ function settingFields(app) {
 
 /* A list setting: a line an item, each removed by its button, one added at
  * the end. Stored as the items with a line break between them. */
-const LIST_ITEMS_MAX = 16, LIST_ITEM_MAX = 63;
+const LIST_ITEM_MAX = 63;
 
 function listField(value) {
   const box = make("div", { className: "rows" });
@@ -681,7 +681,6 @@ function listField(value) {
   };
   const drawAdd = () => {
     for (const old of box.querySelectorAll(".add")) old.remove();
-    if (box.querySelectorAll("input").length >= LIST_ITEMS_MAX) return;
     const add = make("button", { type: "button", className: "quiet add", textContent: "+",
                                  title: "Add" });
     add.addEventListener("click", () => {
