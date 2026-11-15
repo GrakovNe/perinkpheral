@@ -19,8 +19,6 @@ typedef enum {
     EVENT_BUTTON,
     EVENT_DEADLINES,  /* some deadlines have come: see deadlines.h */
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
-    EVENT_DUMP_FRAME, /* diagnostics: print what the panel shows */
-    EVENT_DEV_REQUEST, /* development tools ask the host loop for something */
     EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
     EVENT_INTENT,     /* news for the applications that asked for the kind */
@@ -37,14 +35,15 @@ typedef enum {
 
 typedef struct {
     event_kind_t kind;
-    struct {
-        uint8_t       index; /* 0..3, as the buttons sit on the device */
-        event_press_t press;
-        int64_t       at_ms; /* when it happened, by the clock of uptime */
-    } button;
-    void *dev_request; /* a devtools request, see devtools.h */
-    void *call;        /* of events_call() */
-    int   intent;      /* a HOST_INTENT_* */
+    union {
+        struct {
+            uint8_t       index; /* 0..3, as the buttons sit on the device */
+            event_press_t press;
+            int64_t       at_ms; /* when it happened, by the clock of uptime */
+        } button;            /* EVENT_BUTTON */
+        void *call;          /* EVENT_CALL: of events_call() */
+        int   intent;        /* EVENT_INTENT: a HOST_INTENT_* */
+    };
 } event_t;
 
 void events_start(void);

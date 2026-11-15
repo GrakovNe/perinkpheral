@@ -8,7 +8,6 @@
 
 #include "esp_http_server.h"
 
-#include "wm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,11 +36,6 @@ void devtools_register(httpd_handle_t server);
 
 /* How many routes devtools_register() adds. */
 #define DEVTOOLS_ROUTES 9
-
-/* The host loop's side: it took EVENT_DEV_REQUEST off the queue. Whatever
- * touches the frame or the scenes is done here, on the host's own task.
- * frames_shown and frame_pending are what the screen request reports. */
-void devtools_serve(void *request, wm_t *wm, uint32_t frames_shown, bool frame_pending);
 
 #ifdef __cplusplus
 }

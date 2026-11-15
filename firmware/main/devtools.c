@@ -10,7 +10,6 @@
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 
 #include "app_delivery.h"
 #include "app_kv.h"
@@ -36,105 +35,35 @@ static const char *TAG = "devtools";
 #define UPLOAD_CHUNK      2048
 #define NUMBER_TEXT_MAX   12
 
-/* ---- asking the host loop ---- */
+/* ---- asking the host loop: whatever touches the frame or the scenes ---- */
 
-typedef enum {
-    REQUEST_SCREEN,
-    REQUEST_OPEN,
-} request_kind_t;
-
-/* Made by the web server's task, filled in by the host's. Whoever is
- * later frees it: the asker may have given up waiting. */
 typedef struct {
-    request_kind_t    kind;
-    SemaphoreHandle_t answered;
-    SemaphoreHandle_t lock;
-    bool              abandoned; /* the asker gave up: the host frees it */
-    bool              served;    /* the host has filled it in: the asker frees it */
-    char              app_name[APP_NAME_MAX + 1]; /* REQUEST_OPEN */
-    bool              done;                       /* REQUEST_OPEN: there is such an application */
-    uint32_t          frames_shown;               /* REQUEST_SCREEN */
-    bool              frame_pending;
-    uint8_t           frame[];                    /* REQUEST_SCREEN: FRAME_BYTES */
-} request_t;
+    uint8_t  *frame; /* FRAME_BYTES */
+    uint32_t  frames_shown;
+    bool      frame_pending;
+} screen_look_t;
 
-static void free_request(request_t *request)
+static void look_at_screen(void *argument)
 {
-    vSemaphoreDelete(request->answered);
-    vSemaphoreDelete(request->lock);
-    free(request);
+    screen_look_t *look = argument;
+    memcpy(look->frame, display_shown_frame(), FRAME_BYTES);
+    look->frames_shown = host_frames_shown();
+    look->frame_pending = host_frame_is_pending();
 }
 
-static request_t *new_request(request_kind_t kind)
-{
-    size_t frame_bytes = kind == REQUEST_SCREEN ? FRAME_BYTES : 0;
-    request_t *request = calloc(1, sizeof *request + frame_bytes);
-    if (request == NULL) {
-        return NULL;
-    }
-    request->kind = kind;
-    request->answered = xSemaphoreCreateBinary();
-    request->lock = xSemaphoreCreateMutex();
-    if (request->answered == NULL || request->lock == NULL) {
-        if (request->answered != NULL) {
-            vSemaphoreDelete(request->answered);
-        }
-        if (request->lock != NULL) {
-            vSemaphoreDelete(request->lock);
-        }
-        free(request);
-        return NULL;
-    }
-    return request;
-}
+typedef struct {
+    const char *app_name;
+    bool        is_opened;
+} open_command_t;
 
-/* True when the host answered in time; the request is then the caller's
- * to read and to free. Otherwise it is gone or will be freed by the host. */
-static bool ask_host(request_t *request)
+static void open_app(void *argument)
 {
-    event_t event = { .kind = EVENT_DEV_REQUEST, .dev_request = request };
-    if (!events_post(&event)) {
-        free_request(request);
-        return false;
+    open_command_t *command = argument;
+    scene_t        *scene = launcher_scene(command->app_name);
+    command->is_opened = scene != NULL;
+    if (scene != NULL) {
+        host_open_from_menu(scene);
     }
-    if (xSemaphoreTake(request->answered, pdMS_TO_TICKS(HOST_ANSWER_MS)) == pdTRUE) {
-        return true;
-    }
-    /* Too late, or just in time: the lock says which of the two it was. */
-    xSemaphoreTake(request->lock, portMAX_DELAY);
-    bool served = request->served;
-    request->abandoned = !served;
-    xSemaphoreGive(request->lock);
-    if (served) {
-        xSemaphoreTake(request->answered, portMAX_DELAY);
-    }
-    return served;
-}
-
-void devtools_serve(void *opaque, wm_t *wm, uint32_t frames_shown, bool frame_pending)
-{
-    request_t *request = opaque;
-    xSemaphoreTake(request->lock, portMAX_DELAY);
-    if (request->abandoned) {
-        xSemaphoreGive(request->lock);
-        free_request(request);
-        return;
-    }
-    if (request->kind == REQUEST_SCREEN) {
-        memcpy(request->frame, display_shown_frame(), FRAME_BYTES);
-        request->frames_shown = frames_shown;
-        request->frame_pending = frame_pending;
-    } else {
-        scene_t *scene = launcher_scene(request->app_name);
-        request->done = scene != NULL;
-        if (scene != NULL) {
-            wm_open_from_home(wm, scene); /* as if chosen in the menu */
-        }
-    }
-    request->served = true;
-    xSemaphoreGive(request->lock);
-    /* The last touch: the asker frees the request as soon as it wakes. */
-    xSemaphoreGive(request->answered);
 }
 
 /* ---- the routes ---- */
@@ -208,15 +137,19 @@ static void bmp_header(uint8_t header[BMP_HEADER_BYTES])
 
 static esp_err_t handle_screen(httpd_req_t *http)
 {
-    request_t *request = new_request(REQUEST_SCREEN);
-    if (request == NULL || !ask_host(request)) {
+    screen_look_t look = { .frame = malloc(FRAME_BYTES) };
+    if (look.frame == NULL) {
+        return send_text(http, "503 Service Unavailable", "no memory");
+    }
+    if (!events_call(look_at_screen, &look)) {
+        free(look.frame);
         return send_text(http, "503 Service Unavailable", "the host did not answer");
     }
     char frames_shown[NUMBER_TEXT_MAX];
-    snprintf(frames_shown, sizeof frames_shown, "%u", (unsigned)request->frames_shown);
+    snprintf(frames_shown, sizeof frames_shown, "%u", (unsigned)look.frames_shown);
     httpd_resp_set_type(http, "image/bmp");
     httpd_resp_set_hdr(http, "X-Frame", frames_shown);
-    httpd_resp_set_hdr(http, "X-Pending", request->frame_pending ? "1" : "0");
+    httpd_resp_set_hdr(http, "X-Pending", look.frame_pending ? "1" : "0");
     httpd_resp_set_hdr(http, "Cache-Control", "no-store");
 
     uint8_t header[BMP_HEADER_BYTES];
@@ -225,10 +158,10 @@ static esp_err_t handle_screen(httpd_req_t *http)
     const int frame_row_bytes = DISPLAY_WIDTH / 8;
     for (int row = DISPLAY_HEIGHT - 1; row >= 0 && err == ESP_OK; row--) {
         uint8_t padded[BMP_ROW_BYTES] = { 0 };
-        memcpy(padded, request->frame + row * frame_row_bytes, (size_t)frame_row_bytes);
+        memcpy(padded, look.frame + row * frame_row_bytes, (size_t)frame_row_bytes);
         err = httpd_resp_send_chunk(http, (const char *)padded, sizeof padded);
     }
-    free_request(request);
+    free(look.frame);
     return err == ESP_OK ? httpd_resp_send_chunk(http, NULL, 0) : err;
 }
 
@@ -261,20 +194,15 @@ static esp_err_t handle_button(httpd_req_t *http)
 
 static esp_err_t handle_open(httpd_req_t *http)
 {
-    request_t *request = new_request(REQUEST_OPEN);
-    if (request == NULL) {
-        return send_text(http, "503 Service Unavailable", "no memory");
-    }
-    if (!query_value(http, "app", request->app_name, sizeof request->app_name)) {
-        free_request(request);
+    char app_name[APP_NAME_MAX + 1];
+    if (!query_value(http, "app", app_name, sizeof app_name)) {
         return refuse(http, "app=<name> is missing");
     }
-    if (!ask_host(request)) {
-        return send_text(http, "503 Service Unavailable", "the host did not answer");
+    open_command_t command = { .app_name = app_name };
+    if (!events_call(open_app, &command)) {
+        return send_text(http, "503 Service Unavailable", "Device busy.");
     }
-    bool done = request->done;
-    free_request(request);
-    return done ? send_text(http, "200 OK", "opened")
+    return command.is_opened ? send_text(http, "200 OK", "opened")
                 : send_text(http, "404 Not Found", "no such application is installed");
 }
 
@@ -349,12 +277,23 @@ static esp_err_t handle_run(httpd_req_t *http)
 
 /* In the host loop: the application is told its settings changed and its
  * polls are asked again, as when the page saves them. */
-static void settings_were_set(void *argument)
+typedef struct {
+    const char *app_name, *key, *value;
+    int32_t     length;
+    int32_t     result;
+} kv_command_t;
+
+/* In the host loop, as the page's own settings are: the store is the host
+ * loop's to write, and the application is told at once. */
+static void store_value(void *argument)
 {
-    const char    *app = argument;
-    app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-    host_deliver(app, &changed);
-    poller_hurry(app);
+    kv_command_t *command = argument;
+    command->result = app_kv_set(command->app_name, command->key, command->value, command->length);
+    if (command->result == HOST_OK) {
+        app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
+        host_deliver(command->app_name, &changed);
+        poller_hurry(command->app_name);
+    }
 }
 
 /* A value into an application's store, as its own kv_set would put it, and
@@ -379,11 +318,11 @@ static esp_err_t handle_kv(httpd_req_t *http)
         }
         received += (size_t)count;
     }
-    int32_t result = app_kv_set(app, key, value, (int32_t)received);
-    if (result == HOST_OK) {
-        events_call(settings_were_set, app);
+    kv_command_t command = { app, key, value, (int32_t)received, HOST_ERR_ARGUMENT };
+    if (!events_call(store_value, &command)) {
+        return send_text(http, "503 Service Unavailable", "Device busy.");
     }
-    return result == HOST_OK ? send_text(http, "200 OK", "stored")
+    return command.result == HOST_OK ? send_text(http, "200 OK", "stored")
                              : send_text(http, "500 Internal Server Error", "not stored");
 }
 

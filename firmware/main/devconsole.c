@@ -15,6 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "display.h"
 #include "events.h"
 #include "log_capture.h"
 
@@ -42,6 +43,12 @@ static void print_log_ring(void)
     printf("LOG BEGIN\n%sLOG END\n", log);
 }
 
+static void dump_frame(void *argument)
+{
+    (void)argument;
+    devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
+}
+
 static void handle_key(char key)
 {
     int button = key_index(SHORT_PRESS_KEYS, key);
@@ -55,8 +62,8 @@ static void handle_key(char key)
         return;
     }
     if (key == DUMP_FRAME_KEY) {
-        event_t event = { .kind = EVENT_DUMP_FRAME };
-        events_post(&event);
+        /* What the panel shows is the host loop's: asked there. */
+        events_call(dump_frame, NULL);
     } else if (key == LOG_KEY) {
         print_log_ring();
     } else if (key == MEMORY_KEY) {

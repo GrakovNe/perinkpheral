@@ -85,6 +85,14 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery);
  * is checked against a manifest that is still there. Host loop only. */
 void host_close_app(const char *app_name);
 
+/* For the development tools, in the host loop: `scene` on the screen as if
+ * chosen in the menu; how many times the panel was refreshed since start,
+ * which tells a new picture from one already seen; and whether a newer
+ * frame waits for the panel. */
+void     host_open_from_menu(scene_t *scene);
+uint32_t host_frames_shown(void);
+bool     host_frame_is_pending(void);
+
 #ifdef __cplusplus
 }
 #endif

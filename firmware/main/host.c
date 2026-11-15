@@ -6,6 +6,7 @@
 
 #include "priorities.h"
 #include "host.h"
+#include "host_private.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -13,14 +14,11 @@
 
 #include "app_scene.h"
 #include "app_manifest.h"
-#include "devconsole.h"
 #include "app_delivery.h"
-#include "app_kv.h"
 #include "host_api.h"
 #include "deadlines.h"
 #include "app_host.h"
 #include "gfx_icons.h"
-#include "devtools.h"
 #include "display.h"
 #include "events.h"
 #include "launcher.h"
@@ -53,28 +51,6 @@ static const char *TAG = "host";
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
-/* What applications keep in the header while they are away: on each side
- * an icon and a line, the application's that set it last. */
-#define HEADER_LEFT    HOST_HEADER_LEFT
-#define HEADER_RIGHT   HOST_HEADER_RIGHT
-#define HEADER_SIDES   2
-#define HEADER_NO_ICON (-1)
-static struct {
-    uint32_t app_id; /* 0: nobody has this side */
-    int      icon;
-    char     text[HOST_STATUS_TEXT_MAX + 1];
-} s_header_status[HEADER_SIDES];
-
-/* A text into a field of the host's: as much of it as fits, cut between
- * characters, never inside one. */
-static void copy_text(char *field, size_t size, const char *text)
-{
-    size_t length = gfx_text_cut(text != NULL ? text : "", size - 1);
-    memcpy(field, text != NULL ? text : "", length);
-    field[length] = '\0';
-}
-#define COPY_TEXT(field, text) copy_text((field), sizeof(field), (text))
-
 /* Each side is, in this order: what an application keeps there, what the
  * scene on the screen gave, the host's own - the Wi-Fi icon on the left,
  * the date on the right. */
@@ -91,14 +67,8 @@ static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
                                              : NULL,
         .right_icon = SCREENS_NO_ICON,
     };
-    if (s_header_status[HEADER_LEFT].app_id != 0) {
-        header.left_icon = s_header_status[HEADER_LEFT].icon;
-        header.left = s_header_status[HEADER_LEFT].text;
-    }
-    if (s_header_status[HEADER_RIGHT].app_id != 0) {
-        header.right_icon = s_header_status[HEADER_RIGHT].icon;
-        header.right = s_header_status[HEADER_RIGHT].text;
-    }
+    host_header_status(HOST_HEADER_LEFT, &header.left_icon, &header.left);
+    host_header_status(HOST_HEADER_RIGHT, &header.right_icon, &header.right);
     screens_header(surface, &header);
 }
 
@@ -122,16 +92,16 @@ static refresh_reason_t refresh_reason(wm_change_t change)
 
 /* The host loop's own, and nobody else's: what is on the screen and whose
  * answer is being taken. Other tasks reach them through events_call(). */
-static wm_t                 wm;
-static app_delivery_state_t delivery_state;
+wm_t                 host_wm;
+app_delivery_state_t host_delivery;
 
 /* An application taking an answer off the screen, piece by piece, gives
  * way to what the screen is needed for now. The rest of that answer is
  * dropped; when it was a poll's, the poll is asked again in a while. */
-static void abort_background_delivery(void)
+void host_end_background_answer(void)
 {
     app_abandoned_t abandoned;
-    app_delivery_abort(&delivery_state, &wm, esp_timer_get_time() / US_PER_MS, &abandoned);
+    app_delivery_abort(&host_delivery, &host_wm, esp_timer_get_time() / US_PER_MS, &abandoned);
     if (abandoned.owner != NULL) {
         const char *app_name = launcher_app_name(abandoned.owner);
         if (app_name != NULL) {
@@ -147,13 +117,18 @@ static void abort_background_delivery(void)
 static void before_switch(void *context)
 {
     (void)context;
-    abort_background_delivery();
+    host_end_background_answer();
 }
 
 /* The scene whose picture the panel shows: what a person pressing a
  * button is looking at. Not the scene that has the screen while its first
  * frame is still being put on the panel. */
 static const scene_t *volatile s_scene_on_panel;
+
+const scene_t *host_scene_on_panel(void)
+{
+    return s_scene_on_panel;
+}
 /* The buttons that went down while a scene that asks once was on the
  * panel: only their presses are that scene's to take. */
 static uint8_t s_went_down_on_question;
@@ -211,7 +186,7 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
-    abort_background_delivery();
+    host_end_background_answer();
     /* The long press on BACK is the user's own way out of anything. */
     bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
     if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {
@@ -223,6 +198,21 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
 /* How many times the panel was refreshed since start: lets a tool tell a
  * new picture from the one it has already seen. */
 static uint32_t s_frames_shown;
+
+uint32_t host_frames_shown(void)
+{
+    return s_frames_shown;
+}
+
+bool host_frame_is_pending(void)
+{
+    return wm_pending_change(&host_wm) != WM_CLEAN;
+}
+
+void host_open_from_menu(scene_t *scene)
+{
+    wm_open_from_home(&host_wm, scene);
+}
 
 /* A wait shorter than this is the panel's own pace, not news. */
 #define TOLD_WAIT_FROM_MS 2000
@@ -339,26 +329,15 @@ static void remember_current_app(const wm_t *wm)
     }
 }
 
-static scene_t             *s_menu;
+static scene_t *s_menu;
 
-/* An application's scene is about to be freed, the list of them being
- * read anew: nobody may be left holding it. */
-typedef struct {
-    wm_t                 *wm;
-    app_delivery_state_t *delivery;
-} reload_context_t;
-
-static void drop_app_scene(scene_t *scene, void *context)
+void host_renew_menu(void)
 {
-    reload_context_t *reload = context;
-    wm_close(reload->wm, scene);
-    if (reload->delivery->in_background == scene) {
-        /* In the middle of an answer that now has nobody to go to; the scene
-         * that gave way to it comes back. */
-        app_delivery_init(reload->delivery);
-        app_scene_end_background(scene); /* unloaded first: one instance at a time */
-        wm_resume(reload->wm);
-    }
+    int count;
+    const menu_entry_t *entries = launcher_entries(&count);
+    scene_menu(entries, count);
+    /* Where the splash leads may have been one of them. */
+    scene_boot_splash(scene_after_boot(s_menu), timers_set, launcher_about(), about_is_shown);
 }
 
 /* ---- stopping ----
@@ -380,10 +359,10 @@ static void stop(host_stop_t why)
     };
     ESP_LOGW(TAG, "stopping: %s", WHY[why]);
     /* The application on the screen: app_on_blur(), app_on_terminate(). */
-    wm_suspend(&wm);
+    wm_suspend(&host_wm);
     /* And one that was taking an answer off the screen. */
-    if (delivery_state.in_background != NULL) {
-        app_scene_end_background(delivery_state.in_background);
+    if (host_delivery.in_background != NULL) {
+        app_scene_end_background(host_delivery.in_background);
     }
     poller_hold(); /* and never let go: nothing more is asked */
     display_rest();
@@ -393,28 +372,9 @@ static void stop(host_stop_t why)
     esp_restart();
 }
 
-void host_set_header_status(uint32_t app_id, int side, int icon, const char *text)
-{
-    if (side != HEADER_LEFT && side != HEADER_RIGHT) {
-        return;
-    }
-    bool is_empty = icon == HEADER_NO_ICON && text[0] == '\0';
-    if (is_empty) {
-        if (s_header_status[side].app_id != app_id) {
-            return; /* not its to give back */
-        }
-        s_header_status[side].app_id = 0;
-    } else {
-        s_header_status[side].app_id = app_id;
-        s_header_status[side].icon = icon;
-        COPY_TEXT(s_header_status[side].text, text);
-    }
-    wm_invalidate(&wm, WM_CHANGED_BY_DATA);
-}
-
 void host_redraw(bool is_clean)
 {
-    wm_invalidate(&wm, is_clean ? WM_CHANGED_CLEANLY : WM_CHANGED_URGENTLY);
+    wm_invalidate(&host_wm, is_clean ? WM_CHANGED_CLEANLY : WM_CHANGED_URGENTLY);
 }
 
 void host_stop_soon(host_stop_t why)
@@ -426,225 +386,6 @@ void host_stop_soon(host_stop_t why)
     if (!deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS)) {
         esp_restart(); /* no way to do it properly: the restart is not lost */
     }
-}
-
-/* ---- a question for whoever stands at the device ---- */
-
-#define CONFIRM_WAIT_MS   60000
-#define CONFIRM_TEXT_MAX  47
-
-/* One question at a time. The task that asks waits here for the answer;
- * the question itself lives in the host loop. */
-static struct {
-    SemaphoreHandle_t turn;     /* held by the task whose question is open */
-    SemaphoreHandle_t answered;
-    bool              is_open;  /* the host loop's */
-    bool              is_confirmed;
-    bool              is_dismissed; /* answered: the screen goes back once the handler returned */
-    scene_t          *scene;
-    char              first[CONFIRM_TEXT_MAX + 1];  /* the question, in two lines */
-    char              second[CONFIRM_TEXT_MAX + 1];
-    int               icon;
-    char              action[CONFIRM_TEXT_MAX + 1];
-} s_confirm;
-
-/* An answer is being handed to an application that is not on the screen:
- * the scene on it is set aside for the moment and comes back. */
-static bool s_is_delivering;
-
-/* In the host loop: from the scene. The first call is the answer. */
-static void on_confirm_answer(bool is_confirmed)
-{
-    /* Set aside for a delivery is not an answer: the question is back in a
-     * moment. */
-    if (!s_confirm.is_open || (s_is_delivering && !is_confirmed)) {
-        return;
-    }
-    s_confirm.is_open = false;
-    s_confirm.is_confirmed = is_confirmed;
-    s_confirm.is_dismissed = true;
-    deadlines_cancel(DEADLINE_CONFIRM, 0, 0);
-    ESP_LOGW(TAG, "\"%s %s\" %s", s_confirm.first, s_confirm.second,
-             is_confirmed ? "confirmed" : "not confirmed");
-    xSemaphoreGive(s_confirm.answered);
-}
-
-/* The question is answered and its scene is still in the stack: on the
- * screen, set aside for an answer in pieces, or under the menu that was
- * opened over it. It comes out, and what was under it is there again. Not
- * from inside a scene's own handler. */
-static void dismiss_question(void)
-{
-    s_confirm.is_dismissed = false;
-    wm_close(&wm, s_confirm.scene);
-}
-
-static void open_confirm(void *argument)
-{
-    (void)argument;
-    s_confirm.is_open = true;
-    s_confirm.is_dismissed = false;
-    s_confirm.scene = scene_confirm(s_confirm.first, s_confirm.second, s_confirm.icon,
-                                    s_confirm.action, on_confirm_answer);
-    wm_open(&wm, s_confirm.scene);
-    /* The same scene with another question is another picture. */
-    wm_invalidate(&wm, WM_CHANGED_BY_SWITCH);
-    if (!deadlines_set_in(DEADLINE_CONFIRM, 0, 0, CONFIRM_WAIT_MS)) {
-        on_confirm_answer(false); /* nothing would end the wait: not asked at all */
-    }
-}
-
-/* ---- notifications ----
- *
- * What applications asked to be told to the user. One is on the screen,
- * the rest wait their turn; a restart forgets them. */
-#define NOTICES_MAX      4
-/* The fields are the contract's, as an application hands them over. */
-#define NOTICE_FIELD(name) sizeof(((host_notice_t *)0)->name)
-typedef struct {
-    char first[NOTICE_FIELD(first)], second[NOTICE_FIELD(second)], detail[NOTICE_FIELD(detail)];
-    int  icon;
-} told_t;
-static struct {
-    told_t   waiting[NOTICES_MAX]; /* the first of them is the one on the screen */
-    int      count;
-    bool     is_open;
-    bool     is_seen; /* dismissed: it leaves once the handler has returned */
-    scene_t *scene;
-} s_notices;
-
-bool host_notify(const char *first, const char *second, const char *detail, int icon)
-{
-    if (s_notices.count >= NOTICES_MAX) {
-        return false;
-    }
-    told_t *told = &s_notices.waiting[s_notices.count++];
-    COPY_TEXT(told->first, first);
-    COPY_TEXT(told->second, second);
-    COPY_TEXT(told->detail, detail);
-    told->icon = icon;
-    return true;
-}
-
-static void on_notice_seen(void)
-{
-    s_notices.is_seen = true;
-}
-
-static const char *line_or_none(const char *text)
-{
-    return text[0] != '\0' ? text : NULL;
-}
-
-/* After every event: the one that was dismissed leaves, and the next one
- * that waits is shown. Never from inside a scene's own handler. */
-static void process_notifications(void)
-{
-    if (s_notices.is_seen) {
-        s_notices.is_seen = false;
-        if (s_notices.is_open) {
-            s_notices.is_open = false;
-            wm_close(&wm, s_notices.scene);
-            memmove(&s_notices.waiting[0], &s_notices.waiting[1],
-                    (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
-            s_notices.count--;
-        }
-    }
-    /* The user's own way out - the long press that empties the stack -
-     * took it off the screen: seen. */
-    if (s_notices.is_open && !wm_has(&wm, s_notices.scene)) {
-        s_notices.is_open = false;
-        memmove(&s_notices.waiting[0], &s_notices.waiting[1],
-                (size_t)(NOTICES_MAX - 1) * sizeof s_notices.waiting[0]);
-        s_notices.count--;
-    }
-    if (!s_notices.is_open && s_notices.count > 0 && !s_is_delivering) {
-        const told_t *told = &s_notices.waiting[0];
-        s_notices.scene = scene_notify(line_or_none(told->first), line_or_none(told->second),
-                                       line_or_none(told->detail), told->icon, on_notice_seen);
-        s_notices.is_open = true;
-        wm_open(&wm, s_notices.scene);
-        wm_invalidate(&wm, WM_CHANGED_URGENTLY);
-    }
-}
-
-/* Nobody came. */
-static void close_unanswered_confirm(void)
-{
-    if (s_confirm.is_open) {
-        on_confirm_answer(false);
-    }
-}
-
-host_answer_t host_confirm_on_device(const char *first, const char *second, int icon,
-                                     const char *action)
-{
-    /* The answer comes from the host loop: asked there, it would never come. */
-    configASSERT(!events_is_host_loop());
-    if (s_confirm.turn == NULL || xSemaphoreTake(s_confirm.turn, 0) != pdTRUE) {
-        return HOST_ANSWER_BUSY;
-    }
-    COPY_TEXT(s_confirm.first, first);
-    COPY_TEXT(s_confirm.second, second);
-    s_confirm.icon = icon;
-    COPY_TEXT(s_confirm.action, action);
-    host_answer_t answer = HOST_ANSWER_BUSY;
-    if (events_call(open_confirm, NULL)) {
-        /* The host loop answers for certain: by a press, or by the deadline. */
-        xSemaphoreTake(s_confirm.answered, portMAX_DELAY);
-        answer = s_confirm.is_confirmed ? HOST_ANSWER_CONFIRMED : HOST_ANSWER_NOT_CONFIRMED;
-    }
-    xSemaphoreGive(s_confirm.turn);
-    return answer;
-}
-
-/* ---- the device is busy with something that must not be interrupted ---- */
-
-static scene_t *s_working; /* in the stack while it is; NULL otherwise */
-
-static void open_working(void *argument)
-{
-    const char *const *lines = argument;
-    /* The question that led here is put away first: it is not what the
-     * screen goes back to. */
-    if (s_confirm.is_dismissed) {
-        dismiss_question();
-    }
-    s_working = scene_working(lines[0], lines[1]);
-    wm_open(&wm, s_working);
-}
-
-static void close_working(void *argument)
-{
-    (void)argument;
-    if (s_working == NULL) {
-        return;
-    }
-    wm_close(&wm, s_working);
-    s_working = NULL;
-}
-
-/* Whoever is told that the work began has just pressed a button: the
- * notice is on the panel before the work - which may well keep the host
- * loop from the panel for seconds, as erasing the flash does - begins. */
-#define WORKING_SHOWN_WAIT_MS 5000
-#define WORKING_SHOWN_POLL_MS 50
-
-void host_show_working(const char *first, const char *second)
-{
-    const char *lines[] = { first, second };
-    if (!events_call(open_working, lines)) {
-        return; /* a busy queue: the work goes on unannounced */
-    }
-    for (int waited_ms = 0; waited_ms < WORKING_SHOWN_WAIT_MS && s_scene_on_panel != s_working;
-         waited_ms += WORKING_SHOWN_POLL_MS) {
-        vTaskDelay(pdMS_TO_TICKS(WORKING_SHOWN_POLL_MS));
-    }
-}
-
-void host_work_is_over(void)
-{
-    events_call_patiently(close_working, NULL);
 }
 
 /* ---- deadlines ---- */
@@ -670,25 +411,8 @@ static bool tell_of_deadlines(void)
 
 void host_deadlines_start(void)
 {
-    s_confirm.turn = xSemaphoreCreateMutex();
-    s_confirm.answered = xSemaphoreCreateBinary();
-    configASSERT(s_confirm.turn != NULL && s_confirm.answered != NULL);
+    host_notices_start();
     deadlines_start(tell_of_deadlines);
-}
-
-/* An alarm that has come is handed to its application like an answer. */
-static void ring_alarm(uint32_t app_id, int alarm_number)
-{
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    for (int i = 0; i < count; i++) {
-        if (installed[i].id == app_id) {
-            app_host_alarm_rang(app_id, alarm_number);
-            app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM, .request = alarm_number };
-            host_deliver(installed[i].name, &alarm);
-            return;
-        }
-    }
 }
 
 /* So many that have come are answered in a row; with more of them the
@@ -708,10 +432,10 @@ static void answer_deadlines(void)
         }
         switch ((deadline_kind_t)due.kind) {
         case DEADLINE_SCENE_TIMER:
-            wm_timer(&wm, due.number);
+            wm_timer(&host_wm, due.number);
             break;
         case DEADLINE_ALARM:
-            ring_alarm(due.owner, due.number);
+            host_ring_alarm(due.owner, due.number);
             break;
         case DEADLINE_AWAKE_WINDOW:
             power_awake_period_ended();
@@ -743,7 +467,7 @@ static void answer_deadlines(void)
             poller_look();
             break;
         case DEADLINE_CONFIRM:
-            close_unanswered_confirm();
+            host_confirm_timed_out();
             break;
         case DEADLINE_MENU_IDLE:
             on_menu_idle_timeout();
@@ -765,7 +489,7 @@ static void update_menu_idle_timer(bool was_touched)
 {
     scene_t *chosen = default_scene();
     scene_menu_set_back_target(chosen);
-    if (wm.current != s_menu || chosen == NULL) {
+    if (host_wm.current != s_menu || chosen == NULL) {
         if (s_menu_is_watched) {
             deadlines_cancel(DEADLINE_MENU_IDLE, 0, 0);
             s_menu_is_watched = false;
@@ -784,149 +508,8 @@ static void on_menu_idle_timeout(void)
 {
     s_menu_is_watched = false;
     scene_t *chosen = default_scene();
-    if (wm.current == s_menu && chosen != NULL) {
-        wm_open_from_home(&wm, chosen);
-    }
-}
-
-/* The alarms of applications that are no more go with them. */
-static void remove_orphan_alarms(void)
-{
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    uint32_t ids[LAUNCHER_INSTALLED_MAX];
-    for (int i = 0; i < count; i++) {
-        ids[i] = installed[i].id;
-    }
-    deadlines_keep_only(DEADLINE_ALARM, ids, count);
-    app_host_keep_recurring_of(ids, count);
-    for (int side = 0; side < HEADER_SIDES; side++) {
-        bool is_owner_there = false;
-        for (int i = 0; i < count; i++) {
-            is_owner_there = is_owner_there || ids[i] == s_header_status[side].app_id;
-        }
-        if (!is_owner_there && s_header_status[side].app_id != 0) {
-            s_header_status[side].app_id = 0;
-            wm_invalidate(&wm, WM_CHANGED_BY_DATA);
-        }
-    }
-}
-
-void host_close_app(const char *app_name)
-{
-    scene_t *scene = launcher_app_scene(app_name);
-    if (scene == NULL) {
-        return;
-    }
-    /* Taking an answer off the screen it is not in the stack, and closing
-     * it there changes nothing on the screen: it is ended here. */
-    if (delivery_state.in_background == scene) {
-        abort_background_delivery();
-    }
-    wm_close(&wm, scene);
-}
-
-static void tell_new_versions(void);
-
-void host_reload_apps(void)
-{
-    /* An application loaded off the screen for an answer is unloaded
-     * before any scene is closed: closing the one on the screen may enter
-     * the one under it, and there is room for one instance at a time. */
-    abort_background_delivery();
-    /* The application on the screen comes back if it is still installed:
-     * another being installed or removed is no reason to leave it. */
-    char        kept[APP_NAME_MAX + 1] = "";
-    const char *current = launcher_app_name(wm.current);
-    if (current != NULL) {
-        strlcpy(kept, current, sizeof kept);
-    }
-    reload_context_t context = { &wm, &delivery_state };
-    /* Nothing of the poller's is held meanwhile: the applications that
-     * leave the screen here run their last handlers, and those may ask the
-     * poller for something. */
-    launcher_reload(drop_app_scene, &context);
-    poller_reload();
-    remove_orphan_alarms();
-    int count;
-    const menu_entry_t *entries = launcher_entries(&count);
-    scene_menu(entries, count);
-    /* Where the splash leads may have been one of them. */
-    scene_boot_splash(scene_after_boot(s_menu), timers_set, launcher_about(), about_is_shown);
-    scene_t *again = kept[0] != '\0' ? launcher_app_scene(kept) : NULL;
-    if (again != NULL && wm.current != again) {
-        wm_open_from_home(&wm, again);
-    }
-    wm_invalidate(&wm, WM_CHANGED_URGENTLY);
-    tell_new_versions();
-}
-
-static bool s_reload_is_due;
-
-void host_reload_apps_later(void)
-{
-    s_reload_is_due = true;
-}
-
-void host_deliver(const char *app_name, const app_delivery_t *delivery)
-{
-    scene_t *owner = launcher_app_scene(app_name);
-    if (owner != NULL) {
-        s_is_delivering = true;
-        app_deliver(&delivery_state, &wm, owner, delivery, esp_timer_get_time() / US_PER_MS);
-        s_is_delivering = false;
-    }
-}
-
-/* An application that has not run here before, or ran as another version,
- * is told so once: loaded for the call when it is not on the screen. */
-static void tell_new_versions(void)
-{
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    struct {
-        char     name[APP_NAME_MAX + 1];
-        uint32_t id;
-        bool     is_update;
-    } news[LAUNCHER_INSTALLED_MAX];
-    int told = 0;
-    for (int i = 0; i < count && told < LAUNCHER_INSTALLED_MAX; i++) {
-        uint32_t seen = app_kv_seen_id(installed[i].name);
-        if (seen != installed[i].id) {
-            strcpy(news[told].name, installed[i].name);
-            news[told].id = installed[i].id;
-            news[told++].is_update = seen != 0;
-        }
-    }
-    for (int i = 0; i < told; i++) {
-        /* Noted first: a version that crashes in the handler is not told
-         * again at every start. */
-        app_kv_set_seen_id(news[i].name, news[i].id);
-        ESP_LOGI(TAG, "%s: %s", news[i].name, news[i].is_update ? "updated" : "installed");
-        app_delivery_t delivery = { .kind = news[i].is_update ? APP_DELIVERY_UPDATED
-                                                              : APP_DELIVERY_INSTALLED };
-        host_deliver(news[i].name, &delivery);
-    }
-}
-
-/* Tells every application that asked for this kind of news, loading each
- * for the call. Those that did not ask are left asleep. */
-static void broadcast(int intent)
-{
-    int count;
-    const app_manifest_t *installed = launcher_installed(&count);
-    /* Names first: a delivery does not change the list, but the list is
-     * not this function's to hold on to across calls into applications. */
-    char names[LAUNCHER_INSTALLED_MAX][APP_NAME_MAX + 1];
-    int  asked = 0;
-    for (int i = 0; i < count; i++) {
-        if ((installed[i].intents & (1u << intent)) != 0) {
-            strcpy(names[asked++], installed[i].name);
-        }
-    }
-    app_delivery_t news = { .kind = APP_DELIVERY_INTENT, .request = intent };
-    for (int i = 0; i < asked; i++) {
-        host_deliver(names[i], &news);
+    if (host_wm.current == s_menu && chosen != NULL) {
+        wm_open_from_home(&host_wm, chosen);
     }
 }
 
@@ -953,13 +536,13 @@ void host_run(void)
     scene_t *first = shows_splash ? scene_boot_splash(after_boot, timers_set, launcher_about(),
                                                        about_is_shown)
                                   : after_boot;
-    wm_init(&wm, menu, first, draw_header, NULL);
+    wm_init(&host_wm, menu, first, draw_header, NULL);
     /* A restart forgot what the applications had set going; those that
      * asked are told, and set it going again. */
     app_host_tell_started();
 
-    app_delivery_init(&delivery_state);
-    wm_before_switch(&wm, before_switch, NULL);
+    app_delivery_init(&host_delivery);
+    wm_before_switch(&host_wm, before_switch, NULL);
     events_set_host_loop_task();
     poller_start();
 
@@ -971,7 +554,7 @@ void host_run(void)
          * never empties must not keep the picture back. */
         uint32_t wait_ms = 0;
         if (!events_are_waiting() || events_since_shown >= EVENTS_BEFORE_SHOWING) {
-            wait_ms = show_pending_frame(&wm, &screen);
+            wait_ms = show_pending_frame(&host_wm, &screen);
             events_since_shown = 0;
             events_report_dropped();
         }
@@ -981,21 +564,16 @@ void host_run(void)
         if (!events_wait(&event, wait_ms)) {
             continue;
         }
-        const scene_t *scene_before = wm.current;
+        const scene_t *scene_before = host_wm.current;
         switch (event.kind) {
         case EVENT_BUTTON:
-            on_button(&wm, event.button.index, event.button.press, event.button.at_ms);
+            on_button(&host_wm, event.button.index, event.button.press, event.button.at_ms);
             break;
         case EVENT_DEADLINES:
             answer_deadlines();
             break;
         case EVENT_STATUS_CHANGED:
-            wm_invalidate(&wm, WM_CHANGED_BY_DATA);
-            break;
-        case EVENT_DUMP_FRAME:
-#ifdef CONFIG_APP_DEV_CONSOLE
-            devconsole_dump_frame(display_shown_frame(), DISPLAY_WIDTH, DISPLAY_HEIGHT);
-#endif
+            wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
             break;
         case EVENT_APPS_CHANGED:
             host_reload_apps();
@@ -1004,31 +582,14 @@ void host_run(void)
             events_answer_call(event.call);
             break;
         case EVENT_INTENT:
-            /* At a start, what is new is told before that the device started. */
-            if (event.intent == HOST_INTENT_STARTED) {
-                tell_new_versions();
-            }
-            broadcast(event.intent);
-            break;
-        case EVENT_DEV_REQUEST:
-#ifdef CONFIG_APP_DEV_CONSOLE
-            devtools_serve(event.dev_request, &wm, s_frames_shown,
-                           wm_pending_change(&wm) != WM_CLEAN);
-#endif
+            host_tell_news(event.intent);
             break;
         }
-        if (s_confirm.is_dismissed) {
-            dismiss_question();
+        host_notices_after_event();
+        host_apps_after_event();
+        if (host_wm.current != scene_before) {
+            remember_current_app(&host_wm);
         }
-        process_notifications();
-        if (s_reload_is_due) {
-            /* Asked for from inside a handler, which has returned by now. */
-            s_reload_is_due = false;
-            host_reload_apps();
-        }
-        if (wm.current != scene_before) {
-            remember_current_app(&wm);
-        }
-        update_menu_idle_timer(event.kind == EVENT_BUTTON || wm.current != scene_before);
+        update_menu_idle_timer(event.kind == EVENT_BUTTON || host_wm.current != scene_before);
     }
 }
