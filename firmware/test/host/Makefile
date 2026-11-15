@@ -25,7 +25,7 @@ APP_SRCS := $(APPSYS)/app.c $(APPSYS)/app_api_draw.c $(APPSYS)/app_api_ui.c $(AP
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls
+TESTS   := test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls test_request_queue
 
 # Running a real application needs wasi-sdk to build it.
 ifdef WASI_SDK_PATH
@@ -153,6 +153,9 @@ MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
 
 test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/include/app_manifest.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm
+
+test_request_queue: test_request_queue.c tinytest.h $(APPSYS)/request_queue.c $(APPSYS)/include/request_queue.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE -o $@ test_request_queue.c $(APPSYS)/request_queue.c
 
 test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $(APPSYS)/poll_schedule.c $(wildcard $(APPSYS)/include/*.h)
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_polls.c $(MANIFEST_SRCS) $(APPSYS)/text_template.c \
