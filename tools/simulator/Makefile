@@ -32,7 +32,9 @@ WASM3_FLAGS := -std=c11 -O2 -w -Dd_m3MaxLinearMemoryPages=1 -Dd_m3VerboseErrorMe
 LDLIBS   := -lpthread -lm
 
 SOURCES := sim.c \
-           $(APPSYS)/app.c $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c $(APPSYS)/app_store.c \
+           $(APPSYS)/app.c $(APPSYS)/app_api_draw.c $(APPSYS)/app_api_ui.c $(APPSYS)/app_api_data.c \
+           $(APPSYS)/app_api_time.c $(APPSYS)/app_api_sys.c \
+           $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c $(APPSYS)/app_store.c \
            $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c $(APPSYS)/text_template.c \
            $(SDK)/lib/json_pick.c \
            $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c \
