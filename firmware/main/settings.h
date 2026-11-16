@@ -8,7 +8,6 @@
 
 #include "esp_err.h"
 #include "appconf.h"
-#include "refresh_policy.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,22 +51,32 @@ typedef enum {
     SETTINGS_NOT_STORED, /* the storage failed: nothing changed */
 } settings_outcome_t;
 
-/* Checks `wanted`, stores it and puts it into effect - the clock, the
- * panel, the power profile - all or nothing. ONLY in the host loop
- * (events_call() from elsewhere). `needs_restart` may be NULL: true when
- * something changed that only a restart takes up - the name, the time
- * server, the network. */
+/* Checks `wanted` and stores it, all or nothing, and tells whoever
+ * follows the settings. ONLY in the host loop (events_call() from
+ * elsewhere). `needs_restart` may be NULL: true when something changed that
+ * is taken at start - the name, the time server, the network. */
 settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_t problem_size,
                                    bool *needs_restart);
+
+/* One setting by its key (appconf_fields()), its value as text: what the
+ * page and the system API set. The network is not set this way: it is
+ * asked about on the device. ONLY in the host loop. */
+settings_outcome_t settings_set(const char *key, size_t key_length, const char *value,
+                                char *problem, size_t problem_size, bool *needs_restart);
+
+/* Whoever puts a setting into effect - the clock, the panel, the power
+ * profile, the header - follows the settings: told in the host loop after
+ * every change, with the settings before it and after. The store knows
+ * nothing of what a setting is for. Before the host loop runs; called in
+ * the order they asked. */
+typedef void (*settings_watch_fn)(const appconf_t *before, const appconf_t *now);
+void settings_watch(settings_watch_fn watcher);
 
 /* The application that was on the screen last, to return to after a
  * restart. name_size is at least 16; the name is empty when there was
  * none. Saving the name that is stored already writes nothing. */
 void settings_load_last_app(char *name, size_t name_size);
 void settings_save_last_app(const char *name);
-
-/* How the panel is to be treated, as the display service takes it. */
-refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c);
 
 /* Where applications are installed from: the addresses of the catalogs,
  * a line each (see catalog.h). Loading gives the official one first and

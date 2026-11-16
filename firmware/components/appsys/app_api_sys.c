@@ -27,51 +27,83 @@ HOST_FUNCTION(sys_info)
 
 
 
-HOST_FUNCTION(sys_number_get)
+/* A key as the application gave it, terminated; false when it cannot be
+ * one - no key is this long. */
+#define SYS_KEY_MAX 31
+static bool take_key(IM3Runtime runtime, void *_mem, uint32_t offset, int32_t length,
+                     char key[SYS_KEY_MAX + 1])
+{
+    if (length <= 0 || length > SYS_KEY_MAX) {
+        return false;
+    }
+    const uint8_t *bytes = app_memory_at(runtime, _mem, offset, length);
+    if (bytes == NULL) {
+        return false;
+    }
+    memcpy(key, bytes, (size_t)length);
+    key[length] = '\0';
+    return true;
+}
+
+HOST_FUNCTION(sys_setting_get)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, what);
-    m3ApiGetArg(uint32_t, number_offset);
-    uint8_t *number = app_memory_to_fill(runtime, _mem, number_offset, sizeof(sys_number_t));
+    m3ApiGetArg(uint32_t, key_offset);
+    m3ApiGetArg(int32_t, key_length);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, capacity);
+    char     key[SYS_KEY_MAX + 1];
+    uint8_t *value = app_memory_to_fill(runtime, _mem, value_offset, capacity);
+    app_t   *app = APP_OF(runtime);
+    if (!take_key(runtime, _mem, key_offset, key_length, key) || value == NULL ||
+        app->services->system_setting_get == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->system_setting_get(key, (char *)value, capacity));
+}
+
+HOST_FUNCTION(sys_setting_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, key_offset);
+    m3ApiGetArg(int32_t, key_length);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, length);
+    char   key[SYS_KEY_MAX + 1];
     app_t *app = APP_OF(runtime);
-    if (number == NULL || app->services->system_number_get == NULL) {
+    if (!take_key(runtime, _mem, key_offset, key_length, key) || length < 0 ||
+        length > SYS_SETTING_MAX || app->services->system_setting_set == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    const uint8_t *value = app_memory_at(runtime, _mem, value_offset, length);
+    if (value == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    char terminated[SYS_SETTING_MAX + 1];
+    memcpy(terminated, value, (size_t)length);
+    terminated[length] = '\0';
+    m3ApiReturn(app->services->system_setting_set(key, terminated));
+}
+
+HOST_FUNCTION(sys_setting_range)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, key_offset);
+    m3ApiGetArg(int32_t, key_length);
+    m3ApiGetArg(uint32_t, number_offset);
+    char     key[SYS_KEY_MAX + 1];
+    uint8_t *number = app_memory_to_fill(runtime, _mem, number_offset, sizeof(sys_number_t));
+    app_t   *app = APP_OF(runtime);
+    if (!take_key(runtime, _mem, key_offset, key_length, key) || number == NULL ||
+        app->services->system_setting_range == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     sys_number_t read = { 0 };
-    int32_t result = app->services->system_number_get(what, &read.value, &read.least, &read.most);
+    int32_t result = app->services->system_setting_range(key, &read.value, &read.least, &read.most);
     if (result == HOST_OK) {
         memcpy(number, &read, sizeof read);
     }
     m3ApiReturn(result);
-}
-
-HOST_FUNCTION(sys_number_set)
-{
-    m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, what);
-    m3ApiGetArg(int32_t, value);
-    app_t *app = APP_OF(runtime);
-    if (app->services->system_number_set == NULL) {
-        m3ApiReturn(HOST_ERR_ARGUMENT);
-    }
-    m3ApiReturn(app->services->system_number_set(what, value));
-}
-
-HOST_FUNCTION(sys_text_set)
-{
-    m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, what);
-    m3ApiGetArg(uint32_t, text_offset);
-    m3ApiGetArg(int32_t, length);
-    const uint8_t *text = app_memory_at(runtime, _mem, text_offset, length);
-    app_t *app = APP_OF(runtime);
-    if (text == NULL || length > SYS_TEXT_MAX || app->services->system_text_set == NULL) {
-        m3ApiReturn(HOST_ERR_ARGUMENT);
-    }
-    char terminated[SYS_TEXT_MAX + 1];
-    memcpy(terminated, text, (size_t)length);
-    terminated[length] = '\0';
-    m3ApiReturn(app->services->system_text_set(what, terminated));
 }
 
 HOST_FUNCTION(sys_time_set)

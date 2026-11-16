@@ -30,6 +30,7 @@
 
 _Static_assert(SYS_REFRESH_FULL_NEVER == APPCONF_REFRESH_FULL_NEVER,
                "an application says \"never\" with the number the settings keep");
+_Static_assert(APPCONF_VALUE_MAX > SYS_SETTING_MAX, "every value an application may set fits");
 
 static const char *TAG = "system";
 
@@ -40,7 +41,6 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     const char   *known;
     char          number[INT32_TEXT_BYTES];
     char          join_code[WIFI_QR_TEXT_MAX];
-    appconf_t     settings;
     switch (what) {
     case SYS_INFO_VERSION:
         sysinfo_read(&info);
@@ -85,10 +85,6 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
         snprintf(number, sizeof number, "%u", (unsigned)(app_kv_free_bytes() / BYTES_PER_KB));
         known = number;
         break;
-    case SYS_INFO_TIME_ZONE:
-        settings_read(&settings);
-        known = settings.tz;
-        break;
     case SYS_INFO_JOIN_CODE:
         wifi_get_status(&wifi);
         if (!wifi_qr_text(wifi.access_point_name, join_code, sizeof join_code)) {
@@ -107,67 +103,52 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     return (int32_t)length;
 }
 
-int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t *most)
+/* ---- the host's settings, by key: the store's own rules, through
+ * settings_set(), as the page writes them ---- */
+
+int32_t app_system_setting_get(const char *key, char *value, int32_t capacity)
 {
-    appconf_t settings;
-    settings_read(&settings);
-    switch (what) {
-    case SYS_NUMBER_TIME_AUTOMATIC:
-        *value = settings.time_auto;
-        *least = 0;
-        *most = 1;
-        return HOST_OK;
-    case SYS_NUMBER_MENU_IDLE_MINUTES:
-        *value = settings.menu_idle_min;
-        *least = APPCONF_MENU_IDLE_MIN_LEAST;
-        *most = APPCONF_MENU_IDLE_MIN_MOST;
-        return HOST_OK;
-    case SYS_NUMBER_POWER_SAVING:
-        *value = settings.power_saving;
-        *least = APPCONF_POWER_PLUGGED;
-        *most = APPCONF_POWER_AUTO;
-        return HOST_OK;
-    case SYS_NUMBER_FONT:
-        *value = settings.font;
-        *least = 0;
-        *most = APPCONF_FONT_COUNT - 1;
-        return HOST_OK;
-    case SYS_NUMBER_REFRESH_FAST:
-        *value = settings.refresh_fast;
-        *least = 0;
-        *most = 1;
-        return HOST_OK;
-    case SYS_NUMBER_HEADER_CLOCK:
-        *value = settings.header_clock;
-        *least = 0;
-        *most = 1;
-        return HOST_OK;
-    case SYS_NUMBER_REFRESH_FULL_EVERY:
-        *value = settings.refresh_full_every;
-        *least = APPCONF_REFRESH_FULL_EVERY_LEAST;
-        *most = APPCONF_REFRESH_FULL_EVERY_MOST;
-        return HOST_OK;
-    case SYS_NUMBER_REFRESH_MIN_SECONDS:
-        *value = settings.refresh_min_data_s;
-        *least = APPCONF_REFRESH_MIN_DATA_S_LEAST;
-        *most = APPCONF_REFRESH_MIN_DATA_S_MOST;
-        return HOST_OK;
-    case SYS_NUMBER_REFRESH_FORCE_HOURS:
-        *value = settings.refresh_keepalive_h;
-        *least = APPCONF_REFRESH_KEEPALIVE_H_LEAST;
-        *most = APPCONF_REFRESH_KEEPALIVE_H_MOST;
-        return HOST_OK;
-    default:
+    const appconf_field_t *field = appconf_field(key, strlen(key));
+    if (field == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if ((field->flags & APPCONF_SECRET) != 0) {
         return HOST_ERR_ARGUMENT;
     }
+    appconf_t settings;
+    settings_read(&settings);
+    char text[APPCONF_VALUE_MAX];
+    appconf_format(&settings, field, text, sizeof text);
+    size_t length = strlen(text);
+    if (length > (size_t)capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(value, text, length);
+    return (int32_t)length;
+}
+
+int32_t app_system_setting_range(const char *key, int32_t *value, int32_t *least, int32_t *most)
+{
+    const appconf_field_t *field = appconf_field(key, strlen(key));
+    if (field == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if (field->kind == APPCONF_TEXT) {
+        return HOST_ERR_ARGUMENT;
+    }
+    appconf_t settings;
+    settings_read(&settings);
+    *value = appconf_number(&settings, field);
+    *least = field->least;
+    *most = field->most;
+    return HOST_OK;
 }
 
 /* An application runs in the host loop: the settings are changed here and
  * now, by their owner. */
-static int32_t change(const appconf_t *wanted)
+static int32_t outcome(settings_outcome_t result)
 {
-    char problem[APPCONF_PROBLEM_MAX];
-    switch (settings_change(wanted, problem, sizeof problem, NULL)) {
+    switch (result) {
     case SETTINGS_CHANGED:
         return HOST_OK;
     case SETTINGS_INVALID:
@@ -178,57 +159,16 @@ static int32_t change(const appconf_t *wanted)
     return HOST_ERR_FAILED;
 }
 
-int32_t app_system_number_set(int what, int32_t value)
+int32_t app_system_setting_set(const char *key, const char *value)
 {
-    /* What does not fit the field would fit after being cut: refuse it here. */
-    if (value < 0 || value > (what == SYS_NUMBER_REFRESH_MIN_SECONDS ? UINT16_MAX : UINT8_MAX)) {
-        return HOST_ERR_ARGUMENT;
-    }
-    appconf_t wanted;
-    settings_read(&wanted);
-    switch (what) {
-    case SYS_NUMBER_TIME_AUTOMATIC:
-        wanted.time_auto = (uint8_t)value;
-        break;
-    case SYS_NUMBER_POWER_SAVING:
-        wanted.power_saving = (uint8_t)value;
-        break;
-    case SYS_NUMBER_MENU_IDLE_MINUTES:
-        wanted.menu_idle_min = (uint8_t)value;
-        break;
-    case SYS_NUMBER_FONT:
-        wanted.font = (uint8_t)value;
-        break;
-    case SYS_NUMBER_REFRESH_FAST:
-        wanted.refresh_fast = (uint8_t)value;
-        break;
-    case SYS_NUMBER_HEADER_CLOCK:
-        wanted.header_clock = (uint8_t)value;
-        break;
-    case SYS_NUMBER_REFRESH_FULL_EVERY:
-        wanted.refresh_full_every = (uint8_t)value;
-        break;
-    case SYS_NUMBER_REFRESH_MIN_SECONDS:
-        wanted.refresh_min_data_s = (uint16_t)value;
-        break;
-    case SYS_NUMBER_REFRESH_FORCE_HOURS:
-        wanted.refresh_keepalive_h = (uint8_t)value;
-        break;
-    default:
-        return HOST_ERR_ARGUMENT;
-    }
-    return change(&wanted);
+    char problem[APPCONF_PROBLEM_MAX];
+    return outcome(settings_set(key, strlen(key), value, problem, sizeof problem, NULL));
 }
 
-int32_t app_system_text_set(int what, const char *text)
+static int32_t change(const appconf_t *wanted)
 {
-    appconf_t wanted;
-    settings_read(&wanted);
-    if (what != SYS_TEXT_TIME_ZONE || strlen(text) >= sizeof wanted.tz) {
-        return HOST_ERR_ARGUMENT;
-    }
-    strcpy(wanted.tz, text);
-    return change(&wanted);
+    char problem[APPCONF_PROBLEM_MAX];
+    return outcome(settings_change(wanted, problem, sizeof problem, NULL));
 }
 
 int32_t app_system_time_set(int64_t unix_seconds)
@@ -295,10 +235,7 @@ int32_t app_system_app_set_default(uint32_t id)
     if (id != 0 && app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    appconf_t wanted;
-    settings_read(&wanted);
-    snprintf(wanted.default_app, sizeof wanted.default_app, "%s", app != NULL ? app->name : "");
-    return change(&wanted);
+    return app_system_setting_set(SYS_KEY_DEFAULT_APP, app != NULL ? app->name : "");
 }
 
 int32_t app_system_do(int action)

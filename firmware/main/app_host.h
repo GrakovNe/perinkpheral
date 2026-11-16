@@ -29,9 +29,9 @@ void app_host_keep_recurring_of(const uint32_t *app_ids, int count);
 /* The device was powered up or restarted - not woken from its sleep. */
 void app_host_tell_started(void);
 
-/* Whether applications' greys are dithered: a setting, told here when it
- * changes. */
-void app_host_set_dithering(bool dithers);
+/* Takes the settings as they are and follows them: whether applications'
+ * greys are dithered, and the time zone. */
+void app_host_start(const appconf_t *settings);
 
 #ifdef __cplusplus
 }

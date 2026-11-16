@@ -61,6 +61,7 @@
 #include "json_tree.h"
 #include "notice.h"
 #include "scene.h"
+#include "appconf.h"
 #include "header.h"
 #include "scenes.h"
 #include "screens.h"
@@ -180,6 +181,7 @@ static gfx_t                s_screen;
 static uint32_t             s_frames;
 
 static header_kept_t        s_header_kept;
+static appconf_t            s_settings; /* the host's settings, by the device's table */
 /* The simulator stands for one application, which is its id here. */
 #define SIM_APP_ID 1u
 
@@ -974,7 +976,7 @@ static void services_header_status(const char *app_name, int side, int icon, con
     }
 }
 
-static const char *services_language(void) { return s_options.language; }
+static const char *services_language(void) { return s_settings.language; }
 
 /* ---- notifications: a scene over whatever has the screen ---- */
 
@@ -1063,7 +1065,67 @@ static int32_t services_file_write(const char *app_name, const char *file, int32
     }
 }
 
+/* ---- the host's settings, by key: the device's own table and rules, kept
+ * in memory - the simulator's options are where they start ---- */
+
+static int32_t services_setting_get(const char *key, char *value, int32_t capacity)
+{
+    const appconf_field_t *field = appconf_field(key, strlen(key));
+    if (field == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if ((field->flags & APPCONF_SECRET) != 0) {
+        return HOST_ERR_ARGUMENT;
+    }
+    char text[APPCONF_VALUE_MAX];
+    appconf_format(&s_settings, field, text, sizeof text);
+    size_t length = strlen(text);
+    if (length > (size_t)capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(value, text, length);
+    return (int32_t)length;
+}
+
+static int32_t services_setting_range(const char *key, int32_t *value, int32_t *least, int32_t *most)
+{
+    const appconf_field_t *field = appconf_field(key, strlen(key));
+    if (field == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if (field->kind == APPCONF_TEXT) {
+        return HOST_ERR_ARGUMENT;
+    }
+    *value = appconf_number(&s_settings, field);
+    *least = field->least;
+    *most = field->most;
+    return HOST_OK;
+}
+
+/* What the simulator draws follows the store, as the device does: the
+ * typeface, the language, the clock in the header. */
+static int32_t services_setting_set(const char *key, const char *value)
+{
+    const appconf_field_t *field = appconf_field(key, strlen(key));
+    appconf_t wanted = s_settings;
+    char      problem[APPCONF_PROBLEM_MAX];
+    if (field == NULL || (field->flags & APPCONF_OWN_WAY) != 0 || !appconf_put(&wanted, field, value) ||
+        !appconf_validate(&wanted, problem, sizeof problem)) {
+        return HOST_ERR_ARGUMENT;
+    }
+    s_settings = wanted;
+    say('I', "sim", "setting %s = %s", key, value);
+    gfx_font_use((gfx_family_t)s_settings.font);
+    words_use(s_settings.language);
+    s_options.clock = s_settings.header_clock != 0;
+    wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
+    return HOST_OK;
+}
+
 static const app_services_t SERVICES = {
+    .system_setting_get = services_setting_get,
+    .system_setting_set = services_setting_set,
+    .system_setting_range = services_setting_range,
     .unix_time = services_unix_time,
     .time_zone_offset = services_offset,
     .time_zone_offset_at = offset_at,
@@ -1771,6 +1833,10 @@ int main(int argc, char **argv)
     s_started_ms = monotonic_ms();
     srand((unsigned)time(NULL));
     s_boot_id = (uint32_t)rand() | 1u;
+    appconf_defaults(&s_settings, "0000");
+    s_settings.font = s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO;
+    s_settings.header_clock = s_options.clock ? 1 : 0;
+    snprintf(s_settings.language, sizeof s_settings.language, "%s", s_options.language);
     words_use(s_options.language);
     gfx_font_use(s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO);
     load_glyphs();

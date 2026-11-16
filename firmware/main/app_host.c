@@ -21,6 +21,8 @@
 #include "net_time.h"
 #include "poller.h"
 #include "settings.h"
+
+#include <string.h>
 #include "timers.h"
 #include "units.h"
 
@@ -275,9 +277,20 @@ static bool alarm_set(const char *app_name, int alarm, int64_t when, bool is_abs
 
 static bool s_dithers = true;
 
-void app_host_set_dithering(bool dithers)
+/* The settings an application sees: its greys, and the time when the zone
+ * is another. */
+static void follow_settings(const appconf_t *before, const appconf_t *now)
 {
-    s_dithers = dithers;
+    s_dithers = now->dither != 0;
+    if (strcmp(before->tz, now->tz) != 0) {
+        app_host_tell_time_changed();
+    }
+}
+
+void app_host_start(const appconf_t *settings)
+{
+    s_dithers = settings->dither != 0;
+    settings_watch(follow_settings);
 }
 
 static bool dithers(void)
@@ -326,9 +339,9 @@ const app_services_t *app_host_services(void)
         .file_read = file_read,
         .file_write = file_write,
         .system_info = app_system_info,
-        .system_number_get = app_system_number_get,
-        .system_number_set = app_system_number_set,
-        .system_text_set = app_system_text_set,
+        .system_setting_get = app_system_setting_get,
+        .system_setting_set = app_system_setting_set,
+        .system_setting_range = app_system_setting_range,
         .system_time_set = app_system_time_set,
         .system_app_list = app_system_app_list,
         .system_app_title = app_system_app_title,

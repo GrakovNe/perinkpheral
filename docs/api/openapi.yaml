@@ -77,7 +77,10 @@ components:
         failed_allocations: { type: integer }
     Settings:
       type: object
-      description: Every field is optional on POST; what is sent is checked as a whole and stored.
+      description: >-
+        Every field is optional on POST; what is sent is checked as a whole and stored. The keys
+        are the settings' own, the same as an application with system access reads and writes
+        with sys_setting_get and sys_setting_set.
       properties:
         device_name: { type: string }
         hostname: { type: string, readOnly: true }
@@ -104,6 +107,7 @@ components:
               code: { type: string }
               name: { type: string }
         menu_idle_min: { type: integer, minimum: 1, maximum: 60 }
+        refresh_min_button_ms: { type: integer, minimum: 0, maximum: 10000, description: Least pause before answering a press }
         menu_order:
           type: array
           readOnly: true

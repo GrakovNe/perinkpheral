@@ -501,24 +501,25 @@ static esp_err_t handle_settings(httpd_req_t *request)
     appconf_t settings;
     settings_read(&settings);
     json_t *json = json_new_object();
-    json_add_string(json, "device_name", settings.device_name);
+    /* Every setting there is, by its key, as the store has it; a secret is
+     * never read back. */
+    int count;
+    const appconf_field_t *fields = appconf_fields(&count);
+    for (int i = 0; i < count; i++) {
+        const appconf_field_t *field = &fields[i];
+        if ((field->flags & APPCONF_SECRET) != 0) {
+            continue;
+        }
+        if (field->kind == APPCONF_TEXT) {
+            json_add_string(json, field->key, appconf_text(&settings, field));
+        } else if (field->kind == APPCONF_FLAG) {
+            json_add_bool(json, field->key, appconf_number(&settings, field) != 0);
+        } else {
+            json_add_number(json, field->key, appconf_number(&settings, field));
+        }
+    }
     json_add_string(json, "hostname", settings.hostname);
-    json_add_string(json, "wifi_ssid", settings.wifi_ssid);
-    json_add_string(json, "ntp_server", settings.ntp_server);
-    json_add_string(json, "tz", settings.tz);
-    json_add_number(json, "refresh_min_data_s", settings.refresh_min_data_s);
-    json_add_number(json, "refresh_full_every", settings.refresh_full_every);
-    json_add_number(json, "refresh_keepalive_h", settings.refresh_keepalive_h);
-    json_add_bool(json, "dither", settings.dither != 0);
-    json_add_number(json, "font", settings.font);
-    json_add_bool(json, "refresh_fast", settings.refresh_fast != 0);
-    json_add_bool(json, "header_clock", settings.header_clock != 0);
-    json_add_bool(json, "time_auto", settings.time_auto != 0);
-    json_add_number(json, "power_saving", settings.power_saving);
-    json_add_string(json, "default_app", settings.default_app);
-    json_add_string(json, "language", settings.language);
     {
-        int    count;
         json_t *languages = json_new_array();
         const appconf_language_t *known = appconf_languages(&count);
         for (int i = 0; i < count; i++) {
@@ -529,7 +530,6 @@ static esp_err_t handle_settings(httpd_req_t *request)
         }
         json_add_item(json, "languages", languages);
     }
-    json_add_number(json, "menu_idle_min", settings.menu_idle_min);
     {
         /* The order of the device's menu, which the page shows its tiles by. */
         char *order = malloc(MENU_ORDER_MAX);
@@ -548,64 +548,50 @@ static esp_err_t handle_settings(httpd_req_t *request)
     return web_send_json(request, "200 OK", json);
 }
 
-
-/* A number that is there has to be a whole one from 0 to `most`; one that
- * is not leaves the value as it was. */
-static bool take_number(const json_t *json, const char *field, uint32_t most, uint32_t *value)
+/* A setting the page sent, as text for the store: a flag is true or false,
+ * a number a whole one, a text a string. False when it is none of these. */
+static bool value_of(const appconf_field_t *field, const json_t *item, char *text, size_t size)
 {
-    const json_t *item = json_get(json, field);
-    if (item == NULL) {
+    switch (field->kind) {
+    case APPCONF_FLAG:
+        if (!json_is_bool(item)) {
+            return false;
+        }
+        snprintf(text, size, "%d", json_is_true(item) ? 1 : 0);
+        return true;
+    case APPCONF_NUMBER:
+        if (!json_is_number(item) || !item->is_whole) {
+            return false;
+        }
+        snprintf(text, size, "%lld", (long long)item->number);
+        return true;
+    case APPCONF_TEXT:
+        if (!json_is_string(item) || strlen(item->text) >= size) {
+            return false;
+        }
+        strcpy(text, item->text);
         return true;
     }
-    if (!json_is_number(item) || !item->is_whole || item->number < 0 || item->number > most) {
-        return false;
-    }
-    *value = (uint32_t)item->number;
-    return true;
+    return false;
 }
 
-static bool take_flag(const json_t *json, const char *field, uint8_t *value)
-{
-    const json_t *item = json_get(json, field);
-    if (item == NULL) {
-        return true;
-    }
-    if (!json_is_bool(item)) {
-        return false;
-    }
-    *value = json_is_true(item) ? 1 : 0;
-    return true;
-}
-
+/* Every setting the page sent, by the same keys it reads them by; the
+ * network is set its own way, and what is not a setting is not read. */
 static bool edit_settings(const json_t *json, appconf_t *wanted)
 {
-    uint32_t power_saving = wanted->power_saving, menu_idle_min = wanted->menu_idle_min;
-    uint32_t min_data_s = wanted->refresh_min_data_s, full_every = wanted->refresh_full_every;
-    uint32_t keepalive_h = wanted->refresh_keepalive_h;
-    uint32_t font = wanted->font;
-    bool fits =
-        take_string(json, "device_name", wanted->device_name, sizeof wanted->device_name) &&
-        take_string(json, "ntp_server", wanted->ntp_server, sizeof wanted->ntp_server) &&
-        take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
-        take_number(json, "refresh_min_data_s", UINT16_MAX, &min_data_s) &&
-        take_number(json, "refresh_full_every", UINT8_MAX, &full_every) &&
-        take_number(json, "refresh_keepalive_h", UINT8_MAX, &keepalive_h) &&
-        take_number(json, "font", UINT8_MAX, &font) &&
-        take_flag(json, "dither", &wanted->dither) &&
-        take_flag(json, "refresh_fast", &wanted->refresh_fast) &&
-        take_flag(json, "header_clock", &wanted->header_clock) &&
-        take_flag(json, "time_auto", &wanted->time_auto) &&
-        take_number(json, "power_saving", UINT8_MAX, &power_saving) &&
-        take_string(json, "default_app", wanted->default_app, sizeof wanted->default_app) &&
-        take_string(json, "language", wanted->language, sizeof wanted->language) &&
-        take_number(json, "menu_idle_min", UINT8_MAX, &menu_idle_min);
-    wanted->power_saving = (uint8_t)power_saving;
-    wanted->menu_idle_min = (uint8_t)menu_idle_min;
-    wanted->refresh_min_data_s = (uint16_t)min_data_s;
-    wanted->refresh_full_every = (uint8_t)full_every;
-    wanted->refresh_keepalive_h = (uint8_t)keepalive_h;
-    wanted->font = (uint8_t)font;
-    return fits;
+    int count;
+    const appconf_field_t *fields = appconf_fields(&count);
+    for (int i = 0; i < count; i++) {
+        const json_t *item = json_get(json, fields[i].key);
+        if (item == NULL || (fields[i].flags & APPCONF_OWN_WAY) != 0) {
+            continue;
+        }
+        char text[APPCONF_VALUE_MAX];
+        if (!value_of(&fields[i], item, text, sizeof text) || !appconf_put(wanted, &fields[i], text)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static esp_err_t handle_set_settings(httpd_req_t *request)

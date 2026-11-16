@@ -2,6 +2,9 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
+#include <limits.h>
+#include <string.h>
+
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "mdns.h"
@@ -125,6 +128,40 @@ static void on_button_event(uint8_t index, btn_event_t event)
     events_post_button(index, PRESS_OF[event]);
 }
 
+/* How the panel is to be treated, as the display service takes it. */
+static refresh_policy_cfg_t refresh_policy_of(const appconf_t *c)
+{
+    refresh_policy_cfg_t policy = {
+        .min_data_ms = c->refresh_min_data_s * 1000u,
+        .min_button_ms = c->refresh_min_button_ms,
+        /* "Never" is a count no row of partial refreshes reaches. */
+        .full_every = c->refresh_full_every == APPCONF_REFRESH_FULL_NEVER ? INT_MAX
+                                                                         : c->refresh_full_every,
+        .keepalive_ms = c->refresh_keepalive_h * 3600u * 1000u,
+        .full_is_fast = c->refresh_fast != 0,
+    };
+    return policy;
+}
+
+/* What the components under the host take from the settings, which they
+ * know nothing of: the panel's policy, the clock's zone and source. */
+static void follow_panel(const appconf_t *before, const appconf_t *now)
+{
+    (void)before;
+    refresh_policy_cfg_t policy = refresh_policy_of(now);
+    display_set_policy(&policy);
+}
+
+static void follow_clock(const appconf_t *before, const appconf_t *now)
+{
+    if (strcmp(before->tz, now->tz) != 0) {
+        net_time_set_zone(now->tz);
+    }
+    if (before->time_auto != now->time_auto) {
+        net_time_set_automatic(now->time_auto != 0);
+    }
+}
+
 void app_main(void)
 {
     log_capture_start();
@@ -151,6 +188,9 @@ void app_main(void)
     appconf_device_id(mac, device_id);
 
     settings_start(device_id);
+    /* The clock first: whoever follows the settings after it reads the time
+     * in the zone just set. */
+    settings_watch(follow_clock);
     static appconf_t settings; /* as they are at start: what is told once is told from here */
     settings_read(&settings);
     const appconf_t *cfg = &settings;
@@ -161,9 +201,10 @@ void app_main(void)
      * network. */
     events_start();
     host_deadlines_start();
-    const refresh_policy_cfg_t refresh_policy = settings_refresh_policy(cfg);
+    const refresh_policy_cfg_t refresh_policy = refresh_policy_of(cfg);
     display_start(&refresh_policy);
-    app_host_set_dithering(cfg->dither != 0);
+    settings_watch(follow_panel);
+    app_host_start(cfg);
     gfx_font_use((gfx_family_t)cfg->font);
     words_use(cfg->language);
     buttons_start(on_button_event);

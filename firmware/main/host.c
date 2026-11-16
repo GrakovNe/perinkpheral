@@ -18,6 +18,7 @@
 #include "host_api.h"
 #include "deadlines.h"
 #include "app_host.h"
+#include "gfx.h"
 #include "gfx_icons.h"
 #include "display.h"
 #include "events.h"
@@ -36,6 +37,7 @@
 #include "timers.h"
 #include "wifi.h"
 #include "wm.h"
+#include "words.h"
 #include "units.h"
 
 static const char *TAG = "host";
@@ -515,8 +517,34 @@ static void on_menu_idle_timeout(void)
  * the tasks that only compute and below the ones that keep the radio
  * alive (priorities.h). As the main task it had priority 1, the lowest of
  * all: a refresh that met a TLS handshake took 2.7 s instead of 0.46. */
+/* How the screen looks is the settings': the typeface, the language of the
+ * host's words, the greys. The picture is drawn anew only when it is
+ * another - every letter after a typeface or a language, the greys after
+ * the dithering - and a step through any other setting leaves the panel
+ * alone. An application speaks a new language from the next time it is
+ * loaded, and the titles in the menu are other words: the list is read
+ * anew. */
+static void follow_settings(const appconf_t *before, const appconf_t *now)
+{
+    bool font_changed = before->font != now->font;
+    bool language_changed = strcmp(before->language, now->language) != 0;
+    if (font_changed) {
+        gfx_font_use((gfx_family_t)now->font);
+    }
+    if (language_changed) {
+        words_use(now->language);
+        host_reload_apps_later();
+    }
+    if (font_changed || language_changed) {
+        host_redraw(true);
+    } else if (before->dither != now->dither) {
+        host_redraw(false);
+    }
+}
+
 void host_run(void)
 {
+    settings_watch(follow_settings);
     vTaskPrioritySet(NULL, PRIORITY_HOST_LOOP);
     launcher_start();
     int menu_entry_count;

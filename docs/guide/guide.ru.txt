@@ -1855,14 +1855,14 @@ The system API is the set of <code>sys_*</code> calls. The host's own pages use 
 Any application can use the system API if its manifest contains <code>"system": true</code>. The web page warns the user before installing such an application. A module that imports a <code>sys_*</code> call without this declaration is rejected.
 Системный API доступен любому приложению, в манифесте которого есть <code>"system": true</code>. Перед установкой такого приложения веб-страница предупреждает пользователя. Модуль, импортирующий вызов <code>sys_*</code> без этого объявления, отклоняется.
 
-Device information as text: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_TIME_ZONE</code>, <code>_JOIN_CODE</code>
-Сведения об устройстве в виде текста: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_TIME_ZONE</code>, <code>_JOIN_CODE</code>
+Device information as text: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_JOIN_CODE</code>
+Сведения об устройстве в виде текста: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_JOIN_CODE</code>
 
-Numeric host setting, range-checked: <code>SYS_NUMBER_TIME_AUTOMATIC</code>, <code>_REFRESH_FULL_EVERY</code>, <code>_REFRESH_MIN_SECONDS</code>, <code>_REFRESH_FORCE_HOURS</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FAST</code>, <code>_FONT</code>, <code>_MENU_IDLE_MINUTES</code>, <code>_HEADER_CLOCK</code>
-Числовая настройка хоста с проверкой диапазона: <code>SYS_NUMBER_TIME_AUTOMATIC</code>, <code>_REFRESH_FULL_EVERY</code>, <code>_REFRESH_MIN_SECONDS</code>, <code>_REFRESH_FORCE_HOURS</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FAST</code>, <code>_FONT</code>, <code>_MENU_IDLE_MINUTES</code>, <code>_HEADER_CLOCK</code>
+A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once. The Wi-Fi password is never read; the network is not set by key
+Настройка хоста по ключу, в виде текста: ключи <code>/api/settings</code> веб-страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> и остальные). Запись: проверяется, сохраняется и сразу вступает в силу. Пароль Wi-Fi не читается; сеть по ключу не задаётся
 
-Text host setting: <code>SYS_TEXT_TIME_ZONE</code>, a POSIX TZ string
-Текстовая настройка хоста: <code>SYS_TEXT_TIME_ZONE</code>, строка POSIX TZ
+A numeric setting's value and its range
+Значение числовой настройки и её диапазон
 
 Sets the clock. Fails while the time source is the network
 Устанавливает часы. Завершается ошибкой, пока источник времени - сеть

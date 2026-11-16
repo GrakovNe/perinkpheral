@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "power.h"
+#include "settings.h"
 
 #include "esp_log.h"
 #include "driver/usb_serial_jtag.h"
@@ -195,8 +196,17 @@ static bool set_saving(bool is_saving)
     return changed;
 }
 
+/* The profile is a setting. */
+static void follow_settings(const appconf_t *before, const appconf_t *now)
+{
+    if (before->power_saving != now->power_saving) {
+        power_set_mode((power_mode_t)now->power_saving);
+    }
+}
+
 void power_start(power_mode_t mode)
 {
+    settings_watch(follow_settings);
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
     s_mode = mode;

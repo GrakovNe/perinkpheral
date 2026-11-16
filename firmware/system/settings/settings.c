@@ -66,9 +66,19 @@ static app_date_t clock; /* on PAGE_CLOCK */
 
 /* A display setting and the values the buttons step through: any value can
  * be set from the web page, these are the ones worth having here. */
+/* How a value is put into words. */
+typedef enum {
+    SAY_FONT,
+    SAY_FULL_EVERY,
+    SAY_SECONDS,
+    SAY_HOURS,
+    SAY_ON_OFF,
+} saying_t;
+
 typedef struct {
     int32_t        label; /* a STR_* */
-    int32_t        what; /* SYS_NUMBER_* */
+    const char    *key;   /* a SYS_KEY_* */
+    saying_t       saying;
     const int32_t *choices;
     int32_t        choice_count;
 } display_setting_t;
@@ -84,15 +94,16 @@ static const int32_t FONT_CHOICES[] = { 0, 1 };
 static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
 
 static const display_setting_t DISPLAY_SETTINGS[] = {
-    { STR_FONT, SYS_NUMBER_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
-    { STR_FULL_REFRESH, SYS_NUMBER_REFRESH_FULL_EVERY, FULL_EVERY_CHOICES,
+    { STR_FONT, SYS_KEY_FONT, SAY_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
+    { STR_FULL_REFRESH, SYS_KEY_REFRESH_FULL_EVERY, SAY_FULL_EVERY, FULL_EVERY_CHOICES,
       COUNT_OF(FULL_EVERY_CHOICES) },
-    { STR_REFRESH_INTERVAL, SYS_NUMBER_REFRESH_MIN_SECONDS, MIN_SECONDS_CHOICES,
+    { STR_REFRESH_INTERVAL, SYS_KEY_REFRESH_MIN_SECONDS, SAY_SECONDS, MIN_SECONDS_CHOICES,
       COUNT_OF(MIN_SECONDS_CHOICES) },
-    { STR_FORCED_REFRESH, SYS_NUMBER_REFRESH_FORCE_HOURS, FORCE_HOURS_CHOICES,
+    { STR_FORCED_REFRESH, SYS_KEY_REFRESH_FORCE_HOURS, SAY_HOURS, FORCE_HOURS_CHOICES,
       COUNT_OF(FORCE_HOURS_CHOICES) },
-    { STR_FAST_REFRESH, SYS_NUMBER_REFRESH_FAST, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
-    { STR_CLOCK_IN_HEADER, SYS_NUMBER_HEADER_CLOCK, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
+    { STR_FAST_REFRESH, SYS_KEY_REFRESH_FAST, SAY_ON_OFF, OFF_ON_CHOICES, COUNT_OF(OFF_ON_CHOICES) },
+    { STR_CLOCK_IN_HEADER, SYS_KEY_HEADER_CLOCK, SAY_ON_OFF, OFF_ON_CHOICES,
+      COUNT_OF(OFF_ON_CHOICES) },
 };
 
 #define ROOT_ROWS 6
@@ -135,11 +146,33 @@ static void read_info(int32_t what, char value[TEXT_MAX + 1])
     value[length > 0 ? length : 0] = '\0';
 }
 
-static int32_t read_number(int32_t what)
+/* The host's settings are a store by key, the device page's as much as
+ * this application's: it reads and writes them as text. */
+static void read_setting(const char *key, char value[TEXT_MAX + 1])
+{
+    int32_t length = sys_setting_get(key, app_text_length(key), value, TEXT_MAX);
+    value[length > 0 ? length : 0] = '\0';
+}
+
+static int32_t read_number(const char *key)
 {
     sys_number_t number = { 0 };
-    sys_number_get(what, &number);
+    sys_setting_range(key, app_text_length(key), &number);
     return number.value;
+}
+
+static int32_t write_setting(const char *key, const char *value)
+{
+    return sys_setting_set(key, app_text_length(key), value, app_text_length(value));
+}
+
+static int32_t write_number(const char *key, int32_t value)
+{
+    char       text[TEXT_MAX + 1];
+    app_text_t out;
+    app_text_start(&out, text, sizeof text);
+    app_text_add_number(&out, value);
+    return write_setting(key, text);
 }
 
 static int32_t wrapped(int32_t value, int32_t first, int32_t last)
@@ -158,7 +191,7 @@ static int32_t current_city(void)
 {
     char zone[TEXT_MAX + 1];
     char picked[TEXT_MAX + 1];
-    read_info(SYS_INFO_TIME_ZONE, zone);
+    read_setting(SYS_KEY_TIME_ZONE, zone);
     int32_t picked_length = kv_get(CITY_KEY, sizeof CITY_KEY - 1, picked, TEXT_MAX);
     picked[picked_length > 0 ? picked_length : 0] = '\0';
     int32_t first_with_zone = -1;
@@ -235,7 +268,7 @@ static int32_t default_app_row(void)
 static int32_t next_idle_minutes(void)
 {
     static const int32_t STEPS[] = { 1, 5, 15, 30, 60 };
-    int32_t now = read_number(SYS_NUMBER_MENU_IDLE_MINUTES);
+    int32_t now = read_number(SYS_KEY_MENU_IDLE_MINUTES);
     for (uint32_t i = 0; i < COUNT_OF(STEPS); i++) {
         if (STEPS[i] > now) {
             return STEPS[i];
@@ -248,8 +281,8 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
 {
     app_text_t out;
     app_text_start(&out, text, TEXT_MAX + 1);
-    switch (setting->what) {
-    case SYS_NUMBER_REFRESH_FULL_EVERY:
+    switch (setting->saying) {
+    case SAY_FULL_EVERY:
         if (value == 0) {
             app_text_add(&out, app_string(STR_ALWAYS));
         } else if (value == SYS_REFRESH_FULL_NEVER) {
@@ -259,14 +292,13 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
             app_text_add_number(&out, value);
         }
         break;
-    case SYS_NUMBER_REFRESH_FAST:
-    case SYS_NUMBER_HEADER_CLOCK:
+    case SAY_ON_OFF:
         app_text_add(&out, app_string(value != 0 ? STR_ON : STR_OFF));
         break;
-    case SYS_NUMBER_FONT:
+    case SAY_FONT:
         app_text_add(&out, FONT_NAMES[value % 2]);
         break;
-    case SYS_NUMBER_REFRESH_MIN_SECONDS:
+    case SAY_SECONDS:
         if (value >= SECONDS_PER_MINUTE && value % SECONDS_PER_MINUTE == 0) {
             app_text_add_number(&out, value / SECONDS_PER_MINUTE);
             app_text_add(&out, app_string(STR_UNIT_MIN));
@@ -275,7 +307,7 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
             app_text_add(&out, app_string(STR_UNIT_S));
         }
         break;
-    default:
+    case SAY_HOURS:
         app_text_add_number(&out, value);
         app_text_add(&out, app_string(STR_UNIT_H));
         break;
@@ -284,7 +316,7 @@ static void format_choice(const display_setting_t *setting, int32_t value, char 
 
 static bool is_automatic(void)
 {
-    return read_number(SYS_NUMBER_TIME_AUTOMATIC) != 0;
+    return read_number(SYS_KEY_TIME_AUTOMATIC) != 0;
 }
 
 static bool has_network(void)
@@ -341,7 +373,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
             copy_text(value, TEXT_MAX + 1, city >= 0 ? CITIES[city].name : app_string(STR_CUSTOM));
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
-                      app_string(POWER_SAVING_NAMES[read_number(SYS_NUMBER_POWER_SAVING) % POWER_SAVINGS]));
+                      app_string(POWER_SAVING_NAMES[read_number(SYS_KEY_POWER_SAVING) % POWER_SAVINGS]));
         } else if (row == 3) {
             int32_t chosen = default_app_row();
             if (chosen < 0 || !app_title_at(chosen, value)) {
@@ -350,7 +382,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         } else if (row == 4) {
             app_text_t out;
             app_text_start(&out, value, TEXT_MAX + 1);
-            app_text_add_number(&out, read_number(SYS_NUMBER_MENU_IDLE_MINUTES));
+            app_text_add_number(&out, read_number(SYS_KEY_MENU_IDLE_MINUTES));
             app_text_add(&out, app_string(STR_UNIT_MIN));
         }
         break;
@@ -373,7 +405,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
     }
     case PAGE_DISPLAY:
         copy_text(label, TEXT_MAX + 1, app_string(DISPLAY_SETTINGS[row].label));
-        format_choice(&DISPLAY_SETTINGS[row], read_number(DISPLAY_SETTINGS[row].what), value);
+        format_choice(&DISPLAY_SETTINGS[row], read_number(DISPLAY_SETTINGS[row].key), value);
         break;
     case PAGE_WIFI:
         copy_text(label, TEXT_MAX + 1, app_string(WIFI[row]));
@@ -496,7 +528,7 @@ static void edit_value(const display_setting_t *setting)
     edited = setting;
     /* The value may be one the web page set: start from the nearest choice
      * that is not below it. */
-    int32_t value = read_number(edited->what);
+    int32_t value = read_number(edited->key);
     edited_choice = (app_picker_t){ .count = edited->choice_count,
                                     .chosen = edited->choice_count - 1 };
     for (int32_t choice = 0; choice < edited->choice_count; choice++) {
@@ -525,8 +557,7 @@ static void activate(page_t page, int32_t row)
             open(PAGE_ZONE, city >= 0 ? city : 0);
         } else if (row == 2) {
             /* On: the device runs from its battery. */
-            sys_number_set(SYS_NUMBER_POWER_SAVING,
-                           (read_number(SYS_NUMBER_POWER_SAVING) + 1) % POWER_SAVINGS);
+            write_number(SYS_KEY_POWER_SAVING, (read_number(SYS_KEY_POWER_SAVING) + 1) % POWER_SAVINGS);
             show();
         } else if (row == 3) {
             /* None, then each application in the menu's order, then None again. */
@@ -534,13 +565,13 @@ static void activate(page_t page, int32_t row)
             sys_app_set_default(next < app_count() ? app_ids[next] : 0);
             show();
         } else {
-            sys_number_set(SYS_NUMBER_MENU_IDLE_MINUTES, next_idle_minutes());
+            write_number(SYS_KEY_MENU_IDLE_MINUTES, next_idle_minutes());
             show();
         }
         break;
     case PAGE_DATE_TIME:
         if (row == 0) {
-            sys_number_set(SYS_NUMBER_TIME_AUTOMATIC, is_automatic() ? 0 : 1);
+            write_number(SYS_KEY_TIME_AUTOMATIC, is_automatic() ? 0 : 1);
             show();
         } else if (is_automatic()) {
             /* Turned on from the web page while this row was on the screen. */
@@ -553,8 +584,7 @@ static void activate(page_t page, int32_t row)
         }
         break;
     case PAGE_ZONE:
-        if (sys_text_set(SYS_TEXT_TIME_ZONE, CITIES[row].zone,
-                         app_text_length(CITIES[row].zone)) == HOST_OK) {
+        if (write_setting(SYS_KEY_TIME_ZONE, CITIES[row].zone) == HOST_OK) {
             kv_set(CITY_KEY, sizeof CITY_KEY - 1, CITIES[row].name,
                    app_text_length(CITIES[row].name));
             go_back();
@@ -644,7 +674,7 @@ static void press_ok(void)
         return;
     }
     if (page == PAGE_VALUE) {
-        if (sys_number_set(edited->what, edited->choices[edited_choice.chosen]) == HOST_OK) {
+        if (write_number(edited->key, edited->choices[edited_choice.chosen]) == HOST_OK) {
             go_back();
         } else {
             tell(app_string(STR_FAILED), false);

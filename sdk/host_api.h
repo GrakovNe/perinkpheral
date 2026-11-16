@@ -27,6 +27,9 @@
 #define HOST_SINCE_ui_cell_fit  "0.1.4"
 #define HOST_SINCE_gfx_icon_ink "0.1.4"
 #define HOST_SINCE_gfx_text_ink "0.1.8"
+#define HOST_SINCE_sys_setting_get   "0.1.13" /* the host's settings by key */
+#define HOST_SINCE_sys_setting_set   "0.1.13"
+#define HOST_SINCE_sys_setting_range "0.1.13"
 
 /* The host firmware includes this header for its constants. Outside a
  * wasm build the declarations expand to nothing, because the host defines
@@ -1183,7 +1186,7 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define SYS_INFO_WIFI    4 /* one of SYS_WIFI_* */
 #define SYS_INFO_SLOT    5 /* running firmware slot: "ota_0" */
 #define SYS_INFO_FREE_MEMORY 6 /* free host memory in KB, as digits */
-#define SYS_INFO_TIME_ZONE   7 /* POSIX TZ string: "MSK-3" */
+/* 7 was the time zone: sys_setting_get(SYS_KEY_TIME_ZONE) */
 #define SYS_INFO_JOIN_CODE   8 /* QR code text that joins a phone to the setup access
                                   point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
 #define SYS_INFO_FREE_FLASH  9 /* free flash for applications - their code and files - in
@@ -1203,36 +1206,54 @@ HOST_SYSTEM_IMPORT(sys_logo, int32_t sys_logo(int32_t x, int32_t y, int32_t scal
 HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 
-/* Numeric host settings. sys_number_get() returns the value and its range. */
-#define SYS_NUMBER_TIME_AUTOMATIC      0 /* 1: time from the network; 0: set manually */
-#define SYS_NUMBER_REFRESH_FULL_EVERY  1 /* partial refreshes before a full one; 0: always full.
-                                            SYS_REFRESH_FULL_NEVER is also accepted */
-#define SYS_NUMBER_REFRESH_MIN_SECONDS 2 /* minimum interval between refreshes without a press */
-#define SYS_NUMBER_REFRESH_FORCE_HOURS 3 /* maximum time without a refresh */
-#define SYS_NUMBER_POWER_SAVING        4 /* 0: off; 1: on - the device sleeps when idle, the
-                                            radio is on for polls and for a period after a
-                                            press; 2: on unless a computer is connected to
-                                            the USB port */
-#define SYS_NUMBER_REFRESH_FAST        5 /* 1: fast full refresh */
-#define SYS_NUMBER_FONT                6 /* typeface: 0 Departure Mono, 1 Jersey */
-#define SYS_NUMBER_MENU_IDLE_MINUTES    7 /* idle time in the menu before the default
-                                            application opens */
-#define SYS_NUMBER_HEADER_CLOCK         8 /* 1: the header shows the time instead of the date */
-#define SYS_REFRESH_FULL_NEVER         255
+/* The host's settings, by key: the same keys as the device page's
+ * /api/settings, and the same rules. A value is text: a number in decimal,
+ * a flag "0" or "1". Settings on the device and the device's page are two
+ * ways of writing one store; the host follows what is stored, and any
+ * application with system access may read and write it the same way.
+ *
+ * sys_setting_get():   writes the value. Returns its length; HOST_ERR_NOT_FOUND
+ *                      for a key there is no setting for; HOST_ERR_ARGUMENT for
+ *                      a secret, which is never read back (the Wi-Fi password);
+ *                      HOST_ERR_NO_SPACE.
+ * sys_setting_set():   checks, stores and puts it into effect. HOST_ERR_ARGUMENT
+ *                      for a value the setting cannot take, or a key that is
+ *                      not set this way (the network: SYS_DO_FORGET_NETWORK,
+ *                      or the device's page).
+ * sys_setting_range(): a number's value and its range. HOST_ERR_ARGUMENT for
+ *                      a setting that is text. */
+#define SYS_SETTING_MAX 63 /* the longest value, in bytes */
+#define SYS_KEY_TIME_AUTOMATIC      "time_auto"           /* 1: time from the network */
+#define SYS_KEY_TIME_ZONE           "tz"                  /* POSIX TZ string: "MSK-3" */
+#define SYS_KEY_LANGUAGE            "language"            /* "en", "ru" */
+#define SYS_KEY_FONT                "font"                /* 0 Departure Mono, 1 Jersey */
+#define SYS_KEY_REFRESH_FULL_EVERY  "refresh_full_every"  /* partial refreshes before a full one;
+                                                             0: always full; SYS_REFRESH_FULL_NEVER */
+#define SYS_KEY_REFRESH_MIN_SECONDS "refresh_min_data_s"  /* least seconds between refreshes
+                                                             without a press */
+#define SYS_KEY_REFRESH_FORCE_HOURS "refresh_keepalive_h" /* most hours without a refresh */
+#define SYS_KEY_REFRESH_FAST        "refresh_fast"        /* 1: the fast full refresh */
+#define SYS_KEY_POWER_SAVING        "power_saving"        /* 0 off; 1 on: the device sleeps when
+                                                             idle, the radio is on for polls and
+                                                             for a while after a press; 2 on
+                                                             unless a computer is on the USB port */
+#define SYS_KEY_MENU_IDLE_MINUTES   "menu_idle_min"       /* idle minutes in the menu before the
+                                                             default application opens */
+#define SYS_KEY_HEADER_CLOCK        "header_clock"        /* 1: the time instead of the date */
+#define SYS_KEY_DEFAULT_APP         "default_app"         /* an application's name; "": none */
+#define SYS_KEY_DEVICE_NAME         "device_name"         /* in effect after a restart */
+#define SYS_REFRESH_FULL_NEVER      255
 typedef struct {
     int32_t value;
     int32_t least;
     int32_t most;
 } sys_number_t;
-HOST_SYSTEM_IMPORT(sys_number_get, int32_t sys_number_get(int32_t what, sys_number_t *number));
-/* Stores the value and applies it immediately. Returns HOST_ERR_ARGUMENT
- * for a value outside the range. */
-HOST_SYSTEM_IMPORT(sys_number_set, int32_t sys_number_set(int32_t what, int32_t value));
-
-/* Text host settings, at most SYS_TEXT_MAX bytes. */
-#define SYS_TEXT_MAX 63
-#define SYS_TEXT_TIME_ZONE 0 /* POSIX TZ string; read with sys_info() */
-HOST_SYSTEM_IMPORT(sys_text_set, int32_t sys_text_set(int32_t what, const char *text, int32_t length));
+HOST_SYSTEM_IMPORT(sys_setting_get, int32_t sys_setting_get(const char *key, int32_t key_length,
+                                                            char *value, int32_t capacity));
+HOST_SYSTEM_IMPORT(sys_setting_set, int32_t sys_setting_set(const char *key, int32_t key_length,
+                                                            const char *value, int32_t length));
+HOST_SYSTEM_IMPORT(sys_setting_range, int32_t sys_setting_range(const char *key, int32_t key_length,
+                                                                sys_number_t *number));
 
 /* Sets the clock, in Unix seconds. Returns HOST_ERR_FAILED while the time
  * source is the network. */

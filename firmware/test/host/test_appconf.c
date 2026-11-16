@@ -217,8 +217,91 @@ static void test_refresh_policy_settings(void)
     CHECK(appconf_validate(&c, err, sizeof err));
 }
 
+/* The settings by key: every field reachable, read and written as text by
+ * the same rules the page and the system API use. */
+static void test_fields(void)
+{
+    appconf_t c;
+    appconf_defaults(&c, "1a2b");
+    int count;
+    const appconf_field_t *fields = appconf_fields(&count);
+    CHECK(count > 0);
+    for (int i = 0; i < count; i++) {
+        /* Found by its own key, stored under a key NVS can hold. */
+        CHECK(appconf_field(fields[i].key, strlen(fields[i].key)) == &fields[i]);
+        CHECK(strlen(fields[i].stored) <= 15);
+        CHECK(fields[i].offset + fields[i].size <= sizeof(appconf_t));
+        /* What is read back as text is taken again as it was. */
+        char text[APPCONF_VALUE_MAX];
+        appconf_format(&c, &fields[i], text, sizeof text);
+        appconf_t again = c;
+        CHECK(appconf_put(&again, &fields[i], text));
+        CHECK(!appconf_differs(&c, &again, &fields[i]));
+        for (int j = i + 1; j < count; j++) {
+            CHECK(strcmp(fields[i].key, fields[j].key) != 0);
+            CHECK(strcmp(fields[i].stored, fields[j].stored) != 0);
+        }
+    }
+    CHECK(appconf_field("nope", 4) == NULL);
+    CHECK(appconf_field("font", 3) == NULL);
+
+    /* A number in its range, its one extra value, and nothing else. */
+    const appconf_field_t *full = appconf_field("refresh_full_every", 18);
+    CHECK(appconf_put(&c, full, "50"));
+    CHECK(c.refresh_full_every == 50);
+    CHECK(appconf_put(&c, full, "255"));
+    CHECK(c.refresh_full_every == APPCONF_REFRESH_FULL_NEVER);
+    CHECK(!appconf_put(&c, full, "51"));
+    CHECK(!appconf_put(&c, full, "-1"));
+    CHECK(!appconf_put(&c, full, " 5"));
+    CHECK(!appconf_put(&c, full, "5x"));
+    CHECK(!appconf_put(&c, full, ""));
+    CHECK(c.refresh_full_every == APPCONF_REFRESH_FULL_NEVER);
+
+    /* Two bytes wide. */
+    const appconf_field_t *data = appconf_field("refresh_min_data_s", 18);
+    CHECK(appconf_put(&c, data, "3600"));
+    CHECK(c.refresh_min_data_s == 3600);
+    CHECK(appconf_number(&c, data) == 3600);
+    CHECK(!appconf_put(&c, data, "70000"));
+
+    /* A flag is 0 or 1. */
+    const appconf_field_t *dither = appconf_field("dither", 6);
+    CHECK(dither->kind == APPCONF_FLAG);
+    CHECK(appconf_put(&c, dither, "0"));
+    CHECK(c.dither == 0);
+    CHECK(!appconf_put(&c, dither, "2"));
+
+    /* A text that fits, and one that does not. */
+    const appconf_field_t *zone = appconf_field("tz", 2);
+    CHECK(appconf_put(&c, zone, "MSK-3"));
+    CHECK_STR(c.tz, "MSK-3");
+    char long_text[APPCONF_TZ_MAX + 2];
+    memset(long_text, 'A', sizeof long_text - 1);
+    long_text[sizeof long_text - 1] = '\0';
+    CHECK(!appconf_put(&c, zone, long_text));
+    CHECK_STR(c.tz, "MSK-3");
+
+    /* The network is set its own way, and its password never read back. */
+    const appconf_field_t *password = appconf_field("wifi_password", 13);
+    CHECK((password->flags & APPCONF_SECRET) != 0);
+    CHECK((password->flags & APPCONF_OWN_WAY) != 0);
+    CHECK((appconf_field("wifi_ssid", 9)->flags & APPCONF_OWN_WAY) != 0);
+
+    /* What is taken at start asks for a restart; what takes effect at once
+     * does not. */
+    appconf_t before = c, now = c;
+    CHECK(!appconf_needs_restart(&before, &now));
+    CHECK(appconf_put(&now, zone, "UTC0"));
+    CHECK(appconf_put(&now, dither, "1"));
+    CHECK(!appconf_needs_restart(&before, &now));
+    CHECK(appconf_put(&now, appconf_field("device_name", 11), "Desk"));
+    CHECK(appconf_needs_restart(&before, &now));
+}
+
 int main(void)
 {
+    test_fields();
     test_refresh_policy_settings();
     test_default_app();
     test_device_id();

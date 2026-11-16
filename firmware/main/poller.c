@@ -4,6 +4,7 @@
  */
 #include "priorities.h"
 #include "poller.h"
+#include "settings.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -754,8 +755,18 @@ void poller_reload(void)
     ESP_LOGI(TAG, "applications changed: %d polls of %d applications", polls, s_known_count);
 }
 
+/* Saving power or not, the polls are another distance apart: only then are
+ * they scheduled anew, not for a change of the time zone. */
+static void follow_settings(const appconf_t *before, const appconf_t *now)
+{
+    if (before->power_saving != now->power_saving) {
+        poller_reschedule();
+    }
+}
+
 void poller_start(void)
 {
+    settings_watch(follow_settings);
     poller_net_start(&NET_HOST);
     poll_schedule_init(&s_schedule);
     request_queue_init(&s_queue);

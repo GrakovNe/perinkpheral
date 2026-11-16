@@ -17,9 +17,9 @@ extern "C" {
  * ones app_services_t names. */
 
 int32_t app_system_info(int what, char *text, int32_t capacity);
-int32_t app_system_number_get(int what, int32_t *value, int32_t *least, int32_t *most);
-int32_t app_system_number_set(int what, int32_t value);
-int32_t app_system_text_set(int what, const char *text);
+int32_t app_system_setting_get(const char *key, char *value, int32_t capacity);
+int32_t app_system_setting_set(const char *key, const char *value);
+int32_t app_system_setting_range(const char *key, int32_t *value, int32_t *least, int32_t *most);
 int32_t app_system_time_set(int64_t unix_seconds);
 int32_t app_system_app_list(uint32_t *ids, int32_t capacity);
 int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity);

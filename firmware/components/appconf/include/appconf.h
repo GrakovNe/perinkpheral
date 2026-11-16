@@ -117,6 +117,64 @@ void appconf_hostname(const char *device_name, const char device_id[APPCONF_DEVI
 
 void appconf_derive(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]);
 
+/* ---- the settings by key ----
+ *
+ * Every setting has a key, the one name it goes by everywhere: on the
+ * device's page, in the system API and in what is stored. This table is
+ * what there is to set and how: whoever reads or writes a setting by its
+ * key - the page, an application with system access, the store - goes
+ * through it, and none of them knows the fields by hand. */
+typedef enum {
+    APPCONF_TEXT,
+    APPCONF_NUMBER,
+    APPCONF_FLAG, /* a number that is 0 or 1 */
+} appconf_kind_t;
+
+#define APPCONF_SECRET  0x01u /* written, never read back */
+#define APPCONF_RESTART 0x02u /* taken at start: a change is in effect after a restart */
+#define APPCONF_OWN_WAY 0x04u /* not set by key: the network is changed its own way, asked
+                                 about on the device */
+
+typedef struct {
+    const char    *key;
+    const char    *stored;  /* the key in NVS, as it has been since the first firmware */
+    appconf_kind_t kind;
+    uint8_t        flags;   /* APPCONF_SECRET, APPCONF_RESTART, APPCONF_OWN_WAY */
+    uint16_t       offset;  /* in appconf_t */
+    uint16_t       size;    /* a text's room with its end; a number's bytes, 1 or 2 */
+    int32_t        least;   /* a number's range */
+    int32_t        most;
+    int32_t        also;    /* one more value a number may take, or APPCONF_NO_ALSO */
+} appconf_field_t;
+
+#define APPCONF_NO_ALSO   (-1)
+#define APPCONF_VALUE_MAX 64 /* the longest value as text, with its end */
+
+const appconf_field_t *appconf_fields(int *count);
+/* NULL for a key there is no setting for. */
+const appconf_field_t *appconf_field(const char *key, size_t length);
+
+/* A number's or a flag's value. */
+int32_t appconf_number(const appconf_t *c, const appconf_field_t *field);
+/* A text's value. */
+const char *appconf_text(const appconf_t *c, const appconf_field_t *field);
+
+/* The value as text: a number in decimal, a flag "0" or "1". */
+void appconf_format(const appconf_t *c, const appconf_field_t *field, char *out, size_t size);
+
+/* Puts a value given as text: a number in decimal, in its range; a flag
+ * "0" or "1"; a text that fits. False, and the settings as they were, when
+ * it is not one. What is checked across fields - a time zone's form, a
+ * name's characters - is appconf_validate()'s. */
+bool appconf_put(appconf_t *c, const appconf_field_t *field, const char *value);
+bool appconf_put_number(appconf_t *c, const appconf_field_t *field, int32_t value);
+
+bool appconf_differs(const appconf_t *one, const appconf_t *other, const appconf_field_t *field);
+
+/* Whether going from `before` to `now` changes a setting that is taken at
+ * start. */
+bool appconf_needs_restart(const appconf_t *before, const appconf_t *now);
+
 /* Room for what appconf_validate() and settings_change() say is wrong. */
 #define APPCONF_PROBLEM_MAX 128
 

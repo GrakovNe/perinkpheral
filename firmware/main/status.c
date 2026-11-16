@@ -103,8 +103,18 @@ void status_check(void)
     }
 }
 
+/* The header may say another thing after any of them: the clock or the
+ * date, the zone. */
+static void follow_settings(const appconf_t *before, const appconf_t *now)
+{
+    (void)before;
+    (void)now;
+    status_check();
+}
+
 void status_start(void)
 {
+    settings_watch(follow_settings);
     s_lock = xSemaphoreCreateMutex();
     configASSERT(s_lock != NULL);
     status_read(&s_last_reported);

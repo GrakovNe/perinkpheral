@@ -5,6 +5,9 @@
 #include "appconf.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -284,4 +287,159 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
 
     return true;
 #undef BAD
+}
+
+/* ---- the settings by key ---- */
+
+#define TEXT(name, store, field, flags)                                                   \
+    { name, store, APPCONF_TEXT, flags, offsetof(appconf_t, field),                       \
+      sizeof(((appconf_t *)0)->field), 0, 0, APPCONF_NO_ALSO }
+#define NUMBER(name, store, field, least, most, also)                                     \
+    { name, store, APPCONF_NUMBER, 0, offsetof(appconf_t, field),                         \
+      sizeof(((appconf_t *)0)->field), least, most, also }
+#define FLAG(name, store, field)                                                          \
+    { name, store, APPCONF_FLAG, 0, offsetof(appconf_t, field),                           \
+      sizeof(((appconf_t *)0)->field), 0, 1, APPCONF_NO_ALSO }
+
+static const appconf_field_t FIELDS[] = {
+    TEXT("device_name", "name", device_name, APPCONF_RESTART),
+    TEXT("wifi_ssid", "wssid", wifi_ssid, APPCONF_RESTART | APPCONF_OWN_WAY),
+    TEXT("wifi_password", "wpass", wifi_password, APPCONF_RESTART | APPCONF_OWN_WAY | APPCONF_SECRET),
+    TEXT("ntp_server", "ntp", ntp_server, APPCONF_RESTART),
+    TEXT("tz", "tz", tz, 0),
+    NUMBER("refresh_min_data_s", "rf_data", refresh_min_data_s, APPCONF_REFRESH_MIN_DATA_S_LEAST,
+           APPCONF_REFRESH_MIN_DATA_S_MOST, APPCONF_NO_ALSO),
+    NUMBER("refresh_min_button_ms", "rf_button", refresh_min_button_ms, 0,
+           APPCONF_REFRESH_MIN_BUTTON_MS_MOST, APPCONF_NO_ALSO),
+    NUMBER("refresh_full_every", "rf_full", refresh_full_every, APPCONF_REFRESH_FULL_EVERY_LEAST,
+           APPCONF_REFRESH_FULL_EVERY_MOST, APPCONF_REFRESH_FULL_NEVER),
+    NUMBER("refresh_keepalive_h", "rf_keep", refresh_keepalive_h, APPCONF_REFRESH_KEEPALIVE_H_LEAST,
+           APPCONF_REFRESH_KEEPALIVE_H_MOST, APPCONF_NO_ALSO),
+    FLAG("refresh_fast", "refresh_fast", refresh_fast),
+    FLAG("dither", "dither", dither),
+    NUMBER("font", "font", font, 0, APPCONF_FONT_COUNT - 1, APPCONF_NO_ALSO),
+    FLAG("time_auto", "time_auto", time_auto),
+    NUMBER("power_saving", "power_saving", power_saving, APPCONF_POWER_PLUGGED, APPCONF_POWER_AUTO,
+           APPCONF_NO_ALSO),
+    TEXT("default_app", "default_app", default_app, 0),
+    NUMBER("menu_idle_min", "menu_idle", menu_idle_min, APPCONF_MENU_IDLE_MIN_LEAST,
+           APPCONF_MENU_IDLE_MIN_MOST, APPCONF_NO_ALSO),
+    FLAG("header_clock", "header_clock", header_clock),
+    /* The system applications take their titles at start. */
+    TEXT("language", "language", language, APPCONF_RESTART),
+};
+
+#undef TEXT
+#undef NUMBER
+#undef FLAG
+
+#define FIELD_COUNT (sizeof FIELDS / sizeof FIELDS[0])
+
+const appconf_field_t *appconf_fields(int *count)
+{
+    *count = (int)FIELD_COUNT;
+    return FIELDS;
+}
+
+const appconf_field_t *appconf_field(const char *key, size_t length)
+{
+    for (size_t i = 0; i < FIELD_COUNT; i++) {
+        if (strlen(FIELDS[i].key) == length && memcmp(FIELDS[i].key, key, length) == 0) {
+            return &FIELDS[i];
+        }
+    }
+    return NULL;
+}
+
+int32_t appconf_number(const appconf_t *c, const appconf_field_t *field)
+{
+    const uint8_t *at = (const uint8_t *)c + field->offset;
+    if (field->size == sizeof(uint16_t)) {
+        uint16_t value;
+        memcpy(&value, at, sizeof value);
+        return value;
+    }
+    return *at;
+}
+
+const char *appconf_text(const appconf_t *c, const appconf_field_t *field)
+{
+    return (const char *)c + field->offset;
+}
+
+void appconf_format(const appconf_t *c, const appconf_field_t *field, char *out, size_t size)
+{
+    if (field->kind == APPCONF_TEXT) {
+        snprintf(out, size, "%s", appconf_text(c, field));
+    } else {
+        snprintf(out, size, "%ld", (long)appconf_number(c, field));
+    }
+}
+
+bool appconf_put_number(appconf_t *c, const appconf_field_t *field, int32_t value)
+{
+    if (field->kind == APPCONF_TEXT) {
+        return false;
+    }
+    bool is_in_range = (value >= field->least && value <= field->most) ||
+                       (field->also != APPCONF_NO_ALSO && value == field->also);
+    if (!is_in_range) {
+        return false;
+    }
+    uint8_t *at = (uint8_t *)c + field->offset;
+    if (field->size == sizeof(uint16_t)) {
+        uint16_t narrow = (uint16_t)value;
+        memcpy(at, &narrow, sizeof narrow);
+    } else {
+        *at = (uint8_t)value;
+    }
+    return true;
+}
+
+/* A whole number in decimal, nothing before or after it. */
+static bool parse_number(const char *text, int32_t *value)
+{
+    if (text[0] == '\0' || isspace((unsigned char)text[0])) {
+        return false;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed = strtol(text, &end, 10);
+    if (errno != 0 || *end != '\0' || parsed < INT32_MIN || parsed > INT32_MAX) {
+        return false;
+    }
+    *value = (int32_t)parsed;
+    return true;
+}
+
+bool appconf_put(appconf_t *c, const appconf_field_t *field, const char *value)
+{
+    if (field->kind == APPCONF_TEXT) {
+        size_t length = strlen(value);
+        if (length >= field->size) {
+            return false;
+        }
+        memcpy((char *)c + field->offset, value, length + 1);
+        return true;
+    }
+    int32_t number;
+    return parse_number(value, &number) && appconf_put_number(c, field, number);
+}
+
+bool appconf_differs(const appconf_t *one, const appconf_t *other, const appconf_field_t *field)
+{
+    if (field->kind == APPCONF_TEXT) {
+        return strcmp(appconf_text(one, field), appconf_text(other, field)) != 0;
+    }
+    return appconf_number(one, field) != appconf_number(other, field);
+}
+
+bool appconf_needs_restart(const appconf_t *before, const appconf_t *now)
+{
+    for (size_t i = 0; i < FIELD_COUNT; i++) {
+        if ((FIELDS[i].flags & APPCONF_RESTART) != 0 && appconf_differs(before, now, &FIELDS[i])) {
+            return true;
+        }
+    }
+    return false;
 }

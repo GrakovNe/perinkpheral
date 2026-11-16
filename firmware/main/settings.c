@@ -2,57 +2,29 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  */
-#include "words.h"
 #include "settings.h"
 
-#include <limits.h>
-#include <stdlib.h>
-
-#include "catalog.h"
-
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-#include "host.h"
-#include "gfx.h"
-#include "app_host.h"
-#include "display.h"
-#include "net_time.h"
-#include "poller.h"
-#include "power.h"
-#include "status.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+
+#include "catalog.h"
 
 static const char *TAG = "settings";
 
 #define CFG_NS "cfg"
 
-#define KEY_NAME    "name"
-#define KEY_WSSID   "wssid"
-#define KEY_WPASS   "wpass"
-#define KEY_NTP     "ntp"
-#define KEY_TZ      "tz"
-#define KEY_LAST_APP "last_app"
-#define KEY_SOURCES  "sources"
+/* The host's own records beside the settings; the settings' keys are in
+ * the table of appconf_fields(). */
+#define KEY_LAST_APP   "last_app"
+#define KEY_SOURCES    "sources"
 #define KEY_MENU_ORDER "menu_order"
-#define KEY_REFRESH_DATA   "rf_data"
-#define KEY_REFRESH_BUTTON "rf_button"
-#define KEY_REFRESH_FULL   "rf_full"
-#define KEY_REFRESH_KEEP   "rf_keep"
-#define KEY_DITHER         "dither"
-#define KEY_FONT           "font"
-#define KEY_REFRESH_FAST   "refresh_fast"
-#define KEY_TIME_AUTO      "time_auto"
-#define KEY_POWER_SAVING   "power_saving"
-#define KEY_DEFAULT_APP    "default_app"
-#define KEY_MENU_IDLE      "menu_idle"
-#define KEY_HEADER_CLOCK   "header_clock"
-#define KEY_LANGUAGE       "language"
 
 void settings_nvs_init(void)
 {
@@ -85,6 +57,27 @@ static void get_str(nvs_handle_t h, const char *key, char *out, size_t out_sz)
     free(tmp);
 }
 
+/* A number stored by a firmware that allowed more - another typeface,
+ * another way of saving power - is not a reason to throw every setting
+ * away, the network's among them: that one setting is its default. */
+static void get_number(nvs_handle_t h, const appconf_field_t *field, appconf_t *c)
+{
+    int32_t   value;
+    esp_err_t err;
+    if (field->size == sizeof(uint16_t)) {
+        uint16_t stored = 0;
+        err = nvs_get_u16(h, field->stored, &stored);
+        value = stored;
+    } else {
+        uint8_t stored = 0;
+        err = nvs_get_u8(h, field->stored, &stored);
+        value = stored;
+    }
+    if (err == ESP_OK && !appconf_put_number(c, field, value)) {
+        ESP_LOGW(TAG, "%s: %ld is out of range, using default", field->key, (long)value);
+    }
+}
+
 static void load(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     appconf_defaults(c, device_id);
@@ -99,36 +92,16 @@ static void load(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
         ESP_LOGE(TAG, "nvs_open: %s, using factory defaults", esp_err_to_name(err));
         return;
     }
-
-    get_str(h, KEY_NAME, c->device_name, sizeof c->device_name);
-    get_str(h, KEY_WSSID, c->wifi_ssid, sizeof c->wifi_ssid);
-    get_str(h, KEY_WPASS, c->wifi_password, sizeof c->wifi_password);
-    get_str(h, KEY_NTP, c->ntp_server, sizeof c->ntp_server);
-    get_str(h, KEY_TZ, c->tz, sizeof c->tz);
     /* A key that is not there leaves the default in place. */
-    nvs_get_u16(h, KEY_REFRESH_DATA, &c->refresh_min_data_s);
-    nvs_get_u16(h, KEY_REFRESH_BUTTON, &c->refresh_min_button_ms);
-    nvs_get_u8(h, KEY_REFRESH_FULL, &c->refresh_full_every);
-    nvs_get_u8(h, KEY_REFRESH_KEEP, &c->refresh_keepalive_h);
-    nvs_get_u8(h, KEY_DITHER, &c->dither);
-    nvs_get_u8(h, KEY_FONT, &c->font);
-    if (c->font >= APPCONF_FONT_COUNT) {
-        /* Stored by a firmware that had more of them: not a reason to throw
-         * every setting away, the network's among them. */
-        c->font = 0;
+    int count;
+    const appconf_field_t *fields = appconf_fields(&count);
+    for (int i = 0; i < count; i++) {
+        if (fields[i].kind == APPCONF_TEXT) {
+            get_str(h, fields[i].stored, (char *)c + fields[i].offset, fields[i].size);
+        } else {
+            get_number(h, &fields[i], c);
+        }
     }
-    nvs_get_u8(h, KEY_REFRESH_FAST, &c->refresh_fast);
-    nvs_get_u8(h, KEY_TIME_AUTO, &c->time_auto);
-    nvs_get_u8(h, KEY_POWER_SAVING, &c->power_saving);
-    if (c->power_saving > APPCONF_POWER_AUTO) {
-        /* Stored by a firmware that had more ways of saving: not a reason
-         * to throw every setting away, the network's among them. */
-        c->power_saving = APPCONF_POWER_SAVING;
-    }
-    get_str(h, KEY_DEFAULT_APP, c->default_app, sizeof c->default_app);
-    nvs_get_u8(h, KEY_MENU_IDLE, &c->menu_idle_min);
-    nvs_get_u8(h, KEY_HEADER_CLOCK, &c->header_clock);
-    get_str(h, KEY_LANGUAGE, c->language, sizeof c->language);
     nvs_close(h);
 
     appconf_derive(c, device_id);
@@ -147,35 +120,21 @@ static esp_err_t save(const appconf_t *c)
         ESP_LOGE(TAG, "nvs_open: %s", esp_err_to_name(err));
         return err;
     }
-
-#define PUT(call)              \
-    do {                       \
-        if (err == ESP_OK) {   \
-            err = (call);      \
-        }                      \
-    } while (0)
-
-    PUT(nvs_set_str(h, KEY_NAME, c->device_name));
-    PUT(nvs_set_str(h, KEY_WSSID, c->wifi_ssid));
-    PUT(nvs_set_str(h, KEY_WPASS, c->wifi_password));
-    PUT(nvs_set_str(h, KEY_NTP, c->ntp_server));
-    PUT(nvs_set_str(h, KEY_TZ, c->tz));
-    PUT(nvs_set_u16(h, KEY_REFRESH_DATA, c->refresh_min_data_s));
-    PUT(nvs_set_u16(h, KEY_REFRESH_BUTTON, c->refresh_min_button_ms));
-    PUT(nvs_set_u8(h, KEY_REFRESH_FULL, c->refresh_full_every));
-    PUT(nvs_set_u8(h, KEY_REFRESH_KEEP, c->refresh_keepalive_h));
-    PUT(nvs_set_u8(h, KEY_DITHER, c->dither));
-    PUT(nvs_set_u8(h, KEY_FONT, c->font));
-    PUT(nvs_set_u8(h, KEY_REFRESH_FAST, c->refresh_fast));
-    PUT(nvs_set_u8(h, KEY_TIME_AUTO, c->time_auto));
-    PUT(nvs_set_u8(h, KEY_POWER_SAVING, c->power_saving));
-    PUT(nvs_set_str(h, KEY_DEFAULT_APP, c->default_app));
-    PUT(nvs_set_u8(h, KEY_MENU_IDLE, c->menu_idle_min));
-    PUT(nvs_set_u8(h, KEY_HEADER_CLOCK, c->header_clock));
-    PUT(nvs_set_str(h, KEY_LANGUAGE, c->language));
-    PUT(nvs_commit(h));
-#undef PUT
-
+    int count;
+    const appconf_field_t *fields = appconf_fields(&count);
+    for (int i = 0; i < count && err == ESP_OK; i++) {
+        const appconf_field_t *field = &fields[i];
+        if (field->kind == APPCONF_TEXT) {
+            err = nvs_set_str(h, field->stored, appconf_text(c, field));
+        } else if (field->size == sizeof(uint16_t)) {
+            err = nvs_set_u16(h, field->stored, (uint16_t)appconf_number(c, field));
+        } else {
+            err = nvs_set_u8(h, field->stored, (uint8_t)appconf_number(c, field));
+        }
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
     nvs_close(h);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "save failed: %s", esp_err_to_name(err));
@@ -328,20 +287,6 @@ void settings_forget_app_record(const char *app_name)
     nvs_close(h);
 }
 
-refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
-{
-    refresh_policy_cfg_t policy = {
-        .min_data_ms = c->refresh_min_data_s * 1000u,
-        .min_button_ms = c->refresh_min_button_ms,
-        /* "Never" is a count no row of partial refreshes reaches. */
-        .full_every = c->refresh_full_every == APPCONF_REFRESH_FULL_NEVER ? INT_MAX
-                                                                         : c->refresh_full_every,
-        .keepalive_ms = c->refresh_keepalive_h * 3600u * 1000u,
-        .full_is_fast = c->refresh_fast != 0,
-    };
-    return policy;
-}
-
 /* ---- the settings in effect ---- */
 
 static appconf_t         s_live;
@@ -391,6 +336,18 @@ void settings_read(appconf_t *copy)
     }
 }
 
+/* Who follows the settings: told after every change, in the order they
+ * asked. The store knows them by nothing else. */
+#define WATCHERS_MAX 8
+static settings_watch_fn s_watchers[WATCHERS_MAX];
+static int               s_watcher_count;
+
+void settings_watch(settings_watch_fn watcher)
+{
+    configASSERT(s_watcher_count < WATCHERS_MAX);
+    s_watchers[s_watcher_count++] = watcher;
+}
+
 settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_t problem_size,
                                    bool *needs_restart)
 {
@@ -400,53 +357,27 @@ settings_outcome_t settings_change(const appconf_t *wanted, char *problem, size_
     if (save(wanted) != ESP_OK) {
         return SETTINGS_NOT_STORED;
     }
-    bool power_changed = wanted->power_saving != s_live.power_saving;
-    bool dither_changed = wanted->dither != s_live.dither;
-    bool language_changed = strcmp(wanted->language, s_live.language) != 0;
-    bool zone_changed = strcmp(wanted->tz, s_live.tz) != 0;
-    if (needs_restart != NULL) {
-        *needs_restart = strcmp(wanted->device_name, s_live.device_name) != 0 ||
-                         strcmp(wanted->ntp_server, s_live.ntp_server) != 0 ||
-                         strcmp(wanted->wifi_ssid, s_live.wifi_ssid) != 0 ||
-                         strcmp(wanted->wifi_password, s_live.wifi_password) != 0 ||
-                         /* The system applications take their titles at start. */
-                         language_changed;
-    }
+    appconf_t before = s_live;
     publish(wanted);
-
-    net_time_set_zone(s_live.tz);
-    net_time_set_automatic(s_live.time_auto != 0);
-    app_host_set_dithering(s_live.dither != 0);
-    bool font_changed = gfx_font_family() != (gfx_family_t)s_live.font;
-    if (font_changed) {
-        gfx_font_use((gfx_family_t)s_live.font);
+    if (needs_restart != NULL) {
+        *needs_restart = appconf_needs_restart(&before, &s_live);
     }
-    /* The host's own words follow the language at once; an application
-     * speaks it from the next time it is loaded. */
-    words_use(s_live.language);
-    /* The picture is drawn anew only when it is another: every letter after a
-     * typeface or a language, the greys after the dithering. A step through
-     * any other setting leaves the panel alone. */
-    if (font_changed || language_changed) {
-        host_redraw(true);
-    } else if (dither_changed) {
-        host_redraw(false);
+    for (int i = 0; i < s_watcher_count; i++) {
+        s_watchers[i](&before, &s_live);
     }
-    if (language_changed) {
-        host_reload_apps_later(); /* their titles are other words now */
-    }
-    refresh_policy_cfg_t policy = settings_refresh_policy(&s_live);
-    display_set_policy(&policy);
-    if (power_changed) {
-        /* Only then: the polls are another distance apart, and scheduling
-         * them anew is not something to do for a change of the time zone. */
-        power_set_mode((power_mode_t)s_live.power_saving);
-        poller_reschedule();
-    }
-    if (zone_changed) {
-        app_host_tell_time_changed();
-    }
-    status_check(); /* the date in the header may be another now */
     return SETTINGS_CHANGED;
 }
 
+settings_outcome_t settings_set(const char *key, size_t key_length, const char *value,
+                                char *problem, size_t problem_size, bool *needs_restart)
+{
+    const appconf_field_t *field = appconf_field(key, key_length);
+    appconf_t wanted;
+    settings_read(&wanted);
+    if (field == NULL || (field->flags & APPCONF_OWN_WAY) != 0 ||
+        !appconf_put(&wanted, field, value)) {
+        snprintf(problem, problem_size, "Invalid value.");
+        return SETTINGS_INVALID;
+    }
+    return settings_change(&wanted, problem, problem_size, needs_restart);
+}
