@@ -45,11 +45,12 @@ static const uint16_t CLOCK_ICON[SCREENS_ICON_CELLS] = {
     0x0F8, 0x104, 0x222, 0x421, 0x421, 0x439, 0x401, 0x401, 0x202, 0x104, 0x0F8,
 };
 
-#define ICONS_IN_A_ROW       4
+#define ICONS_IN_A_ROW       5
 #define ICON_SHEET_MARGIN    16
-#define ICON_SHEET_STEP_X    96
+#define ICON_SHEET_STEP_X    76
 #define ICON_SHEET_STEP_Y    50
-#define ICON_SHEET_PAIR_GAP  32
+#define ICON_SHEET_PAIR_GAP  26
+#define ICONS_OF_THE_HOST    GFX_ICON_SUN /* the host's own come first; the weather and the rest after */
 
 static void row_from_array(void *context, int index, screens_menu_row_t *row)
 {
@@ -328,17 +329,24 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* The host's icons: each as it stands beside text, and twice as large. */
-    start_screen(&online, &content);
-    for (int icon = 0; icon < GFX_ICON_COUNT; icon++) {
-        int column = icon % ICONS_IN_A_ROW, row = icon / ICONS_IN_A_ROW;
-        int left = ICON_SHEET_MARGIN + column * ICON_SHEET_STEP_X;
-        int top = ICON_SHEET_MARGIN + row * ICON_SHEET_STEP_Y;
-        gfx_icon(&content, (gfx_icon_id_t)icon, left, top + GFX_ICON_CELLS, 2, true);
-        gfx_icon(&content, (gfx_icon_id_t)icon, left + ICON_SHEET_PAIR_GAP, top, 4, true);
-    }
-    if (save(dir, "icons")) {
-        return 1;
+    /* The host's icons: each as it stands beside text, and twice as large - the
+     * host's own on one sheet, the weather, a home's things and the sky on another. */
+    static const struct {
+        const char *name;
+        int         first, end;
+    } SHEETS[] = { { "icons", 0, ICONS_OF_THE_HOST }, { "icons-more", ICONS_OF_THE_HOST, GFX_ICON_COUNT } };
+    for (size_t sheet = 0; sheet < sizeof SHEETS / sizeof SHEETS[0]; sheet++) {
+        start_screen(&online, &content);
+        for (int icon = SHEETS[sheet].first; icon < SHEETS[sheet].end; icon++) {
+            int at = icon - SHEETS[sheet].first;
+            int left = ICON_SHEET_MARGIN + at % ICONS_IN_A_ROW * ICON_SHEET_STEP_X;
+            int top = ICON_SHEET_MARGIN + at / ICONS_IN_A_ROW * ICON_SHEET_STEP_Y;
+            gfx_icon(&content, (gfx_icon_id_t)icon, left, top + GFX_ICON_CELLS, 2, true);
+            gfx_icon(&content, (gfx_icon_id_t)icon, left + ICON_SHEET_PAIR_GAP, top, 4, true);
+        }
+        if (save(dir, SHEETS[sheet].name)) {
+            return 1;
+        }
     }
 
     return 0;

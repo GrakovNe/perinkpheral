@@ -2940,3 +2940,15 @@ Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], 
 
 Built-in icons
 Встроенные иконки
+
+The host's own icons at cell sizes of 2 and 4 pixels
+Собственные иконки хоста при клетке 2 и 4 пикселя
+
+The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels
+Погода, вещи дома и небо при клетке 2 и 4 пикселя
+
+The oldest firmware the application runs on. Written by the build: the SDK's version. An older firmware does not install or start it and says "Update the firmware."
+Самая старая прошивка, на которой приложение работает. Записывается сборкой: версия SDK. Более старая прошивка его не установит и не запустит и скажет "Update the firmware."
+
+Where the visible pixels of the text begin and end, into a <code>host_text_ink_t</code> (first_x, end_x). To centre what is seen
+Где начинаются и кончаются видимые пиксели текста, в <code>host_text_ink_t</code> (first_x, end_x). Чтобы центрировать видимое

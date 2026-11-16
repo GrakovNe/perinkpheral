@@ -426,6 +426,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">title</td><td>1 - 23 characters</td><td>Display name in the menu and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The oldest firmware the application runs on. Written by the build: the SDK's version. An older firmware does not install or start it and says "Update the firmware."</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
@@ -550,7 +551,10 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 </table>
 
 <div class="screens">
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>Built-in icons at cell sizes of 2 and 4 pixels</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>The host's own icons at cell sizes of 2 and 4 pixels</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" alt=""><figcaption>The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels</figcaption></figure>
+</div>
+<div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt=""><figcaption>Basic kit parts: title, text, caption, icons, value, button, bar, button row</figcaption></figure>
 </div>
 <p>An application's own pictures are placed in the <code>pictures/</code> folder. Supported formats are PNG, PBM and text. A text file contains rows of <code>#</code> (ink) and <code>.</code> (paper) and can hold several named pictures:</p>
@@ -1043,6 +1047,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">gfx_color(color)</td><td>Sets the drawing colour: <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16)</td></tr>
   <tr><td class="c">gfx_text(x, y, font, text, length)</td><td>Draws text; <code>y</code> is the top of the line. Returns the width. Up to 127 bytes</td></tr>
   <tr><td class="c">gfx_text_width(font, text, length)</td><td>Returns the width of the text</td></tr>
+  <tr><td class="c">gfx_text_ink(font, text, length, ink)</td><td>Where the visible pixels of the text begin and end, into a <code>host_text_ink_t</code> (first_x, end_x). To centre what is seen</td></tr>
   <tr><td class="c">gfx_text_fit(font, text, length, max_width, fitted, capacity)</td><td>Shortens the text with "..." to fit the width. Returns the new length</td></tr>
   <tr><td class="c">gfx_font_height(font), gfx_font_ascent(font), gfx_font_cap_height(font)</td><td>Line height; distance from the line top to the baseline; height of capitals and digits</td></tr>
   <tr><td class="c">gfx_rect(x, y, w, h, fill)</td><td>Rectangle: <code>HOST_RECT_OUTLINE</code> or <code>HOST_RECT_FILLED</code></td></tr>
@@ -1148,14 +1153,20 @@ void    app_text_add(app_text_t *text, const char *more);   /* excess text is dr
 void    app_text_add_number(app_text_t *text, int32_t value);               /* decimal, "-" when negative */
 void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);          /* 7, 2 -> "07" */
 int32_t app_text_length(const char *text);                  /* length of any null-terminated text */
-void    app_text_copy(char *to, int32_t size, const char *from);                    /* always null-terminated */</pre>
+void    app_text_copy(char *to, int32_t size, const char *from);                    /* always null-terminated */
+bool    app_text_equal(const char *a, const char *b);
+bool    app_text_starts(const char *text, const char *start);
+int32_t app_time_text(int64_t moment, int32_t style, char *text, int32_t size); /* time_text(), null-terminated */
+#define APP_TEXT_DEGREE "\xC2\xB0"                                 /* the degree sign the host draws */</pre>
 <p>The buffer is always null-terminated and stays within its size. The text is complete after each call.</p>
 <h2 id="lib-draw">app_draw.h, app_state.h: strings, state, settings</h2>
 <pre>#include "app_draw.h"                                        /* null-terminated text; inside app_on_draw() */
 int32_t app_text_width(int32_t font, const char *text);
 int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);        /* returns the width */
-void    app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text);
+void    app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text);  /* by its ink */
+int32_t app_text_center_x(int32_t center, int32_t font, const char *text);
 void    app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
+void    app_draw_actions(const char *ok, const char *back);         /* the row of buttons; NULL: no button */
 
 #include "app_state.h"                                       /* the store, by null-terminated key */
 bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);  /* first field: int32_t version */
@@ -1166,7 +1177,14 @@ int32_t app_setting_count(const char *key);                                     
 int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);  /* length; 0: none */
 bool    app_setting_is(const char *key, const char *wanted);
 bool    app_setting_is_on(const char *key);                                           /* toggle: true unless "0" */
-bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);</pre>
+bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);
+int32_t app_seconds_of(const char *text, int32_t otherwise);      /* "15 min", "1 h" as the host reads "every" */
+int32_t app_setting_seconds(const char *key, int32_t otherwise);
+int32_t app_setting_place(const char *key, char *name, int32_t size);     /* a place's name, before its comma */
+
+#include "app_days.h"                                        /* dates as days since 1970-01-01 */
+int32_t app_days_from_date(int32_t year, int32_t month, int32_t day);
+void    app_date_from_days(int32_t days, int32_t *year, int32_t *month, int32_t *day);</pre>
 <p>The text is always null-terminated. A value that does not fit is not cut: the result is empty and the length 0.</p>
 <h2 id="lib-values">app_values.h: what the host picked</h2>
 <pre>bool    app_value_text(int32_t index, char *text, int32_t text_size);      /* false: absent or buffer too small */
