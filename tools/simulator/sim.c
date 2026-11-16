@@ -1842,10 +1842,27 @@ int main(int argc, char **argv)
     s_settings.font = s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO;
     s_settings.header_clock = s_options.clock ? 1 : 0;
     snprintf(s_settings.language, sizeof s_settings.language, "%s", s_options.language);
-    /* The zone is the computer's until Settings sets another. */
+    /* The zone is the computer's until Settings sets another: as TZ names
+     * it, or - with no TZ - as the offset it has now, in the POSIX form the
+     * device keeps ("<+0300>-3"), which then becomes TZ, so that what the
+     * store says and what the clock does are one. */
     const char *zone = getenv("TZ");
     if (zone != NULL && zone[0] != '\0' && strlen(zone) < sizeof s_settings.tz) {
         snprintf(s_settings.tz, sizeof s_settings.tz, "%s", zone);
+    } else {
+        int32_t offset = offset_at(unix_now());
+        int32_t east = offset < 0 ? -offset : offset;
+        int32_t hours = east / 3600, minutes = east % 3600 / 60;
+        char    sign = offset < 0 ? '-' : '+', posix_sign = offset < 0 ? '+' : '-';
+        if (minutes == 0) {
+            snprintf(s_settings.tz, sizeof s_settings.tz, "<%c%02d>%c%d", sign, (int)hours,
+                     posix_sign, (int)hours);
+        } else {
+            snprintf(s_settings.tz, sizeof s_settings.tz, "<%c%02d%02d>%c%d:%02d", sign,
+                     (int)hours, (int)minutes, posix_sign, (int)hours, (int)minutes);
+        }
+        setenv("TZ", s_settings.tz, 1);
+        tzset();
     }
     char problem[APPCONF_PROBLEM_MAX];
     if (!appconf_validate(&s_settings, problem, sizeof problem)) {

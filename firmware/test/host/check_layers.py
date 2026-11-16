@@ -60,6 +60,12 @@ PURE = [
     "components/net/ota_stream.c",
     "components/net/ota_health.c",
     "components/qr/wifi_qr.c",
+    "components/appsys/app.c",
+    "components/appsys/app_api_data.c",
+    "components/appsys/app_api_draw.c",
+    "components/appsys/app_api_sys.c",
+    "components/appsys/app_api_time.c",
+    "components/appsys/app_api_ui.c",
     "components/appsys/app_manifest.c",
     "components/appsys/app_store.c",
     "components/appsys/app_room.c",
@@ -88,6 +94,7 @@ SYSTEM = re.compile(r"^(esp_|freertos/|driver/|nvs|lwip/|sdkconfig|hal/|soc/|rom
 VIEWS = ["screens", "header", "menu_order", "scene_menu", "scene_splash", "scene_confirm",
          "scene_working", "scene_storage", "scene_notify"]
 VIEW_HEADERS = {"screens.h", "header.h", "menu_order.h", "scenes.h"}
+VIEW_OWNERS = {"gfx", "ui", "words", "qr", "board", "sdk"}
 
 # The settings' store knows nothing of what a setting is for.
 STORE = "main/settings.c"
@@ -135,6 +142,34 @@ def includes(path):
         return INCLUDE.findall(f.read())
 
 
+def header_paths():
+    """Every header of ours but the interpreter's, upstream code, by name."""
+    paths = {}
+    for root in (COMPONENTS, MAIN, SDK):
+        for folder, _, files in os.walk(root):
+            if os.path.join("components", "wasm3") in folder:
+                continue
+            for file in files:
+                if file.endswith(".h"):
+                    paths.setdefault(file, os.path.join(folder, file))
+    return paths
+
+
+def reached(path, paths):
+    """What a source includes, and what the headers of ours it includes do,
+    each with the header of ours it came through (None: the source)."""
+    found, seen, todo = [], set(), [(path, None)]
+    while todo:
+        current, through = todo.pop()
+        for header in includes(current):
+            name = os.path.basename(header)
+            found.append((header, through))
+            if name in paths and name not in seen:
+                seen.add(name)
+                todo.append((paths[name], through or name))
+    return found
+
+
 def sources_of(component):
     found = []
     for folder, _, files in os.walk(os.path.join(COMPONENTS, component)):
@@ -146,7 +181,7 @@ def sources_of(component):
 
 def functions(text):
     """A function's name and its body, by the heads at the left margin."""
-    heads = list(re.finditer(r"^[a-z][\w \*]*?\b(\w+)\([^;{]*\)\s*\{", text, re.M))
+    heads = list(re.finditer(r"^[A-Za-z_][\w \t\*\n]*?\b(\w+)\s*\([^;{}]*\)\s*\{", text, re.M))
     for i, head in enumerate(heads):
         end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
         yield head.group(1), text[head.start():end]
@@ -154,6 +189,7 @@ def functions(text):
 
 def main():
     owner = owners()
+    paths = header_paths()
     broken = []
     checks = 0
 
@@ -196,11 +232,11 @@ def main():
         if not os.path.exists(path):
             broken.append("%s: listed as pure and not there" % source)
             continue
-        for header in includes(path):
+        for header, through in reached(path, paths):
             checks += 1
             if SYSTEM.match(header):
-                broken.append("%s includes %s: a pure module knows nothing of ESP-IDF" %
-                              (source, header))
+                broken.append("%s includes %s%s: a pure module knows nothing of ESP-IDF" %
+                              (source, header, " (through %s)" % through if through else ""))
 
     # The views and the scenes know no service.
     for view in VIEWS:
@@ -211,9 +247,11 @@ def main():
         for header in includes(path):
             checks += 1
             name = os.path.basename(header)
-            if owner.get(name) == "main" and name not in VIEW_HEADERS:
-                broken.append("main/%s.c includes %s: a view or a scene knows no service" %
-                              (view, header))
+            belongs = owner.get(name)
+            if belongs is None or name in VIEW_HEADERS or belongs in VIEW_OWNERS:
+                continue
+            broken.append("main/%s.c includes %s: a view or a scene knows no service" %
+                          (view, header))
 
     # The settings' store knows none of the settings' consumers.
     for header in includes(os.path.join(FIRMWARE, STORE)):
@@ -242,15 +280,22 @@ def main():
         with open(path, encoding="utf-8") as f:
             text = f.read()
         bodies = dict(functions(text))
-        in_loop = set(re.findall(r"events_call\w*\(\s*(\w+)", text))
+        # A function runs only in the host loop when it is handed to it, or
+        # when every function of the file that calls it does.
+        handed = set(re.findall(r"events_call\w*\(\s*(\w+)", text))
+        callers = {name: set() for name in bodies}
+        for name, body in bodies.items():
+            for called in set(re.findall(r"\b(\w+)\(", body[body.index("{"):])):
+                if called in callers and called != name:
+                    callers[called].add(name)
+        in_loop = set(handed)
         grew = True
         while grew:
             grew = False
-            for name in list(in_loop):
-                for called in re.findall(r"\b(\w+)\(", bodies.get(name, "")):
-                    if called in bodies and called not in in_loop:
-                        in_loop.add(called)
-                        grew = True
+            for name in bodies:
+                if name not in in_loop and callers[name] and callers[name] <= in_loop:
+                    in_loop.add(name)
+                    grew = True
         for name, body in bodies.items():
             for call in HOST_LOOP_ONLY:
                 if re.search(r"\b%s\(" % call, body):
