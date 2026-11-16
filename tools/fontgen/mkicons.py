@@ -5,12 +5,14 @@
 
 Every icon is a file of firmware/components/gfx/icons: one drawing or
 more, each on a square canvas of 11, 22 or 44 cells, under a line that
-says how many ("22:"), rows of `#` for ink and `.` for what was there. A
-drawing of more cells is drawn with lines of as many more cells - two at
-22, four at 44 - so that at its own size its strokes weigh what the
-text's beside it do, and only its curves and slants are finer. An icon
-with no drawing of 11 cells gets one, made from the next by taking a cell
-where most of the cells it covers are ink.
+says how many ("22:"), rows of `#` for ink and `.` for what was there. An
+icon is drawn from the finest drawing that it can draw at two pixels a
+cell or more - the eleven at 22 pixels, the 22 at 44, the 44 at 88 and 99
+- so a line of a drawing is two of its cells at least: at its size it
+weighs what the text's beside it does, and only curves and slants are
+finer. An icon with no drawing of 11 cells, or one of 44 and none of 22,
+gets the smaller made from the next by taking a cell wherever there is ink
+under it, so a thin line holds.
 
 Writes firmware/components/gfx/gfx_icon_art.c: the drawings packed a bit
 a cell, row by row, and for every icon where each of its drawings is. The
@@ -58,12 +60,12 @@ def read(path):
 
 
 def smaller(rows, size):
-    """The drawing on `size` cells: a cell is ink where most of what it covers is."""
+    """The drawing on `size` cells: a cell is ink wherever what it covers has some."""
     step = len(rows) // size
     return [
         "".join(
-            "#" if sum(rows[r * step + i][c * step + j] == "#" for i in range(step) for j in range(step)) * 2
-            >= step * step else "."
+            "#" if any(rows[r * step + i][c * step + j] == "#" for i in range(step) for j in range(step))
+            else "."
             for c in range(size)
         )
         for r in range(size)
@@ -77,6 +79,8 @@ def load():
         if not path.exists():
             sys.exit(f"{path} is missing")
         drawings = read(path)
+        if 22 not in drawings and 44 in drawings:
+            drawings[22] = smaller(drawings[44], 22)
         if 11 not in drawings:
             drawings[11] = smaller(drawings[min(drawings)], 11)
         icons[name] = drawings
@@ -140,7 +144,8 @@ def sheet(icons, out):
     for index, name in enumerate(ORDER):
         ox, oy = (index % columns) * cell_w, (index // columns) * cell_h
         for k, pixels in enumerate(sizes):
-            cells = max(size for size in icons[name] if size <= pixels)
+            doubled = [size for size in icons[name] if pixels // size >= 2]
+            cells = max(doubled) if doubled else max(size for size in icons[name] if size <= pixels)
             scale = pixels // cells
             offset = (pixels - cells * scale) // 2
             rows = icons[name][cells]

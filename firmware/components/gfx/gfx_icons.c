@@ -6,16 +6,23 @@
 
 #include "gfx_icon_art.h"
 
-/* The finest drawing of the icon that fits a square of `side` pixels a
- * whole number of times, and how many pixels a cell of it takes. Every
- * icon has one of 11 cells, which fits any. */
+/* The drawing an icon is drawn from in a square of `side` pixels, and how
+ * many pixels a cell of it takes: the finest one drawn at two pixels a cell
+ * or more - a line of a drawing is meant for twice its cells, as the text's
+ * lines are two pixels at the text's size - and below that, the finest
+ * that fits at all. Every icon has one of 11 cells. */
 static const gfx_icon_drawing_t *drawing_for(gfx_icon_id_t id, int side, int *scale)
 {
     const gfx_icon_drawing_t *best = NULL;
     for (int i = 0; i < GFX_ICON_DRAWINGS; i++) {
         const gfx_icon_drawing_t *drawing = &GFX_ICON_ART[id].drawings[i];
-        if (drawing->cells != 0 && drawing->cells <= side &&
-            (best == NULL || drawing->cells > best->cells)) {
+        if (drawing->cells == 0 || drawing->cells > side) {
+            continue;
+        }
+        bool is_doubled = side / drawing->cells >= 2;
+        bool best_is_doubled = best != NULL && side / best->cells >= 2;
+        if (best == NULL || (is_doubled && !best_is_doubled) ||
+            (is_doubled == best_is_doubled && drawing->cells > best->cells)) {
             best = drawing;
         }
     }

@@ -223,6 +223,25 @@ HOST_FUNCTION(gfx_icon)
     m3ApiReturn(HOST_OK);
 }
 
+HOST_FUNCTION(gfx_icon_ink)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, icon);
+    m3ApiGetArg(int32_t, cell);
+    m3ApiGetArg(uint32_t, ink_offset);
+
+    uint8_t *out = app_memory_to_fill(runtime, _mem, ink_offset, (int32_t)sizeof(host_icon_ink_t));
+    gfx_icon_ink_t ink;
+    if (out == NULL || cell < 1 || cell > HOST_ICON_CELL_MAX ||
+        !gfx_icon_ink((gfx_icon_id_t)icon, cell, &ink)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    /* the application's memory keeps no alignment the chip would need */
+    host_icon_ink_t answer = { ink.first_x, ink.last_x, ink.first_y, ink.last_y };
+    memcpy(out, &answer, sizeof answer);
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(gfx_picture)
 {
     m3ApiReturnType(int32_t);
