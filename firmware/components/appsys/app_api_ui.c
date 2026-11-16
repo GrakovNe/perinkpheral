@@ -6,6 +6,9 @@
  */
 #include "app_internal.h"
 
+_Static_assert(HOST_ICON_COUNT == GFX_ICON_COUNT, "the contract's icons are the host's");
+_Static_assert(HOST_ICON_SUNSET == GFX_ICON_SUNSET, "in the same order");
+
 static bool is_valid_icon(int32_t icon)
 {
     return icon >= 0 && icon < GFX_ICON_COUNT;
@@ -466,8 +469,11 @@ HOST_FUNCTION(ui_picker)
 /* What the application asked for as the kit takes it; false when it is
  * not a cell. `asked` keeps the texts the cell points into. */
 static bool cell_of(IM3Runtime runtime, void *memory, uint32_t cell_offset, uint32_t picture_offset,
-                    host_cell_t *asked, kit_cell_t *cell)
+                    int32_t icon, host_cell_t *asked, kit_cell_t *cell)
 {
+    if (icon != HOST_ICON_NONE && !is_valid_icon(icon)) {
+        return false;
+    }
     const uint8_t *given = app_memory_at(runtime, memory, cell_offset, sizeof *asked);
     if (given == NULL) {
         return false;
@@ -490,6 +496,7 @@ static bool cell_of(IM3Runtime runtime, void *memory, uint32_t cell_offset, uint
         .name = notice_text(asked->name, sizeof asked->name),
         .value = value != NULL ? value : "",
         .picture = picture,
+        .icon = icon,
         .size = asked->size,
     };
     return true;
@@ -500,6 +507,7 @@ HOST_FUNCTION(ui_cell_fit)
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, cell_offset);
     m3ApiGetArg(uint32_t, picture_offset);
+    m3ApiGetArg(int32_t, icon);
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
@@ -507,7 +515,7 @@ HOST_FUNCTION(ui_cell_fit)
     }
     host_cell_t asked;
     kit_cell_t  cell;
-    if (!cell_of(runtime, _mem, cell_offset, picture_offset, &asked, &cell)) {
+    if (!cell_of(runtime, _mem, cell_offset, picture_offset, icon, &asked, &cell)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(kit_cell_fit(app->surface, &cell));
@@ -518,6 +526,7 @@ HOST_FUNCTION(ui_cell)
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, cell_offset);
     m3ApiGetArg(uint32_t, picture_offset);
+    m3ApiGetArg(int32_t, icon);
 
     app_t *app = APP_OF(runtime);
     if (app->surface == NULL) {
@@ -525,7 +534,7 @@ HOST_FUNCTION(ui_cell)
     }
     host_cell_t asked;
     kit_cell_t  cell;
-    if (!cell_of(runtime, _mem, cell_offset, picture_offset, &asked, &cell)) {
+    if (!cell_of(runtime, _mem, cell_offset, picture_offset, icon, &asked, &cell)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     kit_cell(app->surface, &cell);

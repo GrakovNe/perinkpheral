@@ -560,10 +560,15 @@ static bool cell_is_large(const gfx_t *g, const kit_cell_t *cell)
     return cell->width >= g->w && cell->height >= g->h;
 }
 
+static bool cell_has_icon(const kit_cell_t *cell)
+{
+    return cell->icon >= 0 && cell->icon < GFX_ICON_COUNT;
+}
+
 /* The side of the square the picture stands in; 0 with no picture. */
 static int cell_picture_side(const gfx_t *g, const kit_cell_t *cell)
 {
-    return cell->picture == NULL    ? 0
+    return cell->picture == NULL && !cell_has_icon(cell) ? 0
            : cell_is_large(g, cell) ? KIT_CELL_PICTURE_LARGE
                                     : KIT_CELL_PICTURE_SMALL;
 }
@@ -604,7 +609,12 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
     int row_left = cell->left + (cell->width - row_width) / 2;
     int middle = cell->top + CELL_PADDING + name_height +
                  (cell->height - 2 * CELL_PADDING - name_height) / 2;
-    if (side > 0) {
+    if (side > 0 && cell_has_icon(cell)) {
+        /* An icon fills the square: 44 or 88 pixels, its finest drawing. */
+        gfx_icon(g, (gfx_icon_id_t)cell->icon, row_left, middle - side / 2,
+                 side / GFX_ICON_CELLS, true);
+        row_left += side + CELL_PICTURE_GAP;
+    } else if (side > 0) {
         /* The drawing as large as whole pixels a cell let it be, in the
          * middle of its square. */
         int width = gfx_picture_width(cell->picture), height = gfx_picture_height(cell->picture);

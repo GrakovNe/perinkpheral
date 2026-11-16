@@ -170,6 +170,7 @@ typedef struct {
     const char    *name;    /* NULL: none */
     const char    *value;
     const uint8_t *picture; /* gfx_picture format; NULL: none */
+    int            icon;    /* a host icon in the picture's place; -1: none */
     int            size;    /* 0: largest that fits; else a result of kit_cell_fit() */
 } kit_cell_t;
 

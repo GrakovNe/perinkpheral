@@ -4,310 +4,93 @@
  */
 #include "gfx_icons.h"
 
-/* As a person draws them: `#` is ink, `.` is what was there. */
-static const char *const ICONS[GFX_ICON_COUNT][GFX_ICON_CELLS] = {
-    [GFX_ICON_SIGNAL] = {
-        ".......##..",
-        ".......##..",
-        ".......##..",
-        "....##.##..",
-        "....##.##..",
-        "....##.##..",
-        ".##.##.##..",
-        ".##.##.##..",
-        ".##.##.##..",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_NO_SIGNAL] = {
-        ".......#.##",
-        "........##.",
-        ".......##..",
-        "....#.##...",
-        ".....##.#..",
-        "....##.##..",
-        ".#.##..##..",
-        "..##.#.##..",
-        ".##.##.##..",
-        "##.........",
-        "#..........",
-    },
-    [GFX_ICON_UP] = {
-        "...........",
-        "...........",
-        "...........",
-        ".....#.....",
-        "....###....",
-        "...##.##...",
-        "..##...##..",
-        ".##.....##.",
-        "...........",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_DOWN] = {
-        "...........",
-        "...........",
-        "...........",
-        ".##.....##.",
-        "..##...##..",
-        "...##.##...",
-        "....###....",
-        ".....#.....",
-        "...........",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_LEFT] = {
-        "...........",
-        ".......#...",
-        "......##...",
-        ".....##....",
-        "....##.....",
-        "...##......",
-        "....##.....",
-        ".....##....",
-        "......##...",
-        ".......#...",
-        "...........",
-    },
-    [GFX_ICON_RIGHT] = {
-        "...........",
-        "...#.......",
-        "...##......",
-        "....##.....",
-        ".....##....",
-        "......##...",
-        ".....##....",
-        "....##.....",
-        "...##......",
-        "...#.......",
-        "...........",
-    },
-    [GFX_ICON_CHECK] = {
-        "...........",
-        "...........",
-        ".........##",
-        "........##.",
-        ".......##..",
-        "##....##...",
-        ".##..##....",
-        "..####.....",
-        "...##......",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_CROSS] = {
-        "...........",
-        "...........",
-        ".##.....##.",
-        "..##...##..",
-        "...##.##...",
-        "....###....",
-        "...##.##...",
-        "..##...##..",
-        ".##.....##.",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_PLUS] = {
-        "...........",
-        "...........",
-        ".....#.....",
-        ".....#.....",
-        ".....#.....",
-        "..#######..",
-        ".....#.....",
-        ".....#.....",
-        ".....#.....",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_MINUS] = {
-        "...........",
-        "...........",
-        "...........",
-        "...........",
-        "...........",
-        "..#######..",
-        "...........",
-        "...........",
-        "...........",
-        "...........",
-        "...........",
-    },
-    [GFX_ICON_TRASH] = {
-        "....###....",
-        ".#########.",
-        "...........",
-        "..#######..",
-        "..#.#.#.#..",
-        "..#.#.#.#..",
-        "..#.#.#.#..",
-        "..#.#.#.#..",
-        "..#.#.#.#..",
-        "..#######..",
-        "...........",
-    },
-    [GFX_ICON_GEAR] = {
-        "....###....",
-        ".##.###.##.",
-        ".#########.",
-        "..##...##..",
-        "###.....###",
-        "###.....###",
-        "###.....###",
-        "..##...##..",
-        ".#########.",
-        ".##.###.##.",
-        "....###....",
-    },
-    [GFX_ICON_CLOCK] = {
-        "...#####...",
-        "..#.....#..",
-        ".#...#...#.",
-        "#....#....#",
-        "#....#....#",
-        "#....###..#",
-        "#.........#",
-        "#.........#",
-        ".#.......#.",
-        "..#.....#..",
-        "...#####...",
-    },
-    [GFX_ICON_HOURGLASS] = {
-        ".#########.",
-        ".#########.",
-        "..#.....#..",
-        "...#...#...",
-        "....#.#....",
-        ".....#.....",
-        "....#.#....",
-        "...#...#...",
-        "..#..#..#..",
-        ".#########.",
-        ".#########.",
-    },
-    [GFX_ICON_BELL] = {
-        ".....#.....",
-        "....###....",
-        "...#####...",
-        "..#######..",
-        "..#######..",
-        "..#######..",
-        "..#######..",
-        ".#########.",
-        "###########",
-        "...........",
-        "....###....",
-    },
-    [GFX_ICON_INFO] = {
-        "...#####...",
-        "..#.....#..",
-        ".#...#...#.",
-        "#.........#",
-        "#....#....#",
-        "#....#....#",
-        "#....#....#",
-        ".#...#...#.",
-        "..#.....#..",
-        "...#####...",
-        "...........",
-    },
-    [GFX_ICON_WARNING] = {
-        ".....#.....",
-        "....#.#....",
-        "....#.#....",
-        "...#...#...",
-        "...#.#.#...",
-        "..#..#..#..",
-        "..#..#..#..",
-        ".#.......#.",
-        ".#...#...#.",
-        "#.........#",
-        "###########",
-    },
-    [GFX_ICON_PLAY] = {
-        "...........",
-        "..##.......",
-        "..####.....",
-        "..######...",
-        "..########.",
-        "..#########",
-        "..########.",
-        "..######...",
-        "..####.....",
-        "..##.......",
-        "...........",
-    },
-    [GFX_ICON_PAUSE] = {
-        "...........",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "..###.###..",
-        "...........",
-    },
-    [GFX_ICON_UPDATE] = {
-        "...........",
-        "....######.",
-        ".........#.",
-        ".........#.",
-        ".........#.",
-        "...........",
-        ".#.........",
-        ".#.........",
-        ".#.........",
-        ".######....",
-        "...........",
-    },
-};
+#include "gfx_icon_art.h"
 
-bool gfx_icon_ink(gfx_icon_id_t id, gfx_icon_ink_t *ink)
+/* The finest drawing of the icon that fits a square of `side` pixels a
+ * whole number of times, and how many pixels a cell of it takes. Every
+ * icon has one of 11 cells, which fits any. */
+static const gfx_icon_drawing_t *drawing_for(gfx_icon_id_t id, int side, int *scale)
 {
-    if ((int)id < 0 || id >= GFX_ICON_COUNT) {
-        return false;
-    }
-    *ink = (gfx_icon_ink_t){ GFX_ICON_CELLS, -1, GFX_ICON_CELLS, -1 };
-    for (int row = 0; row < GFX_ICON_CELLS; row++) {
-        for (int column = 0; column < GFX_ICON_CELLS; column++) {
-            if (ICONS[id][row][column] != '#') {
-                continue;
-            }
-            ink->first_row = row < ink->first_row ? row : ink->first_row;
-            ink->last_row = row > ink->last_row ? row : ink->last_row;
-            ink->first_column = column < ink->first_column ? column : ink->first_column;
-            ink->last_column = column > ink->last_column ? column : ink->last_column;
+    const gfx_icon_drawing_t *best = NULL;
+    for (int i = 0; i < GFX_ICON_DRAWINGS; i++) {
+        const gfx_icon_drawing_t *drawing = &GFX_ICON_ART[id].drawings[i];
+        if (drawing->cells != 0 && drawing->cells <= side &&
+            (best == NULL || drawing->cells > best->cells)) {
+            best = drawing;
         }
     }
-    return ink->last_row >= 0;
+    if (best != NULL) {
+        *scale = side / best->cells;
+    }
+    return best;
+}
+
+static bool is_ink(const gfx_icon_drawing_t *drawing, int row, int column)
+{
+    int row_bytes = (drawing->cells + 7) / 8;
+    uint8_t byte = GFX_ICON_BITS[drawing->at + row * row_bytes + column / 8];
+    return (byte >> (7 - column % 8)) & 1;
 }
 
 bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)
 {
-    if ((int)id < 0 || id >= GFX_ICON_COUNT) {
+    if ((int)id < 0 || id >= GFX_ICON_COUNT || cell < 1) {
         return false;
     }
-    for (int row = 0; row < GFX_ICON_CELLS; row++) {
-        const char *cells = ICONS[id][row];
+    int side = GFX_ICON_CELLS * cell;
+    int scale = 1;
+    const gfx_icon_drawing_t *drawing = drawing_for(id, side, &scale);
+    if (drawing == NULL) {
+        return false;
+    }
+    /* A drawing that does not fill the square to the pixel stands in its middle. */
+    int offset = (side - drawing->cells * scale) / 2;
+    for (int row = 0; row < drawing->cells; row++) {
         /* A run of ink in a row is one rectangle. */
-        for (int column = 0; column < GFX_ICON_CELLS;) {
-            if (cells[column] != '#') {
+        for (int column = 0; column < drawing->cells;) {
+            if (!is_ink(drawing, row, column)) {
                 column++;
                 continue;
             }
             int run_start = column;
-            while (column < GFX_ICON_CELLS && cells[column] == '#') {
+            while (column < drawing->cells && is_ink(drawing, row, column)) {
                 column++;
             }
-            gfx_fill(g, x + run_start * cell, y + row * cell, (column - run_start) * cell, cell,
-                     black);
+            gfx_fill(g, x + offset + run_start * scale, y + offset + row * scale,
+                     (column - run_start) * scale, scale, black);
         }
     }
+    return true;
+}
+
+bool gfx_icon_ink(gfx_icon_id_t id, int cell, gfx_icon_ink_t *ink)
+{
+    if ((int)id < 0 || id >= GFX_ICON_COUNT || cell < 1) {
+        return false;
+    }
+    int side = GFX_ICON_CELLS * cell;
+    int scale = 1;
+    const gfx_icon_drawing_t *drawing = drawing_for(id, side, &scale);
+    if (drawing == NULL) {
+        return false;
+    }
+    int first_row = drawing->cells, last_row = -1, first_column = drawing->cells, last_column = -1;
+    for (int row = 0; row < drawing->cells; row++) {
+        for (int column = 0; column < drawing->cells; column++) {
+            if (!is_ink(drawing, row, column)) {
+                continue;
+            }
+            first_row = row < first_row ? row : first_row;
+            last_row = row > last_row ? row : last_row;
+            first_column = column < first_column ? column : first_column;
+            last_column = column > last_column ? column : last_column;
+        }
+    }
+    if (last_row < 0) {
+        return false;
+    }
+    int offset = (side - drawing->cells * scale) / 2;
+    *ink = (gfx_icon_ink_t){ offset + first_column * scale, offset + (last_column + 1) * scale - 1,
+                             offset + first_row * scale, offset + (last_row + 1) * scale - 1 };
     return true;
 }

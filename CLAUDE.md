@@ -276,7 +276,7 @@ ui_text_width(style, str, len) / ui_text_height(style)           // to centre an
 ui_icon(x, y, icon, size)              // a host's icon at 22, 44 or 99 px
 ui_button(x, y, name, action, mirrored) / ui_actions(ok, back)   // a button and what it does; the row along the bottom
 ui_bar(x, y, w, value, max) / ui_frame(x, y, w, h, arrows)       // how much of how much; the frame around what is set
-ui_cell(struct_ptr, picture_ptr) / ui_cell_fit(...)   // a name, a picture and a value in a box of any size, the value as large
+ui_cell(struct_ptr, picture_ptr, icon) / ui_cell_fit(...)   // a name, a picture and a value in a box of any size, the value as large
                                        // as fits; cells that stand together take the size the longest value can have
 ui_chart(struct_ptr, values_ptr)       // a series of integers as a line, an area, bars or steps, scaled to a box;
                                        // up to 128 values, a gap for a missing one, captions of the least and the greatest
@@ -317,7 +317,7 @@ time_uptime_ms() -> ms since start
 time_boot_id() -> a number that is another after every restart, never 0: kept beside a stored uptime
 log(level, str, len)                   // one line of at most 200 characters; what is not printable ASCII is logged as "?"
 ```
-**The host's icons** (`components/gfx/gfx_icons.c`, `HOST_ICON_*`): signal and no signal, the four arrows, check, cross, plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update - twenty, each drawn as text in the source on eleven cells square, in the manner of the font. The header, the host's questions and Settings draw theirs from the same set. `tools/preview` renders the sheet.
+**The host's icons** (`components/gfx/gfx_icons.c`, `HOST_ICON_*`): signal and no signal, the four arrows, check, cross, plus, minus, trash, gear, clock, hourglass, bell, info, warning, play, pause, update; and, since 2026-11-16, what dashboards show, so that no application draws its own copy - the weather (sun, partly cloudy, cloud, rain, snow, thunder, wind, umbrella), drop, thermometer, bolt, plug, battery, home, bulb, door, moon, chip, network, gauge, CO2, sunrise and sunset: forty-three. Each is a file of `components/gfx/icons`, drawn as text on eleven cells square in the manner of the font, and many also on 22 and 44 cells with lines as much thicker (two cells, four): drawn larger, an icon takes the finest drawing that fits, so at 44 and 99 pixels a curve or a slant is smooth where eleven cells would be steps. `tools/fontgen/mkicons.py` packs them into `gfx_icon_art.c` (8 KB) and draws a sheet of all of them; an icon with no drawing of eleven cells gets one made from its next. The header, the host's questions, Settings and a cell (`ui_cell(..., icon)`) draw theirs from the same set. `tools/preview` renders the sheet.
 
 Everything agreed for the contract on 2026-11-11 is written. The last of it, `gfx_bitmap_file`, has run under the host tests only: no application draws a picture from a file yet.
 

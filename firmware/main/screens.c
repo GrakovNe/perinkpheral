@@ -32,16 +32,16 @@
 static int header_icon(gfx_t *g, int icon, int edge, bool from_right)
 {
     gfx_icon_ink_t ink;
-    if (!gfx_icon_ink((gfx_icon_id_t)icon, &ink)) {
+    if (!gfx_icon_ink((gfx_icon_id_t)icon, ICON_CELL, &ink)) {
         return 0;
     }
-    int width = (ink.last_column - ink.first_column + 1) * ICON_CELL;
-    int height = (ink.last_row - ink.first_row + 1) * ICON_CELL;
+    int width = ink.last_x - ink.first_x + 1;
+    int height = ink.last_y - ink.first_y + 1;
     int cap = gfx_font_cap_height(gfx_font_system());
     int ink_left = from_right ? edge - width : edge;
     int ink_top = HEADER_BASELINE - cap / 2 - height / 2;
-    gfx_icon(g, (gfx_icon_id_t)icon, ink_left - ink.first_column * ICON_CELL,
-             ink_top - ink.first_row * ICON_CELL, ICON_CELL, true);
+    gfx_icon(g, (gfx_icon_id_t)icon, ink_left - ink.first_x, ink_top - ink.first_y, ICON_CELL,
+             true);
     return width;
 }
 

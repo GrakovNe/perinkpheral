@@ -38,7 +38,7 @@ SOURCES := sim.c \
            $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c $(APPSYS)/text_template.c \
            $(SDK)/lib/json_pick.c \
            $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c \
-           $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/words.c $(GFX)/font_square.c \
+           $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c \
            $(FW)/main/screens.c $(COMP)/deadlines/deadline_table.c $(QR)/qrcodegen/qrcodegen.c
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
