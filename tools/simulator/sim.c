@@ -1261,7 +1261,7 @@ static bool load_app(void)
     }
     s_manifest.id = 1;
     /* The menu shows the title in the device's language, as the host takes it. */
-    char *translated = app_store_read_translation(s_options.apps, s_options.app, s_options.language);
+    char *translated = app_store_read_translation(s_options.apps, s_options.app, s_settings.language);
     json_t *words = json_parse(translated);
     const json_t *title = json_get(words, "title");
     if (json_is_string(title)) {
@@ -1837,7 +1837,14 @@ int main(int argc, char **argv)
     s_settings.font = s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO;
     s_settings.header_clock = s_options.clock ? 1 : 0;
     snprintf(s_settings.language, sizeof s_settings.language, "%s", s_options.language);
-    words_use(s_options.language);
+    char problem[APPCONF_PROBLEM_MAX];
+    if (!appconf_validate(&s_settings, problem, sizeof problem)) {
+        /* A language the device does not know: the store stays one the
+         * device could have, and every setting can still be changed. */
+        say('W', "sim", "%s: %s", s_options.language, problem);
+        snprintf(s_settings.language, sizeof s_settings.language, "en");
+    }
+    words_use(s_settings.language);
     gfx_font_use(s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO);
     load_glyphs();
     load_mocks();
