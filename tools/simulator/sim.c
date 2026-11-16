@@ -1182,6 +1182,9 @@ static bool load_app(void)
         app_delivery_init(&s_delivery);
         app_scene_destroy(s_app_scene);
         s_app_scene = NULL;
+        /* Nothing in the menu until a new one loads: a load that fails
+         * leaves no row that opens the scene just freed. */
+        s_menu = scene_menu(&s_menu_entry, 0);
     }
     free(s_manifest_json);
     s_manifest_json = app_store_read_manifest(s_options.apps, s_options.app);
