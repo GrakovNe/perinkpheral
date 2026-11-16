@@ -19,6 +19,7 @@
   </a>
   <a href="#apps">Apps</a>
   <a href="#device">Device</a>
+  <a href="#screen" id="nav-screen" hidden>Screen</a>
   <a href="#settings">Settings</a>
   <a href="#about">About</a>
   <p><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
@@ -38,19 +39,6 @@
   <div class="narrow">
     <div class="head"><h2>Device</h2></div>
     <div class="groups" id="status"><p class="note">Loading</p></div>
-
-    <div id="screen-block" hidden>
-      <h3>Screen</h3>
-      <figure class="screen">
-        <div class="bezel"><img id="screen" alt="The device's screen"></div>
-        <div class="keys" id="keys">
-          <button class="quiet" data-key="1" title="Hold: long press">Up</button>
-          <button class="quiet" data-key="2" title="Hold: long press">OK</button>
-          <button class="quiet" data-key="3" title="Hold: long press">Down</button>
-          <button class="quiet" data-key="4" title="Hold: long press">Back</button>
-        </div>
-      </figure>
-    </div>
 
     <h3>Firmware</h3>
     <form id="firmware">
@@ -75,6 +63,19 @@
       <button class="quiet" id="reset">Factory reset</button>
     </div>
   </div>
+</section>
+
+<section id="screen">
+  <div class="head"><h2>Screen</h2></div>
+  <figure class="screen">
+    <div class="bezel"><img id="screen-image" alt="The device's screen"></div>
+    <div class="keys" id="keys">
+      <button class="quiet" data-key="1" title="Hold: long press">Up</button>
+      <button class="quiet" data-key="2" title="Hold: long press">OK</button>
+      <button class="quiet" data-key="3" title="Hold: long press">Down</button>
+      <button class="quiet" data-key="4" title="Hold: long press">Back</button>
+    </div>
+  </figure>
 </section>
 
 <section id="settings">

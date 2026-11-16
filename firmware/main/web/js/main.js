@@ -9,6 +9,7 @@ const isOffline = () => status.wifi === "setup" || status.wifi === "rescue";
 
 async function loadAll() {
   await Promise.all([loadStatus(), loadSettings(), loadApps()]);
+  lookAtScreen(true);
   if (isOffline()) {
     await loadSources();
     /* the packs on offer are the official catalog's, on the internet */

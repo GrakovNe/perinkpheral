@@ -183,7 +183,7 @@ pre { margin: 0; padding: .9rem 1rem; border: 1px solid var(--ink); max-height: 
       font-family: inherit; font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty::before { content: "Empty."; color: var(--dim); }
 /* The panel as it stands in its case: the screen in a frame of wood, the buttons under it. */
-.screen { display: grid; gap: .9rem; max-width: 30rem; margin: 0; }
+.screen { display: grid; gap: 1rem; max-width: 40rem; margin: 0; }
 .bezel { padding: .7rem; background: var(--wood); border: 1px solid var(--ink); }
 .screen img { display: block; width: 100%; aspect-ratio: 4 / 3; image-rendering: pixelated;
               border: 1px solid var(--wood-edge); background: var(--paper); }

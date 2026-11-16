@@ -96,25 +96,30 @@ function drawStatus() {
 const LONG_PRESS_MS = 600, SCREEN_EVERY_MS = 1000;
 let frame = null, screenTimer = 0;
 
-async function lookAtScreen() {
+/* The screen, while its section is in sight, a frame a second. `once`: looked at
+ * wherever the page is, to learn whether the firmware has the tools at all. */
+async function lookAtScreen(once) {
   clearTimeout(screenTimer);
-  if (currentSection() !== "device" || document.hidden) return;
+  if (!once && (currentSection() !== "screen" || document.hidden)) return;
   try {
     const answer = await fetch("/api/dev/screen");
-    /* A firmware for release has no such thing: the block stays away. */
-    if (answer.status === 404) return;
+    /* A firmware for release has no such thing: its section stays away. */
+    byId("nav-screen").hidden = !answer.ok;
+    if (answer.status === 404) {
+      if (currentSection() === "screen") location.hash = "#device";
+      return;
+    }
     if (answer.ok) {
-      byId("screen-block").hidden = false;
       const number = answer.headers.get("X-Frame");
       if (number !== frame) {
         frame = number;
-        const old = byId("screen").src;
-        byId("screen").src = URL.createObjectURL(await answer.blob());
+        const old = byId("screen-image").src;
+        byId("screen-image").src = URL.createObjectURL(await answer.blob());
         if (old) URL.revokeObjectURL(old);
       }
     }
   } catch (error) { /* the device is away for a moment: looked at again */ }
-  screenTimer = setTimeout(lookAtScreen, SCREEN_EVERY_MS);
+  if (!once) screenTimer = setTimeout(lookAtScreen, SCREEN_EVERY_MS);
 }
 
 async function press(key, isLong) {
@@ -237,10 +242,9 @@ byId("reset").addEventListener("click", async event => {
   }
 });
 
-/* What the device section does only while it is in sight. */
+/* What a section does only while it is in sight. */
 sectionShown.push(name => {
-  if (name !== "device") return;
-  lookAtScreen();
-  followLog();
+  if (name === "screen") lookAtScreen();
+  if (name === "device") followLog();
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { lookAtScreen(); followLog(); } });
