@@ -8,6 +8,7 @@ _Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
                    MANIFEST_PICK_PATH_MAX == JSON_PICK_PATH_MAX,
                "a manifest names as many paths, as long, as the picker takes");
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -936,6 +937,13 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
         return APP_MANIFEST_BAD_FIELD;
     }
 
+    const json_t *firmware = json_get(root, "firmware");
+    manifest->firmware = 0;
+    if (firmware != NULL &&
+        (!json_is_string(firmware) || !app_version_number(firmware->text, &manifest->firmware))) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
+
     const json_t *abi = json_get(root, "abi");
     if (!json_is_number(abi) || !abi->is_whole || abi->number != HOST_API_VERSION) {
         return APP_MANIFEST_OTHER_ABI;
@@ -988,6 +996,53 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
  * parser gives no length to notice it by: "good\u0000x" would be read
  * as "good". No manifest needs one, so the text itself is refused. */
 #define ESCAPED_ZERO "\\u0000"
+
+#define VERSION_PART_MAX 999
+#define VERSION_PARTS    3
+
+bool app_version_number(const char *text, uint32_t *number)
+{
+    uint32_t whole = 0;
+    for (int part = 0; part < VERSION_PARTS; part++) {
+        if (*text < '0' || *text > '9') {
+            return false;
+        }
+        uint32_t value = 0;
+        while (*text >= '0' && *text <= '9') {
+            value = value * 10 + (uint32_t)(*text++ - '0');
+            if (value > VERSION_PART_MAX) {
+                return false;
+            }
+        }
+        whole = whole * (VERSION_PART_MAX + 1) + value;
+        if (part < VERSION_PARTS - 1 && *text++ != '.') {
+            return false;
+        }
+    }
+    /* What a build adds after it - "-0adbfb4" - is not the version's. */
+    if (*text != '\0' && *text != '-') {
+        return false;
+    }
+    *number = whole;
+    return true;
+}
+
+void app_version_text(uint32_t number, char *text, size_t size)
+{
+    const uint32_t step = VERSION_PART_MAX + 1;
+    snprintf(text, size, "%u.%u.%u", (unsigned)(number / step / step), (unsigned)(number / step % step),
+             (unsigned)(number % step));
+}
+
+bool app_manifest_runs_on(const app_manifest_t *manifest, const char *firmware_version)
+{
+    uint32_t own;
+    if (manifest->firmware == 0 || firmware_version == NULL ||
+        !app_version_number(firmware_version, &own)) {
+        return true;
+    }
+    return own >= manifest->firmware;
+}
 
 app_manifest_result_t app_manifest_parse(const char *json, app_manifest_t *manifest)
 {

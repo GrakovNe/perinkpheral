@@ -73,6 +73,14 @@ static bool load(app_scene_t *self)
         return self->app != NULL;
     }
     self->load_error = NULL;
+    /* Made with an SDK newer than this firmware: it may call what the firmware
+     * does not have. It is the firmware that is out of date, not the app. */
+    const char *firmware = self->services != NULL && self->services->firmware_version != NULL
+                               ? self->services->firmware_version() : NULL;
+    if (!app_manifest_runs_on(&self->manifest, firmware)) {
+        self->load_error = word(WORD_UPDATE_THE_FIRMWARE);
+        return false;
+    }
     size_t module_size = self->built_in_size;
     self->module = self->built_in != NULL ? self->built_in
                                           : app_store_read_module(self->store_root,

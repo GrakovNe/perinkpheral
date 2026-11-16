@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
 # A release build is told its version. Any other build is the version the
-# project is at and the commit it was made from: "0.1.0-0adbfb4".
-set(APP_BASE_VERSION "0.1.0")
+# project is at - VERSION, beside the SDK, which stamps it on the applications
+# it builds - and the commit it was made from: "0.1.8-0adbfb4".
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../VERSION" APP_BASE_VERSION)
+string(STRIP "${APP_BASE_VERSION}" APP_BASE_VERSION)
 if(DEFINED ENV{APP_VERSION})
     set(PROJECT_VER "$ENV{APP_VERSION}")
 else()

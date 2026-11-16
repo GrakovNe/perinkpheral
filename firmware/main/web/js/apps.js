@@ -250,6 +250,13 @@ function picture(icon, cell) {
   return box;
 }
 
+/* The firmware an application of a catalog needs, when this one is older; else null.
+ * An application is built for the firmware of its SDK and says so in "firmware". */
+function firmwareNeeded(app) {
+  const own = status.firmware;
+  return app.firmware && own && isNewer(releaseOf(app.firmware), releaseOf(own)) ? app.firmware : null;
+}
+
 /* An application on the device. `offer` is what a catalog has under its name, if any. */
 function tile(have, offer) {
   const box = make("div", { className: "tile" });
@@ -264,7 +271,9 @@ function tile(have, offer) {
   box.append(tools);
   if (offer && offer.app.version !== have.version) {
     const update = make("button", { className: "action", textContent: "Update" });
-    update.title = offer.app.version;
+    const needed = firmwareNeeded(offer.app);
+    update.title = needed ? "Needs firmware " + needed : offer.app.version;
+    update.disabled = Boolean(needed);
     update.addEventListener("click", () => install(update, offer));
     box.append(update);
   }
@@ -362,9 +371,12 @@ function openStore() {
   const kept = offer => removed.includes(offer.app.name);
   const rows = available().sort((a, b) => kept(b) - kept(a)).map(offer => {
     const row = make("div", { className: "offer" }), text = make("div");
+    const needed = firmwareNeeded(offer.app);
     text.append(make("b", { textContent: offer.app.title }),
-                make("small", { textContent: offer.app.version + (kept(offer) ? " - settings kept" : "") }));
+                make("small", { textContent: offer.app.version + (kept(offer) ? " - settings kept" : "") +
+                                              (needed ? " - needs firmware " + needed : "") }));
     const button = make("button", { textContent: "Install" });
+    button.disabled = Boolean(needed);
     button.addEventListener("click", async () => {
       await install(button, offer);
       byId("store-dialog").close();

@@ -93,6 +93,35 @@ static void test_abi(void)
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2.5}") == APP_MANIFEST_OTHER_ABI);
 }
 
+/* The least firmware an application runs on, and versions as numbers. */
+static void test_firmware(void)
+{
+    uint32_t number = 0;
+    CHECK(app_version_number("0.1.8", &number) && number == 1008);
+    CHECK(app_version_number("0.1.8-0adbfb4", &number) && number == 1008); /* a build's */
+    CHECK(app_version_number("1.0.0", &number) && number == 1000000);
+    CHECK(app_version_number("0.10.0", &number) && number > 1008);   /* not compared as text */
+    static const char *const NOT_ONE[] = { "", "1", "1.2", "1.2.", "a.b.c", "1.2.3.4", "1.2.3x", "1000.0.0", "-1.0.0" };
+    for (size_t i = 0; i < sizeof NOT_ONE / sizeof NOT_ONE[0]; i++) {
+        CHECK(!app_version_number(NOT_ONE[i], &number));
+    }
+    char text[16];
+    app_version_text(1008, text, sizeof text);
+    CHECK_STR(text, "0.1.8");
+
+    app_manifest_t parsed;
+    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", &parsed) == APP_MANIFEST_OK);
+    CHECK(parsed.firmware == 0 && app_manifest_runs_on(&parsed, "0.0.1"));
+    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":\"0.1.8\"}", &parsed) ==
+          APP_MANIFEST_OK);
+    CHECK(parsed.firmware == 1008);
+    CHECK(app_manifest_runs_on(&parsed, "0.1.8") && app_manifest_runs_on(&parsed, "0.1.8-0adbfb4"));
+    CHECK(app_manifest_runs_on(&parsed, "0.2.0") && !app_manifest_runs_on(&parsed, "0.1.7"));
+    CHECK(app_manifest_runs_on(&parsed, NULL) && app_manifest_runs_on(&parsed, "unknown"));
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":\"new\"}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":8}") == APP_MANIFEST_BAD_FIELD);
+}
+
 static void test_settings(void)
 {
     const char *good = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"},{\"key\":\"units\",\"type\":\"choice\",\"title\":\"Units\",\"options\":[\"celsius\",\"fahrenheit\"],\"help\":\"What the numbers are in.\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"Latitude\"},{\"key\":\"big\",\"type\":\"toggle\",\"title\":\"Large digits\"},{\"key\":\"city\",\"type\":\"text\",\"title\":\"City\"}]}";
@@ -422,6 +451,7 @@ int main(void)
     test_title();
     test_other_fields();
     test_abi();
+    test_firmware();
     test_settings();
     test_hosts();
     test_companion();

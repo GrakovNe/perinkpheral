@@ -72,6 +72,9 @@ object Catalog {
         }
         val entry = linkedMapOf<String, Any?>("name" to manifest["name"], "title" to manifest["title"],
             "version" to (manifest["version"] ?: ""), "abi" to manifest["abi"], "files" to files)
+        // The least firmware it runs on, as the build stamped it: the page offers it to no other.
+        val stamped = Json.parse(File(built.dir, AppBuilder.MANIFEST).readText()) as? Map<*, *>
+        stamped?.get("firmware")?.let { entry["firmware"] = it }
         // The page asks before it installs an application with the system API, or one that
         // trusts a certificate authority of its own: it names the authority.
         if (manifest["system"] == true) entry["system"] = true

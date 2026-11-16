@@ -61,6 +61,32 @@ HOST_FUNCTION(gfx_text_width)
                                     : gfx_text_font_width(font, terminated));
 }
 
+HOST_FUNCTION(gfx_text_ink)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, font_id);
+    m3ApiGetArg(uint32_t, text);
+    m3ApiGetArg(int32_t, length);
+    m3ApiGetArg(uint32_t, ink_offset);
+
+    const gfx_font_t *font = font_by_id(font_id);
+    char terminated[HOST_TEXT_MAX + 1];
+    uint8_t *out = app_memory_to_fill(runtime, _mem, ink_offset, (int32_t)sizeof(host_text_ink_t));
+    if (font == NULL || out == NULL || !app_text_copy(runtime, _mem, text, length, terminated)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int first, end;
+    if (is_tabular(font_id)) {
+        gfx_text_tabular_ink(font, terminated, &first, &end);
+    } else {
+        gfx_text_font_ink(font, terminated, &first, &end);
+    }
+    /* the application's memory keeps no alignment the chip would need */
+    host_text_ink_t answer = { first, end };
+    memcpy(out, &answer, sizeof answer);
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(gfx_text_fit)
 {
     m3ApiReturnType(int32_t);

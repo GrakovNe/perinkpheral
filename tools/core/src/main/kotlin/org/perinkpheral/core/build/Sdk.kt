@@ -38,6 +38,15 @@ class Sdk(val root: File) {
             ?: throw BuildError("sdk/host_api.h does not define HOST_KV_TOTAL_MAX as a number")
     }
 
+    /** VERSION of the checkout: the firmware it belongs to, which every application it
+     * builds is stamped with as the least it runs on. */
+    val version: String by lazy {
+        val text = File(root, "VERSION").takeIf { it.isFile }?.readText()?.trim()
+            ?: throw BuildError("${root.path} has no VERSION")
+        if (versionNumber(text) == null) throw BuildError("VERSION: \"$text\" is not a version such as 0.1.8")
+        text
+    }
+
     val hostApiVersion: Long by lazy {
         Regex("""#define\s+HOST_API_VERSION\s+(\d+)""").find(hostApi)?.groupValues?.get(1)?.toLong()
             ?: throw BuildError("sdk/host_api.h does not define HOST_API_VERSION as a number")
@@ -71,4 +80,11 @@ class Sdk(val root: File) {
             language["code"] as String to points
         }
     }
+}
+
+/** "0.1.8" as a number that orders versions, as the host reads one (app_version_number):
+ * each part 0 to 999; null when it is no such version. */
+fun versionNumber(text: String): Long? {
+    val parts = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""").find(text)?.destructured?.toList() ?: return null
+    return parts.fold(0L) { whole, part -> whole * 1000 + part.toLong() }
 }

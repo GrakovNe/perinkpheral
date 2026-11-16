@@ -16,7 +16,12 @@ int32_t app_text_width(int32_t font, const char *text);
  * Returns the width drawn. */
 int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);
 
-/* Draws `text` centred on the column `center`. */
+/* Where `text` starts for its ink to stand in the middle of the column
+ * `center`: what is seen is centred, not the room its glyphs take, which in
+ * some typefaces is more on one side. */
+int32_t app_text_center_x(int32_t center, int32_t font, const char *text);
+
+/* Draws `text` centred on the column `center`, by its ink. */
 void app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text);
 
 /* Draws `text` with its right edge at `right`. */

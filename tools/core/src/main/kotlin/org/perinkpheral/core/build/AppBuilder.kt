@@ -2,6 +2,7 @@
 package org.perinkpheral.core.build
 
 import org.perinkpheral.core.BuildError
+import org.perinkpheral.core.Json
 import java.io.File
 import java.nio.file.Files
 
@@ -78,7 +79,10 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             if (moduleBytes > moduleMax) {
                 throw BuildError("${wasm.path}: the module is $moduleBytes bytes, at most $moduleMax fit on the device")
             }
-            File(appDir, MANIFEST).copyTo(File(outDir, MANIFEST), overwrite = true)
+            // As it was written, and the least firmware it runs on: the SDK's, unless it says.
+            val stamped = if (manifest.containsKey("firmware")) manifest
+                          else LinkedHashMap(manifest).apply { put("firmware", sdk.version) }
+            File(outDir, MANIFEST).writeText(Json.pretty(stamped) + "\n")
             var filesBytes = copyDataFiles(appDir, outDir)
             // The authorities it trusts for its own requests: files of the package, held to what one is.
             for (file in (manifest["certificates"] as? List<*>).orEmpty()) {

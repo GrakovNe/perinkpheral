@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "json_tree.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/x509_crt.h"
@@ -678,6 +679,8 @@ static const char *install_file(const char *source, const char *app_name, const 
             problem = "Incompatible firmware version.";
         } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
             problem = "Invalid manifest.";
+        } else if (!app_manifest_runs_on(&manifest, esp_app_get_description()->version)) {
+            problem = "Update the firmware.";
         } else {
             *asks_for_system = manifest.system;
             *writes_files = manifest.writes_files;

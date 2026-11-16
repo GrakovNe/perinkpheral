@@ -68,6 +68,9 @@ typedef struct {
     void (*header_status)(const char *app_name, int side, int icon, const char *text);
     /* Language code of the device: "en", "ru". May be NULL: English. */
     const char *(*language)(void);
+    /* The firmware's version, "0.1.8" or a build's "0.1.8-0adbfb4": an
+     * application made for a newer one does not start. May be NULL: any runs. */
+    const char *(*firmware_version)(void);
     /* Queues a notification; the host shows it until dismissed. An empty
      * text is passed as NULL. False: the queue is full. May be NULL. */
     bool (*notify)(const char *first, const char *second, const char *detail, int icon);

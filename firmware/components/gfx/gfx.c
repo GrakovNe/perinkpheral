@@ -685,6 +685,14 @@ void gfx_text_font_ink(const gfx_font_t *font, const char *utf8, int *first, int
     *end = ink[1];
 }
 
+void gfx_text_tabular_ink(const gfx_font_t *font, const char *utf8, int *first, int *end)
+{
+    int ink[2];
+    draw_text(NULL, 0, 0, font, utf8, true, digit_cell(font), ink);
+    *first = ink[0];
+    *end = ink[1];
+}
+
 int gfx_text_tabular(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
 {
     return draw_text(g, x, y, font, utf8, black, digit_cell(font), NULL);

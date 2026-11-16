@@ -10,10 +10,10 @@ icon is drawn from the finest drawing that it can draw at two pixels a
 cell or more - the eleven at 22 pixels, the 22 at 44, the 44 at 88 and 99
 - so a line of a drawing is two of its cells at least: at its size it
 weighs what the text's beside it does, and only curves and slants are
-finer. An icon with no drawing of 11 cells, or one of 44 and none of 22,
-gets the smaller made from the next by taking a cell wherever there is ink
-under it, so a thin line holds; an eleven made so is drawn only where no
-drawing of the icon's own fits.
+finer. Every icon has a drawing of 11 cells, drawn by hand: one made from a
+larger drawing blots at the sizes it is drawn at. One of 44 and none of 22
+gets the 22 made from it, a cell wherever there is ink under it, which
+holds at 44 pixels and over.
 
 Writes firmware/components/gfx/gfx_icon_art.c: the drawings packed a bit
 a cell, row by row, and for every icon where each of its drawings is. The
@@ -80,11 +80,10 @@ def load():
         if not path.exists():
             sys.exit(f"{path} is missing")
         drawings = read(path)
+        if 11 not in drawings:
+            sys.exit(f"{path.name}: no drawing of 11 cells")
         if 22 not in drawings and 44 in drawings:
             drawings[22] = smaller(drawings[44], 22)
-        if 11 not in drawings:
-            drawings[11] = smaller(drawings[min(drawings)], 11)
-            drawings["made"] = True
         icons[name] = drawings
     strays = {path.stem for path in ICONS.glob("*.txt")} - set(ORDER)
     if strays:
@@ -110,11 +109,10 @@ def write(icons):
         places = []
         for size in SIZES:
             if size in icons[name]:
-                made = "true" if size == 11 and icons[name].get("made") else "false"
-                places.append(f"{{ {size}, {made}, {len(data)} }}")
+                places.append(f"{{ {size}, {len(data)} }}")
                 data += pack(icons[name][size])
             else:
-                places.append("{ 0, false, 0 }")
+                places.append("{ 0, 0 }")
         entries.append(f"    [GFX_ICON_{name.upper()}] = {{ {{ {', '.join(places)} }} }},")
     if len(data) > 0xFFFF:
         sys.exit("the drawings outgrow a 16-bit offset")
@@ -135,12 +133,10 @@ def write(icons):
 
 def choose(drawings, pixels):
     """The drawing the host draws an icon from at `pixels` (gfx_icons.c): the
-    finest drawn at two pixels a cell or more; else the finest that fits;
-    a drawing of 11 made from a larger one only when nothing else fits."""
+    finest drawn at two pixels a cell or more; else the finest that fits."""
     sizes = [size for size in SIZES if size in drawings and size <= pixels]
-    drawn = [size for size in sizes if not (size == 11 and drawings.get("made"))]
-    doubled = [size for size in drawn if pixels // size >= 2]
-    return max(doubled) if doubled else max(drawn) if drawn else max(sizes)
+    doubled = [size for size in sizes if pixels // size >= 2]
+    return max(doubled) if doubled else max(sizes)
 
 
 def sheet(icons, out):

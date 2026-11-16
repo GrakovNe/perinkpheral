@@ -173,6 +173,8 @@ int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
  * start: to place a text by what is seen rather than by its glyphs' room.
  * Both 0 for a text with no ink. */
 void gfx_text_font_ink(const gfx_font_t *font, const char *utf8, int *first, int *end);
+/* The same with the digits in columns, as gfx_text_tabular() draws them. */
+void gfx_text_tabular_ink(const gfx_font_t *font, const char *utf8, int *first, int *end);
 
 /* The same with the digits in columns: each takes the room of the widest
  * of the ten, and stands in the middle of it - so a number that changes

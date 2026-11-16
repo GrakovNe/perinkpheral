@@ -57,6 +57,9 @@ typedef struct {
     /* What the menu shows: APP_TITLE_MAX characters, UTF-8. */
     char title[APP_TITLE_MAX * MANIFEST_TEXT_BYTES_PER_CHARACTER + 1];
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
+    /* The least firmware it runs on, as app_version_number() reads "0.1.8": the
+     * SDK it was built with says so. 0: any. */
+    uint32_t firmware;
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */
     /* Writes files of its own ("writes_files"): HOST_FILES_WRITER_MAX of
@@ -126,6 +129,17 @@ typedef enum {
 } app_manifest_result_t;
 
 app_manifest_result_t app_manifest_parse(const char *json, app_manifest_t *manifest);
+
+/* "0.1.8", or a build's "0.1.8-0adbfb4", as a number that orders versions:
+ * 1008 for 0.1.8. False when it is no such version; each part 0 to 999. */
+bool app_version_number(const char *text, uint32_t *number);
+
+/* "0.1.8" of a number app_version_number() made, into `text` of `size` bytes. */
+void app_version_text(uint32_t number, char *text, size_t size);
+
+/* Whether an application runs on the firmware of `firmware_version` - its
+ * own version, as a build says it. A firmware that cannot say runs all. */
+bool app_manifest_runs_on(const app_manifest_t *manifest, const char *firmware_version);
 
 /* The poll numbered `poll` of a manifest that app_manifest_parse()
  * accepted. It is read on demand: a poll in full is too large to keep for

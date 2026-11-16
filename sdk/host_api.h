@@ -25,8 +25,14 @@
     __attribute__((import_module("host"), import_name(#name))) __VA_ARGS__
 #define APP_EXPORT(name, ...) __attribute__((export_name(#name))) __VA_ARGS__
 #else
+/* A test of the SDK's library may define them first, to declare the
+ * imports it stands in for. */
+#ifndef HOST_IMPORT
 #define HOST_IMPORT(name, ...)
+#endif
+#ifndef APP_EXPORT
 #define APP_EXPORT(name, ...)
+#endif
 #endif
 
 /* Return codes of imports that return no value of their own. */
@@ -347,6 +353,15 @@ HOST_IMPORT(gfx_text, int32_t gfx_text(int32_t x, int32_t y, int32_t font, const
                                        int32_t length));
 HOST_IMPORT(gfx_text_width, int32_t gfx_text_width(int32_t font, const char *text,
                                                    int32_t length));
+
+/* Where the ink of a text begins and ends, in pixels from its left edge as
+ * gfx_text() draws it: to centre or align a text by what is seen rather
+ * than by its glyphs' room, which in some typefaces is more on one side. */
+typedef struct host_text_ink {
+    int32_t first_x, end_x; /* end_x: the first column after the ink; both 0 for none */
+} host_text_ink_t;
+HOST_IMPORT(gfx_text_ink, int32_t gfx_text_ink(int32_t font, const char *text, int32_t length,
+                                               host_text_ink_t *ink));
 
 /* Shortens `text` to `max_width` pixels. A text that does not fit is cut
  * between characters and "..." is appended. Writes the result to `fitted`

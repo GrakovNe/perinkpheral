@@ -34,6 +34,15 @@ jobs:
           curl -sSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz \
             | tar -xz -C /opt
           echo "WASI_SDK_PATH=/opt/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+      - name: The version is the project's
+        shell: bash
+        run: |
+          # Applications built now are stamped with VERSION as the least firmware
+          # they run on: a release under another number would refuse them.
+          if [ "$(tr -d '[:space:]' < VERSION)" != "${{ inputs.version }}" ]; then
+            echo "VERSION says $(cat VERSION), the release ${{ inputs.version }}: set VERSION first" >&2
+            exit 1
+          fi
       - name: Build
         shell: bash
         working-directory: firmware

@@ -4,7 +4,6 @@
  */
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "gfx_icons.h"
@@ -17,7 +16,6 @@
 
 typedef struct {
     uint8_t  cells; /* 0: no drawing of this size */
-    bool     made;  /* an eleven made from a larger drawing, not drawn */
     uint16_t at;    /* where it begins in GFX_ICON_BITS */
 } gfx_icon_drawing_t;
 

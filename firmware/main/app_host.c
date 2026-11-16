@@ -4,6 +4,7 @@
  */
 #include "app_host.h"
 
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -294,9 +295,15 @@ static const char *language(void)
     return code;
 }
 
+static const char *firmware_version(void)
+{
+    return esp_app_get_description()->version;
+}
+
 const app_services_t *app_host_services(void)
 {
     static const app_services_t SERVICES = {
+        .firmware_version = firmware_version,
         .unix_time = net_time_now,
         .time_zone_offset = net_time_zone_offset,
         .time_zone_offset_at = net_time_zone_offset_at,
