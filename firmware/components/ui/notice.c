@@ -34,8 +34,18 @@ void notice_draw(gfx_t *g, const notice_t *notice)
     if (notice->icon != NOTICE_NO_ICON) {
         int icon_size = GFX_ICON_CELLS * NOTICE_ICON_CELL;
         int icon_left = g->w - NOTICE_ICON_FROM_EDGE - icon_size;
-        gfx_icon(g, (gfx_icon_id_t)notice->icon, icon_left, (body_height - icon_size) / 2,
-                 NOTICE_ICON_CELL, true);
+        /* Placed by what is seen: an icon's ink in the middle of its square
+         * across, and in the middle of the text's height down - an icon
+         * that does not fill its square, the signal's bars, would otherwise
+         * stand high and in from the edge. */
+        gfx_icon_ink_t ink;
+        int            x = icon_left, y = (body_height - icon_size) / 2;
+        if (gfx_icon_ink((gfx_icon_id_t)notice->icon, NOTICE_ICON_CELL, &ink)) {
+            int ink_width = ink.last_x - ink.first_x + 1, ink_height = ink.last_y - ink.first_y + 1;
+            x = icon_left + (icon_size - ink_width) / 2 - ink.first_x;
+            y = (body_height - ink_height) / 2 - ink.first_y;
+        }
+        gfx_icon(g, (gfx_icon_id_t)notice->icon, x, y, NOTICE_ICON_CELL, true);
         text_right = icon_left - NOTICE_TEXT_ICON_GAP;
     }
     const gfx_font_t *large = gfx_font(GFX_FONT_MEDIUM);
