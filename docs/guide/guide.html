@@ -366,12 +366,14 @@ void app_on_draw(void)              /* draw the whole frame from the state */
 build/my-app/app.wasm: 811 bytes, 5 host calls
   module  0.8 KB of 48.0 KB
   code    0.5 KB; running it takes about 13.0 KB of the interpreter's 64.0 KB
-  memory  9.1 KB of 64.0 KB: 8.0 KB of stack, 1.1 KB of data; 54.9 KB left for app_alloc()</pre>
+  memory  9.1 KB of 64.0 KB: 8.0 KB of stack, 1.1 KB of data; 54.9 KB left for app_alloc()
+  firmware any</pre>
 <table>
   <tr><th style="width:14%">Line</th><th>Measures</th><th style="width:36%">When exceeded</th></tr>
   <tr><td class="c">module</td><td>File size: code and initial data. Executed from flash</td><td>Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing</td></tr>
   <tr><td class="c">code</td><td>Code size and the estimated interpreter memory needed to run all of it. <b>The scarcest resource</b>: one byte of code uses four bytes of memory</td><td>See "Memory" in section 13</td></tr>
   <tr><td class="c">memory</td><td>The 64 KB page: stack, static data, and the remainder for the arena</td><td>Allocate large buffers with <code>app_alloc()</code> under a mark. Read files in parts</td></tr>
+  <tr><td class="c">firmware</td><td>The oldest firmware the application runs on, and the host call that asks for it</td><td>-</td></tr>
 </table>
 <p>The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.</p>
 <p>The build also fails in these cases:</p>

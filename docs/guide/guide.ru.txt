@@ -2952,3 +2952,6 @@ The oldest firmware the application runs on. Written by the build: the latest fi
 
 Where the visible pixels of the text begin and end, into a <code>host_text_ink_t</code> (first_x, end_x). To centre what is seen
 Где начинаются и кончаются видимые пиксели текста, в <code>host_text_ink_t</code> (first_x, end_x). Чтобы центрировать видимое
+
+The oldest firmware the application runs on, and the host call that asks for it
+Самая старая прошивка, на которой приложение работает, и вызов хоста, который её требует

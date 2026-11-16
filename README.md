@@ -82,7 +82,8 @@ Pebble; everything you see is an application.
   own requests, to the hosts its manifest lists and nowhere else.
 - **Buttons.** Four of them. Presses go to the application on the
   screen; a long press on button 4 always opens the host menu, where
-  you switch applications with buttons 1 and 3 and confirm with 2.
+  you switch applications with buttons 1 and 3 and confirm with 2. A
+  long press on 2 takes a row of the menu to move: the order is yours.
 - **An application can ask for the screen** when its data arrives in
   the background - a track that started playing, say. The host decides,
   and the long press on button 4 always gives the screen back to you.
@@ -182,9 +183,9 @@ What you get today: a splash, then - on a device with no network yet -
 a screen that says how to set it up. A press leads to the menu (button
 1 up, 2 ok, 3 down, 4 back; a long press on button 4 returns to the
 menu from anywhere), which lists the installed applications and the
-host's own: Settings, Device and About. Those three, the splash and the
-setup screen are applications too, written with the same SDK and built
-into the firmware.
+host's own, Settings and About, in the order you set. Those two, the
+splash and the setup screen are applications too, written with the same
+SDK and built into the firmware.
 
 Host tests of the hardware-independent modules need only a C compiler:
 
@@ -250,7 +251,9 @@ with an index, served from anywhere over HTTPS, the way a Debian
 repository is. The device's page lists what its catalogs hold and
 installs with a click. A device holds as many applications as it has
 room for, up to 24, and one that is removed keeps its settings for when
-it comes back. The
+it comes back. An application says the oldest firmware it runs on - the
+build works it out from the host calls it makes - and the page offers
+none the device is too old for. The
 official applications - a clock, the weather, a timer - are in
 [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps);
 `tools/perinkpheral catalog` makes a catalog of your own, and its

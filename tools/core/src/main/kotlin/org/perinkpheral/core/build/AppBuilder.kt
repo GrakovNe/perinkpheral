@@ -88,7 +88,11 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 throw BuildError("${File(appDir, MANIFEST).path}: \"firmware\" is $declared, and $byCall came with $needed")
             }
             val firmware = declared ?: needed
-            say("  firmware ${firmware}" + (if (declared != null) " as the manifest says" else if (byCall != null) " for $byCall" else ", any"))
+            val firmwareLine = when {
+                declared != null -> "  firmware $firmware or later, as the manifest says"
+                byCall != null -> "  firmware $firmware or later, for $byCall"
+                else -> "  firmware any"
+            }
             val stamped = LinkedHashMap(manifest).apply { put("firmware", firmware) }
             File(outDir, MANIFEST).writeText(Json.pretty(stamped) + "\n")
             var filesBytes = copyDataFiles(appDir, outDir)
@@ -111,7 +115,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                     "number of $fileBlock-byte blocks - and an application " +
                     (if (writesFiles) "that writes files may have $filesLimit, those it writes included" else "may have $filesLimit"))
             }
-            report(wasm, module, filesBytes, filesLimit, memoryEnd, settingsStoreBytes(manifest))
+            report(wasm, module, filesBytes, filesLimit, memoryEnd, settingsStoreBytes(manifest), firmwareLine)
         } catch (error: Exception) {
             // A module that fails a check, or a package that could not be written, is not left behind.
             wasm.delete()
@@ -292,7 +296,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
 
     /** What the build came to, against what the device has for it. */
     private fun report(wasm: File, module: Wasm, filesBytes: Long, filesLimit: Long, memoryEnd: Long,
-                       settingsBytes: Long) {
+                       settingsBytes: Long, firmwareLine: String) {
         // Half to even, of the exact value.
         fun kb(count: Long) = java.math.BigDecimal(count / 1024.0).setScale(1, java.math.RoundingMode.HALF_EVEN)
             .toPlainString() + " KB"
@@ -312,6 +316,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             say("  store   its settings at their longest take ${kb(settingsBytes)} of ${kb(sdk.storeMax)}")
             if (settingsBytes > sdk.storeMax) say("  warning: settings this long would not all fit the store")
         }
+        say(firmwareLine)
         if (running > INTERPRETER_ROOM_BYTES) say("  warning: this much code may not fit when all of it runs")
     }
 

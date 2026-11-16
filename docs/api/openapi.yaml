@@ -50,7 +50,7 @@ components:
       type: object
       properties:
         name: { type: string, description: Device name }
-        firmware: { type: string, examples: ["0.1.0-bc132b2"] }
+        firmware: { type: string, examples: ["0.1.12-93e9811"] }
         slot: { type: string, examples: ["ota_1"] }
         on_probation: { type: boolean, description: A new image not confirmed yet }
         wifi: { type: string, enum: [online, connecting, setup, rescue] }
@@ -104,6 +104,13 @@ components:
               code: { type: string }
               name: { type: string }
         menu_idle_min: { type: integer, minimum: 1, maximum: 60 }
+        menu_order:
+          type: array
+          readOnly: true
+          items: { type: string }
+          description: >-
+            The order the user set in the device's menu, by application name ("sys.settings" for a
+            system one); an application not named comes first. Set on the device only.
     App:
       type: object
       properties:
@@ -318,6 +325,11 @@ paths:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+        "507":
+          description: Not enough storage; what fitted is stored, and the application is told
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /api/apps/install:
     post:
@@ -350,7 +362,9 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "409":
-          description: Not enough storage
+          description: >-
+            Not enough storage, or the application needs a newer firmware ("Update the firmware.",
+            "firmware" of its manifest) or another host API ("Incompatible firmware version.")
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }

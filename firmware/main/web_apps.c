@@ -897,11 +897,15 @@ static esp_err_t handle_install(httpd_req_t *request)
             events_call(remove_command, &undo);
         }
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
-        /* Whose fault: the device's being busy, its storage's, or the
-         * source's, which sent something else than its index promised. */
+        /* Whose fault: the device's being busy, its storage's, its firmware's
+         * being older than the application, or the source's, which sent
+         * something else than its index promised. */
+        bool is_conflict = strcmp(problem, "Not enough storage.") == 0 ||
+                           strcmp(problem, "Update the firmware.") == 0 ||
+                           strcmp(problem, "Incompatible firmware version.") == 0;
         const char *status = strcmp(problem, "Device busy.") == 0     ? "503 Service Unavailable"
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
-                             : strcmp(problem, "Not enough storage.") == 0 ? "409 Conflict"
+                             : is_conflict                            ? "409 Conflict"
                              : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden"
                                                                       : "502 Bad Gateway";
         return web_send_message(request, status, "error", problem);
