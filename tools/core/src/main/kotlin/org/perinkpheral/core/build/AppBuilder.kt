@@ -79,9 +79,17 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             if (moduleBytes > moduleMax) {
                 throw BuildError("${wasm.path}: the module is $moduleBytes bytes, at most $moduleMax fit on the device")
             }
-            // As it was written, and the least firmware it runs on: the SDK's, unless it says.
-            val stamped = if (manifest.containsKey("firmware")) manifest
-                          else LinkedHashMap(manifest).apply { put("firmware", sdk.version) }
+            // As it was written, and the least firmware it runs on: the latest the calls it
+            // makes came with. A manifest may ask for more - for a behaviour, not a call - never less.
+            val calls = module.imports.filter { it.first == HOST_MODULE }.map { it.second }
+            val (needed, byCall) = sdk.firmwareFor(calls)
+            val declared = manifest["firmware"] as? String
+            if (declared != null && versionNumber(declared)!! < versionNumber(needed)!!) {
+                throw BuildError("${File(appDir, MANIFEST).path}: \"firmware\" is $declared, and $byCall came with $needed")
+            }
+            val firmware = declared ?: needed
+            say("  firmware ${firmware}" + (if (declared != null) " as the manifest says" else if (byCall != null) " for $byCall" else ", any"))
+            val stamped = LinkedHashMap(manifest).apply { put("firmware", firmware) }
             File(outDir, MANIFEST).writeText(Json.pretty(stamped) + "\n")
             var filesBytes = copyDataFiles(appDir, outDir)
             // The authorities it trusts for its own requests: files of the package, held to what one is.

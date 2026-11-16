@@ -426,7 +426,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">title</td><td>1 - 23 characters</td><td>Display name in the menu and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The oldest firmware the application runs on. Written by the build: the SDK's version. An older firmware does not install or start it and says "Update the firmware."</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The oldest firmware the application runs on. Written by the build: the latest firmware among the host calls the module makes. Given in the manifest, it may only be later. An older firmware does not install or start it and says "Update the firmware."</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>

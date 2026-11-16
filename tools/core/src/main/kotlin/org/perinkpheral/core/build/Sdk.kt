@@ -47,6 +47,33 @@ class Sdk(val root: File) {
         text
     }
 
+    /** The firmware a call came with, by HOST_SINCE_<call> of host_api.h; a call without a
+     * line came with HOST_FIRMWARE_FIRST. Every line names a call and no version past VERSION. */
+    val callSince: Map<String, String> by lazy {
+        val calls = imports() + imports("HOST_SYSTEM_IMPORT")
+        Regex("""^#define\s+HOST_SINCE_(\w+)\s+"([^"]+)"""", RegexOption.MULTILINE).findAll(hostApi).associate { match ->
+            val (call, since) = match.destructured
+            if (call !in calls) throw BuildError("sdk/host_api.h: HOST_SINCE_$call names no call")
+            val number = versionNumber(since) ?: throw BuildError("sdk/host_api.h: HOST_SINCE_$call is not a version")
+            if (number > versionNumber(version)!!) {
+                throw BuildError("sdk/host_api.h: HOST_SINCE_$call is $since, past VERSION $version")
+            }
+            call to since
+        }
+    }
+
+    val firmwareFirst: String by lazy {
+        Regex("""#define\s+HOST_FIRMWARE_FIRST\s+"([^"]+)"""").find(hostApi)?.groupValues?.get(1)
+            ?.takeIf { versionNumber(it) != null }
+            ?: throw BuildError("sdk/host_api.h does not define HOST_FIRMWARE_FIRST as a version")
+    }
+
+    /** The least firmware an application that makes these calls runs on, and the call that
+     * asks for it (null when none asks for more than the first). */
+    fun firmwareFor(calls: Collection<String>): Pair<String, String?> =
+        calls.filter { it in callSince }.maxByOrNull { versionNumber(callSince.getValue(it))!! }
+            ?.let { callSince.getValue(it) to it } ?: (firmwareFirst to null)
+
     val hostApiVersion: Long by lazy {
         Regex("""#define\s+HOST_API_VERSION\s+(\d+)""").find(hostApi)?.groupValues?.get(1)?.toLong()
             ?: throw BuildError("sdk/host_api.h does not define HOST_API_VERSION as a number")

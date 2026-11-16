@@ -17,6 +17,17 @@
 
 #define HOST_API_VERSION 2
 
+/* The firmware a call came with, for each call that came after the first
+ * firmware or changed its signature since: the build stamps an application
+ * with the latest firmware among the calls it makes ("firmware" in its
+ * manifest), and an older firmware neither installs nor starts it. A call
+ * added or changed gets a line here, with the version it will be released in. */
+#define HOST_FIRMWARE_FIRST     "0.1.0" /* every call without a line of its own */
+#define HOST_SINCE_ui_cell      "0.1.4" /* an icon beside the picture */
+#define HOST_SINCE_ui_cell_fit  "0.1.4"
+#define HOST_SINCE_gfx_icon_ink "0.1.4"
+#define HOST_SINCE_gfx_text_ink "0.1.8"
+
 /* The host firmware includes this header for its constants. Outside a
  * wasm build the declarations expand to nothing, because the host defines
  * functions with some of the same names. */
