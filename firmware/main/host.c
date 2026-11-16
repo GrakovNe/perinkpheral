@@ -576,9 +576,6 @@ void host_run(void)
         case EVENT_STATUS_CHANGED:
             wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
             break;
-        case EVENT_APPS_CHANGED:
-            host_reload_apps();
-            break;
         case EVENT_CALL:
             events_answer_call(event.call);
             break;

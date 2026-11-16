@@ -19,7 +19,6 @@ typedef enum {
     EVENT_BUTTON,
     EVENT_DEADLINES,  /* some deadlines have come: see deadlines.h */
     EVENT_STATUS_CHANGED, /* what the header shows is different now */
-    EVENT_APPS_CHANGED, /* one was installed or removed: the list is to be read again */
     EVENT_CALL,       /* another task asks the host loop to do something, and waits */
     EVENT_INTENT,     /* news for the applications that asked for the kind */
 } event_kind_t;

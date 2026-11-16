@@ -57,7 +57,7 @@ void launcher_keep_order(const menu_entry_t *entries, int count);
  * and - `forgets` - what it stored, which otherwise waits for it to come
  * back. False when the files could not be removed; nothing else is
  * touched then. Only in the host loop, and the list is to be read anew
- * after it (host_reload_apps(), or EVENT_APPS_CHANGED from inside an
+ * after it (host_reload_apps(), or host_reload_apps_later() from inside an
  * application's handler). */
 bool launcher_remove(const char *app_name, bool forgets);
 
