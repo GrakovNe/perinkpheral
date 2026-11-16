@@ -10,7 +10,6 @@
 #include "gfx_icons.h"
 #include "kit.h"
 #include "list.h"
-#include "words.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
@@ -89,9 +88,9 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         list_draw_row(g, &list, index, &row, true);
     }
     /* Moving: OK keeps the order, in the middle as a button alone stands, and
-     * the keys that move the row at the sides. */
+     * the keys that move the row at the sides; the keys alone, no words. */
     if (is_moving) {
-        kit_actions(g, word(WORD_DONE), NULL);
+        kit_actions(g, "", NULL);
         int baseline = kit_actions_baseline(g);
         kit_button(g, KIT_ACTIONS_MARGIN, baseline, "UP", NULL, false);
         kit_button(g, g->w - KIT_ACTIONS_MARGIN - kit_button_width("DOWN", NULL), baseline, "DOWN",

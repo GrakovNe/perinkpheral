@@ -12,7 +12,7 @@
 static const char *const ENGLISH[WORD_COUNT] = {
     [WORD_DISMISS] = "Dismiss", [WORD_CANCEL] = "Cancel", [WORD_CLOSE] = "Close",
     [WORD_FORMAT] = "Format", [WORD_SKIP] = "Skip",
-    [WORD_SAVE] = "Save", [WORD_NEXT] = "Next", [WORD_BACK] = "Back", [WORD_DONE] = "Done",
+    [WORD_SAVE] = "Save", [WORD_NEXT] = "Next", [WORD_BACK] = "Back",
     [WORD_STORAGE] = "Storage", [WORD_STORAGE_ERROR] = "error",
     [WORD_UPDATING] = "Updating", [WORD_UPDATING_IN_PROGRESS] = "in progress",
     [WORD_CANNOT_START] = "cannot start", [WORD_CRASHED] = "crashed",
@@ -42,7 +42,7 @@ static const char *const ENGLISH[WORD_COUNT] = {
 static const char *const RUSSIAN[WORD_COUNT] = {
     [WORD_DISMISS] = "Закрыть", [WORD_CANCEL] = "Отмена", [WORD_CLOSE] = "Закрыть",
     [WORD_FORMAT] = "Очистить", [WORD_SKIP] = "Пропустить",
-    [WORD_SAVE] = "Сохранить", [WORD_NEXT] = "Далее", [WORD_BACK] = "Назад", [WORD_DONE] = "Готово",
+    [WORD_SAVE] = "Сохранить", [WORD_NEXT] = "Далее", [WORD_BACK] = "Назад",
     [WORD_STORAGE] = "Ошибка", [WORD_STORAGE_ERROR] = "хранилища",
     [WORD_UPDATING] = "Идёт", [WORD_UPDATING_IN_PROGRESS] = "обновление",
     [WORD_CANNOT_START] = "не запускается", [WORD_CRASHED] = "аварийный сбой",
