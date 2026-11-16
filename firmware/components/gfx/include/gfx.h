@@ -169,6 +169,11 @@ int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *ut
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8);
 
+/* Where the ink of the text begins and ends, in pixels from the pen at its
+ * start: to place a text by what is seen rather than by its glyphs' room.
+ * Both 0 for a text with no ink. */
+void gfx_text_font_ink(const gfx_font_t *font, const char *utf8, int *first, int *end);
+
 /* The same with the digits in columns: each takes the room of the widest
  * of the ten, and stands in the middle of it - so a number that changes
  * does not shift what is beside it. In a font whose digits are of one

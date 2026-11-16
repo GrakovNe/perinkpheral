@@ -237,6 +237,12 @@ static void test_text_font_scaled(void)
     CHECK(gfx_font_height(&tiny_tripled) == 12 && gfx_font_ascent(&tiny_tripled) == 9);
     CHECK(gfx_font_cap_height(&tiny_tripled) == 6); /* no 'H': the '?' stands in */
     CHECK(gfx_text_font_width(&tiny_tripled, "II") == 18);
+    /* the ink: from the first bar's bearing to the second bar's end, not the pen's room */
+    int first, end;
+    gfx_text_font_ink(&tiny_tripled, "II", &first, &end);
+    CHECK(first == 3 && end == 15);
+    gfx_text_font_ink(&tiny_tripled, "", &first, &end);
+    CHECK(first == 0 && end == 0);
     /* baseline at y = 12: the bar is 3 x 9 pixels at x = 3..5, y = 3..11 */
     CHECK(gfx_text_font(&g, 0, 12, &tiny_tripled, "I", true) == 9);
     int black = 0;

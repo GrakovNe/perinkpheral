@@ -480,7 +480,7 @@ void kit_picker(gfx_t *g, const kit_picker_t *picker)
 
 #define PART_PAD      6  /* from the text of a part to its frame */
 #define PARTS_MAX     3
-#define TIME_PART_GAP 10 /* between the parts of the time, for their frames */
+#define PARTS_GAP     20 /* from ink to ink: a frame and room beside it, the colon's too */
 #define LINES_GAP     58 /* between the time's feet and the date's heads */
 
 typedef struct {
@@ -490,24 +490,30 @@ typedef struct {
 
 #define DATE_PART_BYTES 8 /* the widest part, a year of four digits, its sign and room */
 
-/* A line of parts in the middle of the width, the one being set framed. */
+/* A line of parts in the middle of the width, the one being set framed.
+ * They are placed by their ink: `gap` is from what is seen of one to what
+ * is seen of the next, and a frame stands as far from the ink on every
+ * side, so the colon of a time is in the middle whatever room the
+ * typeface gives it. */
 static void draw_parts(gfx_t *g, int baseline, const gfx_font_t *font, const date_piece_t *pieces,
                        int count, int gap, kit_date_part_t selected)
 {
+    int first[PARTS_MAX], end[PARTS_MAX];
     int width = (count - 1) * gap;
     for (int i = 0; i < count; i++) {
-        width += gfx_text_font_width(font, pieces[i].text);
+        gfx_text_font_ink(font, pieces[i].text, &first[i], &end[i]);
+        width += end[i] - first[i];
     }
     int left = (g->w - width) / 2;
     int cap = gfx_font_cap_height(font);
     for (int i = 0; i < count; i++) {
-        int piece_width = gfx_text_font_width(font, pieces[i].text);
-        gfx_text_font(g, left, baseline, font, pieces[i].text, true);
+        int ink_width = end[i] - first[i];
+        gfx_text_font(g, left - first[i], baseline, font, pieces[i].text, true);
         if (pieces[i].part == selected && selected != KIT_DATE_NONE) {
-            kit_frame(g, left - PART_PAD, baseline - cap - PART_PAD, piece_width + 2 * PART_PAD,
+            kit_frame(g, left - PART_PAD, baseline - cap - PART_PAD, ink_width + 2 * PART_PAD,
                       cap + 2 * PART_PAD, true, true);
         }
-        left += piece_width + gap;
+        left += ink_width + gap;
     }
 }
 
@@ -528,7 +534,7 @@ void kit_date(gfx_t *g, const kit_date_t *date)
         const date_piece_t pieces[PARTS_MAX] = { { hour, KIT_DATE_HOUR },
                                                  { ":", KIT_DATE_NONE },
                                                  { minute, KIT_DATE_MINUTE } };
-        draw_parts(g, top + time_cap, time_font, pieces, PARTS_MAX, TIME_PART_GAP, date->selected);
+        draw_parts(g, top + time_cap, time_font, pieces, PARTS_MAX, PARTS_GAP, date->selected);
         top += time_cap + LINES_GAP;
     }
     if (date->has_date) {
@@ -539,8 +545,7 @@ void kit_date(gfx_t *g, const kit_date_t *date)
         const date_piece_t pieces[PARTS_MAX] = { { day, KIT_DATE_DAY },
                                                  { word((word_t)(WORD_JAN + (month - 1))), KIT_DATE_MONTH },
                                                  { year, KIT_DATE_YEAR } };
-        draw_parts(g, top + date_cap, date_font, pieces, PARTS_MAX,
-                   gfx_text_font_width(date_font, " ") + PART_PAD, date->selected);
+        draw_parts(g, top + date_cap, date_font, pieces, PARTS_MAX, PARTS_GAP, date->selected);
     }
     kit_actions(g, date->ok, date->back);
 }

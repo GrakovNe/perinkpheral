@@ -322,21 +322,24 @@ class _Face:
         _blit(rows, lower, 0, middle)
         return rows
 
-    def che(self, height):
-        turned, _ = self.latin("h")
-        turned = _turned(turned)
-        arch = self.x_height
-        stem_only = _canvas(len(turned[0]), 1)
-        _fill(stem_only, len(turned[0]) - self.stem, 0, self.stem, 1)
-        if height >= len(turned):
-            lift = (len(turned) - arch) // 2
-            return turned[lift:] + [list(stem_only[0]) for _ in range(lift)]
-        # A small one: the arch of h, turned, under a shorter pair of stems.
-        rows = turned[len(turned) - arch - (height - arch):][:height]
-        rows = turned[:arch]
-        lift = max(1, (height - self.stem) // 3)
-        rows = _squash(rows, height - lift)
-        return rows + [list(stem_only[0]) for _ in range(lift)]
+    def che(self, height, source):
+        """The bowl of U on its right stem: the bottom of the bowl runs into
+        the stem whole, so Ч is not taken for a 4. The stem goes on alone for
+        two fifths of the height."""
+        stem, width = self.stem, len(source[0])
+        alone = max(stem + 1, height * 2 // 5)
+        bowl = _squash(source, height - alone)
+        # Under the counter, the outer corner at the right is filled: there
+        # the stem goes on.
+        for row in bowl:
+            is_two_stems = all(row[:stem]) and not any(row[stem:width - stem])
+            if not is_two_stems and any(row):
+                last = width - 1 - row[::-1].index(True)
+                for column in range(last, width):
+                    row[column] = True
+        tail = _canvas(width, alone)
+        _fill(tail, width - stem, 0, stem, alone)
+        return bowl + tail
 
     def zhe(self, arms):
         return _beside(_mirror(arms), self.two_stems(len(arms), self.stem), arms)
@@ -365,7 +368,7 @@ class _Face:
 
     def yu(self, source):
         stem = self.stem
-        gap = max(2, stem - 1)
+        gap = max(2, stem)
         height = len(source)
         rows = _canvas(stem + gap + len(source[0]), height)
         _fill(rows, 0, 0, stem, height)
@@ -374,8 +377,10 @@ class _Face:
         return rows
 
     def yeru(self, soft):
+        """Ь and a stem, a pixel closer than the stems of Н: further and
+        they are two letters, nearer and the bowl runs into the stem."""
         stem = self.stem
-        gap = max(2, stem - 1)
+        gap = max(2, self.width - 2 * stem - 1)
         return _beside(soft, _canvas(gap, len(soft)), self.two_stems(len(soft), stem))
 
     def hard_sign(self, soft):
@@ -442,7 +447,7 @@ def glyphs(render):
         letter("Цц", *face.tail(face.tse_body(height)))
         letter("Щщ", *face.tail(face.sha(height)))
         letter("Дд", *face.de(height))
-        letter("Чч", face.che(height))
+        letter("Чч", face.che(height, source["U"]))
         letter("Яя", _mirror(source["R"]))
         arms = _columns(source["K"], stem)
         letter("Жж", face.zhe(arms))
@@ -507,7 +512,16 @@ def glyphs(render):
             put("м", source["M"])
             put("н", source["H"])
             put("т", source["T"])
-            put("б", latin("6")[0])
+            # b with a flag at the top, as far right as its bowl reaches -
+            # where a row of the stem stands alone between the flag and the
+            # bowl; the smallest face has no room for it and keeps the 6.
+            b_small, b_top = latin("b")
+            if b_top - small > stem:
+                flagged = _copy(b_small)
+                _fill(flagged, 0, 0, len(flagged[0]), stem)
+                put("б", flagged, b_top)
+            else:
+                put("б", latin("6")[0])
             put("ф", *face.ef(small, o_small, cap - small, face.descent))
             y_small, y_top = latin("y")
             marked, _ = face.accent(y_small, "ŭ", "u")

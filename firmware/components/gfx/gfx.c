@@ -596,10 +596,13 @@ static const char *in_latin(uint32_t cp)
     return NULL;
 }
 
+/* `ink`, when given, is where the glyphs' ink begins and ends, from x;
+ * {0, 0} for a text with none. */
 static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black,
-                     int cell)
+                     int cell, int ink[2])
 {
     int x0 = x;
+    bool inked = false;
     int scale = font->scale;
     const char *s = utf8;
     const char *spelled = NULL; /* the Latin letters of a character being spelled out */
@@ -614,7 +617,13 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
             /* Its own glyph, in the font or in a pack, comes before all else. */
             gl = glyph_of(font, cp, &bits);
             if (gl == NULL && cp == DEGREE_SIGN) {
-                x += draw_degree(g, x, y, font, black, *s == '\0');
+                int room = draw_degree(g, x, y, font, black, *s == '\0');
+                if (ink != NULL) {
+                    ink[0] = inked ? ink[0] : x - x0;
+                    ink[1] = x - x0 + room;
+                    inked = true;
+                }
+                x += room;
                 continue;
             }
             spelled = gl == NULL && cp >= 0x80 ? in_latin(cp) : NULL;
@@ -631,6 +640,13 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
         }
         int inset;
         int room = glyph_room(gl, cp, cell, &inset);
+        if (ink != NULL && gl->w > 0) {
+            int first = x - x0 + (inset + gl->left) * scale;
+            int end = first + gl->w * scale;
+            ink[0] = inked && ink[0] < first ? ink[0] : first;
+            ink[1] = inked && ink[1] > end ? ink[1] : end;
+            inked = true;
+        }
         if (g != NULL) {
             int stride = gfx_row_bytes(gl->w);
             bits += gl->offset;
@@ -645,27 +661,38 @@ static int draw_text(gfx_t *g, int x, int y, const gfx_font_t *font, const char 
         }
         x += room * scale;
     }
+    if (ink != NULL && !inked) {
+        ink[0] = ink[1] = 0;
+    }
     return x - x0;
 }
 
 int gfx_text_font(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
 {
-    return draw_text(g, x, y, font, utf8, black, 0);
+    return draw_text(g, x, y, font, utf8, black, 0, NULL);
 }
 
 int gfx_text_font_width(const gfx_font_t *font, const char *utf8)
 {
-    return draw_text(NULL, 0, 0, font, utf8, true, 0);
+    return draw_text(NULL, 0, 0, font, utf8, true, 0, NULL);
+}
+
+void gfx_text_font_ink(const gfx_font_t *font, const char *utf8, int *first, int *end)
+{
+    int ink[2];
+    draw_text(NULL, 0, 0, font, utf8, true, 0, ink);
+    *first = ink[0];
+    *end = ink[1];
 }
 
 int gfx_text_tabular(gfx_t *g, int x, int y, const gfx_font_t *font, const char *utf8, bool black)
 {
-    return draw_text(g, x, y, font, utf8, black, digit_cell(font));
+    return draw_text(g, x, y, font, utf8, black, digit_cell(font), NULL);
 }
 
 int gfx_text_tabular_width(const gfx_font_t *font, const char *utf8)
 {
-    return draw_text(NULL, 0, 0, font, utf8, true, digit_cell(font));
+    return draw_text(NULL, 0, 0, font, utf8, true, digit_cell(font), NULL);
 }
 
 size_t gfx_text_cut(const char *text, size_t max_bytes)
