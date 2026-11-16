@@ -1387,8 +1387,8 @@ Repeating, every 60 s to 1 day. Each call loads the application; use the longest
 Display local time. The host owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.
 Отображайте местное время. Часовым поясом управляет хост. <code>time_local()</code> возвращает текущие местные дату и время, <code>time_local_at()</code> преобразует любой момент, <code>time_from_local()</code> преобразует местные дату и время обратно во время Unix, например для <code>alarm_set_at()</code>.
 
-<code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
-<code>time_text()</code> форматирует момент времени как текст на языке устройства. Собственные названия дней и месяцев приложениям не нужны. Форматы: "15:04", "Fri 13 Nov", "Friday", "13 November" и относительная форма: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
+<code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
+<code>time_text()</code> форматирует момент времени как текст на языке устройства. Собственные названия дней и месяцев приложениям не нужны. Форматы: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November" и относительная форма: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
 
 To be called when the clock is set or changed, declare the <code>time_changed</code> intent.
 Чтобы получать вызов при установке или изменении часов, объявите интент <code>time_changed</code>.
@@ -1837,8 +1837,8 @@ Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sun
 Unix time of a local date and time. Out-of-range days carry into the next month
 Время Unix для местных даты и времени. Дни за пределами месяца переходят в следующий
 
-Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>. Returns the length
-Форматирует момент времени на языке устройства. Стили: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>. Возвращает длину
+Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>, <code>_WEEKDAY_SHORT</code>. Returns the length
+Форматирует момент времени на языке устройства. Стили: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>, <code>_WEEKDAY_SHORT</code>. Возвращает длину
 
 Milliseconds since device start; includes sleep time
 Миллисекунды с запуска устройства; включая время сна

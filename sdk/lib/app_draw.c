@@ -4,6 +4,8 @@
  */
 #include "app_draw.h"
 
+#include <stddef.h>
+
 #include "app_text.h"
 #include "host_api.h"
 
@@ -27,4 +29,11 @@ void app_draw_right(int32_t right, int32_t y, int32_t font, const char *text)
 {
     int32_t length = app_text_length(text);
     gfx_text(right - gfx_text_width(font, text, length), y, font, text, length);
+}
+
+void app_draw_actions(const char *ok, const char *back)
+{
+    ok = ok != NULL ? ok : "";
+    back = back != NULL ? back : "";
+    ui_actions(ok, app_text_length(ok), back, app_text_length(back));
 }

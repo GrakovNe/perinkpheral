@@ -7,7 +7,11 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
+
+/* The degree sign, which the host draws in any font: "21" APP_TEXT_DEGREE. */
+#define APP_TEXT_DEGREE "\xC2\xB0"
 
 /* A string builder over a caller-provided buffer. The buffer is always
  * null-terminated and never overrun; text that does not fit is dropped. */
@@ -32,3 +36,13 @@ int32_t app_text_length(const char *text);
 /* Copies `from` to `to` as a null-terminated string of at most
  * `size` - 1 characters. */
 void app_text_copy(char *to, int32_t size, const char *from);
+
+/* True if the two texts are the same. */
+bool app_text_equal(const char *a, const char *b);
+
+/* True if `text` begins with `start`. */
+bool app_text_starts(const char *text, const char *start);
+
+/* A moment in words, as time_text() says it in the device's language,
+ * null-terminated in `text`. Returns its length. */
+int32_t app_time_text(int64_t moment, int32_t style, char *text, int32_t size);

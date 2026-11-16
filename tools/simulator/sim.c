@@ -13,7 +13,7 @@
  *     perinkpheral-sim --apps <folder> --app <name> --state <folder>
  *                      [--port 8401] [--language en] [--font departure|jersey]
  *                      [--glyphs <folder>] [--mocks <file.json>] [--clock]
- *                      [--fetcher-port <port>]
+ *                      [--at <unix time>] [--fetcher-port <port>]
  *
  * <apps>/<name> holds the application as tools/perinkpheral builds it: app.wasm,
  * manifest.json and its files. <state> keeps what the application stores.
@@ -22,6 +22,9 @@
  * application leaves the screen and is loaded only for what comes to it),
  * intent?kind=started|time_changed|network_up, alarm?id=N (now),
  * forward?seconds=N (the clock and every deadline move on).
+ *
+ * --at starts the clock at a moment of its own and lets it run from there:
+ * the same screens at the same moment, to set a picture beside another.
  */
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -93,6 +96,7 @@ static struct {
     int         port;
     bool        jersey;
     bool        clock;
+    int64_t     at; /* where the clock starts; 0: the computer's */
 } s_options = { .language = "en", .port = 8401 };
 
 /* ---- time: the computer's, moved on by /api/sim/forward ---- */
@@ -108,9 +112,15 @@ static int64_t monotonic_ms(void)
     return (int64_t)now.tv_sec * MS_PER_SECOND + now.tv_nsec / 1000000 + s_forward_ms;
 }
 
+static int64_t s_at_started; /* the computer's time when the clock was set to --at */
+
 static int64_t unix_now(void)
 {
-    return (int64_t)time(NULL) + s_forward_ms / MS_PER_SECOND;
+    int64_t now = (int64_t)time(NULL);
+    if (s_options.at != 0) {
+        now = s_options.at + (now - s_at_started);
+    }
+    return now + s_forward_ms / MS_PER_SECOND;
 }
 
 /* ---- the log: what /api/log gives, and the console ---- */
@@ -1729,7 +1739,8 @@ static void usage(void)
 {
     fprintf(stderr, "perinkpheral-sim --apps <folder> --app <name> --state <folder> [--port 8401]\n"
                     "                 [--language en] [--font departure|jersey] [--glyphs <folder>]\n"
-                    "                 [--mocks <file.json>] [--clock] [--fetcher-port <port>]\n");
+                    "                 [--mocks <file.json>] [--clock] [--at <unix time>]\n"
+                    "                 [--fetcher-port <port>]\n");
     exit(2);
 }
 
@@ -1754,12 +1765,14 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--mocks") == 0 && next) s_options.mocks = argv[++i];
         else if (strcmp(argv[i], "--font") == 0 && next) s_options.jersey = strcmp(argv[++i], "jersey") == 0;
         else if (strcmp(argv[i], "--clock") == 0) s_options.clock = true;
+        else if (strcmp(argv[i], "--at") == 0 && next) s_options.at = atoll(argv[++i]);
         else if (strcmp(argv[i], "--fetcher-port") == 0 && next) s_options.fetcher_port = atoi(argv[++i]);
         else usage();
     }
     if (s_options.apps == NULL || s_options.app == NULL || s_options.state == NULL) {
         usage();
     }
+    s_at_started = (int64_t)time(NULL);
     /* The store's paths are as short as the device's ("/apps/<name>/<file>"):
      * the folder of applications becomes the working one, and the other
      * folders are made absolute before that. */

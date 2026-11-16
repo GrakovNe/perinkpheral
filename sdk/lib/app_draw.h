@@ -21,3 +21,7 @@ void app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text
 
 /* Draws `text` with its right edge at `right`. */
 void app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
+
+/* The row of buttons along the bottom: what OK and BACK do. NULL or "" is
+ * no button. */
+void app_draw_actions(const char *ok, const char *back);

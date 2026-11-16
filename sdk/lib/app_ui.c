@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "app_days.h"
 #include "app_text.h"
 #include "host_api.h"
 
@@ -240,20 +241,8 @@ void app_date_draw(const app_date_t *date)
     ui_date(&shown);
 }
 
-/* Days from 1970-01-01 to the date, by the civil calendar. */
-static int64_t days_since_epoch(int32_t year, int32_t month, int32_t day)
-{
-    /* The year is counted from March, so that the leap day is its last. */
-    int32_t march_year = month <= 2 ? year - 1 : year;
-    int32_t era = march_year / 400;
-    int32_t year_of_era = march_year - era * 400;
-    int32_t day_of_year = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + day - 1;
-    int32_t day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    return (int64_t)era * 146097 + day_of_era - 719468;
-}
-
 int64_t app_date_seconds(const app_date_t *date)
 {
-    return days_since_epoch(date->year, date->month, date->day) * SECONDS_PER_DAY +
+    return (int64_t)app_days_from_date(date->year, date->month, date->day) * SECONDS_PER_DAY +
            date->hour * SECONDS_PER_HOUR + date->minute * SECONDS_PER_MINUTE;
 }

@@ -4,6 +4,8 @@
  */
 #include "app_text.h"
 
+#include "host_api.h"
+
 #include <stdbool.h>
 
 #define INT32_MAX_DIGITS 10
@@ -86,4 +88,33 @@ void app_text_copy(char *to, int32_t size, const char *from)
     app_text_t text;
     app_text_start(&text, to, size);
     app_text_add(&text, from);
+}
+
+bool app_text_equal(const char *a, const char *b)
+{
+    while (*a != '\0' && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+bool app_text_starts(const char *text, const char *start)
+{
+    while (*start != '\0') {
+        if (*text++ != *start++) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int32_t app_time_text(int64_t moment, int32_t style, char *text, int32_t size)
+{
+    int32_t length = size > 0 ? time_text(moment, style, text, size - 1) : 0;
+    length = length > 0 ? length : 0;
+    if (size > 0) {
+        text[length] = '\0';
+    }
+    return length;
 }

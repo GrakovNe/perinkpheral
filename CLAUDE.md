@@ -310,7 +310,7 @@ file_write(name, name_len, offset, buf, len)  // inside the file or at its end; 
 time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
 time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
-time_text(unix_time, style, out, cap)  // a moment in words: "15:04", "Fri 13 Nov", "Friday", "13 November",
+time_text(unix_time, style, out, cap)  // a moment in words: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November",
                                        // and as near as it is: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov"
 text_fill(pattern, len, args, count, out, cap)   // "{0}" and "{1}" of a pattern replaced by numbers and texts
 time_uptime_ms() -> ms since start
@@ -485,8 +485,9 @@ sdk/
   host_api.h           the only contract; applications and the host's import table are built from it
   cmake/               applications as a CMake project for an IDE: the code understood, build, run and the page as targets
   lib/                 what applications link instead of a C library; json_pick, which the host builds too; app_ui, what the buttons do on the kit's screens;
-                       app_draw, app_state: text by a terminated string, a versioned struct in the store, settings read by key -
-                       what every application wrote for itself until 2026-11-14
+                       app_draw, app_state: text by a terminated string, a versioned struct in the store, settings read by key,
+                       a pace ("15 min") and a place's name; app_days, dates as days since 1970 - what every application
+                       wrote for itself until 2026-11-14, and some until 2026-11-16
   companion/           a sample of a companion page
   apps/
     hello/             the sample: text, a reaction to a button, a value that survives. The one

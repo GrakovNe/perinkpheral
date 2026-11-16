@@ -179,7 +179,7 @@ HOST_FUNCTION(time_text)
     m3ApiGetArg(int32_t, capacity);
     app_t *app = APP_OF(runtime);
     char  *text = (char *)app_memory_to_fill(runtime, _mem, text_offset, capacity);
-    if (text == NULL || capacity < 1 || style < HOST_TIME_CLOCK || style > HOST_TIME_NEAR_DAY) {
+    if (text == NULL || capacity < 1 || style < HOST_TIME_CLOCK || style > HOST_TIME_WEEKDAY_SHORT) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     host_local_time_t at, today;
@@ -208,6 +208,9 @@ HOST_FUNCTION(time_text)
         break;
     case HOST_TIME_LONG_DATE:
         snprintf(line, sizeof line, "%d %s", (int)at.day, month);
+        break;
+    case HOST_TIME_WEEKDAY_SHORT:
+        snprintf(line, sizeof line, "%s", weekday_short);
         break;
     default: {
         /* How near: today a time, this week a day, beyond it a date. */

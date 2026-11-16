@@ -32,7 +32,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral strings import <language> <in.csv>
                                               the translations as one table, and back
     perinkpheral sim <app> [--port 8401] [--language en] [--font departure|jersey]
-                     [--glyphs <dir>] [--mocks <file>] [--clock] [--state <dir>] [--binary <file>]
+                     [--glyphs <dir>] [--mocks <file>] [--clock] [--at <unix>] [--state <dir>] [--binary <file>]
                                               run the application in the simulator; Ctrl-C stops it
     perinkpheral preview [dir] [--font jersey] the host's screens as PNGs, rendered on this computer
 
@@ -135,6 +135,7 @@ private fun simulator(arguments: Arguments): Int {
     arguments.option("glyphs")?.let { command += listOf("--glyphs", it) }
     arguments.option("mocks")?.let { command += listOf("--mocks", it) }
     if (arguments.has("clock")) command += "--clock"
+    arguments.option("at")?.let { command += listOf("--at", it) }
     val process = ProcessBuilder(command).inheritIO().start()
     // Ctrl-C stops it as a restart stops a device: app_on_terminate() is called.
     Runtime.getRuntime().addShutdownHook(Thread { process.destroy(); process.waitFor() })

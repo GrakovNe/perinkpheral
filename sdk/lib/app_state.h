@@ -44,3 +44,16 @@ bool app_setting_number(const char *key, int32_t decimals, int32_t *number);
  * is no such item or it does not fit, `text` then being empty. */
 int32_t app_setting_count(const char *key);
 int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);
+
+/* A pace or a delay as a person writes it - "30 s", "15 min", "1 h", "1 d" -
+ * in seconds, read as the host reads a poll's "every"; `otherwise` when the
+ * text says no such thing ("Off", "At start"). */
+int32_t app_seconds_of(const char *text, int32_t otherwise);
+
+/* The same of a setting; `otherwise` too when it is not set. */
+int32_t app_setting_seconds(const char *key, int32_t otherwise);
+
+/* A `place` setting's name: what stands before the first comma of "Saint
+ * Petersburg, Saint Petersburg, Russia", cut between characters to fit.
+ * Returns its length; 0 when the setting is not set. */
+int32_t app_setting_place(const char *key, char *name, int32_t size);

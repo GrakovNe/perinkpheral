@@ -853,7 +853,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
 <ul>
   <li><code>time_now()</code> returns Unix time in seconds. It returns 0 until the device has obtained the time. The application must handle this case.</li>
   <li>Display local time. The host owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.</li>
-  <li><code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".</li>
+  <li><code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".</li>
   <li>To be called when the clock is set or changed, declare the <code>time_changed</code> intent.</li>
 </ul>
 
@@ -1117,7 +1117,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">time_zone_offset(void)</td><td>Offset of local time from UTC in seconds, daylight saving included</td></tr>
   <tr><td class="c">time_local(parts), time_local_at(int64_t unix_time, parts)</td><td>Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sunday, hour, minute, second</td></tr>
   <tr><td class="c">int64_t time_from_local(parts)</td><td>Unix time of a local date and time. Out-of-range days carry into the next month</td></tr>
-  <tr><td class="c">time_text(int64_t unix_time, style, text, capacity)</td><td>Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>. Returns the length</td></tr>
+  <tr><td class="c">time_text(int64_t unix_time, style, text, capacity)</td><td>Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>, <code>_WEEKDAY_SHORT</code>. Returns the length</td></tr>
   <tr><td class="c">int64_t time_uptime_ms(void)</td><td>Milliseconds since device start; includes sleep time</td></tr>
   <tr><td class="c">uint32_t time_boot_id(void)</td><td>Identifier of the current boot; changes after every restart, never 0. Store it with a saved uptime</td></tr>
 </table>

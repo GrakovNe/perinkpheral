@@ -1095,13 +1095,15 @@ HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_t
  *   HOST_TIME_LONG_DATE  "13 November"
  *   HOST_TIME_NEAR       relative: "15:04" today, "Tmrw 15:04",
  *                        "Sat 15:04" within a week, "21 Nov" beyond
- *   HOST_TIME_NEAR_DAY   relative, date only: "Today", "Tmrw", "Sat", "21 Nov" */
+ *   HOST_TIME_NEAR_DAY   relative, date only: "Today", "Tmrw", "Sat", "21 Nov"
+ *   HOST_TIME_WEEKDAY_SHORT "Fri" */
 #define HOST_TIME_CLOCK     0
 #define HOST_TIME_DATE      1
 #define HOST_TIME_WEEKDAY   2
 #define HOST_TIME_LONG_DATE 3
 #define HOST_TIME_NEAR      4
 #define HOST_TIME_NEAR_DAY  5
+#define HOST_TIME_WEEKDAY_SHORT 6
 HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char *text,
                                          int32_t capacity));
 

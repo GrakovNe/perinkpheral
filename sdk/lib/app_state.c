@@ -101,3 +101,48 @@ int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t tex
     }
     return 0;
 }
+
+#define SECONDS_PER_MINUTE 60
+#define SECONDS_PER_HOUR   3600
+#define SECONDS_PER_DAY    86400
+#define PACE_DIGITS_MAX    6
+
+int32_t app_seconds_of(const char *text, int32_t otherwise)
+{
+    int32_t number = 0, digits = 0;
+    while (*text >= '0' && *text <= '9' && digits < PACE_DIGITS_MAX) {
+        number = number * 10 + (*text++ - '0');
+        digits++;
+    }
+    while (*text == ' ') {
+        text++;
+    }
+    int32_t unit = *text == '\0' || *text == 's' ? 1
+                   : *text == 'm'               ? SECONDS_PER_MINUTE
+                   : *text == 'h'               ? SECONDS_PER_HOUR
+                   : *text == 'd'               ? SECONDS_PER_DAY
+                                                : 0;
+    return digits == 0 || unit == 0 ? otherwise : number * unit;
+}
+
+int32_t app_setting_seconds(const char *key, int32_t otherwise)
+{
+    char text[32];
+    return app_setting(key, text, sizeof text) == 0 ? otherwise : app_seconds_of(text, otherwise);
+}
+
+int32_t app_setting_place(const char *key, char *name, int32_t size)
+{
+    char text[SETTING_TEXT_MAX];
+    if (app_setting(key, text, sizeof text) == 0) {
+        name[0] = '\0';
+        return 0;
+    }
+    int32_t comma = 0;
+    while (text[comma] != '\0' && text[comma] != ',') {
+        comma++;
+    }
+    text[comma] = '\0';
+    app_text_copy(name, size, text);
+    return app_text_length(name);
+}
