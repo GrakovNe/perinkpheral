@@ -288,7 +288,10 @@ def main():
             for called in set(re.findall(r"\b(\w+)\(", body[body.index("{"):])):
                 if called in callers and called != name:
                     callers[called].add(name)
-        in_loop = set(handed)
+        # A callback handed to the host loop and also called straight from a
+        # handler runs in both: it is the host loop's only when every direct
+        # caller is too.
+        in_loop = {name for name in handed if not callers.get(name)}
         grew = True
         while grew:
             grew = False

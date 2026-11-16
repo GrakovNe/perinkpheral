@@ -1216,7 +1216,10 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
  *                      for a key there is no setting for; HOST_ERR_ARGUMENT for
  *                      a secret, which is never read back (the Wi-Fi password);
  *                      HOST_ERR_NO_SPACE.
- * sys_setting_set():   checks, stores and puts it into effect. HOST_ERR_ARGUMENT
+ * sys_setting_set():   checks, stores and puts it into effect - at once, but for
+ *                      the device's name, the time server and the language
+ *                      of the system applications' titles, which are taken at
+ *                      start and are in effect after a restart. HOST_ERR_ARGUMENT
  *                      for a value the setting cannot take, or a key that is
  *                      not set this way (the network: SYS_DO_FORGET_NETWORK,
  *                      or the device's page).
@@ -1267,7 +1270,9 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
  * sys_app_title():  writes the title. Returns its length.
  * sys_app_remove(): removes the files of the application and keeps its
  *                   store.
- * All return HOST_ERR_NOT_FOUND for an id that is not installed. */
+ * All return HOST_ERR_NOT_FOUND for an id that is not installed;
+ * sys_app_remove() returns HOST_ERR_ARGUMENT for the application that calls
+ * it - it is removed from another, or from the device's page. */
 #define SYS_APP_LIST_MAX 32 /* maximum `capacity`: more than a device holds */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));

@@ -12,6 +12,7 @@
 
 #include "app_code.h"
 #include "app_kv.h"
+#include "app_scene.h"
 #include "host.h"
 #include "events.h"
 #include "host_api.h"
@@ -209,6 +210,12 @@ int32_t app_system_app_remove(uint32_t id)
     const app_manifest_t *app = launcher_find_id(id);
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
+    }
+    /* There is room for one application at a time, so one that is loaded
+     * is the one asking: closing it would free the interpreter its handler
+     * is running in. It is removed from another, or from the page. */
+    if (app_scene_app(launcher_app_scene(app->name)) != NULL) {
+        return HOST_ERR_ARGUMENT;
     }
     host_close_app(app->name);
     if (!launcher_remove(app->name, false)) {

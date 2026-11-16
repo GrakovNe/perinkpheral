@@ -1858,8 +1858,8 @@ Any application can use the system API if its manifest contains <code>"system": 
 Device information as text: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_JOIN_CODE</code>
 Сведения об устройстве в виде текста: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_JOIN_CODE</code>
 
-A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once. The Wi-Fi password is never read; the network is not set by key
-Настройка хоста по ключу, в виде текста: ключи <code>/api/settings</code> веб-страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> и остальные). Запись: проверяется, сохраняется и сразу вступает в силу. Пароль Wi-Fi не читается; сеть по ключу не задаётся
+A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key
+Настройка хоста по ключу, в виде текста: ключи <code>/api/settings</code> веб-страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> и остальные). Запись: проверяется, сохраняется и сразу вступает в силу, кроме имени устройства, сервера времени и названий системных приложений - они меняются после перезапуска. Пароль Wi-Fi не читается; сеть по ключу не задаётся
 
 A numeric setting's value and its range
 Значение числовой настройки и её диапазон
@@ -1867,8 +1867,8 @@ A numeric setting's value and its range
 Sets the clock. Fails while the time source is the network
 Устанавливает часы. Завершается ошибкой, пока источник времени - сеть
 
-Installed applications by id, up to 32: list, title, removal
-Установленные приложения по id, до 32: список, название, удаление
+Installed applications by id, up to 32: list, title, removal. An application cannot remove itself
+Установленные приложения по id, до 32: список, название, удаление. Приложение не может удалить само себя
 
 Default application id; 0: none
 id приложения по умолчанию; 0: нет
