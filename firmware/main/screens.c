@@ -88,7 +88,13 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         list_row_t row = { .label = item.title, .icon = LIST_NO_ICON, .picture = item.icon };
         list_draw_row(g, &list, index, &row, true);
     }
+    /* Moving: OK keeps the order, in the middle as a button alone stands, and
+     * the keys that move the row at the sides. */
     if (is_moving) {
-        kit_actions_moving(g, word(WORD_DONE), word(WORD_MOVE));
+        kit_actions(g, word(WORD_DONE), NULL);
+        int baseline = kit_actions_baseline(g);
+        kit_button(g, KIT_ACTIONS_MARGIN, baseline, "UP", NULL, false);
+        kit_button(g, g->w - KIT_ACTIONS_MARGIN - kit_button_width("DOWN", NULL), baseline, "DOWN",
+                   NULL, false);
     }
 }

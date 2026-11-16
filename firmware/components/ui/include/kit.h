@@ -22,6 +22,7 @@ extern "C" {
 
 #define KIT_MARGIN         16
 #define KIT_ACTIONS_HEIGHT 44 /* height of the action row at the bottom */
+#define KIT_ACTIONS_MARGIN 24 /* from the sides to its outer buttons */
 
 /* ---- primitives ---- */
 
@@ -72,10 +73,8 @@ int kit_button(gfx_t *g, int left, int baseline, const char *name, const char *a
  * "Save OK        BACK Cancel". NULL: the button is not shown. A single
  * button is centred. */
 void kit_actions(gfx_t *g, const char *ok, const char *back);
-
-/* The row along the bottom while something is moved with UP and DOWN: what OK
- * does on the left, and UP DOWN with what they do on the right. */
-void kit_actions_moving(gfx_t *g, const char *done, const char *move);
+/* The baseline of the row along the bottom, for a key set beside its buttons. */
+int  kit_actions_baseline(const gfx_t *g);
 
 /* ---- elements ---- */
 

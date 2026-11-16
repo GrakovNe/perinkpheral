@@ -186,7 +186,10 @@ int kit_button(gfx_t *g, int left, int baseline, const char *name, const char *a
     return width;
 }
 
-#define ACTIONS_MARGIN 24
+int kit_actions_baseline(const gfx_t *g)
+{
+    return g->h - KIT_ACTIONS_HEIGHT / 2 + gfx_font_cap_height(kit_font(KIT_TEXT)) / 2;
+}
 
 void kit_actions(gfx_t *g, const char *ok, const char *back)
 {
@@ -194,39 +197,17 @@ void kit_actions(gfx_t *g, const char *ok, const char *back)
         return;
     }
     gfx_fill(g, 0, g->h - KIT_ACTIONS_HEIGHT, g->w, 1, true);
-    int baseline = g->h - KIT_ACTIONS_HEIGHT / 2 + gfx_font_cap_height(kit_font(KIT_TEXT)) / 2;
+    int baseline = kit_actions_baseline(g);
     /* A button alone stands in the middle: there is no other to balance. */
     if (ok != NULL) {
-        int left = back != NULL ? ACTIONS_MARGIN : (g->w - kit_button_width("OK", ok)) / 2;
+        int left = back != NULL ? KIT_ACTIONS_MARGIN : (g->w - kit_button_width("OK", ok)) / 2;
         kit_button(g, left, baseline, "OK", ok, true);
     }
     if (back != NULL) {
         int width = kit_button_width("BACK", back);
-        int left = ok != NULL ? g->w - ACTIONS_MARGIN - width : (g->w - width) / 2;
+        int left = ok != NULL ? g->w - KIT_ACTIONS_MARGIN - width : (g->w - width) / 2;
         kit_button(g, left, baseline, "BACK", back, false);
     }
-}
-
-#define KEYS_GAP      6  /* between two keys that do one thing */
-/* Three keys and two words: "Готово OK" and "UP DOWN Двигать" are 16 px apart
- * at the host's margin, and would meet at the 24 of two buttons. */
-#define MOVING_MARGIN 16
-
-void kit_actions_moving(gfx_t *g, const char *done, const char *move)
-{
-    gfx_fill(g, 0, g->h - KIT_ACTIONS_HEIGHT, g->w, 1, true);
-    const gfx_font_t *font = kit_font(KIT_TEXT);
-    int baseline = g->h - KIT_ACTIONS_HEIGHT / 2 + gfx_font_cap_height(font) / 2;
-    kit_button(g, MOVING_MARGIN, baseline, "OK", done, true);
-    /* UP and DOWN on the right, where BACK stands elsewhere: two keys, one thing. */
-    int width = key_width("UP") + KEYS_GAP + key_width("DOWN") + KEY_ACTION_GAP +
-                gfx_text_font_width(font, move);
-    int left = g->w - MOVING_MARGIN - width;
-    draw_key(g, left, baseline, "UP");
-    left += key_width("UP") + KEYS_GAP;
-    draw_key(g, left, baseline, "DOWN");
-    left += key_width("DOWN") + KEY_ACTION_GAP;
-    gfx_text_font(g, left, baseline, font, move, true);
 }
 
 /* ---- elements ---- */
