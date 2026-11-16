@@ -105,11 +105,18 @@ static const struct {
 };
 #define SYSTEM_API_COUNT (sizeof SYSTEM_API / sizeof SYSTEM_API[0])
 
+/* Writing files: for an application whose manifest said it writes. */
+#define FILE_WRITE_CALL "file_write"
+
 static bool is_offered(const uint8_t *module_name, uint32_t module_length,
-                       const uint8_t *field_name, uint32_t field_length, bool with_system)
+                       const uint8_t *field_name, uint32_t field_length, unsigned grants)
 {
     if (module_length != strlen(HOST_MODULE) ||
         memcmp(module_name, HOST_MODULE, module_length) != 0) {
+        return false;
+    }
+    if ((grants & APP_GRANT_FILES) == 0 && field_length == strlen(FILE_WRITE_CALL) &&
+        memcmp(field_name, FILE_WRITE_CALL, field_length) == 0) {
         return false;
     }
     for (size_t i = 0; i < HOST_API_COUNT; i++) {
@@ -118,7 +125,7 @@ static bool is_offered(const uint8_t *module_name, uint32_t module_length,
             return true;
         }
     }
-    for (size_t i = 0; with_system && i < SYSTEM_API_COUNT; i++) {
+    for (size_t i = 0; (grants & APP_GRANT_SYSTEM) != 0 && i < SYSTEM_API_COUNT; i++) {
         if (field_length == strlen(SYSTEM_API[i].name) &&
             memcmp(field_name, SYSTEM_API[i].name, field_length) == 0) {
             return true;
@@ -184,7 +191,7 @@ static const uint8_t *read_name(wasm_reader_t *reader, uint32_t *length)
  * fail only when it is called. APP_OK, or why not: APP_ERR_OTHER_API for a
  * call of the host's own that this host does not have - a module made
  * for another version of it - and APP_ERR_BAD_MODULE for anything else. */
-static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, bool with_system)
+static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, unsigned grants)
 {
     if (wasm_size < WASM_HEADER_BYTES) {
         return APP_ERR_BAD_MODULE;
@@ -210,16 +217,17 @@ static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, bo
             if (reader.failed || kind != WASM_IMPORT_FUNCTION) {
                 return APP_ERR_BAD_MODULE;
             }
-            if (is_offered(module_name, module_length, field_name, field_length, with_system)) {
+            if (is_offered(module_name, module_length, field_name, field_length, grants)) {
                 continue;
             }
-            /* The system API without having asked for it is not a matter
-             * of versions; neither is another module's function. */
+            /* A call it did not ask for - the system API, writing files -
+             * is not a matter of versions; neither is another module's
+             * function. */
             bool is_host_module = module_length == sizeof HOST_MODULE - 1 &&
                                 memcmp(module_name, HOST_MODULE, module_length) == 0;
-            bool is_system = is_offered(module_name, module_length, field_name, field_length,
-                                        true);
-            return is_host_module && !is_system ? APP_ERR_OTHER_API : APP_ERR_BAD_MODULE;
+            bool is_granted = is_offered(module_name, module_length, field_name, field_length,
+                                         APP_GRANT_SYSTEM | APP_GRANT_FILES);
+            return is_host_module && !is_granted ? APP_ERR_OTHER_API : APP_ERR_BAD_MODULE;
         }
         return reader.failed ? APP_ERR_BAD_MODULE : APP_OK;
     }
@@ -443,7 +451,7 @@ static void load_strings(app_t *app)
 static app_t *s_loaded;
 
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
-                           bool with_system, const app_services_t *services, app_t **loaded)
+                           unsigned grants, const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
     if (s_loaded != NULL) {
@@ -457,7 +465,7 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
         }
         return APP_ERR_NO_MEMORY;
     }
-    app_load_result_t imports = check_imports(wasm, wasm_size, with_system);
+    app_load_result_t imports = check_imports(wasm, wasm_size, grants);
     if (imports != APP_OK) {
         return imports;
     }

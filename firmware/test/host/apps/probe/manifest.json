@@ -1,5 +1,6 @@
 {
   "name": "probe",
   "title": "Probe",
+  "writes_files": true,
   "abi": 2
 }

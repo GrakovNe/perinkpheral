@@ -54,8 +54,15 @@ static poll_schedule_t   s_schedule;
 /* The installed applications as the poller last took them: its own copy,
  * so that nothing here looks at a list another task is rewriting. An
  * application is its id everywhere below. */
-static app_manifest_t    s_known[LAUNCHER_INSTALLED_MAX];
-static uint32_t user_interval_seconds(const app_manifest_t *known, int poll);
+typedef struct {
+    char     name[APP_NAME_MAX + 1];
+    uint32_t id;
+    int      poll_count;
+    uint32_t poll_every_s[APP_POLLS_MAX];
+    char     poll_every_key[APP_POLLS_MAX][MANIFEST_SETTING_KEY_MAX + 1];
+} known_app_t;
+static known_app_t       s_known[LAUNCHER_INSTALLED_MAX];
+static uint32_t user_interval_seconds(const known_app_t *known, int poll);
 static int               s_known_count;
 /* The schedule is changed from other tasks too: an application asks for a
  * poll, the web page saves settings. */
@@ -675,7 +682,14 @@ static int schedule_installed(void)
     int count;
     const app_manifest_t *installed = launcher_installed(&count);
     s_known_count = count < LAUNCHER_INSTALLED_MAX ? count : LAUNCHER_INSTALLED_MAX;
-    memcpy(s_known, installed, (size_t)s_known_count * sizeof s_known[0]);
+    for (int i = 0; i < s_known_count; i++) {
+        known_app_t *known = &s_known[i];
+        strcpy(known->name, installed[i].name);
+        known->id = installed[i].id;
+        known->poll_count = installed[i].poll_count;
+        memcpy(known->poll_every_s, installed[i].poll_every_s, sizeof known->poll_every_s);
+        memcpy(known->poll_every_key, installed[i].poll_every_key, sizeof known->poll_every_key);
+    }
 
     int      apps[LAUNCHER_INSTALLED_MAX];
     uint32_t owners[LAUNCHER_INSTALLED_MAX];
@@ -765,7 +779,7 @@ void poller_start(void)
 
 /* The pace of a poll that the manifest leaves to a setting: what the user
  * chose there, or 0 when the poll has no such setting or nothing is chosen. */
-static uint32_t user_interval_seconds(const app_manifest_t *known, int poll)
+static uint32_t user_interval_seconds(const known_app_t *known, int poll)
 {
     if (known->poll_every_key[poll][0] == '\0') {
         return 0;

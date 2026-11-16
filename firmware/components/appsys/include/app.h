@@ -107,11 +107,16 @@ typedef enum {
                            outside the host API */
 } app_load_result_t;
 
+/* What a manifest asked for beyond the host API, as app_load() takes it. */
+#define APP_GRANT_SYSTEM 1u /* "system": the sys_* calls */
+#define APP_GRANT_FILES  2u /* "writes_files": file_write() */
+
 /* Loads a module and calls app_init(). `wasm` and `name` must remain
- * valid until app_unload(). `name` selects the store of kv_*.
- * `with_system`: sys_* imports are allowed. On failure *loaded is NULL. */
+ * valid until app_unload(). `name` selects the store of kv_*. `grants`:
+ * APP_GRANT_* of what may be imported beside the host API; a module that
+ * imports more is refused. On failure *loaded is NULL. */
 app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
-                           bool with_system, const app_services_t *services, app_t **loaded);
+                           unsigned grants, const app_services_t *services, app_t **loaded);
 
 /* `app` may be NULL. */
 void app_unload(app_t *app);

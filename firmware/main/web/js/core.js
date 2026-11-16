@@ -3,7 +3,7 @@
  * before what cannot be undone, and the sections a link can lead to. */
 "use strict";
 
-const SLOTS = 6, SOURCES_MAX = 4, ZONE_NOT_SET = "UTC0";
+const SLOTS = 24, SOURCES_MAX = 4, ZONE_NOT_SET = "UTC0";
 const byId = id => document.getElementById(id);
 const show = (id, text) => { byId(id).textContent = text; };
 const make = (tag, properties) => Object.assign(document.createElement(tag), properties || {});

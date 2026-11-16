@@ -927,6 +927,11 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
         return APP_MANIFEST_BAD_FIELD;
     }
     manifest->system = json_is_true(system);
+    const json_t *writes_files = json_get(root, "writes_files");
+    if (writes_files != NULL && !json_is_bool(writes_files)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
+    manifest->writes_files = json_is_true(writes_files);
     if (!read_certificates(json_get(root, "certificates"), &manifest->certificate_count)) {
         return APP_MANIFEST_BAD_FIELD;
     }

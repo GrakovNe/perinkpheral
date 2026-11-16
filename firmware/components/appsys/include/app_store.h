@@ -60,8 +60,10 @@ char *app_store_read_translation(const char *root, const char *name, const char 
 /* A data file is named with 1-23 of a-z, 0-9, '.', '-' and '_', not
  * starting with a dot. */
 #define APP_FILE_NAME_MAX MANIFEST_FILE_NAME_MAX
-/* All the data files of one application may take this much. */
-#define APP_FILES_MAX_BYTES MANIFEST_FILES_MAX_BYTES
+/* All the data files of one application's package may take this much; all
+ * the data files of one that writes, its package's included, the second. */
+#define APP_FILES_MAX_BYTES        MANIFEST_FILES_MAX_BYTES
+#define APP_FILES_WRITER_MAX_BYTES MANIFEST_FILES_WRITER_MAX_BYTES
 
 /* True for the manifest, the module and any well-named data file. */
 bool app_store_is_file_name(const char *file);
@@ -93,10 +95,13 @@ bool app_store_drop_incoming(const char *root, const char *name);
  * unfinished. */
 void app_store_recover(const char *root);
 
+/* What the application's data files take, as they lie: whole blocks. */
+long app_store_files_bytes(const char *root, const char *name);
+
 typedef enum {
     APP_WRITE_OK,
     APP_WRITE_REFUSED,  /* not a data file's name, or an offset past its end */
-    APP_WRITE_NO_SPACE, /* the application's data files would take more than their share */
+    APP_WRITE_NO_SPACE, /* its data files would take more than APP_FILES_WRITER_MAX_BYTES */
     APP_WRITE_FAILED,   /* the file system refused */
 } app_write_result_t;
 

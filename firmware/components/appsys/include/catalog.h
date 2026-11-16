@@ -23,8 +23,12 @@ extern "C" {
 #define CATALOG_SOURCES_TEXT_MAX (CATALOG_SOURCES_MAX * (CATALOG_SOURCE_URL_MAX + 1))
 #define CATALOG_URL_MAX         255
 #define CATALOG_INDEX_FILE      "catalog.json"
-/* No more applications than this on a device: few, and large ones. */
-#define CATALOG_INSTALLED_MAX   6
+/* No more applications than this on a device: as many as the stores'
+ * partition holds the store of each at its fullest (main/flash_budget.c).
+ * What else an install needs - room for its code, room for its files and
+ * for the files promised to those that write - is looked at when it
+ * comes. */
+#define CATALOG_INSTALLED_MAX   24
 /* What an application is made of at most: the module, the manifest and
  * its data files. */
 #define CATALOG_APP_FILES_MAX   8

@@ -313,8 +313,8 @@ Strings, numbers, an arena allocator, the <code>memcpy</code> family. The standa
 Installed applications
 Установленных приложений
 
-Per device. Catalog size is unlimited
-На устройство. Размер каталога не ограничен
+Per device, as many as fit: an installation is refused when its code, its files or the room promised to others do not fit. Catalog size is unlimited
+На устройство, сколько поместится: установка отклоняется, если не помещаются её код, её файлы или место, обещанное другим. Размер каталога не ограничен
 
 Storage
 Хранение
@@ -337,14 +337,14 @@ Store value
 Store total
 Хранилище целиком
 
-4096 bytes
-4096 байт
+2048 bytes
+2048 байт
 
-Files total
-Файлы целиком
+Files of a package
+Файлы пакета
 
-Per application: packaged files and files written by the code. Each file counts as whole 4 KB blocks (16 blocks). Guaranteed for every installed application
-На приложение: файлы пакета и файлы, записанные кодом. Каждый файл считается целыми блоками по 4 КБ (16 блоков). Гарантируется каждому установленному приложению
+Per application. Each file counts as whole 4 KB blocks
+На приложение. Каждый файл считается целыми блоками по 4 КБ
 
 File name
 Имя файла
@@ -1804,8 +1804,8 @@ Returns the file size, or <code>HOST_ERR_NOT_FOUND</code>
 Reads from an offset. Returns the number of bytes read; 0 at or past the end
 Читает со смещения. Возвращает число прочитанных байт; 0 в конце файла и за ним
 
-Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file
-Записывает по смещению внутри файла или в его конец. Длина 0 по смещению 0 удаляет файл
+Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file. Needs <code>"writes_files": true</code>
+Записывает по смещению внутри файла или в его конец. Длина 0 по смещению 0 удаляет файл. Нужно <code>"writes_files": true</code>
 
 Runs a manifest poll immediately
 Немедленно выполняет опрос из манифеста
@@ -1867,8 +1867,8 @@ Text host setting: <code>SYS_TEXT_TIME_ZONE</code>, a POSIX TZ string
 Sets the clock. Fails while the time source is the network
 Устанавливает часы. Завершается ошибкой, пока источник времени - сеть
 
-Installed applications by id, up to 16: list, title, removal
-Установленные приложения по id, до 16: список, название, удаление
+Installed applications by id, up to 32: list, title, removal
+Установленные приложения по id, до 32: список, название, удаление
 
 Default application id; 0: none
 id приложения по умолчанию; 0: нет
@@ -1981,11 +1981,11 @@ Text per drawing or measuring call
 Header text; header status text
 Текст в заголовке; текст статуса в заголовке
 
-23 / 64 KB
-23 / 64 КБ
+23 / 64 KB / 32 KB
+23 / 64 КБ / 32 КБ
 
-File name; total file size per application
-Имя файла; общий размер файлов на приложение
+File name; files of a package; all files of an application that writes
+Имя файла; файлы пакета; все файлы приложения, которое пишет
 
 One piece of an answer
 Один фрагмент ответа
@@ -2398,8 +2398,8 @@ one flash write
 toggle: true unless "0"
 toggle: true, кроме "0"
 
-Per application, counted as stored: 64 bytes for a value plus its length rounded up to 32. Kept after removal and restored on reinstall
-На приложение, считается как хранится: 64 байта на значение плюс его длина, округлённая вверх до 32. Сохраняется после удаления и восстанавливается при переустановке
+Per application, settings included, counted as stored: 64 bytes for a value plus its length rounded up to 32. Guaranteed for every installed application. Kept after removal and restored on reinstall
+На приложение, вместе с настройками, считается как хранится: 64 байта на значение плюс его длина, округлённая вверх до 32. Гарантируется каждому установленному приложению. Сохраняется после удаления и восстанавливается при переустановке
 
 Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)
 Ключ хранилища; значение; всего на приложение, как хранится (64 байта плюс длина, округлённая вверх до 32, на каждое значение)
@@ -2524,8 +2524,8 @@ Files written by the code are kept when the application is updated. They are rem
 A write starts inside the file or at its end. To replace a file with a shorter one, delete it first: <code>file_write()</code> with length 0 at offset 0.
 Запись начинается внутри файла или в его конце. Чтобы заменить файл более коротким, сначала удалите его: <code>file_write()</code> с длиной 0 по смещению 0.
 
-Each file takes whole blocks of 4 KB of the 64 KB. Keep related records in one file.
-Каждый файл занимает целые блоки по 4 КБ из 64 КБ. Храните связанные записи в одном файле.
+Each file takes whole blocks of 4 KB of the 32 KB. Keep related records in one file.
+Каждый файл занимает целые блоки по 4 КБ из 32 КБ. Храните связанные записи в одном файле.
 
 Poll with <code>each</code>
 Опрос с <code>each</code>
@@ -2838,3 +2838,24 @@ The poll takes only the items that begin with it; <code>{{key}}</code> is the it
 
 Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_RANGE_RIGHT</code> (the same captions at the right, the series from the left edge), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value
 График из <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) и <code>count</code> чисел (1 - 128), от старых к новым. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (линия основания), <code>_FROM_ZERO</code> (шкала включает 0), <code>_RANGE</code> (наибольшее и наименьшее значение подписями, с <code>decimals</code> знаками после запятой), <code>_RANGE_RIGHT</code> (те же подписи справа, ряд от левого края), <code>_MARK_LAST</code> (отметка на последнем значении). <code>HOST_CHART_NO_VALUE</code> - разрыв. Шкала охватывает наименьшее и наибольшее значение
+
+Files of an application that writes
+Файлы приложения, которое пишет
+
+32 KB
+32 КБ
+
+Packaged files and files written by the code, with <code>"writes_files": true</code>. Kept free from installation
+Файлы пакета и файлы, записанные кодом, при <code>"writes_files": true</code>. Держатся свободными с момента установки
+
+the code calls <code>file_write()</code> and the manifest lacks <code>"writes_files": true</code>;
+код вызывает <code>file_write()</code>, а в манифесте нет <code>"writes_files": true</code>;
+
+writes_files
+writes_files
+
+Enables <code>file_write()</code>. The device keeps 32 KB of files free for the application from installation
+Разрешает <code>file_write()</code>. Устройство держит для приложения 32 КБ файлов свободными с момента установки
+
+Writing needs <code>"writes_files": true</code> in the manifest. The device keeps 32 KB free for the application: its package's files and the files it writes together.
+Для записи нужно <code>"writes_files": true</code> в манифесте. Устройство держит для приложения 32 КБ свободными: файлы пакета и записанные файлы вместе.

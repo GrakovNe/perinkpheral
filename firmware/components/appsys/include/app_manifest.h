@@ -59,6 +59,9 @@ typedef struct {
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */
+    /* Writes files of its own ("writes_files"): HOST_FILES_WRITER_MAX of
+     * them are kept for it. Absent means false: it only reads its package. */
+    bool writes_files;
     /* How many certificate authorities it trusts beside the browsers' set,
      * for its own requests ("certificates": files of its package). */
     int certificate_count;

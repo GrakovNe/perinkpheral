@@ -71,6 +71,7 @@ class ManifestCheck(private val sdk: Sdk) {
         }
         if ((manifest["fullscreen"] ?: false) !is Boolean) fail("$path: \"fullscreen\" must be true or false")
         if ((manifest["system"] ?: false) !is Boolean) fail("$path: \"system\" must be true or false")
+        if ((manifest["writes_files"] ?: false) !is Boolean) fail("$path: \"writes_files\" must be true or false")
         val certificates = manifest["certificates"] ?: emptyList<Any>()
         val fileName = Regex("[a-z0-9_-][a-z0-9._-]{0,${fileNameMax - 1}}")
         if (certificates !is List<*> || certificates.size > certificatesMax || certificates.any { file ->

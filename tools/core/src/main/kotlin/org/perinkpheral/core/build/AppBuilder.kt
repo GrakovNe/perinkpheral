@@ -18,6 +18,8 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     private val moduleMax = sdk.limit("MODULE_MAX_BYTES")
     private val fileNameMax = sdk.limit("FILE_NAME_MAX")
     private val filesMax = sdk.limit("FILES_MAX_BYTES")
+    private val writerFilesMax = sdk.limit("FILES_WRITER_MAX_BYTES")
+    private val settingValueMax = sdk.limit("SETTING_VALUE_MAX")
     private val fileBlock = sdk.limit("FILE_BLOCK_BYTES")
 
     /** What a file of so many bytes takes on the device: whole blocks. */
@@ -68,7 +70,8 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         val memoryEnd = compile(appDir, wasm, strings, manifest)
         try {
             val module = Wasm(wasm)
-            checkModule(wasm, module, manifest["system"] == true)
+            val writesFiles = manifest["writes_files"] == true
+            checkModule(wasm, module, manifest["system"] == true, writesFiles)
             misspelledHandlers(appDir)
             checkHandlers(wasm, module, manifest)
             val moduleBytes = wasm.length()
@@ -90,11 +93,13 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 File(outDir, "manifest.$code").writeText(words)
                 filesBytes += takenBy(words.toByteArray().size.toLong())
             }
-            if (filesBytes > filesMax) {
+            val filesLimit = if (writesFiles) writerFilesMax else filesMax
+            if (filesBytes > filesLimit) {
                 throw BuildError("${appDir.path}: its files take $filesBytes bytes on the device - each a whole " +
-                    "number of $fileBlock-byte blocks - and an application may have $filesMax")
+                    "number of $fileBlock-byte blocks - and an application " +
+                    (if (writesFiles) "that writes files may have $filesLimit, those it writes included" else "may have $filesLimit"))
             }
-            report(wasm, module, filesBytes, memoryEnd)
+            report(wasm, module, filesBytes, filesLimit, memoryEnd, settingsStoreBytes(manifest))
         } catch (error: Exception) {
             // A module that fails a check, or a package that could not be written, is not left behind.
             wasm.delete()
@@ -148,7 +153,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         return process.waitFor()
     }
 
-    private fun checkModule(wasm: File, module: Wasm, asksForSystem: Boolean) {
+    private fun checkModule(wasm: File, module: Wasm, asksForSystem: Boolean, writesFiles: Boolean) {
         val floats = floatOperations(wasm)
         if (floats.isNotEmpty()) {
             throw BuildError("${wasm.path} uses floating point (${floats.take(4).joinToString(", ")}). The device's " +
@@ -161,6 +166,10 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             if (moduleName == HOST_MODULE && name in system && !asksForSystem) {
                 throw BuildError("the module imports $name, which is the system API: an application that wants it " +
                     "says \"system\": true in its manifest")
+            }
+            if (moduleName == HOST_MODULE && name == FILE_WRITE && !writesFiles) {
+                throw BuildError("the module imports $name: an application that writes files says " +
+                    "\"writes_files\": true in its manifest, and the device keeps ${writerFilesMax / 1024} KB free for it")
             }
             if (moduleName != HOST_MODULE || name !in offered + system) {
                 throw BuildError("the module imports $moduleName.$name, which the host does not offer")
@@ -253,8 +262,25 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         return total
     }
 
+    /** What the settings take of the application's store at their longest, as the host counts a
+     * value: two entries of 32 bytes and the value in whole entries. */
+    private fun settingsStoreBytes(manifest: Map<*, *>): Long {
+        fun taken(length: Long) = (2 + (length + 31) / 32) * 32
+        return ((manifest["settings"] as? List<*>).orEmpty()).sumOf { setting ->
+            setting as Map<*, *>
+            when (setting["type"]) {
+                "toggle" -> taken(1)
+                "number" -> taken(NUMBER_TEXT_MAX)
+                "choice" -> taken((setting["options"] as? List<*>).orEmpty()
+                    .maxOfOrNull { it.toString().toByteArray().size.toLong() } ?: 0)
+                else -> taken(settingValueMax)
+            }
+        }
+    }
+
     /** What the build came to, against what the device has for it. */
-    private fun report(wasm: File, module: Wasm, filesBytes: Long, memoryEnd: Long) {
+    private fun report(wasm: File, module: Wasm, filesBytes: Long, filesLimit: Long, memoryEnd: Long,
+                       settingsBytes: Long) {
         // Half to even, of the exact value.
         fun kb(count: Long) = java.math.BigDecimal(count / 1024.0).setScale(1, java.math.RoundingMode.HALF_EVEN)
             .toPlainString() + " KB"
@@ -269,7 +295,11 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 "${kb(BuildFlags.APP_STACK.toLong())} of stack, ${kb(memoryEnd - BuildFlags.APP_STACK)} of data; " +
                 "${kb(BuildFlags.WASM_PAGE - memoryEnd)} left for app_alloc()")
         }
-        if (filesBytes > 0) say("  files   ${kb(filesBytes)} of ${kb(filesMax)}")
+        if (filesBytes > 0 || filesLimit == writerFilesMax) say("  files   ${kb(filesBytes)} of ${kb(filesLimit)}")
+        if (settingsBytes > 0) {
+            say("  store   its settings at their longest take ${kb(settingsBytes)} of ${kb(sdk.storeMax)}")
+            if (settingsBytes > sdk.storeMax) say("  warning: settings this long would not all fit the store")
+        }
         if (running > INTERPRETER_ROOM_BYTES) say("  warning: this much code may not fit when all of it runs")
     }
 
@@ -288,6 +318,9 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         const val MODULE = "app.wasm"
         const val MANIFEST = "manifest.json"
         private const val HOST_MODULE = "host"
+        private const val FILE_WRITE = "file_write"
+        // The longest a number setting is written: a sign, digits and a point.
+        private const val NUMBER_TEXT_MAX = 21L
         // What an application's code costs when it runs, as measured on the device: about this much
         // for any application, and about four bytes for every byte of the code section.
         private const val INTERPRETER_BASE_BYTES = 11L * 1024

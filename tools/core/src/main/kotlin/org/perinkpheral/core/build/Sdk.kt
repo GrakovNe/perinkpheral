@@ -32,6 +32,12 @@ class Sdk(val root: File) {
 
     fun limit(name: String): Long = limits[name] ?: throw BuildError("sdk/lib/manifest_limits.h has no MANIFEST_$name")
 
+    /** HOST_KV_TOTAL_MAX: what all values of one application may take of its store. */
+    val storeMax: Long by lazy {
+        Regex("""#define\s+HOST_KV_TOTAL_MAX\s+(\d+)""").find(hostApi)?.groupValues?.get(1)?.toLong()
+            ?: throw BuildError("sdk/host_api.h does not define HOST_KV_TOTAL_MAX as a number")
+    }
+
     val hostApiVersion: Long by lazy {
         Regex("""#define\s+HOST_API_VERSION\s+(\d+)""").find(hostApi)?.groupValues?.get(1)?.toLong()
             ?: throw BuildError("sdk/host_api.h does not define HOST_API_VERSION as a number")

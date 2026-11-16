@@ -5,6 +5,7 @@
 #pragma once
 
 #include "app_manifest.h"
+#include "catalog.h"
 #include "scenes.h"
 
 #ifdef __cplusplus
@@ -14,9 +15,9 @@ extern "C" {
 /* What the device can show: the installed applications, each as a scene,
  * and the host's own pages. */
 
-/* Six applications from the catalog, a few more a developer uploaded, and
- * the system ones. */
-#define LAUNCHER_ENTRIES_MAX 11
+/* The installed applications - from a catalog, or uploaded by a
+ * developer - and the system ones. */
+#define LAUNCHER_ENTRIES_MAX (CATALOG_INSTALLED_MAX + 3)
 
 /* Reads the store and builds the scenes; once, at start. */
 void launcher_start(void);

@@ -381,6 +381,11 @@ static long data_bytes(const char *root, const char *name, const char *except)
     return total;
 }
 
+long app_store_files_bytes(const char *root, const char *name)
+{
+    return data_bytes(root, name, "");
+}
+
 app_write_result_t app_store_write_file(const char *root, const char *name, const char *file,
                                         long offset, const void *bytes, size_t length)
 {
@@ -401,7 +406,7 @@ app_write_result_t app_store_write_file(const char *root, const char *name, cons
     }
     long end = offset + (long)length;
     long size_after = end > size_before ? end : size_before;
-    if (data_bytes(root, name, file) + taken_by(size_after) > APP_FILES_MAX_BYTES) {
+    if (data_bytes(root, name, file) + taken_by(size_after) > APP_FILES_WRITER_MAX_BYTES) {
         return APP_WRITE_NO_SPACE;
     }
     FILE *opened = fopen(path, size < 0 ? "wb" : "r+b");

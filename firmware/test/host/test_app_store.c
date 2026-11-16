@@ -261,12 +261,12 @@ static void test_install_files(void)
     CHECK(app_store_write_file(root, "fresh", "../x", 0, "x", 1) == APP_WRITE_REFUSED);
     /* all its data files together have a share, counted as they lie on the
      * device - each a whole number of blocks: two small files are two blocks */
-    static char big[APP_FILES_MAX_BYTES];
+    static char big[APP_FILES_WRITER_MAX_BYTES];
     CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big,
-                               APP_FILES_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES + 1) ==
+                               APP_FILES_WRITER_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES + 1) ==
           APP_WRITE_NO_SPACE);
     CHECK(app_store_write_file(root, "fresh", "big.bin", 0, big,
-                               APP_FILES_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES) ==
+                               APP_FILES_WRITER_MAX_BYTES - 2 * MANIFEST_FILE_BLOCK_BYTES) ==
           APP_WRITE_OK);
     CHECK(app_store_write_file(root, "fresh", "more.bin", 0, "i", 1) == APP_WRITE_NO_SPACE);
     /* inside the block a file has already, there is room */

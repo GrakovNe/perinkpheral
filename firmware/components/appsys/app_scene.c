@@ -81,8 +81,10 @@ static bool load(app_scene_t *self)
         self->load_error = word(WORD_FILE_NOT_FOUND);
         return false;
     }
-    switch (app_load(self->manifest.name, self->module, module_size, self->manifest.system,
-                     self->services, &self->app)) {
+    unsigned grants = (self->manifest.system ? APP_GRANT_SYSTEM : 0) |
+                      (self->manifest.writes_files ? APP_GRANT_FILES : 0);
+    switch (app_load(self->manifest.name, self->module, module_size, grants, self->services,
+                     &self->app)) {
     case APP_OK:
         return true;
     case APP_ERR_NO_MEMORY:

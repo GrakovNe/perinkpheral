@@ -4,6 +4,7 @@
  *
  * The system API: for an application whose manifest asked for it.
  */
+#include "catalog.h"
 #include "app_internal.h"
 
 /* ---- the system API ---- */
@@ -100,6 +101,7 @@ HOST_FUNCTION(sys_app_list)
     if (ids == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
+    _Static_assert(CATALOG_INSTALLED_MAX <= SYS_APP_LIST_MAX, "the list holds every installed one");
     uint32_t listed[SYS_APP_LIST_MAX];
     int32_t  count = app->services->system_app_list(listed, capacity);
     memcpy(ids, listed, (size_t)(count < capacity ? count : capacity) * sizeof(uint32_t));

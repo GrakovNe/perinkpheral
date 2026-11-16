@@ -75,6 +75,8 @@ object Catalog {
         // The page asks before it installs an application with the system API, or one that
         // trusts a certificate authority of its own: it names the authority.
         if (manifest["system"] == true) entry["system"] = true
+        // The room it keeps for files of its own, which the page names before it installs.
+        if (manifest["writes_files"] == true) entry["writes_files"] = true
         val certificates = (manifest["certificates"] as? List<*>).orEmpty()
         if (certificates.isNotEmpty()) {
             entry["trusts"] = certificates.map { file ->

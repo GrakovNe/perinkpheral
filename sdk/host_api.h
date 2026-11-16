@@ -820,8 +820,9 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * changed, for example in app_on_terminate(), not on every timer tick. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~' */
 #define HOST_KV_VALUE_MAX 1024
-#define HOST_KV_TOTAL_MAX 4096 /* all values of one application, as stored: 64 bytes for a
-                                  value and its length rounded up to 32 */
+#define HOST_KV_TOTAL_MAX 2048 /* all values of one application, its settings among them, as
+                                  stored: 64 bytes for a value and its length rounded up to 32;
+                                  guaranteed to every installed application */
 
 /* Reads a value into `value`. Returns its length. A setting of the manifest
  * with nothing stored reads as its "default", a list's items with line
@@ -976,15 +977,19 @@ APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
 
 /* Files hold data that does not fit in a store value: a picture, a table,
  * a cache. An application can read the files of its package (the `files`
- * folder at build time) and the files it has written.
- * Limit: HOST_FILES_MAX bytes for all files of one application, counted
- * as stored on the device: every file takes whole 4 KB blocks, 16 blocks
- * in total. The limit is guaranteed for every installed application.
+ * folder at build time) and, with "writes_files": true in its manifest,
+ * the files it has written.
+ * Limits, counted as stored on the device, every file in whole 4 KB
+ * blocks: HOST_FILES_MAX for the files of a package; HOST_FILES_WRITER_MAX
+ * for all files of an application that writes, its package's included.
+ * The room of an application that writes is guaranteed: the device keeps
+ * it free for it from the moment it is installed.
  * Writing wears the flash memory, like kv_set().
  * File name: 1-23 characters of a-z, 0-9, '.', '-' and '_'; the first
  * character is not a dot. */
-#define HOST_FILE_NAME_MAX 23
-#define HOST_FILES_MAX     (64 * 1024)
+#define HOST_FILE_NAME_MAX    23
+#define HOST_FILES_MAX        (64 * 1024)
+#define HOST_FILES_WRITER_MAX (32 * 1024)
 
 /* Returns the file size, or HOST_ERR_NOT_FOUND. */
 HOST_IMPORT(file_size, int32_t file_size(const char *name, int32_t name_length));
@@ -997,8 +1002,10 @@ HOST_IMPORT(file_read, int32_t file_read(const char *name, int32_t name_length, 
 /* Writes `length` bytes at `offset`. The offset must be inside the file
  * or at its end: a file is extended piece by piece, and existing data can
  * be overwritten. Length 0 at offset 0 deletes the file.
+ * Only for an application whose manifest says "writes_files": true; the
+ * build and the host refuse a module that imports this without it.
  * Returns HOST_ERR_NO_SPACE if the files of the application would exceed
- * HOST_FILES_MAX. */
+ * HOST_FILES_WRITER_MAX. */
 HOST_IMPORT(file_write, int32_t file_write(const char *name, int32_t name_length, int32_t offset,
                                            const void *bytes, int32_t length));
 
@@ -1167,7 +1174,7 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
  * sys_app_remove(): removes the files of the application and keeps its
  *                   store.
  * All return HOST_ERR_NOT_FOUND for an id that is not installed. */
-#define SYS_APP_LIST_MAX 16 /* maximum `capacity` */
+#define SYS_APP_LIST_MAX 32 /* maximum `capacity`: more than a device holds */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));

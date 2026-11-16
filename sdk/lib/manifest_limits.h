@@ -49,17 +49,20 @@
 /* "prefix" of a poll over a list: the items it takes begin with it. */
 #define MANIFEST_EACH_PREFIX_MAX     15
 
-/* Module size. The code slot is 52 KB. Code that actually runs is limited
- * further by the interpreter memory: about four bytes per byte of code. */
+/* Module size. On the device a module takes whole 4 KB sectors of the
+ * code partition. Code that actually runs is limited further by the
+ * interpreter memory: about four bytes per byte of code. */
 #define MANIFEST_MODULE_MAX_BYTES (48 * 1024)
 
-/* File name length, and the total size of all files of one application.
- * The total is counted as stored on the device: every file is rounded up
- * to whole blocks. With this accounting, six applications at the limit
- * plus one update in progress always fit the files partition. */
-#define MANIFEST_FILE_NAME_MAX  23
-#define MANIFEST_FILES_MAX_BYTES (64 * 1024)
-#define MANIFEST_FILE_BLOCK_BYTES 4096
+/* File name length, the total size of the files of a package, and of all
+ * files of an application that writes them ("writes_files"), its
+ * package's included. Counted as stored on the device: every file is
+ * rounded up to whole blocks. The room of an application that writes is
+ * kept free for it from the moment it is installed. */
+#define MANIFEST_FILE_NAME_MAX          23
+#define MANIFEST_FILES_MAX_BYTES        (64 * 1024)
+#define MANIFEST_FILES_WRITER_MAX_BYTES (32 * 1024)
+#define MANIFEST_FILE_BLOCK_BYTES       4096
 
 /* Certificate authorities an application trusts beside the browsers' set,
  * for its own requests only ("certificates"): files of its package, each a

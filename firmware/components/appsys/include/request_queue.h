@@ -24,7 +24,7 @@ extern "C" {
  * that was not served last. Pure, host-tested; whoever shares it between
  * tasks locks around it. */
 
-#define REQUEST_QUEUE_APPS      8 /* applications that may have requests waiting */
+#define REQUEST_QUEUE_APPS      24 /* applications that may have requests waiting */
 #define REQUEST_QUEUE_SLOTS     (REQUEST_QUEUE_APPS * HOST_HTTP_PENDING_MAX)
 #define REQUEST_QUEUE_BYTES_MAX (16 * 1024)
 #define REQUEST_QUEUE_NO_APP    0 /* no application has this id */

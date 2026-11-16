@@ -323,6 +323,7 @@ function appFacts(app) {
     ["Settings", stores.join(", ") || "None"],
     ["Starts with device", (app.intents || []).includes("started") ? "Yes" : "No"],
     ["System access", app.system ? "Yes" : "No"],
+    ["Writes files", app.writes_files ? "Yes, 32 KB" : "No"],
     ["Own certificate authorities", (app.trusts || []).join(", ") || "None"],
     ["Screen", app.fullscreen ? "Full" : "With header"],
     ...(app.companion ? [["Set up page", new URL(app.companion).host]] : []),

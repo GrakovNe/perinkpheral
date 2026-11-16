@@ -191,7 +191,7 @@
   <tr><td>Loaded instances</td><td class="n">1</td><td>Across all applications</td></tr>
   <tr><td>Floating point</td><td class="n">integer only</td><td>The build rejects a module with a float operation</td></tr>
   <tr><td>C library</td><td class="n"><code>sdk/lib</code></td><td>Strings, numbers, an arena allocator, the <code>memcpy</code> family. The standard C library is absent</td></tr>
-  <tr><td>Installed applications</td><td class="n">6</td><td>Per device. Catalog size is unlimited</td></tr>
+  <tr><td>Installed applications</td><td class="n">24</td><td>Per device, as many as fit: an installation is refused when its code, its files or the room promised to others do not fit. Catalog size is unlimited</td></tr>
 </table>
 
 <h2 id="char-storage">Storage</h2>
@@ -199,8 +199,9 @@
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Store key</td><td class="n">1 - 15 characters</td><td>Characters <code>!</code> to <code>~</code></td></tr>
   <tr><td>Store value</td><td class="n">1024 bytes</td><td></td></tr>
-  <tr><td>Store total</td><td class="n">4096 bytes</td><td>Per application, counted as stored: 64 bytes for a value plus its length rounded up to 32. Kept after removal and restored on reinstall</td></tr>
-  <tr><td>Files total</td><td class="n">64 KB</td><td>Per application: packaged files and files written by the code. Each file counts as whole 4 KB blocks (16 blocks). Guaranteed for every installed application</td></tr>
+  <tr><td>Store total</td><td class="n">2048 bytes</td><td>Per application, settings included, counted as stored: 64 bytes for a value plus its length rounded up to 32. Guaranteed for every installed application. Kept after removal and restored on reinstall</td></tr>
+  <tr><td>Files of a package</td><td class="n">64 KB</td><td>Per application. Each file counts as whole 4 KB blocks</td></tr>
+  <tr><td>Files of an application that writes</td><td class="n">32 KB</td><td>Packaged files and files written by the code, with <code>"writes_files": true</code>. Kept free from installation</td></tr>
   <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code></td></tr>
 </table>
 
@@ -378,6 +379,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <li>the module imports a function that <code>host_api.h</code> does not declare;</li>
   <li>the code contains a floating-point operation (the report names it);</li>
   <li>the code calls a <code>sys_*</code> function and the manifest lacks <code>"system": true</code>;</li>
+  <li>the code calls <code>file_write()</code> and the manifest lacks <code>"writes_files": true</code>;</li>
   <li>the manifest exceeds a limit;</li>
   <li>a translation does not match <code>en.json</code> (section 12);</li>
   <li>a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;</li>
@@ -431,6 +433,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">settings</td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
   <tr><td class="c">system</td><td>true / false (default)</td><td>Enables the <code>sys_*</code> calls. The web page warns the user before installation</td></tr>
+  <tr><td class="c">writes_files</td><td>true / false (default)</td><td>Enables <code>file_write()</code>. The device keeps 32 KB of files free for the application from installation</td></tr>
   <tr><td class="c">companion</td><td><code>https</code> URL</td><td>Developer's page opened from the settings form, for setup that a form cannot express</td></tr>
   <tr><td class="c">certificates</td><td>up to 2 files of <code>files/</code></td><td>Certificate authorities trusted for this application's own requests, beside the browser root set (section 9). The web page names them before installation</td></tr>
 </table>
@@ -671,7 +674,8 @@ void app_init(void)
 <ul>
   <li>Files written by the code are kept when the application is updated. They are removed with the application; the store is kept.</li>
   <li>A write starts inside the file or at its end. To replace a file with a shorter one, delete it first: <code>file_write()</code> with length 0 at offset 0.</li>
-  <li>Each file takes whole blocks of 4 KB of the 64 KB. Keep related records in one file.</li>
+  <li>Writing needs <code>"writes_files": true</code> in the manifest. The device keeps 32 KB free for the application: its package's files and the files it writes together.</li>
+  <li>Each file takes whole blocks of 4 KB of the 32 KB. Keep related records in one file.</li>
 </ul>
 
 <h1 id="network">9. Network</h1>
@@ -1080,7 +1084,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">kv_set(key, key_length, value, length)</td><td>Writes a value. Length 0 deletes the key. Fails for <code>url</code> and <code>link</code> settings</td></tr>
   <tr><td class="c">file_size(name, name_length)</td><td>Returns the file size, or <code>HOST_ERR_NOT_FOUND</code></td></tr>
   <tr><td class="c">file_read(name, name_length, offset, bytes, capacity)</td><td>Reads from an offset. Returns the number of bytes read; 0 at or past the end</td></tr>
-  <tr><td class="c">file_write(name, name_length, offset, bytes, length)</td><td>Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file</td></tr>
+  <tr><td class="c">file_write(name, name_length, offset, bytes, length)</td><td>Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file. Needs <code>"writes_files": true</code></td></tr>
   <tr><td class="c">poll_now(poll)</td><td>Runs a manifest poll immediately</td></tr>
   <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Sets the poll interval, 10 s to 1 day. Kept across restarts</td></tr>
   <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines</td></tr>
@@ -1114,7 +1118,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">sys_number_get(what, number), sys_number_set(what, value)</td><td>Numeric host setting, range-checked: <code>SYS_NUMBER_TIME_AUTOMATIC</code>, <code>_REFRESH_FULL_EVERY</code>, <code>_REFRESH_MIN_SECONDS</code>, <code>_REFRESH_FORCE_HOURS</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FAST</code>, <code>_FONT</code>, <code>_MENU_IDLE_MINUTES</code>, <code>_HEADER_CLOCK</code></td></tr>
   <tr><td class="c">sys_text_set(what, text, length)</td><td>Text host setting: <code>SYS_TEXT_TIME_ZONE</code>, a POSIX TZ string</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock. Fails while the time source is the network</td></tr>
-  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, up to 16: list, title, removal</td></tr>
+  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, up to 32: list, title, removal</td></tr>
   <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
   <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
   <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>_FORGET_NETWORK</code>, <code>_FACTORY_RESET</code>. Requires a confirmation screen in the application</td></tr>
@@ -1223,8 +1227,8 @@ bool        json_pick_is_cut(const json_pick_t *pick);                   /* an e
   <tr><td class="c">MANIFEST_URL_MAX / _SETTING_VALUE_MAX</td><td>511 / 255 bytes</td><td>Poll URL; setting value</td></tr>
   <tr><td class="c">HOST_TEXT_MAX</td><td>127 bytes</td><td>Text per drawing or measuring call</td></tr>
   <tr><td class="c">HOST_HEADER_TEXT_MAX / HOST_STATUS_TEXT_MAX</td><td>63 / 31 bytes</td><td>Header text; header status text</td></tr>
-  <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 4096</td><td>Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)</td></tr>
-  <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX</td><td>23 / 64 KB</td><td>File name; total file size per application</td></tr>
+  <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 2048</td><td>Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)</td></tr>
+  <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX / HOST_FILES_WRITER_MAX</td><td>23 / 64 KB / 32 KB</td><td>File name; files of a package; all files of an application that writes</td></tr>
   <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>One piece of an answer</td></tr>
   <tr><td class="c">HOST_ANSWER_MAX / HOST_ANSWER_PIECES_MAX</td><td>256 KB / 4 MB</td><td>Answer with extracted values; streamed answer</td></tr>
   <tr><td class="c">HOST_VALUE_MAX</td><td>63 bytes</td><td>One extracted value</td></tr>
