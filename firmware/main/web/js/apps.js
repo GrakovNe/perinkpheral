@@ -270,12 +270,17 @@ function tile(have, offer) {
   tools.append(iconButton(INFO, "Info", () => openAppInfo(have)));
   box.append(tools);
   if (offer && offer.app.version !== have.version) {
-    const update = make("button", { className: "action", textContent: "Update" });
+    /* An update this firmware is too old for is not offered: the tile says
+     * what it needs instead, where it can be read. */
     const needed = firmwareNeeded(offer.app);
-    update.title = needed ? "Needs firmware " + needed : offer.app.version;
-    update.disabled = Boolean(needed);
-    update.addEventListener("click", () => install(update, offer));
-    box.append(update);
+    if (needed) {
+      box.append(make("small", { className: "needs", textContent: "Update needs firmware " + needed }));
+    } else {
+      const update = make("button", { className: "action", textContent: "Update" });
+      update.title = offer.app.version;
+      update.addEventListener("click", () => install(update, offer));
+      box.append(update);
+    }
   }
   const remove = make("button", { className: "action quiet", textContent: "Remove" });
   remove.addEventListener("click", async () => {

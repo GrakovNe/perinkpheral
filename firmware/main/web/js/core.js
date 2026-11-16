@@ -204,8 +204,17 @@ function openInside(what) {
 function showPane(name) {
   for (const pane of document.querySelectorAll(".pane"))
     pane.classList.toggle("current", pane.id === name);
-  for (const tab of byId("tabs").children)
+  for (const tab of byId("tabs").children) {
     tab.classList.toggle("current", tab.dataset.pane === name);
+    /* On a phone the tabs are one row that scrolls: the chosen one in sight,
+     * once the section it is in is laid out in its own letters. */
+    if (tab.dataset.pane === name)
+      document.fonts.ready.then(() => requestAnimationFrame(() => {
+        const row = tab.parentElement.getBoundingClientRect(), at = tab.getBoundingClientRect();
+        if (at.right > row.right) tab.parentElement.scrollLeft += at.right - row.right;
+        else if (at.left < row.left) tab.parentElement.scrollLeft -= row.left - at.left;
+      }));
+  }
 }
 
 for (const tab of byId("tabs").children)

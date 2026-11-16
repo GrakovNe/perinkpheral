@@ -146,6 +146,7 @@ button.icon:hover:not(:disabled) { border-color: var(--ink); background: var(--p
 .tile .picture { margin-bottom: 1rem; }
 .tile b { display: block; font-weight: 400; font-size: 1.1rem; line-height: 1.3; overflow-wrap: anywhere; }
 .tile small { color: var(--dim); }
+.tile small.needs { color: var(--ink); margin-bottom: .6rem; }
 .tile .mark { align-self: flex-start; margin-top: .5rem; padding: 0 .45rem; font-size: .8rem;
               color: var(--paper); background: var(--ink); }
 .tile .spring { flex: 1; min-height: .75rem; }
@@ -221,7 +222,8 @@ details[open] summary::before { content: "- "; }
   .tiles { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .9rem; }
   .tile { padding: .85rem; min-height: 13rem; }
   .tile:hover { transform: none; box-shadow: none; }
-  .tabs { flex-wrap: wrap; }
+  /* One row that scrolls, the last tab cut at the edge: wrapped, the chosen
+   * tab stood a row away from the line it opens. */
   .tabs button { min-width: 0; padding: 0 .75rem; }
   dialog { padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink); }
 }
