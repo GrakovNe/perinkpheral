@@ -129,10 +129,12 @@ function settingField(app, setting) {
   } else if (setting.type === "choice") {
     input = make("select");
     /* An option is what is stored; its label, when the device gives one, what is read. */
-    const labels = setting.labels || setting.options;
+    /* With no translation an option is its own label: "celsius" reads "Celsius". */
+    const labels = setting.labels || [];
+    const label = (option, at) => labels[at] || option.charAt(0).toUpperCase() + option.slice(1);
     input.append(make("option", { value: "", textContent: "-" }));
     setting.options.forEach((option, at) =>
-      input.append(make("option", { value: option, textContent: labels[at] || option })));
+      input.append(make("option", { value: option, textContent: label(option, at) })));
     input.value = value;
   } else {
     input = make("input", { maxLength: 255, autocomplete: "off" });
@@ -318,7 +320,7 @@ function appFacts(app) {
   return [
     ["Name", app.name],
     ["Version", app.version || "-"],
-    ["Connects to", hosts.join(", ") || "Nothing"],
+    ["Connects to", hosts.join("\n") || "Nothing"],
     ["Updates", [...new Set(updates)].join(", ") || "On request"],
     ["Settings", stores.join(", ") || "None"],
     ["Starts with device", (app.intents || []).includes("started") ? "Yes" : "No"],
@@ -344,7 +346,8 @@ const available = () => offered.filter(offer => !installed.some(have => have.nam
 
 /* The last tile: a way to add an application, while there is a place for one. */
 function addTile() {
-  const add = make("button", { className: "tile add", textContent: "+", title: "Add app" });
+  const add = make("button", { className: "tile add", title: "Add app" });
+  add.append(pixels(PLUS, 4));
   add.disabled = installed.length >= SLOTS;
   add.addEventListener("click", openStore);
   return add;

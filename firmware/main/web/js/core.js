@@ -18,6 +18,10 @@ const INFO = ["...#####...", "..#.....#..", ".#...#...#.", "#.........#", "#....
               "#....#....#", "#....#....#", ".#...#...#.", "..#.....#..", "...#####...",
               "..........."];
 
+const PLUS = ["...........", "...........", ".....#.....", ".....#.....", ".....#.....",
+              "..#######..", ".....#.....", ".....#.....", ".....#.....", "...........",
+              "..........."];
+
 /* An icon as the manifest writes it - rows of '#' and '.' - drawn cell by cell. */
 function pixels(rows, cell) {
   const NS = "http://www.w3.org/2000/svg", size = rows.length * cell;
@@ -168,7 +172,7 @@ function showSection() {
   else openInside(inside);
   for (const section of document.querySelectorAll("section"))
     section.classList.toggle("current", section.id === name);
-  for (const link of document.querySelectorAll("nav a"))
+  for (const link of document.querySelectorAll("nav a:not(.brand)"))
     link.classList.toggle("current", link.hash === "#" + name);
   for (const shown of sectionShown) shown(name);
   /* The browser scrolls to what the link names; a section starts at its top. */

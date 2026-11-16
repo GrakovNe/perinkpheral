@@ -18,7 +18,7 @@ idf_component_register(SRCS ${srcs}
 # it is: every browser unpacks gzip.
 idf_build_get_property(python PYTHON)
 set(web_dir "${CMAKE_CURRENT_LIST_DIR}/web")
-file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js"
+file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js" "${web_dir}/*.woff2"
                                               "${web_dir}/assemble.py")
 set(page "${CMAKE_BINARY_DIR}/index.html")
 set(packed_page "${CMAKE_BINARY_DIR}/index.html.gz")

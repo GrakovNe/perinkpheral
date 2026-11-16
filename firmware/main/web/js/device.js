@@ -28,36 +28,51 @@ function lastFault(record) {
   return why.trim() + ", " + task + " - " + ago + (ago === "1" ? " start ago" : " starts ago");
 }
 
-/* The device's facts as a person reads them; what it does not say is left out. */
+/* The network's state, as the device names it, in words. */
+const WIFI = { online: "Connected", connecting: "Connecting", setup: "Setup", rescue: "Not connected" };
+const wifiState = () => WIFI[status.wifi] || status.wifi;
+
+/* The device's facts as a person reads them, in groups; what it does not say is left out. */
 function statusFacts() {
   const language = (settings.languages || []).find(known => known.code === settings.language);
   const faults = [];
   if (status.memory_refusals) faults.push(status.memory_refusals + " refused");
   if (status.failed_allocations) faults.push(status.failed_allocations + " failed");
+  const has = number => number !== undefined;
   return [
-    ["Name", status.name],
-    ["Hostname", status.hostname && status.hostname + ".local"],
-    ["Firmware", status.firmware && status.firmware + (status.on_probation ? " (verifying)" : "")],
-    ["Built", status.built],
-    ["ESP-IDF", status.idf],
-    ["Slot", status.slot],
-    ["Wi-Fi", status.wifi],
-    ["SSID", status.ssid],
-    ["IP address", status.address],
-    ["Time", status.time],
-    ["Uptime", status.uptime_s !== undefined && duration(status.uptime_s)],
-    ["Last start", STARTS[status.reset_reason] || (status.reset_reason && "Code " + status.reset_reason)],
-    ["Last fault", lastFault(status.last_panic)],
-    ["Free memory", status.free_memory !== undefined &&
-      kb(status.free_memory) + ", " + kb(status.least_free_memory) + " at least, " +
-      kb(status.largest_free_block) + " in one piece"],
-    ["Memory", faults.join(", ")],
-    ["App area", status.app_area && kb(status.app_area_used) + " of " + kb(status.app_area)],
-    ["Storage", status.storage_ok === false ? "Error"
-      : status.storage_total && kb(status.storage_used) + " of " + kb(status.storage_total)],
-    ["Language", language && language.name],
-  ].filter(([, value]) => value);
+    ["Device", [
+      ["Name", status.name],
+      ["Firmware", status.firmware && status.firmware + (status.on_probation ? " (verifying)" : "")],
+      ["Built", status.built],
+      ["ESP-IDF", status.idf],
+      ["Slot", status.slot],
+      ["Time", status.time],
+      ["Uptime", has(status.uptime_s) && duration(status.uptime_s)],
+      ["Last start", STARTS[status.reset_reason] || (status.reset_reason && "Code " + status.reset_reason)],
+      ["Last fault", lastFault(status.last_panic)],
+      ["Language", language && language.name],
+    ]],
+    ["Network", [
+      ["Wi-Fi", wifiState()],
+      ["SSID", status.ssid],
+      ["IP address", status.address],
+      ["Hostname", status.hostname && status.hostname + ".local"],
+    ]],
+    ["Memory", [
+      ["Free", has(status.free_memory) && kb(status.free_memory)],
+      ["Lowest", has(status.least_free_memory) && kb(status.least_free_memory)],
+      ["Largest block", has(status.largest_free_block) && kb(status.largest_free_block)],
+      ["Errors", faults.join(", ")],
+      ["App area", status.app_area && kb(status.app_area_used) + " of " + kb(status.app_area)],
+      ["Storage", status.storage_ok === false ? "Error"
+        : status.storage_total && kb(status.storage_used) + " of " + kb(status.storage_total)],
+    ]],
+  ].map(([name, facts]) => [name, facts.filter(([, value]) => value)]).filter(([, facts]) => facts.length);
 }
+
+/* Facts as a list of names and values. */
+const factList = facts => facts.flatMap(([name, value]) =>
+  [make("dt", { textContent: name }), make("dd", { textContent: value })]);
 
 async function loadStatus() {
   status = await ask("/api/status");
@@ -67,8 +82,12 @@ async function loadStatus() {
 }
 
 function drawStatus() {
-  byId("status").replaceChildren(...statusFacts().flatMap(([name, value]) =>
-    [make("dt", { textContent: name }), make("dd", { textContent: value })]));
+  byId("status").replaceChildren(...statusFacts().map(([name, facts]) => {
+    const group = make("div", { className: "panel" }), list = make("dl");
+    list.append(...factList(facts));
+    group.append(make("h3", { textContent: name }), list);
+    return group;
+  }));
   drawNetworkNow();
 }
 

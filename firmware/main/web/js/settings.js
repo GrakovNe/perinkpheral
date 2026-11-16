@@ -68,7 +68,7 @@ async function loadSettings() {
   byId("power_saving").value = settings.power_saving;
   byId("menu_idle_min").value = settings.menu_idle_min;
   byId("ssid").value = settings.wifi_ssid;
-  byId("hostname").value = settings.hostname;
+  byId("hostname").value = settings.hostname ? settings.hostname + ".local" : "";
   byId("language-choice").replaceChildren(...(settings.languages || []).map(
     language => make("option", { value: language.code, textContent: language.name })));
   byId("language-choice").value = settings.language;
@@ -103,7 +103,8 @@ function saveSettings(formId, read) {
 
 saveSettings("general", () => ({ device_name: byId("device_name").value,
                                  default_app: byId("default_app").value,
-                                 menu_idle_min: Number(byId("menu_idle_min").value) }));
+                                 menu_idle_min: Number(byId("menu_idle_min").value),
+                                 power_saving: Number(byId("power_saving").value) }));
 saveSettings("time-zone", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value,
                                    time_auto: byId("time_auto").checked }));
 saveSettings("display", () => ({
@@ -114,7 +115,6 @@ saveSettings("display", () => ({
   font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
   header_clock: byId("header_clock").checked,
-  power_saving: Number(byId("power_saving").value),
 }));
 saveSettings("language-form", () => ({ language: byId("language-choice").value }));
 
@@ -145,10 +145,8 @@ byId("clock").addEventListener("submit", async event => {
 /* ---- the network: where the device is, and another to join ---- */
 
 function drawNetworkNow() {
-  const rows = [["Wi-Fi", status.wifi], ["SSID", status.ssid], ["IP address", status.address],
-                ["Hostname", status.hostname && status.hostname + ".local"]].filter(([, value]) => value);
-  byId("network-now").replaceChildren(...rows.flatMap(([name, value]) =>
-    [make("dt", { textContent: name }), make("dd", { textContent: value })]));
+  const network = statusFacts().find(([name]) => name === "Network");
+  byId("network-now").replaceChildren(...factList(network ? network[1] : []));
 }
 
 byId("wifi").addEventListener("submit", async event => {
