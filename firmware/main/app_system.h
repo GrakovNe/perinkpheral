@@ -23,7 +23,7 @@ int32_t app_system_setting_range(const char *key, int32_t *value, int32_t *least
 int32_t app_system_time_set(int64_t unix_seconds);
 int32_t app_system_app_list(uint32_t *ids, int32_t capacity);
 int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity);
-int32_t app_system_app_remove(uint32_t id);
+int32_t app_system_app_remove(const char *asking, uint32_t id);
 uint32_t app_system_app_default(void);
 int32_t app_system_app_set_default(uint32_t id);
 int32_t app_system_do(int action);

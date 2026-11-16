@@ -162,7 +162,7 @@ HOST_FUNCTION(sys_app_remove)
     if (app->services->system_app_remove == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(app->services->system_app_remove(index));
+    m3ApiReturn(app->services->system_app_remove(app->name, index));
 }
 
 HOST_FUNCTION(sys_app_default)

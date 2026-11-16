@@ -93,7 +93,7 @@ typedef struct {
     int32_t (*system_time_set)(int64_t unix_seconds);
     int32_t (*system_app_list)(uint32_t *ids, int32_t capacity);
     int32_t (*system_app_title)(uint32_t id, char *text, int32_t capacity);
-    int32_t (*system_app_remove)(uint32_t id);
+    int32_t (*system_app_remove)(const char *app_name, uint32_t id); /* app_name: who asks */
     uint32_t (*system_app_default)(void);
     int32_t (*system_app_set_default)(uint32_t id);
     int32_t (*system_do)(int action);

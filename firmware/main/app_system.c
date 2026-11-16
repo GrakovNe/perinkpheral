@@ -12,7 +12,6 @@
 
 #include "app_code.h"
 #include "app_kv.h"
-#include "app_scene.h"
 #include "host.h"
 #include "events.h"
 #include "host_api.h"
@@ -205,16 +204,17 @@ int32_t app_system_app_title(uint32_t id, char *text, int32_t capacity)
     return (int32_t)length;
 }
 
-int32_t app_system_app_remove(uint32_t id)
+int32_t app_system_app_remove(const char *asking, uint32_t id)
 {
     const app_manifest_t *app = launcher_find_id(id);
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    /* There is room for one application at a time, so one that is loaded
-     * is the one asking: closing it would free the interpreter its handler
-     * is running in. It is removed from another, or from the page. */
-    if (app_scene_app(launcher_app_scene(app->name)) != NULL) {
+    /* Not the one asking, whichever of its handlers asks - app_init()'s
+     * too: its code runs from the flash that removing it frees, in the
+     * interpreter closing it would free. It is removed from another, or
+     * from the page. */
+    if (strcmp(app->name, asking) == 0) {
         return HOST_ERR_ARGUMENT;
     }
     host_close_app(app->name);
