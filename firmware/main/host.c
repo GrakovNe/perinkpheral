@@ -334,7 +334,7 @@ static scene_t *s_menu;
 void host_renew_menu(void)
 {
     int count;
-    const menu_entry_t *entries = launcher_entries(&count);
+    menu_entry_t *entries = launcher_entries(&count);
     scene_menu(entries, count);
     /* Where the splash leads may have been one of them. */
     scene_boot_splash(scene_after_boot(s_menu), timers_set, launcher_about(), about_is_shown);
@@ -522,8 +522,9 @@ void host_run(void)
     vTaskPrioritySet(NULL, PRIORITY_HOST_LOOP);
     launcher_start();
     int menu_entry_count;
-    const menu_entry_t *menu_entries = launcher_entries(&menu_entry_count);
+    menu_entry_t *menu_entries = launcher_entries(&menu_entry_count);
     scene_t *menu = scene_menu(menu_entries, menu_entry_count);
+    scene_menu_set_on_order(launcher_keep_order);
     s_menu = menu;
 
     gfx_t screen;

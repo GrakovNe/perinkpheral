@@ -74,6 +74,11 @@ refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c);
  * then the ones the user added; saving takes only the added ones.
  * sources_size is at least CATALOG_SOURCES_TEXT_MAX. */
 void      settings_load_sources(char *sources, size_t sources_size);
+
+/* The order of the menu the user set, the names a line each (menu_order.h);
+ * empty when none was. order_size is at least MENU_ORDER_MAX. */
+void      settings_load_menu_order(char *order, size_t order_size);
+esp_err_t settings_save_menu_order(const char *order);
 esp_err_t settings_save_sources(const char *added_sources);
 
 #ifdef __cplusplus

@@ -47,7 +47,11 @@ scene_t *launcher_setup(void);
 scene_t *launcher_scene(const char *name);
 
 /* What the menu lists: applications by title, then the host's pages. */
-const menu_entry_t *launcher_entries(int *count);
+menu_entry_t *launcher_entries(int *count);
+
+/* The order the user set in the menu, kept for the next start: the entries
+ * as they stand. */
+void launcher_keep_order(const menu_entry_t *entries, int count);
 
 /* Takes an installed application off the device: its files and its code,
  * and - `forgets` - what it stored, which otherwise waits for it to come

@@ -16,6 +16,7 @@
 #define BAR_HEIGHT   36
 #define BAR_RISE     26 /* its top above the row's baseline */
 #define CELL         2  /* of a picture and of an icon */
+#define FRAME_STROKE 2  /* of the frame around a row being moved, as the kit's frames are */
 #define PICTURE_GAP  12 /* between a picture and the label */
 #define VALUE_GAP    14 /* the least between a label and its value */
 #define VALUE_MAX    63
@@ -81,7 +82,15 @@ void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *ro
     /* A list longer than its room gives its right edge to the bar. */
     int  right = g->w - (list->count > visible ? SCROLLBAR_ROOM : 0);
     bool is_selected = index == list->selected;
-    if (is_selected) {
+    if (is_selected && list->is_framed) {
+        /* A row being moved: in a frame, black on paper, the rest of the list as it is. */
+        int top = baseline - BAR_RISE, width = right - 2 * BAR_INSET;
+        gfx_fill(g, BAR_INSET, top, width, FRAME_STROKE, true);
+        gfx_fill(g, BAR_INSET, top + BAR_HEIGHT - FRAME_STROKE, width, FRAME_STROKE, true);
+        gfx_fill(g, BAR_INSET, top, FRAME_STROKE, BAR_HEIGHT, true);
+        gfx_fill(g, BAR_INSET + width - FRAME_STROKE, top, FRAME_STROKE, BAR_HEIGHT, true);
+        is_selected = false; /* drawn in ink, as an unselected row is */
+    } else if (is_selected) {
         gfx_fill(g, BAR_INSET, baseline - BAR_RISE, right - 2 * BAR_INSET, BAR_HEIGHT, true);
     }
     int label_left = MARGIN;

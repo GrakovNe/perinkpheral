@@ -1104,7 +1104,7 @@ static void menu_row(void *context, int index, screens_menu_row_t *row)
 static void menu_draw(scene_t *scene, gfx_t *surface)
 {
     (void)scene;
-    screens_menu(surface, menu_row, NULL, 1, 0);
+    screens_menu(surface, menu_row, NULL, 1, 0, false);
 }
 
 static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene_press_t press)

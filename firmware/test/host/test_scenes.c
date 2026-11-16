@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include "list.h"
+#include "menu_order.h"
 #include "screens.h"
 #include "tinytest.h"
 
@@ -15,10 +16,10 @@
  * chip and is left to the device. */
 
 static scene_t first_target, second_target, third_target;
-static const menu_entry_t ENTRIES[] = {
-    { "First", NULL, &first_target },
-    { "Second", NULL, &second_target },
-    { "Third", NULL, &third_target },
+static menu_entry_t ENTRIES[] = {
+    { "First", NULL, &first_target, "first" },
+    { "Second", NULL, &second_target, "second" },
+    { "Third", NULL, &third_target, "third" },
 };
 #define ENTRY_COUNT ((int)(sizeof ENTRIES / sizeof ENTRIES[0]))
 
@@ -287,8 +288,95 @@ static void test_storage_error(void)
     draw_whole_screen(storage);
 }
 
+/* ---- moving a row of the menu ---- */
+
+static menu_entry_t kept_order[8];
+static int          kept_count, kept_times;
+
+static void keep(const menu_entry_t *entries, int count)
+{
+    for (int i = 0; i < count; i++) {
+        kept_order[i] = entries[i];
+    }
+    kept_count = count;
+    kept_times++;
+}
+
+static scene_reaction_t long_press(scene_t *scene, scene_button_t button)
+{
+    return scene->ops->button(scene, button, SCENE_PRESS_LONG);
+}
+
+static void test_menu_order(void)
+{
+    menu_entry_t entries[] = {
+        { "A", NULL, &first_target, "a" }, { "B", NULL, &second_target, "b" },
+        { "C", NULL, &third_target, "c" }, { "S", NULL, NULL, "sys.settings" },
+    };
+    /* Moving the second down two: A C S B. OK keeps it and says so. */
+    scene_menu_set_on_order(keep);
+    kept_times = 0;
+    scene_t *menu = scene_menu(entries, 4);
+    press(menu, SCENE_BUTTON_DOWN);
+    CHECK(long_press(menu, SCENE_BUTTON_OK).kind == SCENE_REDRAW_NO_BLINK);
+    CHECK(press(menu, SCENE_BUTTON_DOWN).kind == SCENE_REDRAW_NO_BLINK);
+    press(menu, SCENE_BUTTON_DOWN);
+    press(menu, SCENE_BUTTON_DOWN); /* at the end it stays: no way round */
+    CHECK(entries[3].scene == &second_target && entries[1].scene == &third_target);
+    CHECK(kept_times == 0);
+    CHECK(press(menu, SCENE_BUTTON_OK).kind == SCENE_REDRAW_NO_BLINK); /* kept, not opened */
+    CHECK(kept_times == 1 && kept_count == 4 && kept_order[3].scene == &second_target);
+    CHECK(opened_by_ok(menu) == &second_target); /* the row it was moved with stays chosen */
+
+    /* BACK puts a moved row back where it was, and nothing is kept. */
+    press(menu, SCENE_BUTTON_UP); /* on S, the third */
+    long_press(menu, SCENE_BUTTON_OK);
+    press(menu, SCENE_BUTTON_UP);
+    press(menu, SCENE_BUTTON_UP);
+    press(menu, SCENE_BUTTON_UP); /* at the top it stays */
+    CHECK(entries[0].name[0] == 's');
+    CHECK(press(menu, SCENE_BUTTON_BACK).kind == SCENE_REDRAW_NO_BLINK); /* not out of the menu */
+    CHECK(entries[0].scene == &first_target && entries[2].name[0] == 's' && kept_times == 1);
+    CHECK(opened_by_ok(menu) == NULL); /* the system one has no scene here: put back on it */
+
+    /* The menu left while a row is moved: put back, as BACK does. */
+    long_press(menu, SCENE_BUTTON_OK);
+    press(menu, SCENE_BUTTON_UP);
+    menu->ops->leave(menu);
+    CHECK(entries[2].name[0] == 's' && kept_times == 1);
+    /* OK without a move keeps nothing. */
+    long_press(menu, SCENE_BUTTON_OK);
+    press(menu, SCENE_BUTTON_OK);
+    CHECK(kept_times == 1);
+    /* One entry has nowhere to go. */
+    scene_t *alone = scene_menu(entries, 1);
+    CHECK(long_press(alone, SCENE_BUTTON_OK).kind == SCENE_IGNORED);
+    scene_menu_set_on_order(NULL);
+
+    /* The order as it is kept and applied: a name a line; what it does not
+     * name comes first, as it came; what it names that is no entry is passed over. */
+    menu_entry_t kept[] = { { "A", NULL, NULL, "a" }, { "C", NULL, NULL, "c" }, { "S", NULL, NULL, "sys.settings" } };
+    char order[MENU_ORDER_MAX];
+    CHECK(menu_order_write(kept, 3, order, sizeof order));
+    CHECK_STR(order, "a\nc\nsys.settings\n");
+    char tiny[4];
+    CHECK(!menu_order_write(kept, 3, tiny, sizeof tiny) && tiny[0] == '\0');
+    menu_entry_t now[] = { { "S", NULL, NULL, "sys.settings" }, { "N", NULL, NULL, "new" },
+                           { "C", NULL, NULL, "c" }, { "M", NULL, NULL, "newer" }, { "A", NULL, NULL, "a" } };
+    menu_order_apply(now, 5, "a\ngone\nc\nsys.settings\n");
+    CHECK_STR(now[0].name, "new");
+    CHECK_STR(now[1].name, "newer");
+    CHECK_STR(now[2].name, "a");
+    CHECK_STR(now[3].name, "c");
+    CHECK_STR(now[4].name, "sys.settings");
+    menu_entry_t same[] = { { "B", NULL, NULL, "b" }, { "A", NULL, NULL, "a" } };
+    menu_order_apply(same, 2, "");
+    CHECK_STR(same[0].name, "b"); /* no order set: as they came */
+}
+
 int main(void)
 {
+    test_menu_order();
     test_confirm();
     test_working();
     test_storage_error();

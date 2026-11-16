@@ -389,8 +389,17 @@ function openStore() {
   byId("store-dialog").showModal();
 }
 
+/* The tiles stand as the device's menu does: in the order the user set on the device,
+ * one it does not name yet - installed since - first. */
+function inMenuOrder(apps) {
+  const order = settings.menu_order || [];
+  const place = app => order.indexOf(app.name);
+  return apps.map((app, at) => ({ app, at })).sort((a, b) => place(a.app) - place(b.app) || a.at - b.at)
+    .map(({ app }) => app);
+}
+
 function drawTiles() {
-  const tiles = installed.map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
+  const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles, addTile());
   show("app-count", installed.length + " of " + SLOTS);
 }

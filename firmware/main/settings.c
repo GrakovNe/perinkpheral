@@ -39,6 +39,7 @@ static const char *TAG = "settings";
 #define KEY_TZ      "tz"
 #define KEY_LAST_APP "last_app"
 #define KEY_SOURCES  "sources"
+#define KEY_MENU_ORDER "menu_order"
 #define KEY_REFRESH_DATA   "rf_data"
 #define KEY_REFRESH_BUTTON "rf_button"
 #define KEY_REFRESH_FULL   "rf_full"
@@ -244,6 +245,35 @@ esp_err_t settings_save_sources(const char *sources)
         return err;
     }
     err = nvs_set_str(h, KEY_SOURCES, sources);
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
+void settings_load_menu_order(char *order, size_t order_size)
+{
+    order[0] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(CFG_NS, NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    size_t length = order_size;
+    if (nvs_get_str(h, KEY_MENU_ORDER, order, &length) != ESP_OK) {
+        order[0] = '\0';
+    }
+    nvs_close(h);
+}
+
+esp_err_t settings_save_menu_order(const char *order)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_str(h, KEY_MENU_ORDER, order);
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }

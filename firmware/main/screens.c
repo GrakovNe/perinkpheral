@@ -8,7 +8,9 @@
 #include <stdio.h>
 
 #include "gfx_icons.h"
+#include "kit.h"
 #include "list.h"
+#include "words.h"
 #include "wm.h"
 
 /* Every host screen is black ink on the panel's white, no frame. The
@@ -71,9 +73,12 @@ void screens_header(gfx_t *g, const screens_header_t *header)
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);
 }
 
-void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected)
+void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected,
+                  bool is_moving)
 {
-    const list_t list = { .count = count, .selected = selected };
+    /* Moving a row, the list leaves the bottom to the row of buttons. */
+    const list_t list = { .count = count, .selected = selected, .is_framed = is_moving,
+                          .height = is_moving ? g->h - KIT_ACTIONS_HEIGHT : 0 };
     int first = list_first_row(g, &list);
     list_draw_scrollbar(g, &list);
     for (int index = first; index < first + list_visible_rows(g, &list) && index < count; index++) {
@@ -82,5 +87,8 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         /* One column for the titles whether a row has an icon or not. */
         list_row_t row = { .label = item.title, .icon = LIST_NO_ICON, .picture = item.icon };
         list_draw_row(g, &list, index, &row, true);
+    }
+    if (is_moving) {
+        kit_actions(g, word(WORD_DONE), word(WORD_CANCEL));
     }
 }

@@ -47,8 +47,11 @@ typedef struct {
 typedef void (*screens_menu_row_fn)(void *context, int index, screens_menu_row_t *row);
 
 /* A list of titles, each with its icon when it has one; the selected row
- * is white on a black bar. It scrolls when it is longer than the surface. */
-void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected);
+ * is white on a black bar. It scrolls when it is longer than the surface.
+ * `is_moving`: the selected row is being moved - in a frame, with what OK
+ * and BACK do along the bottom. */
+void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected,
+                  bool is_moving);
 
 
 #ifdef __cplusplus

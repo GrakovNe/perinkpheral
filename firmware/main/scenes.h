@@ -22,10 +22,17 @@ typedef struct {
     const char     *title;
     const uint16_t *icon; /* APP_ICON_CELLS rows, or NULL: see app_manifest.h */
     scene_t        *scene;
+    const char     *name; /* the application's, "sys.settings" for a system one: what its place is kept by */
 } menu_entry_t;
 
-/* entries must outlive the scene. */
-scene_t *scene_menu(const menu_entry_t *entries, int count);
+/* entries must outlive the scene. The user may move them about: a long press
+ * of OK takes the row to move, UP and DOWN move it, OK keeps the order and
+ * BACK puts it back. */
+scene_t *scene_menu(menu_entry_t *entries, int count);
+
+/* What is told of an order the user kept: the entries as they stand now. */
+typedef void (*scene_menu_order_fn)(const menu_entry_t *entries, int count);
+void scene_menu_set_on_order(scene_menu_order_fn on_order);
 /* What BACK in the menu leads to - the default application - or NULL for
  * nothing. */
 void scene_menu_set_back_target(scene_t *back_target);

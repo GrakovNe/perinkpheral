@@ -37,6 +37,7 @@
 #include "poller.h"
 #include "power.h"
 #include "reset.h"
+#include "menu_order.h"
 #include "settings.h"
 #include "storage.h"
 #include "web_apps.h"
@@ -529,6 +530,21 @@ static esp_err_t handle_settings(httpd_req_t *request)
         json_add_item(json, "languages", languages);
     }
     json_add_number(json, "menu_idle_min", settings.menu_idle_min);
+    {
+        /* The order of the device's menu, which the page shows its tiles by. */
+        char *order = malloc(MENU_ORDER_MAX);
+        json_t *names = json_new_array();
+        if (order != NULL) {
+            settings_load_menu_order(order, MENU_ORDER_MAX);
+            char *rest = NULL;
+            for (char *name = strtok_r(order, "\n", &rest); name != NULL;
+                 name = strtok_r(NULL, "\n", &rest)) {
+                json_array_add(names, json_new_string(name));
+            }
+            free(order);
+        }
+        json_add_item(json, "menu_order", names);
+    }
     return web_send_json(request, "200 OK", json);
 }
 

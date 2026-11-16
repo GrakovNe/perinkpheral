@@ -20,6 +20,7 @@
 #include "app_kv.h"
 #include "app_scene.h"
 #include "app_store.h"
+#include "menu_order.h"
 #include "settings.h"
 #include "storage.h"
 
@@ -183,7 +184,12 @@ static void read_installed(void)
     }
 }
 
-/* What the menu lists: the installed applications, then the system ones. */
+/* Only the host loop lists applications and keeps their order. */
+static char s_order[MENU_ORDER_MAX];
+
+/* What the menu lists, in the order the user set: the installed applications
+ * and the system ones, one installed since at the top. With no order set,
+ * the installed ones and then the system ones. */
 static void list_entries(void)
 {
     s_entry_count = 0;
@@ -191,15 +197,27 @@ static void list_entries(void)
         if (s_app_scenes[i] != NULL) {
             s_entries[s_entry_count++] =
                 (menu_entry_t){ s_installed[i].title, s_installed[i].has_icon ? s_installed[i].icon : NULL,
-                                s_app_scenes[i] };
+                                s_app_scenes[i], s_installed[i].name };
         }
     }
     for (int i = 0; i < SYSTEM_IN_MENU; i++) {
         if (s_system_scenes[i] != NULL) {
             s_entries[s_entry_count++] = (menu_entry_t){
                 s_system[i].title, s_system[i].has_icon ? s_system[i].icon : NULL,
-                s_system_scenes[i] };
+                s_system_scenes[i], s_system[i].name };
         }
+    }
+    settings_load_menu_order(s_order, sizeof s_order);
+    menu_order_apply(s_entries, s_entry_count, s_order);
+}
+
+void launcher_keep_order(const menu_entry_t *entries, int count)
+{
+    if (menu_order_write(entries, count, s_order, sizeof s_order) &&
+        settings_save_menu_order(s_order) == ESP_OK) {
+        ESP_LOGI(TAG, "the menu's order kept");
+    } else {
+        ESP_LOGW(TAG, "the menu's order could not be kept");
     }
 }
 
@@ -333,7 +351,7 @@ scene_t *launcher_about(void)
     return s_system_scenes[SYSTEM_ABOUT];
 }
 
-const menu_entry_t *launcher_entries(int *count)
+menu_entry_t *launcher_entries(int *count)
 {
     *count = s_entry_count;
     return s_entries;

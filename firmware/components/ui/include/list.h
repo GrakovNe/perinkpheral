@@ -31,6 +31,7 @@ typedef struct {
     int top;
     int height;   /* 0: to the bottom of the surface */
     int first;    /* read-only list: index of the top row */
+    bool is_framed; /* the selected row in a frame of ink, not on a bar: one being moved */
 } list_t;
 
 typedef struct {
