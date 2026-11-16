@@ -96,6 +96,12 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
         reaction.kind = MOVED;
         return reaction;
     }
+    /* A long BACK - the beginning again - ends a move as BACK does. */
+    if (press == SCENE_PRESS_LONG && button == SCENE_BUTTON_BACK && menu->is_moving) {
+        put_back(menu);
+        reaction.kind = MOVED;
+        return reaction;
+    }
     if (press != SCENE_PRESS_SHORT) {
         return reaction;
     }

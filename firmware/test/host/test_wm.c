@@ -184,10 +184,12 @@ static void test_long_back_is_always_the_menu(void)
     CHECK(app.presses == 0); /* the scene is not even asked */
     CHECK(app.left == 1 && menu.entered == 1);
 
-    /* already there: nothing happens, nothing is redrawn */
+    /* already there: the press is the menu's own, which does nothing with
+     * it here - nothing happens, nothing is redrawn */
     wm_shown(&wm);
+    int asked = menu.presses;
     press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-    CHECK(wm.current == &menu.scene && menu.entered == 1);
+    CHECK(wm.current == &menu.scene && menu.entered == 1 && menu.presses == asked + 1);
     CHECK(wm_pending_change(&wm) == WM_CLEAN);
 }
 

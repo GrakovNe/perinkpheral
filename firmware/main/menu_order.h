@@ -24,6 +24,10 @@ extern "C" {
  * application is at the top. A name that is no entry is passed over. */
 void menu_order_apply(menu_entry_t *entries, int count, const char *order);
 
+/* Takes `name` out of `order`: an application removed is new again when it
+ * comes back, and comes first. True when it was there. */
+bool menu_order_forget(char *order, const char *name);
+
 /* The names of `entries` as they stand, a line each, into `order` of `size`
  * bytes. False when they do not fit: `order` is then empty. */
 bool menu_order_write(const menu_entry_t *entries, int count, char *order, size_t size);

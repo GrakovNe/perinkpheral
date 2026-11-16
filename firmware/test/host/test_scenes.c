@@ -344,6 +344,12 @@ static void test_menu_order(void)
     press(menu, SCENE_BUTTON_UP);
     menu->ops->leave(menu);
     CHECK(entries[2].name[0] == 's' && kept_times == 1);
+    /* A long BACK - the beginning again - puts it back too. */
+    long_press(menu, SCENE_BUTTON_OK);
+    press(menu, SCENE_BUTTON_UP);
+    CHECK(long_press(menu, SCENE_BUTTON_BACK).kind == SCENE_REDRAW_NO_BLINK);
+    CHECK(entries[2].name[0] == 's' && kept_times == 1);
+    CHECK(long_press(menu, SCENE_BUTTON_BACK).kind == SCENE_IGNORED); /* nothing to put back */
     /* OK without a move keeps nothing. */
     long_press(menu, SCENE_BUTTON_OK);
     press(menu, SCENE_BUTTON_OK);
@@ -369,6 +375,16 @@ static void test_menu_order(void)
     CHECK_STR(now[2].name, "a");
     CHECK_STR(now[3].name, "c");
     CHECK_STR(now[4].name, "sys.settings");
+    /* A removed application forgets its place: back again, it comes first. */
+    char forgetting[] = "a\nweather\nsys.settings\n";
+    CHECK(menu_order_forget(forgetting, "weather"));
+    CHECK_STR(forgetting, "a\nsys.settings\n");
+    CHECK(!menu_order_forget(forgetting, "weath"));
+    CHECK(menu_order_forget(forgetting, "sys.settings"));
+    CHECK_STR(forgetting, "a\n");
+    char unended[] = "a\nb";
+    CHECK(menu_order_forget(unended, "b"));
+    CHECK_STR(unended, "a\n");
     menu_entry_t same[] = { { "B", NULL, NULL, "b" }, { "A", NULL, NULL, "a" } };
     menu_order_apply(same, 2, "");
     CHECK_STR(same[0].name, "b"); /* no order set: as they came */

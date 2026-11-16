@@ -233,6 +233,11 @@ bool launcher_remove(const char *app_name, bool forgets)
     if (forgets) {
         app_kv_erase(app_name);
     }
+    /* Installed again, it comes first, as anything new does. */
+    settings_load_menu_order(s_order, sizeof s_order);
+    if (menu_order_forget(s_order, app_name)) {
+        settings_save_menu_order(s_order);
+    }
     return true;
 }
 

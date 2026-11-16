@@ -46,6 +46,22 @@ void menu_order_apply(menu_entry_t *entries, int count, const char *order)
     }
 }
 
+bool menu_order_forget(char *order, const char *name)
+{
+    size_t length = strlen(name);
+    for (char *at = order; *at != '\0';) {
+        char  *end = strchr(at, '\n');
+        size_t line_length = end != NULL ? (size_t)(end - at) : strlen(at);
+        if (line_length == length && strncmp(at, name, length) == 0) {
+            char *rest = end != NULL ? end + 1 : at + line_length;
+            memmove(at, rest, strlen(rest) + 1);
+            return true;
+        }
+        at = end != NULL ? end + 1 : at + line_length;
+    }
+    return false;
+}
+
 bool menu_order_write(const menu_entry_t *entries, int count, char *order, size_t size)
 {
     size_t used = 0;

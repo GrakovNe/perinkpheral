@@ -194,8 +194,10 @@ void wm_button(wm_t *wm, scene_button_t button, scene_press_t press)
     if (wm->suspended) {
         return;
     }
-    /* The one press no scene can take away from the user. */
-    if (button == SCENE_BUTTON_BACK && press == SCENE_PRESS_LONG) {
+    /* The one press no scene can take away from the user. In the menu
+     * already, it is the menu's: there it is the beginning of what the menu
+     * itself is in the middle of - a row being moved. */
+    if (button == SCENE_BUTTON_BACK && press == SCENE_PRESS_LONG && wm->current != wm->home) {
         open_over_current(wm, wm->home);
         return;
     }
