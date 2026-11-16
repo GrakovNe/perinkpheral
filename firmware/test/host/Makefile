@@ -11,6 +11,8 @@ INPUT   := $(COMP)/input
 EPD     := $(COMP)/epd
 UI      := $(COMP)/ui
 APPSYS  := $(COMP)/appsys
+APPSTORE := $(COMP)/appstore
+CFLAGS  += -I$(APPSTORE)/include
 NET     := $(COMP)/net
 WASM3   := $(COMP)/wasm3/wasm3
 SDK     := ../../../sdk
@@ -48,8 +50,8 @@ test: $(TESTS)
 	@python3 check_languages.py ../../../sdk/languages.json ../../components/appconf/appconf.c
 	@python3 check_layers.py ../..
 
-test_json_tree: test_json_tree.c tinytest.h $(APPSYS)/json_tree.c $(APPSYS)/include/json_tree.h
-	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSYS)/json_tree.c
+test_json_tree: test_json_tree.c tinytest.h $(APPSTORE)/json_tree.c $(APPSTORE)/include/json_tree.h
+	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSTORE)/json_tree.c
 
 test_appconf: test_appconf.c tinytest.h $(APPCONF)/appconf.c $(APPCONF)/include/appconf.h
 	$(CC) $(CFLAGS) -I$(APPCONF)/include -o $@ test_appconf.c $(APPCONF)/appconf.c
@@ -143,8 +145,8 @@ test_sdk_lib: test_sdk_lib.c tinytest.h $(wildcard $(SDK_LIB)/*.c) $(wildcard $(
 test_json_pick: test_json_pick.c tinytest.h $(SDK_LIB)/json_pick.c $(SDK_LIB)/json_pick.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -I$(SDK_LIB) -o $@ test_json_pick.c $(SDK_LIB)/json_pick.c
 
-test_catalog: test_catalog.c tinytest.h $(APPSYS)/catalog.c $(APPSYS)/include/catalog.h
-	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_catalog.c $(APPSYS)/catalog.c
+test_catalog: test_catalog.c tinytest.h $(APPSTORE)/catalog.c $(APPSTORE)/include/catalog.h
+	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_catalog.c $(APPSTORE)/catalog.c
 
 test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildcard $(NET)/include/ota_*.h)
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_ota.c $(NET)/ota_stream.c $(NET)/ota_health.c
@@ -152,33 +154,33 @@ test_ota: test_ota.c tinytest.h $(NET)/ota_stream.c $(NET)/ota_health.c $(wildca
 test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
 
-MANIFEST_SRCS := $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c $(SDK_LIB)/json_pick.c
+MANIFEST_SRCS := $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c $(SDK_LIB)/json_pick.c
 MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
 
 	$(CC) -std=c11 -w -c -o $@ $<
 
-test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/include/app_manifest.h
+test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSTORE)/include/app_manifest.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm
 
-test_app_room: test_app_room.c tinytest.h $(APPSYS)/app_room.c $(APPSYS)/include/app_room.h
-	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_room.c $(APPSYS)/app_room.c
+test_app_room: test_app_room.c tinytest.h $(APPSTORE)/app_room.c $(APPSTORE)/include/app_room.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_room.c $(APPSTORE)/app_room.c
 
-test_request_queue: test_request_queue.c tinytest.h $(APPSYS)/request_queue.c $(APPSYS)/include/request_queue.h
-	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE -o $@ test_request_queue.c $(APPSYS)/request_queue.c
+test_request_queue: test_request_queue.c tinytest.h $(APPSTORE)/request_queue.c $(APPSTORE)/include/request_queue.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE -o $@ test_request_queue.c $(APPSTORE)/request_queue.c
 
-test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSYS)/text_template.c $(APPSYS)/poll_schedule.c $(wildcard $(APPSYS)/include/*.h)
-	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_polls.c $(MANIFEST_SRCS) $(APPSYS)/text_template.c \
-		$(APPSYS)/poll_schedule.c -lm
+test_polls: test_polls.c tinytest.h $(MANIFEST_SRCS) $(APPSTORE)/text_template.c $(APPSTORE)/poll_schedule.c $(wildcard $(APPSYS)/include/*.h)
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_polls.c $(MANIFEST_SRCS) $(APPSTORE)/text_template.c \
+		$(APPSTORE)/poll_schedule.c -lm
 
 # mkdtemp and friends are POSIX, not C11.
 test_delivery: test_delivery.c tinytest.h build/host_imports.inc build/probe/app.wasm $(wildcard $(APPSYS)/*.c $(APPSYS)/include/*.h) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(WASM3_OBJS) $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -Ibuild -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_delivery.c $(QR)/qrcodegen/qrcodegen.c $(APP_SRCS) $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c \
-		$(APPSYS)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
+		$(APPSTORE)/app_store.c $(MANIFEST_SRCS) $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(GFX)/font_square.c $(WASM3_OBJS) -lm
 
-test_app_store: test_app_store.c tinytest.h $(APPSYS)/app_store.c $(APPSYS)/include/app_store.h $(MANIFEST_SRCS)
+test_app_store: test_app_store.c tinytest.h $(APPSTORE)/app_store.c $(APPSTORE)/include/app_store.h $(MANIFEST_SRCS)
 	$(CC) $(CFLAGS) -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE $(MANIFEST_FLAGS) -o $@ test_app_store.c \
-		$(APPSYS)/app_store.c $(MANIFEST_SRCS) -lm
+		$(APPSTORE)/app_store.c $(MANIFEST_SRCS) -lm
 
 clean:
 	rm -rf build

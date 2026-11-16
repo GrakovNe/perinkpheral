@@ -1,9 +1,11 @@
+# One application running: the interpreter's side of the contract, the
+# application as a scene, the delivery of answers. What an application is
+# apart from running it is appstore's.
 idf_component_register(SRCS "app.c" "app_api_draw.c" "app_api_ui.c" "app_api_data.c" "app_api_time.c" "app_api_sys.c"
-                            "app_scene.c" "app_manifest.c" "json_tree.c" "../../../sdk/lib/json_pick.c" "app_delivery.c" "catalog.c" "app_store.c"
-                            "text_template.c" "poll_schedule.c" "request_queue.c" "app_room.c"
-                       INCLUDE_DIRS "include" "../../../sdk/lib"
+                            "app_scene.c" "app_delivery.c"
+                       INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "../../../sdk"
-                       REQUIRES gfx ui words board
+                       REQUIRES appstore gfx ui words board
                        PRIV_REQUIRES wasm3 qr)
 
 # The table of imports is made from the contract: one place holds a call's signature.
