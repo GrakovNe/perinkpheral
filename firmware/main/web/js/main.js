@@ -10,6 +10,9 @@ const isOffline = () => status.wifi === "setup" || status.wifi === "rescue";
 async function loadAll() {
   await Promise.all([loadStatus(), loadSettings(), loadApps()]);
   if (isOffline()) {
+    await loadSources();
+    /* the packs on offer are the official catalog's, on the internet */
+    byId("glyph-rows").textContent = "Catalog unavailable.";
     if (!location.hash) location.hash = "#settings:network";
     return;
   }

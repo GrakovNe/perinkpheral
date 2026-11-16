@@ -48,6 +48,10 @@ void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
 uint32_t app_kv_seen_id(const char *app_name);
 void app_kv_set_seen_id(const char *app_name, uint32_t id);
 
+/* Removed: the host keeps nothing for it - its paces go, and installed
+ * again it is new again, whatever its store kept. */
+void app_kv_forget_host_record(const char *app_name);
+
 /* The names of applications that are not on the device and left a store
  * behind: what would come back with its settings. Returns how many. */
 int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity);

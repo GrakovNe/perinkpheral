@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <stdint.h>
+
 #include "esp_err.h"
 #include "appconf.h"
 #include "refresh_policy.h"
@@ -15,6 +17,21 @@ extern "C" {
 /* The only module that touches the host's own settings in NVS (an
  * application's store is app_kv.c). */
 void settings_nvs_init(void);
+
+/* What the host keeps for an installed application, in its own NVS rather
+ * than the applications' stores: those are the applications' to fill to
+ * the last byte promised. */
+#define SETTINGS_APP_POLLS 4
+typedef struct {
+    uint32_t seen;                       /* the id of the version that last ran; 0: none */
+    uint32_t pace[SETTINGS_APP_POLLS];   /* seconds a poll asked for; 0: the manifest's */
+} settings_app_record_t;
+
+/* Zero when nothing is kept. */
+void settings_load_app_record(const char *app_name, settings_app_record_t *record);
+void settings_save_app_record(const char *app_name, const settings_app_record_t *record);
+/* Removed: nothing of it stays. */
+void settings_forget_app_record(const char *app_name);
 
 /* The host's settings have one owner, this module, and one place they are
  * changed from, the host loop. Everybody else reads a copy.

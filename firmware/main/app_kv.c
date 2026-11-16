@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "app_kv.h"
+#include "settings.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -156,6 +157,33 @@ static void migrate_from_settings_partition(void)
     }
 }
 
+/* The host kept its records of applications in this partition, a
+ * namespace "p.<name>" each, until 2026-11-16: they are settings.c's now,
+ * and what was left here goes once. */
+#define OLD_HOST_PREFIX "p."
+
+static void forget_host_namespaces(void)
+{
+    for (;;) {
+        char found[NVS_NS_NAME_MAX_SIZE] = "";
+        nvs_iterator_t entry = NULL;
+        esp_err_t err = nvs_entry_find(PARTITION, NULL, NVS_TYPE_ANY, &entry);
+        while (err == ESP_OK && found[0] == '\0') {
+            nvs_entry_info_t info;
+            nvs_entry_info(entry, &info);
+            if (strncmp(info.namespace_name, OLD_HOST_PREFIX, sizeof OLD_HOST_PREFIX - 1) == 0) {
+                strlcpy(found, info.namespace_name, sizeof found);
+            }
+            err = nvs_entry_next(&entry);
+        }
+        nvs_release_iterator(entry);
+        if (found[0] == '\0') {
+            return;
+        }
+        erase_namespace(PARTITION, found);
+    }
+}
+
 void app_kv_start(void)
 {
     esp_err_t err = nvs_flash_init_partition(PARTITION);
@@ -170,6 +198,7 @@ void app_kv_start(void)
         return;
     }
     migrate_from_settings_partition();
+    forget_host_namespaces();
 }
 
 void app_kv_erase_all(void)
@@ -319,80 +348,52 @@ int32_t app_kv_set(const char *app_name, const char *key, const void *value, int
 }
 
 /* What the host itself keeps for an application, apart from the
- * application's own values: the pace it asked for its polls. A namespace
- * of its own, so that no key of the application's can be taken for it. */
-#define HOST_PREFIX "p."
-
-static esp_err_t open_host_store(const char *app_name, nvs_open_mode_t mode, nvs_handle_t *store)
-{
-    char namespace[NVS_NS_NAME_MAX_SIZE];
-    snprintf(namespace, sizeof namespace, HOST_PREFIX "%s", app_name);
-    return nvs_open_from_partition(PARTITION, namespace, mode, store);
-}
-
-static void pace_key(int poll, char key[NVS_KEY_NAME_MAX_SIZE])
-{
-    snprintf(key, NVS_KEY_NAME_MAX_SIZE, "pace%d", poll);
-}
+ * application's own values - the pace it asked for its polls, the version
+ * that last ran - is the host's settings' (settings.c): the applications'
+ * partition is theirs to the last byte promised. */
+_Static_assert(SETTINGS_APP_POLLS == APP_POLLS_MAX, "a pace for every poll");
 
 uint32_t app_kv_poll_pace(const char *app_name, int poll)
 {
-    nvs_handle_t store;
-    uint32_t     every_s = 0;
-    if (open_host_store(app_name, NVS_READONLY, &store) == ESP_OK) {
-        char key[NVS_KEY_NAME_MAX_SIZE];
-        pace_key(poll, key);
-        nvs_get_u32(store, key, &every_s);
-        nvs_close(store);
-    }
-    return every_s;
+    settings_app_record_t record;
+    settings_load_app_record(app_name, &record);
+    return poll >= 0 && poll < SETTINGS_APP_POLLS ? record.pace[poll] : 0;
 }
 
 void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s)
 {
-    nvs_handle_t store;
-    if (open_host_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
+    if (poll < 0 || poll >= SETTINGS_APP_POLLS) {
         return;
     }
-    char key[NVS_KEY_NAME_MAX_SIZE];
-    pace_key(poll, key);
-    if (nvs_set_u32(store, key, every_s) == ESP_OK) {
-        nvs_commit(store);
-    }
-    nvs_close(store);
+    settings_app_record_t record;
+    settings_load_app_record(app_name, &record);
+    record.pace[poll] = every_s;
+    settings_save_app_record(app_name, &record);
 }
-
-#define SEEN_KEY "seen"
 
 uint32_t app_kv_seen_id(const char *app_name)
 {
-    nvs_handle_t store;
-    uint32_t     id = 0;
-    if (open_host_store(app_name, NVS_READONLY, &store) == ESP_OK) {
-        nvs_get_u32(store, SEEN_KEY, &id);
-        nvs_close(store);
-    }
-    return id;
+    settings_app_record_t record;
+    settings_load_app_record(app_name, &record);
+    return record.seen;
 }
 
 void app_kv_set_seen_id(const char *app_name, uint32_t id)
 {
-    nvs_handle_t store;
-    if (open_host_store(app_name, NVS_READWRITE, &store) != ESP_OK) {
-        return;
-    }
-    esp_err_t err = id != 0 ? nvs_set_u32(store, SEEN_KEY, id) : nvs_erase_key(store, SEEN_KEY);
-    if (err == ESP_OK) {
-        nvs_commit(store);
-    }
-    nvs_close(store);
+    settings_app_record_t record;
+    settings_load_app_record(app_name, &record);
+    record.seen = id;
+    settings_save_app_record(app_name, &record);
+}
+
+void app_kv_forget_host_record(const char *app_name)
+{
+    settings_forget_app_record(app_name);
 }
 
 void app_kv_erase(const char *app_name)
 {
-    char host_namespace[NVS_NS_NAME_MAX_SIZE];
-    snprintf(host_namespace, sizeof host_namespace, HOST_PREFIX "%s", app_name);
-    erase_namespace(PARTITION, host_namespace);
+    settings_forget_app_record(app_name);
 
     nvs_handle_t store;
     if (open_store(app_name, NVS_READWRITE, &store) != ESP_OK) {

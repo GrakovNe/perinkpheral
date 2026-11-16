@@ -384,10 +384,15 @@ async function loadApps() {
   openInside(wantedInside);
 }
 
-async function loadCatalogs() {
+/* The list of sources, as the device keeps it: there with no network too. */
+async function loadSources() {
   sources = (await ask("/api/sources")).sources;
   editableList(byId("source-rows"), { values: sources, most: SOURCES_MAX, fixedFirst: true,
                                       input: { placeholder: "https://" } });
+}
+
+async function loadCatalogs() {
+  await loadSources();
   const found = [], silent = [];
   for (let source = 0; source < sources.length; source++) {
     try {

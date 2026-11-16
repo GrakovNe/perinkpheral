@@ -18,6 +18,9 @@
 
 static const char *TAG = "app_code";
 
+/* A module being written back into its folder, until it is whole. */
+#define PART_SUFFIX ".part"
+
 #define PARTITION_LABEL   "appcode"
 #define PARTITION_SUBTYPE 0x40 /* the "appcode" type of partitions.csv: one of the application's own */
 /* The first four bytes of a module's first sector: "PKAP" as they lie in
@@ -173,11 +176,13 @@ size_t app_code_free_bytes(void)
     return (size_t)free_sectors * SECTOR_BYTES;
 }
 
-/* Its mark goes: the sectors are free, and erased when they are taken. */
-static void forget(int extent)
+/* The module goes, all its sectors erased: what lay in its body must not be
+ * read as the mark of another module once the sectors are free - a module
+ * can carry bytes that look like one, and the scan looks at every sector. */
+static bool forget(int extent)
 {
-    esp_partition_erase_range(s_partition, (size_t)s_extents[extent].start * SECTOR_BYTES,
-                              SECTOR_BYTES);
+    return esp_partition_erase_range(s_partition, (size_t)s_extents[extent].start * SECTOR_BYTES,
+                                     (size_t)s_extents[extent].sectors * SECTOR_BYTES) == ESP_OK;
 }
 
 void app_code_erase_all(void)
@@ -192,25 +197,34 @@ void app_code_erase_all(void)
 }
 
 /* Copies the file into the lowest free run that holds it, the module the
- * application had there forgotten first. False when there is no such
- * run, or the flash refused: the file stays, and is taken next time. */
+ * application had there forgotten first - once the file is known to be one
+ * that can take its place. False when there is no such run, or the flash
+ * refused: the file stays, and is taken next time. */
 static bool place(const char *app_name, const char *path)
 {
-    scan();
-    int own = extent_of(app_name);
-    if (own >= 0) {
-        forget(own);
-        scan();
-    }
     struct stat found;
     if (stat(path, &found) != 0 || found.st_size < 1 ||
         found.st_size > MANIFEST_MODULE_MAX_BYTES) {
         return false;
     }
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        return false;
+    }
+    scan();
+    int own = extent_of(app_name);
+    if (own >= 0) {
+        /* A mark that stays would be found before the new one. */
+        if (!forget(own)) {
+            fclose(file);
+            return false;
+        }
+        scan();
+    }
     int sectors = sectors_for((size_t)found.st_size);
     int sector = app_room_first_fit(s_extents, s_extent_count, s_sectors, sectors);
-    FILE *file = sector >= 0 ? fopen(path, "rb") : NULL;
-    if (file == NULL) {
+    if (sector < 0) {
+        fclose(file);
         return false;
     }
     size_t   start = (size_t)sector * SECTOR_BYTES;
@@ -237,17 +251,28 @@ static bool place(const char *app_name, const char *path)
 }
 
 /* Writes a module that lies in the partition back into its folder, as
- * the file it came as. */
+ * the file it came as: whole or not at all. It is written beside, and
+ * takes the module's name only when it is complete, so a loss of power on
+ * the way leaves a part a start throws away, never a short module that
+ * would take the place of the one in the partition. */
 static bool write_back(int extent, const char *path)
 {
     const slot_header_t *header = header_at(s_extents[extent].start);
-    FILE *file = fopen(path, "wb");
+    char part[APP_STORE_PATH_MAX];
+    if (snprintf(part, sizeof part, "%s" PART_SUFFIX, path) >= (int)sizeof part) {
+        return false;
+    }
+    FILE *file = fopen(part, "wb");
     if (file == NULL) {
         return false;
     }
     bool is_written = fwrite((const uint8_t *)header + sizeof(slot_header_t), 1, header->size,
                              file) == header->size;
-    return fclose(file) == 0 && is_written;
+    is_written = fclose(file) == 0 && is_written && rename(part, path) == 0;
+    if (!is_written) {
+        remove(part);
+    }
+    return is_written;
 }
 
 /* Moves the modules down, one at a time, until they lie packed from the
@@ -329,6 +354,10 @@ void app_code_adopt(const char *apps_root)
             snprintf(path, sizeof path, "%s/%s/" APP_FILE_MODULE, apps_root, entry->d_name) >=
                 (int)sizeof path) {
             continue;
+        }
+        char part[APP_STORE_PATH_MAX];
+        if (snprintf(part, sizeof part, "%s" PART_SUFFIX, path) < (int)sizeof part) {
+            remove(part); /* written back when the power went: the partition has it */
         }
         struct stat module;
         if (stat(path, &module) != 0) {

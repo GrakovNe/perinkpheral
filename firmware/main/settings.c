@@ -251,6 +251,53 @@ esp_err_t settings_save_sources(const char *sources)
     return err;
 }
 
+/* ---- what the host keeps for each installed application ----
+ * A record a name, in a namespace of its own: the name is the key. */
+#define APPS_NS "apps"
+
+void settings_load_app_record(const char *app_name, settings_app_record_t *record)
+{
+    memset(record, 0, sizeof *record);
+    nvs_handle_t h;
+    if (nvs_open(APPS_NS, NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    size_t size = sizeof *record;
+    if (nvs_get_blob(h, app_name, record, &size) != ESP_OK || size != sizeof *record) {
+        memset(record, 0, sizeof *record);
+    }
+    nvs_close(h);
+}
+
+void settings_save_app_record(const char *app_name, const settings_app_record_t *record)
+{
+    settings_app_record_t stored;
+    settings_load_app_record(app_name, &stored);
+    if (memcmp(&stored, record, sizeof stored) == 0) {
+        return; /* nothing to wear the flash for */
+    }
+    nvs_handle_t h;
+    if (nvs_open(APPS_NS, NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    if (nvs_set_blob(h, app_name, record, sizeof *record) == ESP_OK) {
+        nvs_commit(h);
+    }
+    nvs_close(h);
+}
+
+void settings_forget_app_record(const char *app_name)
+{
+    nvs_handle_t h;
+    if (nvs_open(APPS_NS, NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    if (nvs_erase_key(h, app_name) == ESP_OK) {
+        nvs_commit(h);
+    }
+    nvs_close(h);
+}
+
 refresh_policy_cfg_t settings_refresh_policy(const appconf_t *c)
 {
     refresh_policy_cfg_t policy = {

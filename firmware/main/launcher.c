@@ -211,7 +211,7 @@ bool launcher_remove(const char *app_name, bool forgets)
     /* Its code stays in its slot until the list is read anew: an instance
      * may still be running from it, with its last handlers to come. Installed
      * again, it is new again, whatever it kept. */
-    app_kv_set_seen_id(app_name, 0);
+    app_kv_forget_host_record(app_name);
     if (forgets) {
         app_kv_erase(app_name);
     }

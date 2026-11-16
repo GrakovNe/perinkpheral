@@ -38,14 +38,20 @@ _Static_assert(BLOCKS_OF(APP_ROOM_FILES_SPARE_BYTES) + BLOCKS_OF(MANIFEST_FILES_
                "the files partition holds an install in hand beside its spare and one writer's share");
 
 /* ---- appkv (NVS): every application's store at its fullest ----
- * A page of the storage holds 126 entries of 32 bytes, and one page is
- * kept free for its own housekeeping. The system applications keep a value
- * or two beside them. */
+ * Counted in the storage's own entries of 32 bytes, as a store is charged
+ * (app_kv.c): a page holds 126, and one page is kept free for its own
+ * housekeeping. An application's store is its namespace's entry and its
+ * values; the system applications keep a value or two beside them, under
+ * namespaces of their own. What the host keeps for an application is in
+ * the host's NVS, not here (settings.c). */
 #define NVS_PAGE_BYTES        4096
-#define NVS_PAGE_USABLE_BYTES (126 * 32)
+#define NVS_ENTRY_BYTES       32
+#define NVS_PAGE_ENTRIES      126
+#define SYSTEM_APPS           3
 #define SYSTEM_APPS_KV_BYTES  1024
-_Static_assert(CATALOG_INSTALLED_MAX * HOST_KV_TOTAL_MAX + SYSTEM_APPS_KV_BYTES <=
-                   (PARTITION_APPKV_BYTES / NVS_PAGE_BYTES - 1) * NVS_PAGE_USABLE_BYTES,
+_Static_assert(CATALOG_INSTALLED_MAX * (1 + HOST_KV_TOTAL_MAX / NVS_ENTRY_BYTES) + SYSTEM_APPS +
+                       SYSTEM_APPS_KV_BYTES / NVS_ENTRY_BYTES <=
+                   (PARTITION_APPKV_BYTES / NVS_PAGE_BYTES - 1) * NVS_PAGE_ENTRIES,
                "the stores of all installed applications, full, fit the partition");
 
 /* ---- glyphs: packs in whole sectors ---- */
