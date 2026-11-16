@@ -43,6 +43,11 @@ jobs:
             echo "VERSION says $(cat VERSION), the release ${{ inputs.version }}: set VERSION first" >&2
             exit 1
           fi
+      - name: The tools, once
+        shell: bash
+        # The firmware's build runs tools/perinkpheral for every system application at
+        # once; each would build the tools itself, and one reads the jar another writes.
+        run: tools/perinkpheral > /dev/null
       - name: Build
         shell: bash
         working-directory: firmware
