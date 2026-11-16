@@ -10,6 +10,7 @@
 
 #include "host.h"
 #include "host_private.h"
+#include "header.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -28,44 +29,19 @@ static const char *TAG = "host";
 
 /* ---- the header ----
  *
- * What applications keep in the header while they are away: on each side
- * an icon and a line, the application's that set it last. */
-#define HEADER_SIDES   2
-#define HEADER_NO_ICON (-1)
-_Static_assert(HOST_HEADER_LEFT == 0 && HOST_HEADER_RIGHT == 1, "the sides are places in a table");
-static struct {
-    uint32_t app_id; /* 0: nobody has this side */
-    int      icon;
-    char     text[HOST_STATUS_TEXT_MAX + 1];
-} s_header_status[HEADER_SIDES];
+ * What applications keep in the header while they are away. */
+static header_kept_t s_header_kept;
 
 void host_set_header_status(uint32_t app_id, int side, int icon, const char *text)
 {
-    if (side != HOST_HEADER_LEFT && side != HOST_HEADER_RIGHT) {
-        return;
+    if (header_keep(&s_header_kept, app_id, side, icon, text)) {
+        wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
     }
-    bool is_empty = icon == HEADER_NO_ICON && text[0] == '\0';
-    if (is_empty) {
-        if (s_header_status[side].app_id != app_id) {
-            return; /* not its to give back */
-        }
-        s_header_status[side].app_id = 0;
-    } else {
-        s_header_status[side].app_id = app_id;
-        s_header_status[side].icon = icon;
-        HOST_COPY_TEXT(s_header_status[side].text, text);
-    }
-    wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
 }
 
-bool host_header_status(int side, int *icon, const char **text)
+const header_kept_t *host_header_kept(void)
 {
-    if (s_header_status[side].app_id == 0) {
-        return false;
-    }
-    *icon = s_header_status[side].icon;
-    *text = s_header_status[side].text;
-    return true;
+    return &s_header_kept;
 }
 
 /* ---- the list of applications ---- */
@@ -96,15 +72,8 @@ static void remove_orphan_alarms(void)
     }
     deadlines_keep_only(DEADLINE_ALARM, ids, count);
     app_host_keep_recurring_of(ids, count);
-    for (int side = 0; side < HEADER_SIDES; side++) {
-        bool is_owner_there = false;
-        for (int i = 0; i < count; i++) {
-            is_owner_there = is_owner_there || ids[i] == s_header_status[side].app_id;
-        }
-        if (!is_owner_there && s_header_status[side].app_id != 0) {
-            s_header_status[side].app_id = 0;
-            wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
-        }
+    if (header_keep_only(&s_header_kept, ids, count)) {
+        wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
     }
 }
 

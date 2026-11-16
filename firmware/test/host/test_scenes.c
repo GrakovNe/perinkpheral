@@ -7,6 +7,8 @@
 
 #include <stddef.h>
 
+#include "gfx_icons.h"
+#include "header.h"
 #include "list.h"
 #include "menu_order.h"
 #include "screens.h"
@@ -390,8 +392,57 @@ static void test_menu_order(void)
     CHECK_STR(same[0].name, "b"); /* no order set: as they came */
 }
 
+/* The header: who has a side, and what the host says itself. */
+static void test_header(void)
+{
+    header_kept_t kept = { 0 };
+    struct tm local = { .tm_year = 126, .tm_mon = 10, .tm_mday = 13, .tm_wday = 5,
+                        .tm_hour = 9, .tm_min = 4 };
+    header_now_t now = { .network_ok = true, .time_known = true, .local = local };
+    char when[HEADER_WHEN_MAX + 1];
+
+    screens_header_t header = header_compose(&kept, &now, when, sizeof when);
+    CHECK(header.left_icon == GFX_ICON_SIGNAL);
+    CHECK(header.left == NULL);
+    CHECK_STR(header.right, "Fri 13 Nov");
+    now.shows_clock = true;
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.right, "09:04");
+
+    /* Unknown time: nothing on the right; a lost network: the struck icon. */
+    now.time_known = false;
+    now.network_ok = false;
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK(header.right == NULL);
+    CHECK(header.left_icon == GFX_ICON_NO_SIGNAL);
+
+    /* The scene's text before the host's; a kept side before both. */
+    now.time_known = true;
+    now.scene_right = "Lisbon";
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.right, "Lisbon");
+    CHECK(header_keep(&kept, 7, HOST_HEADER_RIGHT, GFX_ICON_HOURGLASS, "4 min"));
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.right, "4 min");
+    CHECK(header.right_icon == GFX_ICON_HOURGLASS);
+
+    /* Only the keeper gives a side back; one not installed loses it. */
+    CHECK(!header_keep(&kept, 8, HOST_HEADER_RIGHT, HEADER_NO_ICON, ""));
+    CHECK(kept.side[HOST_HEADER_RIGHT].app_id == 7);
+    CHECK(!header_keep(&kept, 7, 5, GFX_ICON_BELL, "x"));
+    uint32_t installed[] = { 3, 7 };
+    CHECK(!header_keep_only(&kept, installed, 2));
+    CHECK(header_keep_only(&kept, installed, 1));
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.right, "Lisbon");
+    CHECK(header_keep(&kept, 3, HOST_HEADER_LEFT, HEADER_NO_ICON, "Run"));
+    CHECK(header_keep(&kept, 3, HOST_HEADER_LEFT, HEADER_NO_ICON, ""));
+    CHECK(kept.side[HOST_HEADER_LEFT].app_id == 0);
+}
+
 int main(void)
 {
+    test_header();
     test_menu_order();
     test_confirm();
     test_working();

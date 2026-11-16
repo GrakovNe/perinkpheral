@@ -61,6 +61,8 @@
 #include "json_tree.h"
 #include "notice.h"
 #include "scene.h"
+#include "header.h"
+#include "scenes.h"
 #include "screens.h"
 #include "text_template.h"
 #include "units.h"
@@ -177,11 +179,9 @@ static uint8_t              s_bits[FRAME_BYTES];
 static gfx_t                s_screen;
 static uint32_t             s_frames;
 
-static struct {
-    bool is_set;
-    int  icon;
-    char text[HOST_STATUS_TEXT_MAX + 1];
-} s_header_status[2];
+static header_kept_t        s_header_kept;
+/* The simulator stands for one application, which is its id here. */
+#define SIM_APP_ID 1u
 
 static void set_due(due_kind_t kind, int number, int64_t in_ms)
 {
@@ -969,13 +969,9 @@ static bool services_alarm_every(const char *app_name, int alarm, int32_t every_
 static void services_header_status(const char *app_name, int side, int icon, const char *text)
 {
     (void)app_name;
-    if (side < 0 || side > 1) {
-        return;
+    if (header_keep(&s_header_kept, SIM_APP_ID, side, icon, text)) {
+        wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
     }
-    s_header_status[side].is_set = icon >= 0 || text[0] != '\0';
-    s_header_status[side].icon = icon;
-    snprintf(s_header_status[side].text, sizeof s_header_status[side].text, "%s", text);
-    wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
 }
 
 static const char *services_language(void) { return s_options.language; }
@@ -1091,66 +1087,28 @@ static const app_services_t SERVICES = {
     .file_write = services_file_write,
 };
 
-/* ---- the menu: what is under the application, with it as its one row ---- */
+/* ---- the menu: the device's own, with the application as its one row ---- */
 
-static void menu_row(void *context, int index, screens_menu_row_t *row)
-{
-    (void)context;
-    (void)index;
-    row->title = s_manifest.title;
-    row->icon = s_manifest.has_icon ? s_manifest.icon : NULL;
-}
-
-static void menu_draw(scene_t *scene, gfx_t *surface)
-{
-    (void)scene;
-    screens_menu(surface, menu_row, NULL, 1, 0, false);
-}
-
-static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene_press_t press)
-{
-    (void)scene;
-    scene_reaction_t reaction = { SCENE_IGNORED, NULL };
-    if (press == SCENE_PRESS_SHORT && button == SCENE_BUTTON_OK && s_app_scene != NULL) {
-        reaction.kind = SCENE_OPEN;
-        reaction.open = s_app_scene;
-    }
-    return reaction;
-}
-
-static const scene_ops_t MENU_OPS = { .button = menu_button, .draw = menu_draw };
-static scene_t           s_menu = { .ops = &MENU_OPS };
+static menu_entry_t s_menu_entry;
+static scene_t     *s_menu;
 
 /* ---- the header, as the host draws it ---- */
 
 static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
     (void)context;
-    char      when[48];
-    time_t    now = (time_t)unix_now();
-    struct tm local;
-    localtime_r(&now, &local);
-    if (s_options.clock) {
-        snprintf(when, sizeof when, "%02d:%02d", local.tm_hour, local.tm_min);
-    } else {
-        snprintf(when, sizeof when, "%s %d %s", word((word_t)(WORD_SUN + local.tm_wday)),
-                 local.tm_mday, word((word_t)(WORD_JAN + local.tm_mon)));
-    }
-    screens_header_t header = {
+    time_t       now = (time_t)unix_now();
+    header_now_t header_now = {
         /* As on the device: whether the last use of the network worked. */
-        .left_icon = s_last_use_failed ? GFX_ICON_NO_SIGNAL : GFX_ICON_SIGNAL,
-        .left = scene->header_left,
-        .right = scene->header_right != NULL ? scene->header_right : when,
-        .right_icon = SCREENS_NO_ICON,
+        .network_ok = !s_last_use_failed,
+        .time_known = true,
+        .shows_clock = s_options.clock,
+        .scene_left = scene->header_left,
+        .scene_right = scene->header_right,
     };
-    if (s_header_status[HOST_HEADER_LEFT].is_set) {
-        header.left_icon = s_header_status[HOST_HEADER_LEFT].icon;
-        header.left = s_header_status[HOST_HEADER_LEFT].text;
-    }
-    if (s_header_status[HOST_HEADER_RIGHT].is_set) {
-        header.right_icon = s_header_status[HOST_HEADER_RIGHT].icon;
-        header.right = s_header_status[HOST_HEADER_RIGHT].text;
-    }
+    localtime_r(&now, &header_now.local);
+    char             when[HEADER_WHEN_MAX + 1];
+    screens_header_t header = header_compose(&s_header_kept, &header_now, when, sizeof when);
     screens_header(surface, &header);
 }
 
@@ -1253,7 +1211,7 @@ static bool load_app(void)
     }
     deadline_table_init(&s_deadlines);
     memset(s_alarm_every_s, 0, sizeof s_alarm_every_s);
-    memset(s_header_status, 0, sizeof s_header_status);
+    memset(&s_header_kept, 0, sizeof s_header_kept);
     for (int poll = 0; poll < s_manifest.poll_count; poll++) {
         char pace[32];
         uint32_t every = s_manifest.poll_every_s[poll];
@@ -1270,6 +1228,11 @@ static bool load_app(void)
     /* As after a restart of the device: news for whoever asked, then the screen. */
     tell_new_version();
     intent(HOST_INTENT_STARTED);
+    s_menu_entry = (menu_entry_t){ .title = s_manifest.title,
+                                   .icon = s_manifest.has_icon ? s_manifest.icon : NULL,
+                                   .scene = s_app_scene,
+                                   .name = s_manifest.name };
+    s_menu = scene_menu(&s_menu_entry, 1);
     wm_open_from_home(&s_wm, s_app_scene);
     return true;
 }
@@ -1816,7 +1779,8 @@ int main(int argc, char **argv)
     pthread_create(&thread, NULL, network_thread, NULL);
 
     gfx_init(&s_screen, s_bits, SCREEN_WIDTH, SCREEN_HEIGHT);
-    wm_init(&s_wm, &s_menu, &s_menu, draw_header, NULL);
+    s_menu = scene_menu(&s_menu_entry, 0);
+    wm_init(&s_wm, s_menu, s_menu, draw_header, NULL);
     app_delivery_init(&s_delivery);
     if (!load_app()) {
         return 1;

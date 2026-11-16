@@ -32,6 +32,7 @@
 #include "app_code.h"
 #include "storage.h"
 #include "status.h"
+#include "header.h"
 #include "timers.h"
 #include "wifi.h"
 #include "wm.h"
@@ -51,24 +52,21 @@ static const char *TAG = "host";
 /* The back buffer: frames are put together here and handed over whole. */
 static uint8_t s_frame[DISPLAY_FRAME_SIZE];
 
-/* Each side is, in this order: what an application keeps there, what the
- * scene on the screen gave, the host's own - the Wi-Fi icon on the left,
- * the date on the right. */
 static void draw_header(gfx_t *surface, const scene_t *scene, void *context)
 {
     (void)context;
     status_t status;
     status_read(&status);
-    screens_header_t header = {
-        .left_icon = status.wifi_connected ? GFX_ICON_SIGNAL : GFX_ICON_NO_SIGNAL,
-        .left = scene->header_left,
-        .right = scene->header_right != NULL ? scene->header_right
-                 : status.date_known         ? status.date
-                                             : NULL,
-        .right_icon = SCREENS_NO_ICON,
+    header_now_t now = {
+        .network_ok = status.wifi_connected,
+        .time_known = status.date_known,
+        .shows_clock = status.shows_clock,
+        .local = status.local,
+        .scene_left = scene->header_left,
+        .scene_right = scene->header_right,
     };
-    host_header_status(HOST_HEADER_LEFT, &header.left_icon, &header.left);
-    host_header_status(HOST_HEADER_RIGHT, &header.right_icon, &header.right);
+    char when[HEADER_WHEN_MAX + 1];
+    screens_header_t header = header_compose(host_header_kept(), &now, when, sizeof when);
     screens_header(surface, &header);
 }
 

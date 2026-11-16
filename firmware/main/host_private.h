@@ -10,6 +10,7 @@
 
 #include "app_delivery.h"
 #include "gfx.h"
+#include "header.h"
 #include "scene.h"
 #include "wm.h"
 
@@ -52,8 +53,8 @@ void host_confirm_timed_out(void);
 
 /* While an answer is handed to an application that is not on the screen. */
 bool host_is_delivering(void);
-/* What an application keeps on a side of the header, or false. */
-bool host_header_status(int side, int *icon, const char **text);
+/* What applications keep in the header while they are away. */
+const header_kept_t *host_header_kept(void);
 /* An alarm that has come, for its application. */
 void host_ring_alarm(uint32_t app_id, int alarm_number);
 /* News of a HOST_INTENT_* for whoever asked for it. */

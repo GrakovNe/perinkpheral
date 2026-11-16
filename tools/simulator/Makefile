@@ -39,7 +39,7 @@ SOURCES := sim.c \
            $(SDK)/lib/json_pick.c \
            $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c \
            $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c \
-           $(FW)/main/screens.c $(COMP)/deadlines/deadline_table.c $(QR)/qrcodegen/qrcodegen.c
+           $(FW)/main/screens.c $(FW)/main/header.c $(FW)/main/scene_menu.c $(COMP)/deadlines/deadline_table.c $(QR)/qrcodegen/qrcodegen.c
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
 # The page of the tools, which the simulator serves at its address.

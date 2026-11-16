@@ -14,14 +14,11 @@
 
 #include "deadlines.h"
 #include "events.h"
-#include "words.h"
 #include "settings.h"
 #include "net_time.h"
 #include "poller.h"
 #include "wifi.h"
 #include "units.h"
-
-#define CLOCK_FORMAT         "%H:%M"
 
 static SemaphoreHandle_t s_lock;
 static status_t          s_last_reported; /* what the host was last told about */
@@ -46,19 +43,28 @@ void status_read(status_t *status)
      * is about the last time the network was needed. */
     status->wifi_connected = has_network && !poller_last_use_failed();
     status->date_known = net_time_is_known();
+    status->shows_clock = shows_clock();
     if (status->date_known) {
         time_t now = (time_t)net_time_now();
-        struct tm local;
-        localtime_r(&now, &local);
-        if (shows_clock()) {
-            strftime(status->date, sizeof status->date, CLOCK_FORMAT, &local);
-        } else {
-            /* "Fri 13 Nov", in the device's language. */
-            snprintf(status->date, sizeof status->date, "%s %d %s",
-                     word((word_t)(WORD_SUN + local.tm_wday)), local.tm_mday,
-                     word((word_t)(WORD_JAN + local.tm_mon)));
-        }
+        localtime_r(&now, &status->local);
     }
+}
+
+/* Whether the header says another thing: the network, the time known or
+ * not, the clock or the date, and the minute or the day it shows. */
+static bool header_differs(const status_t *one, const status_t *other)
+{
+    if (one->wifi_connected != other->wifi_connected || one->date_known != other->date_known ||
+        one->shows_clock != other->shows_clock) {
+        return true;
+    }
+    if (!one->date_known) {
+        return false;
+    }
+    const struct tm *a = &one->local, *b = &other->local;
+    bool same_day = a->tm_year == b->tm_year && a->tm_yday == b->tm_yday;
+    return one->shows_clock ? !same_day || a->tm_hour != b->tm_hour || a->tm_min != b->tm_min
+                            : !same_day;
 }
 
 /* The date turns at the next midnight of the user's zone: a moment of
@@ -88,7 +94,7 @@ void status_check(void)
     /* Whoever calls this may have set the clock or the zone. */
     expect_next_day();
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    bool changed = memcmp(&now, &s_last_reported, sizeof now) != 0;
+    bool changed = header_differs(&now, &s_last_reported);
     s_last_reported = now;
     xSemaphoreGive(s_lock);
     if (changed) {

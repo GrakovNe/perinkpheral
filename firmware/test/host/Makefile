@@ -76,9 +76,9 @@ test_wm: test_wm.c tinytest.h $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scroll
 test_notice_queue: test_notice_queue.c tinytest.h $(UI)/notice_queue.c $(UI)/include/notice_queue.h $(GFX_DEPS)
 	$(CC) $(CFLAGS) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -o $@ test_notice_queue.c $(UI)/notice_queue.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c
 
-test_scenes: test_scenes.c tinytest.h $(MAIN)/menu_order.c $(MAIN)/menu_order.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
-	$(CC) $(CFLAGS) -I$(MAIN) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
-		$(MAIN)/menu_order.c $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c $(QR_SRCS)
+test_scenes: test_scenes.c tinytest.h $(MAIN)/header.c $(MAIN)/header.h $(MAIN)/menu_order.c $(MAIN)/menu_order.h $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(MAIN)/scenes.h $(MAIN)/screens.h $(UI)/include/scene.h $(GFX_DEPS)
+	$(CC) $(CFLAGS) -I$(MAIN) -I$(SDK) -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts $(QR_INCS) -o $@ test_scenes.c \
+		$(MAIN)/header.c $(MAIN)/menu_order.c $(MAIN)/scene_menu.c $(MAIN)/scene_splash.c $(MAIN)/scene_confirm.c $(MAIN)/scene_working.c $(MAIN)/scene_storage.c $(MAIN)/screens.c $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c $(QR_SRCS)
 
 # The interpreter is upstream code: built once, without our warnings, and
 # limited to one page of memory exactly as on the device.

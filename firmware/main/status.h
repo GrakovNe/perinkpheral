@@ -10,13 +10,15 @@
 extern "C" {
 #endif
 
-#define STATUS_DATE_MAX 31 /* "Fri 13 Nov", in letters of two bytes too */
+#include <time.h>
 
-/* What the header shows, as data. */
+/* What the header's host part is made of; header_compose() puts it into
+ * words. */
 typedef struct {
-    bool wifi_connected; /* the device is on its network now */
-    bool date_known;
-    char date[STATUS_DATE_MAX + 1];
+    bool      wifi_connected; /* the last use of the network worked */
+    bool      date_known;
+    bool      shows_clock;    /* the time where the date stands */
+    struct tm local;          /* the user's local time, when it is known */
 } status_t;
 
 /* Watches for what the header shows to change - the network coming or
