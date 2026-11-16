@@ -100,13 +100,13 @@ let frame = null, screenTimer = 0;
  * wherever the page is, to learn whether the firmware has the tools at all. */
 async function lookAtScreen(once) {
   clearTimeout(screenTimer);
-  if (!once && (currentSection() !== "screen" || document.hidden)) return;
+  if (!once && (currentSection() !== "control" || document.hidden)) return;
   try {
     const answer = await fetch("/api/dev/screen");
     /* A firmware for release has no such thing: its section stays away. */
-    byId("nav-screen").hidden = !answer.ok;
+    byId("nav-control").hidden = !answer.ok;
     if (answer.status === 404) {
-      if (currentSection() === "screen") location.hash = "#device";
+      if (currentSection() === "control") location.hash = "#device";
       return;
     }
     if (answer.ok) {
@@ -244,7 +244,7 @@ byId("reset").addEventListener("click", async event => {
 
 /* What a section does only while it is in sight. */
 sectionShown.push(name => {
-  if (name === "screen") lookAtScreen();
+  if (name === "control") lookAtScreen();
   if (name === "device") followLog();
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { lookAtScreen(); followLog(); } });
