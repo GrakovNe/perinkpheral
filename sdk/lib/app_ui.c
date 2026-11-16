@@ -119,8 +119,9 @@ void app_picker_draw_texts(const app_picker_t *picker, const char *above, const 
     copy(shown.above, sizeof shown.above, above);
     copy(shown.chosen, sizeof shown.chosen, chosen);
     copy(shown.below, sizeof shown.below, below);
-    copy(shown.ok, sizeof shown.ok, "Save");
-    copy(shown.back, sizeof shown.back, "Cancel");
+    /* the buttons' words are the host's, in the device's language */
+    shown.ok[0] = '\0';
+    shown.back[0] = '\0';
     ui_picker(&shown);
 }
 
@@ -233,8 +234,9 @@ void app_date_draw(const app_date_t *date)
     host_date_t shown = { .year = date->year, .month = date->month, .day = date->day,
                           .hour = date->hour, .minute = date->minute, .has = date->has,
                           .selected = date->part };
-    copy(shown.ok, sizeof shown.ok, date->part == last_part(date) ? "Save" : "Next");
-    copy(shown.back, sizeof shown.back, date->part == first_part(date) ? "Cancel" : "Back");
+    /* the buttons' words are the host's: Next or Save, Back or Cancel */
+    shown.ok[0] = '\0';
+    shown.back[0] = '\0';
     ui_date(&shown);
 }
 

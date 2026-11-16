@@ -462,6 +462,8 @@ HOST_FUNCTION(ui_picker)
     if (picker.chosen == NULL) {
         picker.chosen = "";
     }
+    picker.ok = picker.ok != NULL ? picker.ok : word(WORD_SAVE);
+    picker.back = picker.back != NULL ? picker.back : word(WORD_CANCEL);
     kit_picker(app->surface, &picker);
     m3ApiReturn(HOST_OK);
 }
@@ -625,6 +627,17 @@ HOST_FUNCTION(ui_date)
         .ok = notice_text(asked.ok, sizeof asked.ok),
         .back = notice_text(asked.back, sizeof asked.back),
     };
+    /* What the buttons do, when the application left it to the host. */
+    if (date.selected != KIT_DATE_NONE) {
+        kit_date_part_t first = date.has_time ? KIT_DATE_HOUR : KIT_DATE_DAY;
+        kit_date_part_t last = date.has_date ? KIT_DATE_YEAR : KIT_DATE_MINUTE;
+        if (date.ok == NULL) {
+            date.ok = word(date.selected == last ? WORD_SAVE : WORD_NEXT);
+        }
+        if (date.back == NULL) {
+            date.back = word(date.selected == first ? WORD_CANCEL : WORD_BACK);
+        }
+    }
     kit_date(app->surface, &date);
     m3ApiReturn(HOST_OK);
 }

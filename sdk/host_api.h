@@ -790,7 +790,8 @@ HOST_IMPORT(ui_chart, int32_t ui_chart(const host_chart_t *chart, const int32_t 
 /* Picker: one value of a sequence, on the whole surface. The selected
  * value is framed in the middle; the previous value is above it, the next
  * one below. An empty text marks the end of the sequence. The button row
- * is included. */
+ * is included: an empty `ok` or `back` is the host's own word for it, in
+ * the device's language - Save and Cancel. */
 typedef struct host_picker {
     char above[64];
     char chosen[64];
@@ -801,7 +802,9 @@ typedef struct host_picker {
 HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
 
 /* Date and time editor on the whole surface. The part being set is
- * framed. */
+ * framed. An empty `ok` or `back` is the host's own word, in the device's
+ * language: Next, or Save on the last part; Back, or Cancel on the first.
+ * With nothing being set an empty one is no button. */
 #define HOST_DATE_HAS_TIME 1
 #define HOST_DATE_HAS_DATE 2
 #define HOST_DATE_HOUR     0

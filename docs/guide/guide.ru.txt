@@ -1759,11 +1759,11 @@ Bar, 14 px high: <code>value</code> of <code>maximum</code>
 Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code>
 Рамка с необязательными стрелками: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code>
 
-Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row
-Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок
+Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel
+Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок; пустой <code>ok</code> или <code>back</code> - слово хоста на языке устройства: Сохранить, Отмена
 
-Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]
-Редактор даты и времени по <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code> или <code>_NONE</code>); ok[32], back[32]
+Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel
+Редактор даты и времени по <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code> или <code>_NONE</code>); ok[32], back[32]. Пустой <code>ok</code> или <code>back</code> - слово хоста: Далее или Сохранить, Назад или Отмена
 
 20. Navigation, storage and network
 20. Навигация, хранение и сеть
