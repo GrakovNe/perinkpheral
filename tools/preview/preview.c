@@ -275,6 +275,9 @@ int main(int argc, char **argv)
         static const int32_t DAILY[] = { 3, 0, 6, 9, 2, 7, 6, 11, 8, 4, 13, 9, 1, 11 };
         static const char *const NAMES[] = { "LINE", "AREA", "BARS", "STEPS" };
         int top = kit_title(&content, "Charts");
+        /* The chart under its caption, whatever the typeface's height, as
+         * the kit application lays it out. */
+        int caption = gfx_font_height(kit_font(KIT_CAPTION)) + 6;
         int column = (content.w - 3 * KIT_MARGIN) / 2;
         int row = (content.h - top - 2 * KIT_MARGIN) / 2;
         for (int i = 0; i < 4; i++) {
@@ -282,7 +285,7 @@ int main(int argc, char **argv)
             int at = top + i / 2 * (row + KIT_MARGIN);
             kit_text(&content, left, at, KIT_CAPTION, NAMES[i], 0);
             const kit_chart_t chart = {
-                .left = left, .top = at + 16, .width = column, .height = row - 16,
+                .left = left, .top = at + caption, .width = column, .height = row - caption,
                 .values = i == 2 ? DAILY : SERIES,
                 .count = i == 2 ? (int)(sizeof DAILY / sizeof DAILY[0])
                                 : (int)(sizeof SERIES / sizeof SERIES[0]),
