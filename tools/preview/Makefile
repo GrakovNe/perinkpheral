@@ -16,9 +16,9 @@ QR    := $(COMP)/qr
 BUILD := build
 
 CFLAGS := -std=c11 -Wall -Wextra -Werror \
-          -I$(GFX)/include -I$(GFX)/fonts -I$(UI)/include -I$(FW)/main -I$(QR)/include -I$(QR)/qrcodegen
+          -I$(GFX)/include -I$(COMP)/words/include -I$(GFX)/fonts -I$(UI)/include -I$(FW)/main -I$(QR)/include -I$(QR)/qrcodegen
 
-SOURCES := preview.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c \
+SOURCES := preview.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(COMP)/words/words.c $(GFX)/font_square.c \
            $(UI)/notice.c $(UI)/scrollbar.c $(UI)/list.c $(UI)/kit.c $(UI)/wm.c \
            $(FW)/main/screens.c $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 

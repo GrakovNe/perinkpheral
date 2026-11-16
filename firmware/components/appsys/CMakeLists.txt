@@ -3,7 +3,7 @@ idf_component_register(SRCS "app.c" "app_api_draw.c" "app_api_ui.c" "app_api_dat
                             "text_template.c" "poll_schedule.c" "request_queue.c" "app_room.c"
                        INCLUDE_DIRS "include" "../../../sdk/lib"
                        PRIV_INCLUDE_DIRS "../../../sdk"
-                       REQUIRES gfx ui board
+                       REQUIRES gfx ui words board
                        PRIV_REQUIRES wasm3 qr)
 
 # The table of imports is made from the contract: one place holds a call's signature.

@@ -19,7 +19,7 @@ QR       := $(COMP)/qr
 WASM3    := $(COMP)/wasm3/wasm3
 BUILD    := build
 
-INCLUDES := -I$(BUILD) -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts \
+INCLUDES := -I$(BUILD) -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(COMP)/words/include -I$(GFX)/fonts \
             -I$(QR)/include -I$(QR)/qrcodegen -I$(WASM3) -I$(SDK) -I$(SDK)/lib \
             -I$(COMP)/board/include -I$(COMP)/deadlines/include -I$(FW)/main
 OPT      ?= -O2 -g
@@ -38,7 +38,7 @@ SOURCES := sim.c \
            $(APPSYS)/app_manifest.c $(APPSYS)/json_tree.c $(APPSYS)/text_template.c \
            $(SDK)/lib/json_pick.c \
            $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c \
-           $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(GFX)/words.c $(GFX)/font_square.c \
+           $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(COMP)/words/words.c $(GFX)/font_square.c \
            $(FW)/main/screens.c $(FW)/main/header.c $(FW)/main/scene_menu.c $(COMP)/deadlines/deadline_table.c $(QR)/qrcodegen/qrcodegen.c
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
