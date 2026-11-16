@@ -3,6 +3,8 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "gfx.h"
+#include "gfx_icon_art.h"
+#include "gfx_icons.h"
 
 #include <string.h>
 
@@ -243,6 +245,9 @@ static void test_text_font_scaled(void)
     CHECK(first == 3 && end == 15);
     gfx_text_font_ink(&tiny_tripled, "", &first, &end);
     CHECK(first == 0 && end == 0);
+    /* with the digits in columns the room of a digit changes, the ink of a letter does not */
+    gfx_text_tabular_ink(&tiny_tripled, "II", &first, &end);
+    CHECK(first == 3 && end == 15);
     /* baseline at y = 12: the bar is 3 x 9 pixels at x = 3..5, y = 3..11 */
     CHECK(gfx_text_font(&g, 0, 12, &tiny_tripled, "I", true) == 9);
     int black = 0;
@@ -448,8 +453,66 @@ static void test_digits_in_columns(void)
     CHECK(gfx_text_tabular_width(mono, "11:11") == gfx_text_font_width(mono, "11:11"));
 }
 
+/* ---- the host's icons ---- */
+
+#define ICON_SURFACE 100
+static uint8_t icon_bits[ICON_SURFACE / 8 * ICON_SURFACE + ICON_SURFACE];
+
+/* Whether a cell of a drawing is ink, as mkicons.py packs it: a row in whole bytes. */
+static bool art_ink(const gfx_icon_drawing_t *drawing, int row, int column)
+{
+    const uint8_t *at = GFX_ICON_BITS + drawing->at + row * ((drawing->cells + 7) / 8);
+    return (at[column / 8] >> (7 - column % 8)) & 1;
+}
+
+/* What gfx_icon draws at `cell` pixels a cell of the eleven is `drawing`, each
+ * of its cells a square of `scale` pixels. */
+static bool drawn_from(gfx_icon_id_t id, int cell, const gfx_icon_drawing_t *drawing, int scale)
+{
+    gfx_t surface;
+    gfx_init(&surface, icon_bits, ICON_SURFACE, ICON_SURFACE);
+    gfx_clear(&surface, false);
+    gfx_icon(&surface, id, 0, 0, cell, true);
+    for (int y = 0; y < drawing->cells * scale; y++) {
+        for (int x = 0; x < drawing->cells * scale; x++) {
+            if (gfx_get(&surface, x, y) != art_ink(drawing, y / scale, x / scale)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void test_icons(void)
+{
+    int without_eleven = 0, wrong = 0;
+    for (int id = 0; id < GFX_ICON_COUNT; id++) {
+        const gfx_icon_drawing_t *drawings = GFX_ICON_ART[id].drawings;
+        without_eleven += drawings[0].cells != 11;
+        /* At two pixels a cell the eleven is drawn, at four the 22 when there is one, at
+         * eight the 44: every line two pixels, whatever the size. */
+        wrong += !drawn_from((gfx_icon_id_t)id, 2, &drawings[0], 2);
+        if (drawings[1].cells == 22) {
+            wrong += !drawn_from((gfx_icon_id_t)id, 4, &drawings[1], 2);
+        }
+        if (drawings[2].cells == 44) {
+            wrong += !drawn_from((gfx_icon_id_t)id, 8, &drawings[2], 2);
+        }
+        /* at one pixel a cell nothing finer fits than the eleven */
+        wrong += !drawn_from((gfx_icon_id_t)id, 1, &drawings[0], 1);
+    }
+    CHECK(without_eleven == 0);
+    CHECK(wrong == 0);
+
+    /* Where an icon has ink is where it was drawn. */
+    gfx_icon_ink_t ink;
+    CHECK(gfx_icon_ink(GFX_ICON_PLUS, 2, &ink));
+    CHECK(ink.first_x == 4 && ink.last_x == 17 && ink.first_y == 4 && ink.last_y == 17);
+}
+
 int main(void)
 {
+    test_icons();
     test_digits_in_columns();
     test_picture();
     test_degree_sign();

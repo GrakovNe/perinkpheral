@@ -288,11 +288,11 @@ class _Face:
         for row in range(stem):
             cut = stem - 1 - row
             _fill(rows, foot + cut, row, self.width - cut, 1)
+        # The left leg flares out at its foot a step a row, the widest at the
+        # bottom: a slope in the face's pixels, with no pixel standing alone.
         if with_foot:
-            _fill(rows, 0, height - stem, foot, stem)
-            if foot >= 2:
-                rows[height - 1][0] = False
-                rows[height - stem][0] = False
+            for step in range(foot):  # step 0 is the bottom row
+                _fill(rows, step, height - 1 - step, foot - step, 1)
         return rows
 
     def de(self, height):
