@@ -295,8 +295,8 @@ flashing the firmware itself. The CLion plugin does the same from the IDE.
    firmware updates pulled from releases, and the API asking who is
    there.
 
-Next, not started: MQTT for applications, and a web flasher - the
-first flash from a browser, from the developer portal.
+The first flash is from a browser: https://perinkpheral.dev/flash writes the
+latest release. Next, not started: MQTT for applications.
 
 Version 1 is ASCII only; other scripts are a task for version 2.
 
