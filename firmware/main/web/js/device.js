@@ -126,9 +126,11 @@ async function press(key, isLong) {
   lookAtScreen();
 }
 
-/* A press as the device knows it: short, or long when held. */
+/* A press as the device knows it: short, or long when held. From the keyboard
+ * a button is pressed short: the browser gives it a click and no pointer. */
 for (const button of byId("keys").children) {
   let held = 0, isLong = false;
+  button.addEventListener("click", event => { if (event.detail === 0) press(button.dataset.key, false); });
   button.addEventListener("pointerdown", () => {
     isLong = false;
     held = setTimeout(() => { isLong = true; button.classList.add("held"); }, LONG_PRESS_MS);
@@ -177,9 +179,9 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
 /* ---- the log: what was written since the last look; after a restart, the new log whole ---- */
 
 const LOG_EVERY_MS = 2000, LOG_KEPT_CHARS = 64 * 1024;
-let logEnd = null, logTimer = 0;
+let logEnd = null, logTimer = 0, logReading = Promise.resolve();
 
-async function readLog() {
+async function readLogNow() {
   const answer = await fetch("/api/log" + (logEnd === null ? "" : "?since=" + logEnd));
   if (!answer.ok) throw new Error("HTTP " + answer.status);
   const end = Number(answer.headers.get("X-Log-End"));
@@ -189,7 +191,7 @@ async function readLog() {
   if (logEnd !== null && end < logEnd) {
     logEnd = null;
     log.append("--- restart ---\n");
-    return readLog();
+    return readLogNow();
   }
   const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
   if (logEnd === null && !log.textContent.endsWith("--- restart ---\n")) log.textContent = "";
@@ -199,18 +201,27 @@ async function readLog() {
   if (atEnd || logEnd === null) log.scrollTop = log.scrollHeight;
 }
 
+/* One read at a time: the one that follows and the one a press asks for would
+ * both append what came since the same place. `fresh`: the whole log anew. */
+function readLog(fresh) {
+  logReading = logReading.catch(() => {}).then(() => {
+    if (fresh) {
+      logEnd = null;
+      byId("log").textContent = "";
+    }
+    return readLogNow();
+  });
+  return logReading;
+}
+
 async function followLog() {
   clearTimeout(logTimer);
   if (!byId("follow-log").checked || currentSection() !== "device") return;
-  try { await readLog(); } catch (error) { /* away for a moment: asked again */ }
+  try { await readLog(false); } catch (error) { /* away for a moment: asked again */ }
   logTimer = setTimeout(followLog, LOG_EVERY_MS);
 }
 
-byId("load-log").addEventListener("click", event => busy(event.target, async () => {
-  logEnd = null;
-  byId("log").textContent = "";
-  await readLog();
-}));
+byId("load-log").addEventListener("click", event => busy(event.target, () => readLog(true)));
 byId("follow-log").addEventListener("change", followLog);
 
 /* ---- restart and reset ---- */

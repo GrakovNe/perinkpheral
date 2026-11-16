@@ -38,6 +38,9 @@ static const char *TAG = "web_apps";
 
 #define APP_NAME_BUFFER (APP_NAME_MAX + 1)
 #define BODY_MAX        2048
+/* Eight settings of 255 bytes each, as JSON writes them: quotes and
+ * backslashes in them take twice their room. */
+#define SETTINGS_BODY_MAX 4608
 #define SHA256_BYTES    32
 /* 500 applications of a few hundred bytes each. */
 #define CATALOG_INDEX_MAX_BYTES (512 * 1024)
@@ -327,20 +330,31 @@ static void change_app_settings(void *argument)
         if (references_other_server(manifest, command->app_name, command->wanted)) {
             clear_stale_secrets(manifest, command->app_name, command->wanted);
         }
+        bool    is_full = false;
+        int32_t written = 0;
         json_for_each(value, command->wanted)
         {
             /* An empty value takes the setting back: kv_set removes the key. */
-            stored = app_kv_set(command->app_name, value->name, value->text,
-                                (int32_t)strlen(value->text)) == HOST_OK &&
-                     stored;
+            int32_t result = app_kv_set(command->app_name, value->name, value->text,
+                                        (int32_t)strlen(value->text));
+            is_full = is_full || result == HOST_ERR_NO_SPACE;
+            stored = result == HOST_OK && stored;
+            written += result == HOST_OK;
         }
-        if (stored) {
+        /* What was written is the application's to know of, all of it or
+         * not: the store keeps what fitted, and the user is told the rest. */
+        if (written > 0) {
             ESP_LOGI(TAG, "settings of \"%s\" changed", command->app_name);
             app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
             host_deliver(command->app_name, &changed);
             poller_hurry(command->app_name);
+        }
+        if (stored) {
             command->status = "200 OK";
             snprintf(command->message, sizeof command->message, "Saved.");
+        } else if (is_full) {
+            command->status = "507 Insufficient Storage";
+            snprintf(command->message, sizeof command->message, "Not enough storage.");
         } else {
             command->status = "500 Internal Server Error";
             snprintf(command->message, sizeof command->message, "Storage error.");
@@ -355,7 +369,7 @@ static esp_err_t handle_settings(httpd_req_t *request)
     if (!asked_app(request, app_name)) {
         return web_send_message(request, "404 Not Found", "error", "App not found.");
     }
-    char  *body = web_read_body_alloc(request, BODY_MAX);
+    char  *body = web_read_body_alloc(request, SETTINGS_BODY_MAX);
     json_t *wanted = body != NULL ? json_parse(body) : NULL;
     free(body);
     app_settings_command_t command = { .app_name = app_name, .wanted = wanted };

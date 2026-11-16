@@ -239,17 +239,21 @@ async function install(button, offer) {
   if (await send(button, url, post({ files: offer.app.files }))) await loadApps();
 }
 
+/* An icon is eleven rows of eleven cells; what a catalog gives that is not one is no icon. */
+const isIcon = icon => Array.isArray(icon) && icon.length === 11 &&
+  icon.every(row => typeof row === "string" && row.length === 11);
+
 function picture(icon, cell) {
-  const box = make("div", { className: "picture" + (icon ? "" : " none") });
+  const box = make("div", { className: "picture" + (isIcon(icon) ? "" : " none") });
   box.style.width = box.style.height = 11 * cell + "px";
-  if (icon) box.append(pixels(icon, cell));
+  if (isIcon(icon)) box.append(pixels(icon, cell));
   return box;
 }
 
 /* An application on the device. `offer` is what a catalog has under its name, if any. */
 function tile(have, offer) {
   const box = make("div", { className: "tile" });
-  box.append(picture(have.icon || (offer && offer.app.icon), 5),
+  box.append(picture(isIcon(have.icon) ? have.icon : offer && offer.app.icon, 5),
              make("b", { textContent: have.title }), make("small", { textContent: have.version }));
   /* What the device shows by itself is marked: after a restart, and when the menu is left. */
   if (settings.default_app === have.name) box.append(make("span", { className: "mark", textContent: "Default" }));
@@ -439,7 +443,8 @@ byId("refresh-catalogs").addEventListener("click", event => busy(event.target, l
 
 byId("app-settings").addEventListener("submit", async event => {
   event.preventDefault();
-  const values = {};
+  /* A setting may be named anything a manifest allows, "__proto__" too. */
+  const values = Object.create(null);
   for (const input of byId("app-fields").querySelectorAll("[data-type=place]")) {
     if (input.value !== input.dataset.chosen) {
       toast("Select a place from the list.", "error");
@@ -455,6 +460,11 @@ byId("app-settings").addEventListener("submit", async event => {
     }
     else if (input.dataset.type !== "secret" || input.value) values[input.dataset.key] = input.value;
   }
+  /* Saved, the form goes: what was typed in it - a secret above all - is not sent again
+   * with the next save, to a server changed meanwhile. It opens anew from the device. */
   const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
-  if (await send(event.submitter, url, post(values))) loadApps();
+  if (await send(event.submitter, url, post(values))) {
+    byId("app-dialog").close();
+    loadApps();
+  }
 });

@@ -180,7 +180,7 @@ button.tile.add:disabled { color: var(--line); border-color: var(--line); opacit
 
 /* ---- the device ---- */
 pre { margin: 0; padding: .9rem 1rem; border: 1px solid var(--ink); max-height: 22rem; overflow: auto;
-      font: .8rem/1.5 inherit; font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+      font-family: inherit; font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty::before { content: "Empty."; color: var(--dim); }
 /* The panel as it stands in its case: the screen in a frame of wood, the buttons under it. */
 .screen { display: grid; gap: .9rem; max-width: 30rem; margin: 0; }
