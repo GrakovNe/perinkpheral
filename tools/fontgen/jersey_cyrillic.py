@@ -159,7 +159,7 @@ class _Face:
     def accent(self, base, latin_with_accent, latin_without):
         """`base` with what `latin_with_accent` has over `latin_without`."""
         marked, marked_top = self.latin(latin_with_accent)
-        plain, plain_top = self.latin(latin_without)
+        _, plain_top = self.latin(latin_without)
         extra = marked_top - plain_top
         if extra <= 0:
             return base, len(base)

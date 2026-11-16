@@ -10,8 +10,6 @@ extern "C" {
 
 void reset_early_init(void);
 
-void reset_request_factory(void);
-
 void reset_mark_factory(void);
 
 #ifdef __cplusplus

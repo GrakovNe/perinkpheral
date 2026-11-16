@@ -97,9 +97,6 @@ void wm_open(wm_t *wm, scene_t *scene);
 /* Replaces the stack with `scene`, as opening from the menu does. */
 void wm_open_from_home(wm_t *wm, scene_t *scene);
 
-/* Pops the top scene, as BACK does. */
-void wm_back(wm_t *wm);
-
 /* True when `scene` is in the stack at any depth. */
 bool wm_has(const wm_t *wm, const scene_t *scene);
 

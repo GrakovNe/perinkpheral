@@ -21,7 +21,6 @@
 #include "wifi.h"
 #include "units.h"
 
-#define DATE_FORMAT          "%a %d %b"
 #define CLOCK_FORMAT         "%H:%M"
 
 static SemaphoreHandle_t s_lock;

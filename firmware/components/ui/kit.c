@@ -99,11 +99,6 @@ int kit_text_lines(gfx_t *g, int left, int top, kit_style_t style, const char *t
     return lines;
 }
 
-void kit_text_centered(gfx_t *g, int top, kit_style_t style, const char *text)
-{
-    kit_text(g, (g->w - gfx_text_font_width(kit_font(style), text)) / 2, top, style, text, 0);
-}
-
 #define TITLE_TOP        10
 #define TITLE_RULE_GAP   8  /* from the letters' feet to the line under them */
 #define TITLE_AFTER_RULE 10
@@ -123,11 +118,6 @@ static int icon_cell(kit_icon_size_t size)
     static const int CELL_OF[] = { [KIT_ICON_SMALL] = 2, [KIT_ICON_MEDIUM] = 4,
                                    [KIT_ICON_LARGE] = 9 };
     return CELL_OF[size];
-}
-
-int kit_icon_side(kit_icon_size_t size)
-{
-    return GFX_ICON_CELLS * icon_cell(size);
 }
 
 void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size)

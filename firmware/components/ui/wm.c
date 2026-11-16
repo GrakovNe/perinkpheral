@@ -254,11 +254,6 @@ void wm_open_from_home(wm_t *wm, scene_t *scene)
     open_from(wm, wm->home, scene);
 }
 
-void wm_back(wm_t *wm)
-{
-    go_back(wm);
-}
-
 bool wm_has(const wm_t *wm, const scene_t *scene)
 {
     return place_of(wm, scene) >= 0;

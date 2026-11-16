@@ -30,10 +30,6 @@ void poller_start(void);
 /* DEADLINE_POLL has come: the poll is to be asked. */
 void poller_poll_is_due(uint32_t app, int poll);
 
-/* Whether the poller has nothing to do and nothing it waits for: no poll
- * wanted, no request, no file being fetched. */
-bool poller_is_idle(void);
-
 /* The application that was taking the answer to `request` piece by piece
  * was unloaded before its end - a press needed the screen. A poll is asked
  * again in a minute instead of a whole period later. From the host loop. */

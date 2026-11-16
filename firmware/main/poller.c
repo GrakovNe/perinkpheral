@@ -728,12 +728,6 @@ static int schedule_installed(void)
     return s_schedule.count;
 }
 
-bool poller_is_idle(void)
-{
-    /* Resting, and not about to be woken by something already asked. */
-    return s_is_resting && !wants_network();
-}
-
 void poller_reschedule(void)
 {
     if (s_lock == NULL) {

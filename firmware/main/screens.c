@@ -17,7 +17,6 @@
 
 /* The prototype shows this, not the build's version. */
 #define MARGIN        16
-#define TEXT_BASELINE 30 /* of the first line under a top edge */
 
 /* The connection icon on the icon canvas: 11 x 11 cells of the font's own
  * 2 px. Three bars that grow to the right, nothing but right angles. */

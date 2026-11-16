@@ -129,12 +129,6 @@ bool events_post_intent(int intent)
     return events_post(&event);
 }
 
-bool events_post_apps_changed(void)
-{
-    event_t event = { .kind = EVENT_APPS_CHANGED };
-    return events_post(&event);
-}
-
 bool events_wait(event_t *event, uint32_t timeout_ms)
 {
     TickType_t ticks = timeout_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);

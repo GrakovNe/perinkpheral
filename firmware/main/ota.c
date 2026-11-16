@@ -103,11 +103,6 @@ static void abort_upload(void)
     }
 }
 
-bool ota_is_uploading(void)
-{
-    return s_upload.in_progress;
-}
-
 static const char *upload_result(bool ok)
 {
     if (ok) {

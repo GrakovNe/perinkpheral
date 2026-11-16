@@ -40,8 +40,3 @@ void reset_mark_factory(void)
     s_fr_check = ~FR_MAGIC;
 }
 
-void reset_request_factory(void)
-{
-    reset_mark_factory();
-    esp_restart();
-}

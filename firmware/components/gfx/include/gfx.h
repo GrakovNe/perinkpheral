@@ -80,10 +80,6 @@ void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness, bool black);
 /* A black line one pixel wide, both ends included. */
 void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
 
-/* A 1 bpp bitmap in the framebuffer's own format (row-major, MSB left,
- * 1 = white, rows padded to a byte). */
-void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits);
-
 /* A picture as the build (tools/perinkpheral) writes it: a byte of how many cells wide, a
  * byte of how many tall, and the cells a bit each - 1 is ink, the leftmost
  * in the high bit, a row padded to a byte. Drawn with a cell so many
@@ -94,19 +90,13 @@ int  gfx_picture_height(const uint8_t *picture);
 int  gfx_picture_bytes(const uint8_t *picture); /* header and all */
 void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black);
 
-/* The square font (font_square.c): every
- * glyph is a square on a grid of three strokes and two gaps, `scale`
- * pixels per stroke (scale 5 gives the 27 px original); no ascenders or
- * descenders, lower case in the same square. Proportional: a glyph is as
- * wide as its ink; the default gap between glyphs is one stroke. y is the
- * top of the square. */
-int gfx_text_sq(gfx_t *g, int x, int y, const char *utf8, int scale, bool black);
-
-int gfx_text_sq_width(const char *utf8, int scale);
-
+/* The square font (font_square.c), the wordmark's: every glyph is a square
+ * on a grid of three strokes and two gaps, `scale` pixels per stroke (scale
+ * 5 gives the 27 px original); no ascenders or descenders, lower case in
+ * the same square. Proportional: a glyph is as wide as its ink, and
+ * `tracking` pixels apart from the next. y is the top of the square. */
 int gfx_text_sq_height(int scale);
 
-/* The same with the gap between glyphs given in pixels. */
 int gfx_text_sq_ex(gfx_t *g, int x, int y, const char *utf8, int scale, bool black,
                    int tracking);
 

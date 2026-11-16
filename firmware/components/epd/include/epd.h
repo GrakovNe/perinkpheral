@@ -17,7 +17,6 @@ extern "C" {
 /* Waveshare 4.2" e-Paper Module V2: SSD1683, 400x300, 1 bpp. */
 #define EPD_W       400
 #define EPD_H       300
-#define EPD_FB_SIZE (EPD_W / 8 * EPD_H)
 #define EPD_COLUMNS (EPD_W / 8) /* bytes in a row of the frame */
 
 /* The whole frame as a window: for a `frame_box_t`. */

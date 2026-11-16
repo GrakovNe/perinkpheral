@@ -45,9 +45,6 @@ int kit_text(gfx_t *g, int left, int top, kit_style_t style, const char *text, i
 int kit_text_lines(gfx_t *g, int left, int top, kit_style_t style, const char *text, int width,
                    int max_lines);
 
-/* Draws one line centred on the surface width. */
-void kit_text_centered(gfx_t *g, int top, kit_style_t style, const char *text);
-
 /* Draws the page title and the rule under it. Returns the top of the
  * content area. */
 int kit_title(gfx_t *g, const char *text);
@@ -58,7 +55,6 @@ typedef enum {
     KIT_ICON_LARGE,  /* 99 px, the icon of a notice */
 } kit_icon_size_t;
 
-int  kit_icon_side(kit_icon_size_t size);
 void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size);
 
 /* Button label: the button name in white on black and its action beside

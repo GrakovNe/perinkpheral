@@ -9,10 +9,9 @@ extern "C" {
 #endif
 
 /* Seeed Studio XIAO ESP32-C6. Pins on the header are configured by the
- * modules that use them (Kconfig); this is what is not on the header. */
+ * modules that use them (Kconfig); this is what is not on the header and
+ * is driven. GPIO9 (BOOT, strapping) and GPIO15 (the user LED) are not. */
 
-#define BOARD_GPIO_BOOT        9  /* strapping, do not drive */
-#define BOARD_GPIO_LED         15 /* user LED, unused */
 #define BOARD_GPIO_RF_SWITCH   3  /* low enables the antenna switch */
 #define BOARD_GPIO_RF_SELECT   14 /* low: ceramic antenna, high: U.FL */
 

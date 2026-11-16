@@ -77,9 +77,6 @@ bool events_is_host_loop(void);
  * HOST_INTENT_*). Safe from any task; false when the queue is full. */
 bool events_post_intent(int intent);
 
-/* An application was installed or removed. Safe from any task. */
-bool events_post_apps_changed(void);
-
 /* Blocks up to timeout_ms (UINT32_MAX: forever; 0: only looks). */
 bool events_wait(event_t *event, uint32_t timeout_ms);
 

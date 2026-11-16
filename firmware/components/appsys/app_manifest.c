@@ -8,7 +8,6 @@ _Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
                    MANIFEST_PICK_PATH_MAX == JSON_PICK_PATH_MAX,
                "a manifest names as many paths, as long, as the picker takes");
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1025,13 +1024,6 @@ bool app_version_number(const char *text, uint32_t *number)
     }
     *number = whole;
     return true;
-}
-
-void app_version_text(uint32_t number, char *text, size_t size)
-{
-    const uint32_t step = VERSION_PART_MAX + 1;
-    snprintf(text, size, "%u.%u.%u", (unsigned)(number / step / step), (unsigned)(number / step % step),
-             (unsigned)(number % step));
 }
 
 bool app_manifest_runs_on(const app_manifest_t *manifest, const char *firmware_version)

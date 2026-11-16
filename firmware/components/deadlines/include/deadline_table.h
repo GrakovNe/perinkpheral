@@ -63,12 +63,6 @@ bool deadline_table_take_due(deadline_table_t *table, int64_t now_ms, deadline_i
 /* Time of the nearest deadline, or DEADLINE_NONE. */
 int64_t deadline_table_nearest(const deadline_table_t *table);
 
-/* The same for the kinds in the bit mask `kinds` (bit n: kind n). */
-int64_t deadline_table_nearest_of(const deadline_table_t *table, uint32_t kinds);
-
-/* Cancels the deadlines whose kind is not in the bit mask `kinds`. */
-void deadline_table_keep_kinds(deadline_table_t *table, uint32_t kinds);
-
 /* Time of the deadline, or DEADLINE_NONE when it is not set. */
 int64_t deadline_table_when(const deadline_table_t *table, deadline_id_t id);
 

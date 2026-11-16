@@ -105,9 +105,6 @@ static void test_firmware(void)
     for (size_t i = 0; i < sizeof NOT_ONE / sizeof NOT_ONE[0]; i++) {
         CHECK(!app_version_number(NOT_ONE[i], &number));
     }
-    char text[16];
-    app_version_text(1008, text, sizeof text);
-    CHECK_STR(text, "0.1.8");
 
     app_manifest_t parsed;
     CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", &parsed) == APP_MANIFEST_OK);

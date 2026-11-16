@@ -108,34 +108,6 @@ int64_t deadline_table_nearest(const deadline_table_t *table)
     return earliest != NULL ? earliest->at_ms : DEADLINE_NONE;
 }
 
-#define KINDS_IN_A_MASK 32 /* a bit for a kind in a word of 32 */
-
-static bool is_of(const deadline_t *entry, uint32_t kinds)
-{
-    return entry->id.kind >= 0 && entry->id.kind < KINDS_IN_A_MASK && (kinds >> entry->id.kind & 1u) != 0;
-}
-
-int64_t deadline_table_nearest_of(const deadline_table_t *table, uint32_t kinds)
-{
-    int64_t nearest_ms = DEADLINE_NONE;
-    for (int i = 0; i < DEADLINES_MAX; i++) {
-        const deadline_t *entry = &table->entries[i];
-        if (entry->is_set && is_of(entry, kinds) && entry->at_ms < nearest_ms) {
-            nearest_ms = entry->at_ms;
-        }
-    }
-    return nearest_ms;
-}
-
-void deadline_table_keep_kinds(deadline_table_t *table, uint32_t kinds)
-{
-    for (int i = 0; i < DEADLINES_MAX; i++) {
-        if (table->entries[i].is_set && !is_of(&table->entries[i], kinds)) {
-            table->entries[i].is_set = false;
-        }
-    }
-}
-
 int64_t deadline_table_when(const deadline_table_t *table, deadline_id_t id)
 {
     const deadline_t *entry = find((deadline_table_t *)table, id);

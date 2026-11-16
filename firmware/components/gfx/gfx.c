@@ -156,18 +156,6 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black)
     }
 }
 
-void gfx_bitmap(gfx_t *g, int x, int y, int w, int h, const uint8_t *bits)
-{
-    int stride = gfx_row_bytes(w);
-    for (int j = 0; j < h; j++) {
-        const uint8_t *row = bits + j * stride;
-        for (int i = 0; i < w; i++) {
-            bool black = (row[i >> 3] & gfx_bit_of(i)) == 0;
-            gfx_pixel(g, x + i, y + j, black);
-        }
-    }
-}
-
 int gfx_picture_width(const uint8_t *picture)
 {
     return picture[0];
@@ -362,16 +350,6 @@ int gfx_text_sq_width_ex(const char *utf8, int scale, int tracking)
         w += sq_glyph_width(gfx_font_square_glyph(next_cp(&s)), scale) + tracking;
     }
     return w > 0 ? w - tracking : 0;
-}
-
-int gfx_text_sq(gfx_t *g, int x, int y, const char *utf8, int scale, bool black)
-{
-    return gfx_text_sq_ex(g, x, y, utf8, scale, black, scale);
-}
-
-int gfx_text_sq_width(const char *utf8, int scale)
-{
-    return gfx_text_sq_width_ex(utf8, scale, scale);
 }
 
 /* ---- bitmap fonts from tools/fontgen ---- */

@@ -174,6 +174,16 @@ static void test_open_and_back(void)
     CHECK(wm_pending_change(&wm) == WM_CLEAN);
 }
 
+/* BACK in the scene on top, answered as a scene answers it: one step down. */
+static void back(void)
+{
+    probe_t *top = (probe_t *)wm.current;
+    scene_reaction_t kept = top->next_reaction;
+    top->next_reaction = (scene_reaction_t){ SCENE_BACK, NULL };
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    top->next_reaction = kept;
+}
+
 static void test_long_back_is_always_the_menu(void)
 {
     start(&app.scene);
@@ -500,10 +510,10 @@ static void test_stack(void)
     wm_open(&wm, &alarm.scene);
     wm_close(&wm, &app.scene);
     CHECK(wm.current == &alarm.scene && wm.depth == 1);
-    wm_back(&wm);
+    back();
     CHECK(wm.current == &menu.scene && wm.depth == 0);
     /* and BACK with nothing under is the menu, still */
-    wm_back(&wm);
+    back();
     CHECK(wm.current == &menu.scene);
 
     /* opened again - its alarm came - a scene moves to the top, and BACK
@@ -513,9 +523,9 @@ static void test_stack(void)
     wm_open(&wm, &alarm.scene);
     wm_open(&wm, &app.scene);
     CHECK(wm.current == &app.scene && wm.depth == 3);
-    wm_back(&wm);
+    back();
     CHECK(wm.current == &alarm.scene && wm.depth == 2);
-    wm_back(&wm);
+    back();
     CHECK(wm.current == &page.scene && wm.depth == 1);
     wm_open(&wm, &app.scene);
     wm_close(&wm, &page.scene);
