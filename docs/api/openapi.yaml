@@ -1,0 +1,631 @@
+openapi: 3.1.0
+info:
+  title: perINKpheral device API
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    The HTTP API of a perINKpheral device, served by the device itself on port 80.
+    The device's web page uses it; so do the command line tools.
+
+    Requests from pages of other sites are refused: a browser request must carry
+    the device's own Origin, or none. Errors and plain confirmations are
+    `{"error": "..."}` and `{"ok": "..."}`.
+
+    Firmware updates, factory reset and a change of the Wi-Fi network wait for
+    a press of OK on the device, up to a minute; unanswered is
+    `403 {"error": "Not confirmed."}`.
+
+    `/api/dev/*` exists only in firmware built with the development tools.
+servers:
+  - url: http://{device}
+    variables:
+      device:
+        default: perinkpheral-xxxx.local
+        description: The device's name or address
+
+tags:
+  - name: Device
+  - name: Settings
+  - name: Apps
+  - name: Catalogs
+  - name: Glyphs
+  - name: Firmware
+  - name: Development
+
+components:
+  schemas:
+    Ok:
+      type: object
+      properties:
+        ok: { type: string, examples: ["Saved."] }
+      required: [ok]
+    Error:
+      type: object
+      properties:
+        error: { type: string, examples: ["Invalid request."] }
+      required: [error]
+    Status:
+      type: object
+      properties:
+        name: { type: string, description: Device name }
+        firmware: { type: string, examples: ["0.1.0-bc132b2"] }
+        slot: { type: string, examples: ["ota_1"] }
+        on_probation: { type: boolean, description: A new image not confirmed yet }
+        wifi: { type: string, enum: [online, connecting, setup, rescue] }
+        ssid: { type: string }
+        address: { type: string }
+        tz: { type: string, description: POSIX TZ string }
+        time: { type: string, description: Local time, when known }
+        hostname: { type: string }
+        idf: { type: string }
+        built: { type: string }
+        uptime_s: { type: integer }
+        free_memory: { type: integer, description: Bytes }
+        least_free_memory: { type: integer, description: Bytes, since start }
+        reset_reason: { type: integer, description: "esp_reset_reason(): 3 restart, 4 fault, 5 interrupt watchdog" }
+        last_panic: { type: string, description: Record of the last fault, if any }
+        app_area_used: { type: integer }
+        app_area: { type: integer }
+        storage_ok: { type: boolean }
+        storage_used: { type: integer, description: Bytes }
+        storage_total: { type: integer, description: Bytes }
+        largest_free_block: { type: integer, description: Bytes }
+        usb_host: { type: boolean, description: A computer is on the USB cable }
+        memory_refusals: { type: integer }
+        failed_allocations: { type: integer }
+    Settings:
+      type: object
+      description: Every field is optional on POST; what is sent is checked as a whole and stored.
+      properties:
+        device_name: { type: string }
+        hostname: { type: string, readOnly: true }
+        wifi_ssid: { type: string, readOnly: true }
+        ntp_server: { type: string }
+        tz: { type: string, description: POSIX TZ string }
+        refresh_min_data_s: { type: integer, description: Seconds between refreshes driven by data }
+        refresh_full_every: { type: integer, description: "Full refresh after so many partial ones; 0 always full, 255 never" }
+        refresh_keepalive_h: { type: integer, description: Hours before a refresh is forced }
+        dither: { type: boolean }
+        font: { type: integer, description: "0 Departure Mono, 1 Jersey" }
+        refresh_fast: { type: boolean }
+        header_clock: { type: boolean, description: Time instead of the date in the header }
+        time_auto: { type: boolean, description: Time from the network }
+        power_saving: { type: integer, enum: [0, 1, 2], description: "0 off, 1 always, 2 auto" }
+        default_app: { type: string }
+        language: { type: string, examples: ["en", "ru"] }
+        languages:
+          type: array
+          readOnly: true
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              name: { type: string }
+        menu_idle_min: { type: integer, minimum: 1, maximum: 60 }
+    App:
+      type: object
+      properties:
+        name: { type: string }
+        title: { type: string }
+        version: { type: string }
+        icon: { type: array, items: { type: string }, description: 11 rows of 11 characters }
+        hosts: { type: array, items: { type: string } }
+        polls: { type: array, items: { type: object } }
+        intents: { type: array, items: { type: string } }
+        system: { type: boolean }
+        writes_files: { type: boolean }
+        fullscreen: { type: boolean }
+        companion: { type: string }
+        trusts: { type: array, items: { type: string }, description: Certificate authorities of its own }
+        settings: { type: array, items: { type: object }, description: As the manifest declares them, translated }
+        values: { type: object, additionalProperties: { type: string }, description: Stored values; a secret only as set or not }
+    CatalogFile:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        sha256: { type: string }
+      required: [name, size, sha256]
+  parameters:
+    App:
+      name: app
+      in: query
+      required: true
+      schema: { type: string }
+      description: Name of an installed application
+  responses:
+    Ok:
+      description: Done
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Ok" }
+    Error:
+      description: Refused, with the reason
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Text:
+      description: Plain text answer
+      content:
+        text/plain:
+          schema: { type: string }
+
+paths:
+  /:
+    get:
+      tags: [Device]
+      summary: The device's web page
+      responses:
+        "200":
+          description: The page, gzip-compressed HTML
+          content:
+            text/html: {}
+
+  /api/status:
+    get:
+      tags: [Device]
+      summary: What the device is and how it is doing
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+
+  /api/log:
+    get:
+      tags: [Device]
+      summary: The last 4 KB of the log
+      parameters:
+        - name: since
+          in: query
+          schema: { type: integer }
+          description: The X-Log-End of the previous answer; only what came after it
+      responses:
+        "200":
+          description: Log text
+          headers:
+            X-Log-End:
+              schema: { type: integer }
+              description: Where this answer ends, for the next `since`
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /api/restart:
+    post:
+      tags: [Device]
+      summary: Restart
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+
+  /api/reset:
+    post:
+      tags: [Device]
+      summary: Factory reset, confirmed on the device
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "403": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: The device's settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+    post:
+      tags: [Settings]
+      summary: Change settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /api/wifi:
+    post:
+      tags: [Settings]
+      summary: Join another Wi-Fi network, confirmed on the device; the device restarts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ssid: { type: string }
+                password: { type: string }
+                tz: { type: string, description: Time zone to set along, on a device that has none }
+              required: [ssid, password]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/time:
+    post:
+      tags: [Settings]
+      summary: Set the time zone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tz: { type: string, description: POSIX TZ string, examples: ["MSK-3"] }
+              required: [tz]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /api/clock:
+    post:
+      tags: [Settings]
+      summary: Set the clock by hand; refused while time comes from the network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                unix: { type: integer, description: Unix seconds, years 2020 to 2100 }
+              required: [unix]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /api/apps:
+    get:
+      tags: [Apps]
+      summary: Installed applications with their settings
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/App" }
+
+  /api/apps/settings:
+    post:
+      tags: [Apps]
+      summary: Store settings of an application; it is told, its polls are fetched again
+      parameters:
+        - $ref: "#/components/parameters/App"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: { type: string }
+              description: Setting key to value; checked against the manifest as a whole
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/apps/install:
+    post:
+      tags: [Apps]
+      summary: Install or update an application from a catalog
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema: { type: integer }
+          description: Number of the catalog in /api/sources
+        - name: app
+          in: query
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  description: As the catalog's index lists them; app.wasm first, manifest.json last
+                  items: { $ref: "#/components/schemas/CatalogFile" }
+              required: [files]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409":
+          description: Not enough storage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+
+  /api/apps/remove:
+    post:
+      tags: [Apps]
+      summary: Remove an application; what it stored stays unless forget=1
+      parameters:
+        - $ref: "#/components/parameters/App"
+        - name: forget
+          in: query
+          schema: { type: integer, enum: [1] }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/apps/removed:
+    get:
+      tags: [Apps]
+      summary: Names of removed applications whose settings are kept
+      responses:
+        "200":
+          description: Names
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
+
+  /api/sources:
+    get:
+      tags: [Catalogs]
+      summary: Catalog sources, the official one first
+      responses:
+        "200":
+          description: Sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sources: { type: array, items: { type: string, format: uri } }
+    post:
+      tags: [Catalogs]
+      summary: Set the added sources, up to three, https only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sources: { type: array, maxItems: 3, items: { type: string, format: uri } }
+              required: [sources]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /api/catalog:
+    get:
+      tags: [Catalogs]
+      summary: The index of a source, passed on as it comes
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: catalog.json of the source
+          content:
+            application/json: {}
+        "404": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+
+  /api/glyphs:
+    get:
+      tags: [Glyphs]
+      summary: Installed glyph packs
+      responses:
+        "200":
+          description: Packs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  packs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        bytes: { type: integer }
+                  free: { type: integer, description: Bytes left }
+    post:
+      tags: [Glyphs]
+      summary: Install a glyph pack
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /api/glyphs/remove:
+    post:
+      tags: [Glyphs]
+      summary: Remove a glyph pack
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/ota:
+    post:
+      tags: [Firmware]
+      summary: Upload a firmware image, confirmed on the device; the device restarts into it
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/ota/release:
+    post:
+      tags: [Firmware]
+      summary: Fetch and install a release from the project's GitHub releases, confirmed on the device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri }
+                size: { type: integer }
+              required: [url, size]
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/dev/screen:
+    get:
+      tags: [Development]
+      summary: The frame on the panel
+      responses:
+        "200":
+          description: 1-bit BMP, 400 x 300
+          content:
+            image/bmp: {}
+
+  /api/dev/button:
+    post:
+      tags: [Development]
+      summary: Press a button
+      parameters:
+        - name: button
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 4 }
+          description: 1 up, 2 OK, 3 down, 4 back
+        - name: press
+          in: query
+          schema: { type: string, enum: [short, long, down, up], default: short }
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+        "400": { $ref: "#/components/responses/Text" }
+
+  /api/dev/open:
+    post:
+      tags: [Development]
+      summary: Put an installed application on the screen
+      parameters:
+        - name: app
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+        "404": { $ref: "#/components/responses/Text" }
+
+  /api/dev/app:
+    post:
+      tags: [Development]
+      summary: Upload one file of an application
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+          description: Application name
+        - name: file
+          in: query
+          required: true
+          schema: { type: string }
+          description: File name, such as app.wasm or manifest.json
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+        "500": { $ref: "#/components/responses/Text" }
+
+  /api/dev/run:
+    post:
+      tags: [Development]
+      summary: Restart into an application
+      parameters:
+        - name: app
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+
+  /api/dev/kv:
+    post:
+      tags: [Development]
+      summary: Write a value into an application's store
+      parameters:
+        - name: app
+          in: query
+          required: true
+          schema: { type: string }
+        - name: key
+          in: query
+          required: true
+          schema: { type: string }
+        - name: value
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+        "500": { $ref: "#/components/responses/Text" }
+
+  /api/dev/flash:
+    post:
+      tags: [Development]
+      summary: Upload a firmware image without a confirmation
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+
+  /api/dev/restart:
+    post:
+      tags: [Development]
+      summary: Restart
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+
+  /api/dev/crash:
+    post:
+      tags: [Development]
+      summary: A deliberate fault, to test the fault record
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [wdt, abort] }
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
