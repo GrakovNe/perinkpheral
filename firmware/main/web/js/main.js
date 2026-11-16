@@ -2,8 +2,17 @@
  * The start: everything the device has to say, read once, and again after a restart. */
 "use strict";
 
+/* A device on its setup access point is not online: the catalogs, which it
+ * would fetch for the page, wait for a network, and the page opens where the
+ * network is set. */
+const isOffline = () => status.wifi === "setup" || status.wifi === "rescue";
+
 async function loadAll() {
   await Promise.all([loadStatus(), loadSettings(), loadApps()]);
+  if (isOffline()) {
+    if (!location.hash) location.hash = "#settings:network";
+    return;
+  }
   loadCatalogs();
 }
 

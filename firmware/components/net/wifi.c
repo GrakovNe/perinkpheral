@@ -293,6 +293,22 @@ static void wifi_task(void *arg)
     }
 }
 
+/* The address of the page, given with the address a phone gets (DHCP option
+ * 114, RFC 8910): what a phone of these years opens by itself when it joins,
+ * before it asks for a page of its own to find out whether it is online.
+ * The DHCP server keeps the pointer, not a copy. */
+static void offer_the_page(esp_netif_t *access_point)
+{
+    static char page[] = "http://" WIFI_SETUP_ADDRESS "/";
+    esp_netif_dhcps_stop(access_point); /* not started yet: nothing to stop */
+    esp_err_t err = esp_netif_dhcps_option(access_point, ESP_NETIF_OP_SET,
+                                           ESP_NETIF_CAPTIVEPORTAL_URI, page, strlen(page));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "the page's address is not offered: %s", esp_err_to_name(err));
+    }
+    esp_netif_dhcps_start(access_point);
+}
+
 void wifi_start(const wifi_config_in_t *config)
 {
     strlcpy(s_wifi.ssid, config->ssid, sizeof s_wifi.ssid);
@@ -309,11 +325,12 @@ void wifi_start(const wifi_config_in_t *config)
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
+    esp_netif_t *access_point = esp_netif_create_default_wifi_ap();
     /* A phone that joins the access point is told that every name is the
      * device, so it opens the device's page without being asked. */
     static const uint8_t SETUP_ADDRESS[4] = { 192, 168, 4, 1 };
     captive_dns_start(SETUP_ADDRESS);
+    offer_the_page(access_point);
     esp_netif_t *station = esp_netif_create_default_wifi_sta();
     /* A name the network stack will not take is not worth refusing to
      * start over: the device then goes by its default name. */

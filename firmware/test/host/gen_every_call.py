@@ -37,6 +37,7 @@ with open(os.path.join(out_dir, "every_call.c"), "w") as f:
             "int32_t flags, int32_t http_status)\n{\n    (void)request;\n    (void)data;\n"
             "    (void)length;\n    (void)flags;\n    (void)http_status;\n}\n")
 with open(os.path.join(out_dir, "manifest.json"), "w") as f:
-    json.dump({"name": os.path.basename(os.path.normpath(out_dir)), "title": "Every call", "abi": 2, "system": True}, f)
+    json.dump({"name": os.path.basename(os.path.normpath(out_dir)), "title": "Every call", "abi": 2, "system": True,
+               "writes_files": True}, f)
 with open(os.path.join(out_dir, "count.h"), "w") as f:
     f.write("#define EVERY_CALL_COUNT %d\n" % len(calls))

@@ -785,6 +785,11 @@ void web_server_start(void)
     /* Installing an application hashes files and reads a manifest on this task. */
     server_config.stack_size = STACK_WEB_SERVER;
     server_config.task_priority = PRIORITY_SERVER;
+    /* A phone that joins the setup access point opens several connections at
+     * once - its own checks, the page, what the page asks - and keeps them;
+     * with all the server's sockets taken, the next one waits for nothing.
+     * The oldest one is closed instead. */
+    server_config.lru_purge_enable = true;
     server_config.max_uri_handlers = WEB_ROUTE_COUNT(ROUTES) + WEB_APPS_ROUTE_COUNT;
 #ifdef CONFIG_APP_DEV_CONSOLE
     server_config.max_uri_handlers += DEVTOOLS_ROUTE_COUNT;
