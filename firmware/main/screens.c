@@ -89,6 +89,6 @@ void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count
         list_draw_row(g, &list, index, &row, true);
     }
     if (is_moving) {
-        kit_actions(g, word(WORD_DONE), word(WORD_CANCEL));
+        kit_actions_moving(g, word(WORD_DONE), word(WORD_MOVE));
     }
 }

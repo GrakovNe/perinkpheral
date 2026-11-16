@@ -73,6 +73,10 @@ int kit_button(gfx_t *g, int left, int baseline, const char *name, const char *a
  * button is centred. */
 void kit_actions(gfx_t *g, const char *ok, const char *back);
 
+/* The row along the bottom while something is moved with UP and DOWN: what OK
+ * does on the left, and UP DOWN with what they do on the right. */
+void kit_actions_moving(gfx_t *g, const char *done, const char *move);
+
 /* ---- elements ---- */
 
 /* Bar: an outline filled from the left in proportion `value` / `maximum`. */

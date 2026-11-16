@@ -14,7 +14,7 @@ extern "C" {
  * same words, and a word it lacks is the English one. Pure. */
 typedef enum {
     /* what the buttons do */
-    WORD_DISMISS, WORD_CANCEL, WORD_CLOSE, WORD_FORMAT, WORD_SKIP, WORD_SAVE, WORD_NEXT, WORD_BACK, WORD_DONE,
+    WORD_DISMISS, WORD_CANCEL, WORD_CLOSE, WORD_FORMAT, WORD_SKIP, WORD_SAVE, WORD_NEXT, WORD_BACK, WORD_DONE, WORD_MOVE,
     /* notices of the host: a line, or two that are read together */
     WORD_STORAGE, WORD_STORAGE_ERROR,
     WORD_UPDATING, WORD_UPDATING_IN_PROGRESS,
