@@ -206,6 +206,20 @@ static bool receive_into(httpd_req_t *http, FILE *file)
     return true;
 }
 
+/* A file is put in place in the host loop: the list of applications, an
+ * application's files and its module are read there, and never while one
+ * of them changes under it. */
+typedef struct {
+    const char *app_name, *file;
+    bool        is_committed;
+} commit_command_t;
+
+static void commit_file(void *argument)
+{
+    commit_command_t *command = argument;
+    command->is_committed = app_store_commit_file(STORAGE_APPS_ROOT, command->app_name, command->file);
+}
+
 static esp_err_t handle_app_file(httpd_req_t *http)
 {
     char name[QUERY_VALUE_MAX], file_name[QUERY_VALUE_MAX];
@@ -227,7 +241,12 @@ static esp_err_t handle_app_file(httpd_req_t *http)
     FILE *incoming = fopen(path, "wb");
     bool received = incoming != NULL && receive_into(http, incoming);
     bool stored = incoming != NULL && fclose(incoming) == 0 && received;
-    if (!stored || !app_store_commit_file(STORAGE_APPS_ROOT, name, file)) {
+    commit_command_t command = { .app_name = name, .file = file };
+    if (stored && !events_call(commit_file, &command)) {
+        remove(path);
+        return web_send_text(http, "503 Service Unavailable", "the device is busy");
+    }
+    if (!stored || !command.is_committed) {
         remove(path);
         return web_send_text(http, "500 Internal Server Error", "the file could not be stored");
     }
@@ -246,17 +265,25 @@ static esp_err_t handle_flash(httpd_req_t *http)
 /* The list of applications is read once, at start, so a new one is
  * started by starting over: the device comes back showing what it showed
  * last, and that is made to be this application. */
+static void run_app(void *argument)
+{
+    /* In the host loop, which keeps the last application too: nothing
+     * writes another one over it before the restart. */
+    settings_save_last_app(argument);
+    host_stop_soon(HOST_STOP_RESTART);
+}
+
 static esp_err_t handle_run(httpd_req_t *http)
 {
     char name[QUERY_VALUE_MAX];
     if (!web_query_value(http, "app", name, sizeof name) || !app_manifest_is_valid_name(name)) {
         return refuse(http, "app=<name> is missing or is not an application's name");
     }
-    settings_save_last_app(name);
+    if (!events_call(run_app, name)) {
+        return web_send_text(http, "503 Service Unavailable", "the device is busy");
+    }
     ESP_LOGW(TAG, "restarting into \"%s\"", name);
-    esp_err_t err = web_send_text(http, "200 OK", "restarting");
-    host_stop_soon(HOST_STOP_RESTART);
-    return err;
+    return web_send_text(http, "200 OK", "restarting");
 }
 
 /* In the host loop: the application is told its settings changed and its

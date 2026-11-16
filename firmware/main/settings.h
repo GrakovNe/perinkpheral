@@ -79,7 +79,9 @@ void settings_load_last_app(char *name, size_t name_size);
 void settings_save_last_app(const char *name);
 
 /* Where applications are installed from: the addresses of the catalogs,
- * a line each (see catalog.h). Loading gives the official one first and
+ * a line each (see catalog.h). The page's own record: the web server alone
+ * reads and writes it, one request at a time, and the host loop never
+ * does. Loading gives the official one first and
  * then the ones the user added; saving takes only the added ones.
  * sources_size is at least CATALOG_SOURCES_TEXT_MAX. */
 void      settings_load_sources(char *sources, size_t sources_size);

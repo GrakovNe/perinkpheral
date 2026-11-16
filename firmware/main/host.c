@@ -379,9 +379,12 @@ void host_redraw(bool is_clean)
 
 void host_stop_soon(host_stop_t why)
 {
-    /* A reset asked for is not turned into a restart by a later request. */
-    if (s_stop_reason != HOST_STOP_FACTORY_RESET) {
-        s_stop_reason = why;
+    /* Asked from any task: the reason is swapped whole, and a reset asked
+     * for is not turned into a restart by a later request. */
+    host_stop_t was = __atomic_load_n(&s_stop_reason, __ATOMIC_SEQ_CST);
+    while (was != HOST_STOP_FACTORY_RESET &&
+           !__atomic_compare_exchange_n(&s_stop_reason, &was, why, false, __ATOMIC_SEQ_CST,
+                                        __ATOMIC_SEQ_CST)) {
     }
     if (!deadlines_set_in(DEADLINE_STOP, 0, 0, STOP_DELAY_MS)) {
         esp_restart(); /* no way to do it properly: the restart is not lost */
