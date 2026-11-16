@@ -1222,7 +1222,7 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
  *                      or the device's page).
  * sys_setting_range(): a number's value and its range. HOST_ERR_ARGUMENT for
  *                      a setting that is text. */
-#define SYS_SETTING_MAX 63 /* the longest value, in bytes */
+#define SYS_SETTING_MAX 64 /* the longest value, in bytes: a time server's name */
 #define SYS_KEY_TIME_AUTOMATIC      "time_auto"           /* 1: time from the network */
 #define SYS_KEY_TIME_ZONE           "tz"                  /* POSIX TZ string: "MSK-3" */
 #define SYS_KEY_LANGUAGE            "language"            /* "en", "ru" */

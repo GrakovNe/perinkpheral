@@ -892,7 +892,7 @@ static void services_timer(int id, int32_t milliseconds)
     }
 }
 
-static bool services_dithers(void) { return true; }
+static bool services_dithers(void) { return s_settings.dither != 0; }
 
 static bool services_poll_now(const char *app_name, int poll)
 {
@@ -1118,6 +1118,11 @@ static int32_t services_setting_set(const char *key, const char *value)
     gfx_font_use((gfx_family_t)s_settings.font);
     words_use(s_settings.language);
     s_options.clock = s_settings.header_clock != 0;
+    if (strcmp(key, "tz") == 0) {
+        /* The simulator's local time is the C library's: the zone is its. */
+        setenv("TZ", s_settings.tz, 1);
+        tzset();
+    }
     wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
     return HOST_OK;
 }
@@ -1837,6 +1842,11 @@ int main(int argc, char **argv)
     s_settings.font = s_options.jersey ? GFX_FAMILY_JERSEY : GFX_FAMILY_DEPARTURE_MONO;
     s_settings.header_clock = s_options.clock ? 1 : 0;
     snprintf(s_settings.language, sizeof s_settings.language, "%s", s_options.language);
+    /* The zone is the computer's until Settings sets another. */
+    const char *zone = getenv("TZ");
+    if (zone != NULL && zone[0] != '\0' && strlen(zone) < sizeof s_settings.tz) {
+        snprintf(s_settings.tz, sizeof s_settings.tz, "%s", zone);
+    }
     char problem[APPCONF_PROBLEM_MAX];
     if (!appconf_validate(&s_settings, problem, sizeof problem)) {
         /* A language the device does not know: the store stays one the

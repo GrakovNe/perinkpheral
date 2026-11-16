@@ -231,6 +231,8 @@ static void test_fields(void)
         CHECK(appconf_field(fields[i].key, strlen(fields[i].key)) == &fields[i]);
         CHECK(strlen(fields[i].stored) <= 15);
         CHECK(fields[i].offset + fields[i].size <= sizeof(appconf_t));
+        /* Every value fits the room a value has as text. */
+        CHECK(fields[i].kind != APPCONF_TEXT || fields[i].size <= APPCONF_VALUE_MAX);
         /* What is read back as text is taken again as it was. */
         char text[APPCONF_VALUE_MAX];
         appconf_format(&c, &fields[i], text, sizeof text);
@@ -243,6 +245,21 @@ static void test_fields(void)
         }
     }
     CHECK(appconf_field("nope", 4) == NULL);
+
+    /* The longest of each text is read back whole and taken again. */
+    for (int i = 0; i < count; i++) {
+        if (fields[i].kind != APPCONF_TEXT) {
+            continue;
+        }
+        appconf_t longest = c;
+        char      full[APPCONF_VALUE_MAX];
+        memset(full, 'a', fields[i].size - 1);
+        full[fields[i].size - 1] = '\0';
+        CHECK(appconf_put(&longest, &fields[i], full));
+        char text[APPCONF_VALUE_MAX];
+        appconf_format(&longest, &fields[i], text, sizeof text);
+        CHECK_STR(text, full);
+    }
     CHECK(appconf_field("font", 3) == NULL);
 
     /* A number in its range, its one extra value, and nothing else. */

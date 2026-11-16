@@ -148,7 +148,7 @@ typedef struct {
 } appconf_field_t;
 
 #define APPCONF_NO_ALSO   (-1)
-#define APPCONF_VALUE_MAX 64 /* the longest value as text, with its end */
+#define APPCONF_VALUE_MAX (APPCONF_PASS_MAX + 1) /* the longest value as text, with its end */
 
 const appconf_field_t *appconf_fields(int *count);
 /* NULL for a key there is no setting for. */
