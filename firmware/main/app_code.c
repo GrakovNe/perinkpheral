@@ -154,6 +154,25 @@ bool app_code_has_room(const char *app_name, size_t module_bytes)
     return sectors_for(module_bytes) <= free_sectors;
 }
 
+size_t app_code_free_bytes(void)
+{
+    if (s_partition == NULL) {
+        return 0;
+    }
+    /* Walked here, as for the room: asked from another task. */
+    int free_sectors = s_sectors;
+    for (int sector = 0; sector < s_sectors;) {
+        if (!is_module_at(sector)) {
+            sector++;
+            continue;
+        }
+        int sectors = sectors_for(header_at(sector)->size);
+        free_sectors -= sectors;
+        sector += sectors;
+    }
+    return (size_t)free_sectors * SECTOR_BYTES;
+}
+
 /* Its mark goes: the sectors are free, and erased when they are taken. */
 static void forget(int extent)
 {

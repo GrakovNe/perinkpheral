@@ -1116,6 +1116,9 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #define SYS_INFO_TIME_ZONE   7 /* POSIX TZ string: "MSK-3" */
 #define SYS_INFO_JOIN_CODE   8 /* QR code text that joins a phone to the setup access
                                   point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
+#define SYS_INFO_FREE_FLASH  9 /* free flash for applications - their code and files - in
+                                  KB, as digits */
+#define SYS_INFO_FREE_STORE 10 /* free room of the applications' stores in KB, as digits */
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
 #define SYS_WIFI_SETUP      "setup" /* waiting for network settings on the setup access point */

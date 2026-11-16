@@ -6,8 +6,10 @@
   "ip_address": "IP address",
   "firmware": "Firmware",
   "slot": "Slot",
-  "unit_kb": " KB",
-  "free_memory": "Free memory",
+  "unit_kb_free": " KB free",
+  "ram": "RAM",
+  "flash": "Flash",
+  "store": "KV",
   "unit_h": " h ",
   "unit_min": " min",
   "uptime": "Uptime"

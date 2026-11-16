@@ -10,6 +10,8 @@
 
 #include "esp_log.h"
 
+#include "app_code.h"
+#include "app_kv.h"
 #include "host.h"
 #include "events.h"
 #include "host_api.h"
@@ -18,10 +20,13 @@
 #include "power.h"
 #include "settings.h"
 #include "status.h"
+#include "storage.h"
 #include "sysinfo.h"
 #include "wifi.h"
 #include "wifi_qr.h"
 #include "units.h"
+
+#define BYTES_PER_KB 1024
 
 _Static_assert(SYS_REFRESH_FULL_NEVER == APPCONF_REFRESH_FULL_NEVER,
                "an application says \"never\" with the number the settings keep");
@@ -66,6 +71,18 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
     case SYS_INFO_FREE_MEMORY:
         sysinfo_read(&info);
         snprintf(number, sizeof number, "%" PRIu32, info.free_memory_kb);
+        known = number;
+        break;
+    case SYS_INFO_FREE_FLASH: {
+        size_t used = 0, total = 0;
+        storage_usage(&used, &total);
+        snprintf(number, sizeof number, "%u",
+                 (unsigned)((total - used + app_code_free_bytes()) / BYTES_PER_KB));
+        known = number;
+        break;
+    }
+    case SYS_INFO_FREE_STORE:
+        snprintf(number, sizeof number, "%u", (unsigned)(app_kv_free_bytes() / BYTES_PER_KB));
         known = number;
         break;
     case SYS_INFO_TIME_ZONE:

@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "app_manifest.h"
@@ -53,6 +54,9 @@ int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity);
 
 /* Forgets everything the application stored: it is being removed. */
 void app_kv_erase(const char *app_name);
+
+/* The bytes of the stores' partition no value takes yet. */
+size_t app_kv_free_bytes(void);
 
 #ifdef __cplusplus
 }

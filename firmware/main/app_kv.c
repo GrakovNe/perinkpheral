@@ -407,3 +407,12 @@ void app_kv_erase(const char *app_name)
         ESP_LOGW(TAG, "%s: the store could not be emptied: %s", app_name, esp_err_to_name(err));
     }
 }
+
+size_t app_kv_free_bytes(void)
+{
+    nvs_stats_t stats;
+    if (nvs_get_stats(PARTITION, &stats) != ESP_OK) {
+        return 0;
+    }
+    return stats.free_entries * STORAGE_ENTRY_BYTES;
+}

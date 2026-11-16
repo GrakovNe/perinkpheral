@@ -40,6 +40,9 @@ const uint8_t *app_code_find(const char *app_name, size_t *size);
  * were moved together. */
 bool app_code_has_room(const char *app_name, size_t module_bytes);
 
+/* The bytes of the partition no module takes. */
+size_t app_code_free_bytes(void);
+
 /* Takes into the partition the modules that lie as files in the
  * applications' folders - a new installation, an upload, what the
  * firmware's image came with - and removes the files. One that finds no

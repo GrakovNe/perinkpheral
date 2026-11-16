@@ -6,7 +6,8 @@
  * is the mark, the version of the firmware, where the project lives - as a
  * code a phone reads - and whose it is; it is the splash at power-up too.
  * The second is the device's state: its name, its network and address, the
- * firmware and its slot, memory and uptime, all asked of the host with
+ * firmware and its slot, what is free of RAM, of the flash for applications
+ * and of their stores, and uptime, all asked of the host with
  * sys_info(). A system application: part of the firmware, written with the
  * same SDK as any other.
  */
@@ -29,7 +30,7 @@
 #define CREDITS_STEP  16
 
 #define MARGIN            16
-#define ROW_HEIGHT        34 /* from one baseline to the next; the first is one row down */
+#define ROW_HEIGHT        31 /* from one baseline to the next; the first is one row down */
 #define VALUE_MAX         47
 #define MS_PER_MINUTE     60000
 #define MINUTES_PER_HOUR  60
@@ -101,6 +102,17 @@ static void draw_logo_page(void)
     draw_centered(CREDITS_TOP + CREDITS_STEP, HOST_FONT_SMALL, "MIT License");
 }
 
+/* "96 KB free": what the host says is free under `what`, in KB. */
+static void draw_free(int32_t row, int32_t label, int32_t what)
+{
+    char value[VALUE_MAX + 1];
+    read_info(what, value);
+    app_text_t text;
+    app_text_start(&text, value + app_text_length(value), sizeof value - app_text_length(value));
+    app_text_add(&text, app_string(STR_UNIT_KB_FREE));
+    draw_row(row, app_string(label), value);
+}
+
 static void draw_state_page(void)
 {
     char value[VALUE_MAX + 1];
@@ -127,11 +139,11 @@ static void draw_state_page(void)
     read_info(SYS_INFO_SLOT, value);
     draw_row(row++, app_string(STR_SLOT), value);
 
+    draw_free(row++, STR_RAM, SYS_INFO_FREE_MEMORY);
+    draw_free(row++, STR_FLASH, SYS_INFO_FREE_FLASH);
+    draw_free(row++, STR_STORE, SYS_INFO_FREE_STORE);
+
     app_text_t text;
-    read_info(SYS_INFO_FREE_MEMORY, value);
-    app_text_start(&text, value + app_text_length(value), sizeof value - app_text_length(value));
-    app_text_add(&text, app_string(STR_UNIT_KB));
-    draw_row(row++, app_string(STR_FREE_MEMORY), value);
 
     int32_t minutes = (int32_t)(time_uptime_ms() / MS_PER_MINUTE);
     app_text_start(&text, value, sizeof value);
