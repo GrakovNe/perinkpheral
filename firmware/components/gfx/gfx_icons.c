@@ -10,20 +10,28 @@
  * many pixels a cell of it takes: the finest one drawn at two pixels a cell
  * or more - a line of a drawing is meant for twice its cells, as the text's
  * lines are two pixels at the text's size - and below that, the finest
- * that fits at all. Every icon has one of 11 cells. */
+ * that fits at all. An eleven made from a larger drawing comes last: where
+ * one of the icon's own fits, that is drawn instead. Every icon has an
+ * eleven, which fits any. */
+static int rank(const gfx_icon_drawing_t *drawing, int side)
+{
+    if (drawing->cells == 0 || drawing->cells > side) {
+        return -1;
+    }
+    int tier = drawing->made ? 0 : side / drawing->cells >= 2 ? 2 : 1;
+    return tier * 100 + drawing->cells;
+}
+
 static const gfx_icon_drawing_t *drawing_for(gfx_icon_id_t id, int side, int *scale)
 {
     const gfx_icon_drawing_t *best = NULL;
+    int best_rank = -1;
     for (int i = 0; i < GFX_ICON_DRAWINGS; i++) {
         const gfx_icon_drawing_t *drawing = &GFX_ICON_ART[id].drawings[i];
-        if (drawing->cells == 0 || drawing->cells > side) {
-            continue;
-        }
-        bool is_doubled = side / drawing->cells >= 2;
-        bool best_is_doubled = best != NULL && side / best->cells >= 2;
-        if (best == NULL || (is_doubled && !best_is_doubled) ||
-            (is_doubled == best_is_doubled && drawing->cells > best->cells)) {
+        int r = rank(drawing, side);
+        if (r > best_rank) {
             best = drawing;
+            best_rank = r;
         }
     }
     if (best != NULL) {
