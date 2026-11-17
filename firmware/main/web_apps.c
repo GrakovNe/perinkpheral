@@ -936,16 +936,16 @@ static esp_err_t handle_remove(httpd_req_t *request)
 }
 
 const web_route_t WEB_APPS_ROUTES[] = {
-    { "/api/apps", HTTP_GET, handle_list, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-    { "/api/apps/settings", HTTP_POST, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/apps/removed", HTTP_GET, handle_removed, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/glyphs", HTTP_GET, handle_glyphs, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/glyphs", HTTP_POST, handle_glyphs_install, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-    { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
-    { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE },
-    { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/apps", HTTP_GET, handle_list, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/apps/settings", HTTP_POST, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/apps/removed", HTTP_GET, handle_removed, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/glyphs", HTTP_GET, handle_glyphs, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/glyphs", HTTP_POST, handle_glyphs_install, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
 };
 const size_t WEB_APPS_ROUTE_COUNT = WEB_ROUTE_COUNT(WEB_APPS_ROUTES);

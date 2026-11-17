@@ -8,6 +8,7 @@
 #include "crash_note.h"
 
 #include <inttypes.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -274,6 +275,47 @@ bool web_server_has_memory(httpd_req_t *request, memory_need_t need)
 }
 
 /* What every request passes before its handler: the checks of its route. */
+/* A request that waits, on its own task: the server's goes on answering. */
+typedef struct {
+    esp_err_t (*handler)(httpd_req_t *request);
+    httpd_req_t *request; /* the server's copy, ours until it is completed */
+} waiting_t;
+
+static atomic_bool s_is_waiting; /* one such request at a time */
+
+static void answer_waiting(void *argument)
+{
+    waiting_t *waiting = argument;
+    waiting->handler(waiting->request);
+    httpd_req_async_handler_complete(waiting->request);
+    free(waiting);
+    atomic_store(&s_is_waiting, false);
+    vTaskDelete(NULL);
+}
+
+static esp_err_t answer_off_the_server(httpd_req_t *request, const web_route_t *route)
+{
+    if (atomic_exchange(&s_is_waiting, true)) {
+        return send_failure(request, STATUS_BUSY, "Device busy.");
+    }
+    waiting_t *waiting = malloc(sizeof *waiting);
+    if (waiting == NULL || httpd_req_async_handler_begin(request, &waiting->request) != ESP_OK) {
+        free(waiting);
+        atomic_store(&s_is_waiting, false);
+        return send_failure(request, STATUS_BUSY, "Not enough memory.");
+    }
+    waiting->handler = route->handler;
+    if (xTaskCreate(answer_waiting, "web_waits", STACK_WEB_WAITS, waiting, PRIORITY_SERVER, NULL) !=
+        pdPASS) {
+        /* The copy is the request now: answered through it, and let go. */
+        send_failure(waiting->request, STATUS_BUSY, "Not enough memory.");
+        httpd_req_async_handler_complete(waiting->request);
+        free(waiting);
+        atomic_store(&s_is_waiting, false);
+    }
+    return ESP_OK;
+}
+
 static esp_err_t answer_route(httpd_req_t *request)
 {
     const web_route_t *route = request->user_ctx;
@@ -282,6 +324,9 @@ static esp_err_t answer_route(httpd_req_t *request)
     }
     if (route->memory != WEB_NO_MEMORY_NEED && !web_server_has_memory(request, route->memory)) {
         return ESP_OK;
+    }
+    if (route->pace == WEB_WAITS) {
+        return answer_off_the_server(request, route);
     }
     return route->handler(request);
 }
@@ -766,18 +811,18 @@ static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
 
 /* The page, the device and its settings. */
 static const web_route_t ROUTES[] = {
-    { "/", HTTP_GET, handle_page, WEB_NO_MEMORY_NEED, WEB_OPEN },
-    { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE },
-    { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/settings", HTTP_GET, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/", HTTP_GET, handle_page, WEB_NO_MEMORY_NEED, WEB_OPEN, WEB_AT_ONCE },
+    { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/settings", HTTP_GET, handle_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
 };
 
 /* The device's sockets (CONFIG_LWIP_MAX_SOCKETS) and who holds them: the

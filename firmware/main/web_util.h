@@ -30,12 +30,21 @@ typedef enum {
 
 #define WEB_NO_MEMORY_NEED MEMORY_NEEDS
 
+/* How long a handler may take. The server has one task: a handler that
+ * waits for somebody at the device - a minute at most - or for a download
+ * runs on a task of its own, or the page hears nothing all that while. */
+typedef enum {
+    WEB_AT_ONCE, /* on the server's task */
+    WEB_WAITS,   /* on a task of its own, one such request at a time */
+} web_pace_t;
+
 typedef struct {
     const char     *uri;
     httpd_method_t  method;
     esp_err_t     (*handler)(httpd_req_t *request);
     memory_need_t   memory; /* refused with "Not enough memory." without it; WEB_NO_MEMORY_NEED */
     web_scope_t     scope;
+    web_pace_t      pace;
 } web_route_t;
 
 #define WEB_ROUTE_COUNT(table) (sizeof(table) / sizeof((table)[0]))

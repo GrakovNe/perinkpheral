@@ -291,10 +291,26 @@ static bool prepare(request_t *request, const char *app_name, int method,
     return true;
 }
 
+/* How long a whole answer may take to read, besides the 15 s each read may
+ * wait: a server that sends a byte now and then would otherwise keep the
+ * one connection of the device - and every other application's data - for
+ * as long as it likes. Values are 256 KB at most, pieces 4 MB, a firmware
+ * image 1.4 MB. */
+#define VALUES_WITHIN_MS   (60 * MS_PER_SECOND)
+#define PIECES_WITHIN_MS   (5 * MS_PER_MINUTE)
+#define FIRMWARE_WITHIN_MS (5 * MS_PER_MINUTE)
+#define READ_TOO_LONG      (-1000) /* read_piece(): past the answer's time */
+
+/* When the answer in hand has to be read by; only the poller's task reads. */
+static int64_t s_read_by_ms;
+
 /* Up to a whole piece, however the network cuts it; less only at the end.
- * Negative when the connection broke. */
+ * Negative when the connection broke, READ_TOO_LONG past the answer's time. */
 static int read_piece(esp_http_client_handle_t client, uint8_t *piece)
 {
+    if (now_ms() > s_read_by_ms) {
+        return READ_TOO_LONG;
+    }
     int length = 0;
     while (length < HOST_DATA_CHUNK_MAX) {
         int count = esp_http_client_read(client, (char *)piece + length,
@@ -332,6 +348,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     size_t total = 0;
     int    length;
     bool   is_whole = true;
+    s_read_by_ms = now_ms() + VALUES_WITHIN_MS;
     while ((length = read_piece(client, request->piece)) > 0) {
         total += (size_t)length;
         if (total > ANSWER_MAX_BYTES || !json_pick_feed(&request->pick, (char *)request->piece,
@@ -345,7 +362,13 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     if (length < 0 || !is_whole) {
         /* Broke off, too long, or not JSON: what was read so far is not
          * an answer, and half of one must not pass for a whole one. */
-        http_status = total > ANSWER_MAX_BYTES ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER;
+        http_status = total > ANSWER_MAX_BYTES  ? HOST_FAILED_TOO_LARGE
+                      : length == READ_TOO_LONG ? HOST_FAILED_TIMEOUT
+                                                : HOST_FAILED_NO_ANSWER;
+        if (length == READ_TOO_LONG) {
+            ESP_LOGW(TAG, "%s/%d: the answer took over %d s", app_name, poll_number,
+                     VALUES_WITHIN_MS / MS_PER_SECOND);
+        }
     }
     if (json_pick_is_cut(&request->pick)) {
         ESP_LOGW(TAG, "%s/%d: list elements beyond %d bytes were dropped", app_name, poll_number,
@@ -361,12 +384,14 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
                          const char *app_name, int poll_number, int http_status)
 {
     uint8_t *piece = request->piece, *next = request->next_piece;
+    s_read_by_ms = now_ms() + PIECES_WITHIN_MS;
     int      length = read_piece(client, piece);
+    int      next_length = 0;
     int      flags = HOST_DATA_FIRST;
     size_t   total = 0;
     while (length >= 0) {
         total += (size_t)length;
-        int next_length = length == HOST_DATA_CHUNK_MAX ? read_piece(client, next) : 0;
+        next_length = length == HOST_DATA_CHUNK_MAX ? read_piece(client, next) : 0;
         if (next_length < 0 || total > HOST_ANSWER_PIECES_MAX) {
             break;
         }
@@ -384,9 +409,16 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         next = swapped;
         length = next_length;
     }
+    bool is_too_long = length == READ_TOO_LONG || next_length == READ_TOO_LONG;
+    if (is_too_long) {
+        ESP_LOGW(TAG, "%s/%d: the answer took over %d s", app_name, poll_number,
+                 PIECES_WITHIN_MS / MS_PER_SECOND);
+    }
     hand_over_piece(app_name, poll_number,
-                    total > HOST_ANSWER_PIECES_MAX ? HOST_FAILED_TOO_LARGE : HOST_FAILED_NO_ANSWER, NULL,
-                    NULL, 0, HOST_DATA_FAILED);
+                    total > HOST_ANSWER_PIECES_MAX ? HOST_FAILED_TOO_LARGE
+                    : is_too_long                  ? HOST_FAILED_TIMEOUT
+                                                   : HOST_FAILED_NO_ANSWER,
+                    NULL, NULL, 0, HOST_DATA_FAILED);
 }
 
 /* `why` is a HOST_FAILED_*, where the HTTP status would have been.
@@ -737,6 +769,7 @@ bool poller_net_fetch(const char *url, size_t max_bytes, poller_net_take_fn take
     bool   is_ok = *http_status >= HTTP_OK_FIRST && *http_status <= HTTP_OK_LAST;
     size_t total = 0;
     int    length = 0;
+    s_read_by_ms = now_ms() + FIRMWARE_WITHIN_MS;
     while (is_ok && (length = read_piece(client, piece)) > 0) {
         total += (size_t)length;
         if (total > max_bytes || !take(context, piece, (size_t)length)) {

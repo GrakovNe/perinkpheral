@@ -9,6 +9,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 
 #include "deadlines.h"
 #include "host.h"
@@ -40,6 +41,11 @@ static const struct {
 
 #define SHEDDERS_MAX 4
 
+/* Room for a request refused all this while: the heap is in pieces too small
+ * for a TLS session and too large to be critical, and the applications get
+ * no data for as long as it lasts - a restart puts it back together. */
+#define SESSION_REFUSED_FOR_S (10 * SECONDS_PER_MINUTE)
+
 static volatile uint32_t s_refusals;
 static volatile uint32_t s_failed_allocations;
 static uint32_t          s_failures_seen; /* by the last look */
@@ -47,6 +53,14 @@ static uint32_t          s_sheds;
 static int               s_critical_looks;
 static void (*s_shedders[SHEDDERS_MAX])(void);
 static int               s_shedder_count;
+/* Since when, in seconds of uptime, every request was refused room; 0 while
+ * the last was given it. A word: written by the poller, read by the host loop. */
+static volatile uint32_t s_session_refused_since_s;
+
+static uint32_t uptime_s(void)
+{
+    return (uint32_t)(esp_timer_get_time() / US_PER_SECOND) + 1; /* never 0 */
+}
 
 /* In whichever task found no room, perhaps with its locks held: counted
  * and nothing else. */
@@ -71,6 +85,13 @@ bool memory_has(memory_need_t need)
     if (!has) {
         s_refusals++;
     }
+    if (need == MEMORY_FOR_A_SESSION) {
+        if (has) {
+            s_session_refused_since_s = 0;
+        } else if (s_session_refused_since_s == 0) {
+            s_session_refused_since_s = uptime_s();
+        }
+    }
     return has;
 }
 
@@ -89,6 +110,13 @@ void memory_look(void)
     bool is_critical = free_bytes < CRITICAL_FREE_BYTES || block_bytes < CRITICAL_BLOCK_BYTES ||
                        failures != s_failures_seen;
     s_failures_seen = failures;
+    uint32_t refused_since_s = s_session_refused_since_s;
+    if (refused_since_s != 0 && uptime_s() - refused_since_s >= SESSION_REFUSED_FOR_S) {
+        ESP_LOGE(TAG, "no room for a request for %d min: %u free, %u in one block; restarting",
+                 SESSION_REFUSED_FOR_S / SECONDS_PER_MINUTE, (unsigned)free_bytes, (unsigned)block_bytes);
+        host_stop_soon(HOST_STOP_RESTART);
+        return;
+    }
     if (!is_critical) {
         s_critical_looks = 0;
     } else {

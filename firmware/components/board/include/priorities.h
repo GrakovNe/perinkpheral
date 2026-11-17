@@ -45,6 +45,7 @@
 
 #define STACK_BUTTONS       3072
 #define STACK_WEB_SERVER    6144
+#define STACK_WEB_WAITS     6144 /* a handler of the web server's, while it waits: its stack */
 #define STACK_WIFI_PLAN     4096
 #define STACK_POLLER        8192
 #define STACK_OTA_PROBATION 3072

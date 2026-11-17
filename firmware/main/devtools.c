@@ -401,15 +401,15 @@ static esp_err_t handle_sockets(httpd_req_t *http)
 }
 
 const web_route_t DEVTOOLS_ROUTES[] = {
-    { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/open", HTTP_POST, handle_open, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/app", HTTP_POST, handle_app_file, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/run", HTTP_POST, handle_run, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/flash", HTTP_POST, handle_flash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
-    { "/api/dev/sockets", HTTP_GET, handle_sockets, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/open", HTTP_POST, handle_open, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/app", HTTP_POST, handle_app_file, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/run", HTTP_POST, handle_run, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/flash", HTTP_POST, handle_flash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/dev/sockets", HTTP_GET, handle_sockets, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
 };
 const size_t DEVTOOLS_ROUTE_COUNT = WEB_ROUTE_COUNT(DEVTOOLS_ROUTES);

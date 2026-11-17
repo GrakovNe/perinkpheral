@@ -4,6 +4,17 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.17
+
+- The device's page answers while the device waits for OK on its screen, and while it installs
+  an application or fetches a firmware: those requests wait on a task of their own. Another
+  one meanwhile is answered "Device busy." at once.
+- A server that sends its answer a byte at a time no longer keeps the device's one connection:
+  values are read within a minute, an answer in pieces within five, or the application is told
+  of a timeout.
+- A heap left in pieces too small for a request is put back together: after ten minutes of
+  every request refused for memory, the device restarts.
+
 ## 0.1.16
 
 - The device's page no longer stops answering after a while. The web server was promised
