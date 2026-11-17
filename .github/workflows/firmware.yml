@@ -58,7 +58,7 @@ jobs:
           idf.py -B build-release -D SDKCONFIG=build-release/sdkconfig \
                  -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
       - name: The files of a first flash
-        run: python3 tools/release/flash_manifest.py firmware/build-release flash "${{ inputs.version }}"
+        run: tools/perinkpheral flash-manifest firmware/build-release flash "${{ inputs.version }}"
       - uses: actions/upload-artifact@v4
         with:
           name: perinkpheral-${{ inputs.version }}

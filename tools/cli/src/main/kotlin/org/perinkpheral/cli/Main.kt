@@ -40,6 +40,11 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
     perinkpheral icons                        the host's icons into gfx_icon_art.c
+    perinkpheral check-layers [firmware dir]  the firmware's layers, by its includes and calls
+    perinkpheral check-languages              the firmware's languages are the SDK's
+    perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
+    perinkpheral flash-manifest <build> <out> <version>
+                                              the files of a first flash and their manifest
     perinkpheral mark [<pixels> <file>]...    the mark into assets/mark, and on paper at other sizes
 
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
@@ -169,6 +174,17 @@ private fun run(raw: Array<String>): Int {
         "imports" -> ContractTools.imports(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "every-call" -> ContractTools.everyCall(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "check-limits" -> println("${ContractTools.checkLimits(Sdk(root()).contract, File(arguments.word(1, "the guide")))} limits of the guide agree with the headers")
+        "page" -> FirmwareTools.page(File(arguments.word(1, "the folder of the page")), File(arguments.word(2, "the page")),
+            File(arguments.word(3, "the packed page")))
+        "flash-manifest" -> FirmwareTools.flashManifest(File(arguments.word(1, "the build")), File(arguments.word(2, "the folder")),
+            arguments.word(3, "the version"))
+        "check-layers" -> {
+            val (broken, checks) = Layers(File(arguments.words.getOrNull(1) ?: File(root(), "firmware").path)).check()
+            broken.forEach { println("layers: $it") }
+            println("$checks checks, ${broken.size} failed")
+            if (broken.isNotEmpty()) return 1
+        }
+        "check-languages" -> println("${checkLanguages(root())} checks, 0 failed")
         "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
         "mark" -> {
             val extra = arguments.words.drop(1).chunked(2).map { (pixels, file) -> pixels.toInt() to File(file) }

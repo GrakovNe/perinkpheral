@@ -14,16 +14,15 @@ idf_component_register(SRCS ${srcs}
                               esp_http_server esp_http_client mbedtls)
 
 # The page is made of its parts (web/page.html, style.css, js/), put together
-# by web/assemble.py, and goes into the firmware packed - and to the browser as
-# it is: every browser unpacks gzip.
-idf_build_get_property(python PYTHON)
+# by tools/perinkpheral page, and goes into the firmware packed - and to the
+# browser as it is: every browser unpacks gzip.
 set(web_dir "${CMAKE_CURRENT_LIST_DIR}/web")
 file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js" "${web_dir}/*.woff2"
-                                              "${web_dir}/assemble.py")
+                                              "${CMAKE_CURRENT_LIST_DIR}/../../tools/cli/src/main/kotlin/org/perinkpheral/cli/FirmwareTools.kt")
 set(page "${CMAKE_BINARY_DIR}/index.html")
 set(packed_page "${CMAKE_BINARY_DIR}/index.html.gz")
 add_custom_command(OUTPUT "${page}" "${packed_page}"
-                   COMMAND "${python}" "${web_dir}/assemble.py" "${web_dir}" "${page}" "${packed_page}"
+                   COMMAND "${CMAKE_CURRENT_LIST_DIR}/../../tools/perinkpheral" page "${web_dir}" "${page}" "${packed_page}"
                    DEPENDS ${web_parts}
                    VERBATIM)
 add_custom_target(packed_page DEPENDS "${packed_page}")

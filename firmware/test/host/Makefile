@@ -47,8 +47,8 @@ endif
 
 test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
-	@python3 check_languages.py ../../../sdk/languages.json ../../components/appconf/appconf.c
-	@python3 check_layers.py ../..
+	@$(TOOLS) check-languages
+	@$(TOOLS) check-layers ../..
 
 test_json_tree: test_json_tree.c tinytest.h $(APPSTORE)/json_tree.c $(APPSTORE)/include/json_tree.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSTORE)/json_tree.c
