@@ -39,7 +39,13 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
+    perinkpheral guide [--language ru] [--out <pdf>]
+                                              the application guide into a PDF (Chromium, poppler)
+    perinkpheral guide-units list|missing <language>|apply <language>
+                                              the guide's pieces: what a translation is made of
     perinkpheral icons                        the host's icons into gfx_icon_art.c
+    perinkpheral video <video> --out frames.bin [--width 200] [--height 150] [--fps 1.5] [--threshold 128]
+                                              a video into a 1-bit stream an application plays
     perinkpheral spelling --out <header>      how letters with no glyph are spelled in ASCII
     perinkpheral glyph-packs --out <dir> [--sheet <dir>]
                                               the glyph packs of letters beyond ASCII
@@ -199,6 +205,16 @@ private fun run(raw: Array<String>): Int {
         }
         "glyph-packs" -> GlyphPacks.make(root(), File(arguments.option("out") ?: fail("--out is required")), arguments.option("sheet")?.let { File(it) }).forEach { println(it) }
         "spelling" -> println(Spelling.make(File(arguments.option("out") ?: fail("--out is required"))))
+        "video" -> println(Video.make(File(arguments.word(1, "the video")), File(arguments.option("out") ?: fail("--out is required")),
+            (arguments.option("width") ?: "200").toInt(), (arguments.option("height") ?: "150").toInt(),
+            (arguments.option("fps") ?: "1.5").toDouble(), (arguments.option("threshold") ?: "128").toInt()))
+        "guide" -> println(Guide(root()).pdf(Sdk(root()).contract, arguments.option("language") ?: "en", arguments.option("out")?.let { File(it) }))
+        "guide-units" -> when (arguments.word(1, "list, missing or apply")) {
+            "list" -> Guide(root()).list().forEach { println(it) }
+            "missing" -> Guide(root()).missing(arguments.word(2, "the language")).forEach { println(it) }
+            "apply" -> println(Guide(root()).apply(arguments.word(2, "the language")))
+            else -> fail(USAGE)
+        }
         "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
         "mark" -> {
             val extra = arguments.words.drop(1).chunked(2).map { (pixels, file) -> pixels.toInt() to File(file) }

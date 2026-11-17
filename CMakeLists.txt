@@ -16,7 +16,6 @@ foreach(system_app about settings setup)
     perinkpheral_app(firmware/system/${system_app} NO_RUN)
 endforeach()
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(firmware_dir "${CMAKE_CURRENT_LIST_DIR}/firmware")
 set(environment "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}")
 
@@ -24,7 +23,7 @@ add_custom_target(host-tests
                   COMMAND ${environment} make -C "${firmware_dir}/test/host" test
                   USES_TERMINAL VERBATIM)
 add_custom_target(guide
-                  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/docs/guide/build.py"
+                  COMMAND "${CMAKE_CURRENT_LIST_DIR}/tools/perinkpheral" guide
                   USES_TERMINAL VERBATIM)
 if(DEFINED ENV{IDF_PATH})
     add_custom_target(firmware
