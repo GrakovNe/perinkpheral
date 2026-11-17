@@ -5,6 +5,7 @@
 
 const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
 const RELEASE_IMAGE = "perinkpheral.bin";
+const DEBUG_IMAGE = "debug-" + RELEASE_IMAGE;
 let status = {};
 
 function duration(seconds) {
@@ -172,7 +173,11 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   const release = answer.ok ? await answer.json() : null;
   /* A release is tagged "v0.1.0" and says "0.1.0" of itself. */
   const version = release ? release.tag_name.replace(/^v/, "") : "";
-  const image = release ? release.assets.find(asset => asset.name === RELEASE_IMAGE) : null;
+  /* A device with the development tools stays one: its update is the release's build for
+     debugging, when the release has one. */
+  const withTools = !byId("nav-control").hidden;
+  const imageOf = name => release ? release.assets.find(asset => asset.name === name) : null;
+  const image = (withTools && imageOf(DEBUG_IMAGE)) || imageOf(RELEASE_IMAGE);
   if (!release || !image) return toast("No releases.");
   if (!isNewer(releaseOf(version), releaseOf(status.firmware || ""))) return toast("Up to date.");
   /* The release's notes are the version's section of CHANGES.md, the flasher's line after them. */
