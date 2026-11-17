@@ -8,15 +8,17 @@ panel is in `hardware/README.md`.
 ## Recipes
 
 The toolchain is ESP-IDF v5.5 (verified on v5.5.5) with its `export.sh`
-sourced, which also puts a Python with pyserial on the path, and
-wasi-sdk (verified with 34) with `WASI_SDK_PATH` pointing at it. The
-firmware build needs both: the image carries wasm applications.
+sourced, wasi-sdk (verified with 34) with `WASI_SDK_PATH` pointing at it,
+and Java 21 or later for the tools. The firmware build needs all three:
+the image carries wasm applications, and the tools make its table of
+imports and its page.
 
 The board is on its native USB-Serial/JTAG (VID 0x303A PID 0x1001):
 `/dev/ttyACM*` on Linux, `/dev/cu.usbmodem*` on macOS. The name changes
 with the USB socket, so look it up; the recipes call it `$PORT`. When
-the port is gone the board is unplugged: there is nothing to fix in
-software.
+the port is gone the board is unplugged, or asleep: light sleep takes
+the USB away, and the firmware brings it back and enumerates it again
+when it wakes.
 
 Build (the IDF project is `firmware/`):
 
@@ -31,7 +33,8 @@ that needs the network. After editing `main/Kconfig.projbuild` or
 adding a component: `idf.py reconfigure`.
 
 Flash: `idf.py -p $PORT flash` (bootloader, partition table, otadata,
-app). `app-flash` keeps settings in `nvs`; `erase-flash` gives the
+app, and the applications' partition `apps` with `hello` - what is
+installed there is replaced). `app-flash` keeps settings in `nvs`; `erase-flash` gives the
 factory state. `esptool` v5 spells its commands with dashes
 (`write-flash`, `read-flash`).
 
@@ -63,18 +66,19 @@ Views before flashing: `tools/perinkpheral preview [dir]` compiles
 (`tools/preview/Makefile`) and writes a PNG per screen. Look at them; the panel shows exactly that.
 
 The device without hands on it, over the network: `tools/perinkpheral`
-with `PERINKPHERAL_HOST` set to the device's address (the second page of About, in
-its menu shows it).
+with `PERINKPHERAL_HOST` set to the device's address (the second page of About
+shows it).
 - `shot out.png` saves the frame the panel shows;
 - `press 3 3 2 --shot out.png` presses buttons (`1`-`4` short, `1L`-`4L`
   long) and waits for the panel after each;
 - `open clock` puts an installed application on the screen;
-- `run sdk/apps/clock --shot out.png` builds the application, uploads it,
+- `run ../perinkpheral-apps/apps/clock --shot out.png` builds the application, uploads it,
   restarts the device and opens it - the loop for working on an
   application, no reflashing;
 - `flash` uploads `firmware/build/perinkpheral.bin` and waits for the
   device to come back; after a change to `sdk/host_api.h` use `flash
-  --apps`, or the applications on the device stay built for the old one; `status` and `log` print what the names say.
+  --apps`, which uploads the applications of `sdk/apps` built anew; the
+  catalog's are installed again from the page; `status` and `log` print what the names say.
 
 Verify a change on the real device this way, not only in the preview.
 With no network, `tools/perinkpheral usb $PORT --keys 3,2 --out
@@ -94,10 +98,10 @@ The generated header is committed.
 
 Firmware without the cable, once the device is on a network:
 `curl --data-binary @firmware/build/perinkpheral.bin
-http://<address>/api/ota`. The device restarts into the new image and
+http://<address>/api/ota`, and OK on the device's own screen within a
+minute (unanswered, the upload is refused). The device restarts into the new image and
 keeps it only if it comes back reachable; `GET /api/status` says
-whether it is still on probation. The address is on the second page of About, in
-the menu.
+whether it is still on probation. The address is on the second page of About.
 
 The log without the cable: `curl http://<address>/api/log` gives the
 last 4 KB of it; `l` in the development console prints the same.
@@ -108,7 +112,7 @@ is set.
 A build for release has no development tools in it (`sdkconfig.release`)
 and says the version alone:
 
-    APP_VERSION=0.1.0 idf.py -B build-release \
+    APP_VERSION=$(cat ../VERSION) idf.py -B build-release \
         -D SDKCONFIG=build-release/sdkconfig \
         -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
 
@@ -149,10 +153,14 @@ Code:
   something are named constants. Comments only for what cannot be read
   off the code: why, not what.
 - Logic that does not need hardware is pure and host-tested: `gfx`,
-  `btn_core`, `refresh_policy`, `appconf`. `display.c` and `buttons.c`
-  only move it onto SPI, GPIO and tasks.
-- `settings_load()` never fails and `reset_early_init()` runs before
-  anything opens NVS. Only `settings.c` touches NVS for the host;
+  `btn_core`, `refresh_policy`, `appconf` and the rest that
+  `tools/perinkpheral check-layers` lists as pure. `display.c` and
+  `buttons.c` only move it onto GPIO and tasks.
+- `settings_start()` never fails - what is stored and does not check
+  is the default - and `reset_early_init()` runs before anything opens
+  NVS. Only `settings.c` reads and writes the host's NVS - a factory
+  reset erases it whole (`reset.c`), and `app_kv.c` moves what an old
+  firmware kept there;
   applications get their own namespaces through the host API `kv_*`.
 - `sdk/host_api.h` is the only contract between host and applications.
   An import is added in three places and nowhere else: the header, its
@@ -160,19 +168,20 @@ Code:
   that links it is made from the header), and a case in
   `test/host/apps/probe` with its check in `test_app.c`. An export the
   host calls is added to the header and called in `appsys/app.c`, whose
-  count of them stops the build until it is. After ABI 1 freezes,
+  count of them stops the build until it is. After the first release,
   changing a signature means a new `HOST_API_VERSION`.
 - The application is not trusted: `app.c` and the `app_api_*.c` check
   every offset and length against the module's memory before using it.
   Keep them free of ESP-IDF; what they need from the device comes in as
   `app_services_t`.
-- `components/wasm3/wasm3` is upstream v0.9.0 with one local change,
+- `components/wasm3/wasm3` is upstream v0.9.0 with two local changes,
   described in `components/wasm3/README.md`: loops yield, so that an
-  application stuck in one can be stopped. Configure the interpreter
+  application stuck in one can be stopped, and its memory comes from
+  the application area. Configure the interpreter
   from the component's `CMakeLists.txt`; do not edit it further.
 - `managed_components/` is downloaded; do not edit it.
-- `gfx_text_sq()` draws the square font: `scale` is the stroke in
-  pixels and the gap is a fifth wider, so scale 5 gives the 27 px
+- `gfx_text_sq_ex()` draws the square font: `scale` is the stroke in
+  pixels and the gap is a quarter wider, rounded, so scale 5 gives the 27 px
   square of the logo.
 
 Display:
@@ -180,15 +189,16 @@ Display:
 - `components/epd/epd.c` follows Waveshare's `epd4in2_V2` byte for
   byte. Three things in it were found the hard way and must stay (the
   full story is in `hardware/README.md`):
-  - CS is toggled per byte by GPIO (`spics_io_num = -1`). CS held low
-    over a block of data starts a refresh that never ends: BUSY stays
-    high for 30 s and more and the image fades to grey.
+  - CS is toggled per byte by GPIO. CS held low over a block of data
+    starts a refresh that never ends: BUSY stays high for 30 s and more
+    and the image fades to grey.
   - The bytes are clocked out by hand (`tx()` in `epd.c`), not by the
     SPI driver: mode 0, at least 75 ns to each half of the clock, CS
     high between bytes. Do not shorten the waits: the controller asks
     for 25 ns and nobody here has an oscilloscope.
-  - Every BUSY wait is bounded (init 1 s, full 4 s, partial 3 s). On a
-    timeout the controller is cut with a hardware reset. After deep
+  - Every BUSY wait is bounded (init 1 s, full 4 s, partial 3 s). A
+    refresh that times out cuts the controller with a hardware reset and
+    sleeps it; the waits of an init go on to the next command. After deep
     sleep (`0x10`) BUSY stays high for good; the next show always
     starts with a hardware reset, which is also how the panel wakes.
 - A byte takes about 8 microseconds, a frame 0.12 s.
@@ -199,9 +209,9 @@ Display:
   the frame again later.
 - The first image after boot is full: it fills the RAM 0x26 that
   partial updates compare against. `epd.c` sleeps the panel at the end
-  of a full show, mode 1 so that RAM is kept; after a partial one the
-  `panel` task of `display.c` does it 1.5 s later, and that task also
-  makes the 24 h keep-alive refresh.
+  of a full show, mode 1 so that RAM is kept; after a partial one a
+  deadline of the host loop does it 1.5 s later (`display_rest()`), and
+  another makes the 24 h keep-alive refresh (`display_keepalive()`).
 
 Board and system:
 
@@ -213,9 +223,10 @@ Board and system:
 - `CONFIG_FREERTOS_HZ=1000`. At the default 100 Hz `pdMS_TO_TICKS(5)`
   is zero and the button task starves everything else; the boot log
   then stops right after the button pins are reported.
-- `board_init()` drives the antenna switch before anything else.
+- `board_init()` drives the antenna switch before the radio starts.
 - Neither the partition table nor the bootloader can be changed over
-  the air. Only `main/ota.c` calls `esp_ota_*`. A new image is confirmed
+  the air. Only `main/ota.c` writes a slot or marks an image (`esp_ota_*`);
+  others only ask which one runs. A new image is confirmed
   by the probation task, never at boot: confirming early would keep an
   image that cannot be reached to replace it.
 

@@ -14,13 +14,13 @@ This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNan
 - HW reset: RST 1 (100 ms) -> 0 (2 ms) -> 1 (100 ms), wait for BUSY low. **The low part must really be 2 ms.** The module's reset circuit takes a longer low for "power off": the panel then keeps BUSY high through everything that follows and no refresh happens. A scheduler's delay is "at least" - while the flash is erased (a firmware update) it was about 20 ms - so the firmware counts the 2 ms itself with interrupts off (found 2026-11-12: "Updating in progress" never appeared).
 - Init: `0x12` (SW reset, wait for BUSY ~10 ms) -> `0x21 0x40 0x00` -> `0x3C 0x05` -> window `0x11 0x03`, `0x44 0x00 0x31`, `0x45 0x00 0x00 0x2B 0x01`, `0x4E 0x00`, `0x4F 0x00 0x00`.
 - Full (Display_Base): the frame into `0x24` and the same frame into `0x26`, then `0x22 0xF7`, `0x20`, wait for BUSY.
-- Partial (Display_Partial): HW reset -> `0x3C 0x80` -> `0x21 0x00 0x00` -> `0x3C 0x80` -> window -> the frame into `0x24` only -> `0x22 0xFF`, `0x20`, wait for BUSY. One full refresh is mandatory before the first partial (it puts the "old" frame into 0x26). After N partials - a full one (Waveshare: "several times", in the FAQ - a clear after 5 rounds; the firmware has 5).
+- Partial (Display_Partial): HW reset (the firmware skips it for a partial within 1.5 s of the one before, see below) -> `0x3C 0x80` -> `0x21 0x00 0x00` -> `0x3C 0x80` -> window -> the frame into `0x24` only -> `0x22 0xFF`, `0x20`, wait for BUSY. One full refresh is mandatory before the first partial (it puts the "old" frame into 0x26). After N partials - a full one (Waveshare: "several times", in the FAQ - a clear after 5 rounds; the firmware has 5).
 - Partial in a window (PartialDisplay): the same as Display_Partial, with `0x44`/`0x45` set to the window (X in bytes) and `0x4E`/`0x4F` to its corner, and only the window's bytes into `0x24`. Measured: 3744 bytes 0.80 s, 5760 bytes 0.84 s, 11088 bytes 0.95 s, the whole frame (15000) 1.00 s - about 19 ms per kilobyte over a fixed 0.71 s.
 - Measured on 2026-11-12 with the bytes clocked out by hand (8 us a byte) and no reset or sleep between partial refreshes that follow within 1.5 s: partial 3744 bytes 0.45 s, 5760 bytes 0.46 s, the whole frame 0.53 s; the first of a row 0.2 s more for its reset. Full 2.7 s; fast full (`0x1A 0x6E`, `0x22 0x91`, then `0x22 0xC7`) 2.2 s.
 - Sleep: `0x10 0x01` (deep sleep mode 1, RAM is retained - needed for partial). Mode 2 (`0x03`) does not retain RAM.
 - Frame format: 400x300 -> 50x300 = 15000 bytes, most significant bit on the left, 1 = white, 0 = black.
 - BUSY: HIGH = busy. After `0x10` (deep sleep) BUSY stays HIGH forever - it must not be waited on, the only way out of sleep is HW reset. After sleep, image data is ignored until re-initialization.
-- Waiting for BUSY is always with a timeout (in the firmware: full 4 s, partial 3 s, other 1 s). On timeout - HW reset and sleep, do not hang.
+- Waiting for BUSY is always with a timeout (in the firmware: full 4 s, partial 3 s, other 1 s). A refresh that times out - HW reset and sleep, do not hang; an init's waits go on to the next command.
 
 More modes from the Waveshare code (present in their driver, not properly verified on our bench):
 - Fast (1.5 s / 1 s): in init after `0x3C 0x05` -> `0x1A 0x6E` (or `0x5A` for 1 s) -> `0x22 0x91`, `0x20`, wait for BUSY; display - both frames and `0x22 0xC7`. GxEPD2 for the same panel: `0x1A 0x6E` for 2024 panels, `0x64` for 2023; `0x22 0xD7`.
@@ -42,7 +42,7 @@ Temperature: `0x18` after reset = `0x48` (external sensor, which the module does
 8. ESP-IDF SPI: `SPI_TRANS_USE_TXDATA` - up to 4 bytes; with `SPI_DMA_DISABLED` a transaction is up to 64 bytes (enough for byte-by-byte transfer); with DMA the buffers must be in DMA memory, otherwise the driver copies.
 
 ## Panel limitations (Waveshare wiki + datasheet)
-- Do not leave the display powered without sleep: after a refresh `0x10` or removing power is mandatory, otherwise the panel holds high voltage and degrades irreversibly.
+- Do not leave the display powered without sleep: after a refresh `0x10` or removing power is mandatory, otherwise the panel holds high voltage and degrades irreversibly. The controller turns the voltages off itself at the end of every refresh (`0x22 0xF7` / `0xFF` end with it), which is why the firmware may leave it awake 1.5 s for the next partial refresh.
 - The recommended interval between refreshes is at least 180 s, and at least one refresh per day. You cannot live on partial refreshes indefinitely - a full one periodically.
 - Operating temperature 0..50 C, storage -25..70 C, humidity 35-65 %. Not in sunlight and no UV - the particles dry out irreversibly. Clear the screen before long storage.
 - Panel supply 2.3-3.6 V (not below 2.5 V), logic 3.3 V. Power during refresh 26.4 mW typ., standby < 0.01 µA. Controller logic ~1 mA in operation.
@@ -54,7 +54,7 @@ Temperature: `0x18` after reset = `0x48` (external sensor, which the module does
 
 ## Open questions
 - The cause of the BUSY hang with CS over the block is not established (see pitfall 1). If transfer speed is needed, a controlled A/B is required: enable block CS with everything else equal and watch BUSY.
-- Fast and 4Gray modes are not verified (the first fast run was with a clobbered CS and is invalid).
+- 4Gray is not tried. Fast mode is measured (2.2 s, above) and in the firmware as a setting; its first run, with a clobbered CS, was invalid.
 
 ## Sources
 - SSD1683 datasheet Rev 1.0 (Solomon Systech, 2021): https://www.laskakit.cz/user/related_files/ssd1683.pdf

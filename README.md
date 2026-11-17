@@ -14,9 +14,9 @@ device, ink.
 verified. The firmware runs wasm applications from its own file
 system, sets itself up over Wi-Fi and takes firmware updates over the
 network, fetches data for them and installs them from a catalog; its
-own settings are on the device and on its web page. Running from the
-battery for months is not built yet. See [Roadmap](#roadmap) for what
-exists and what does not.
+own settings are on the device and on its web page. It runs from its
+battery, sleeping between polls; how long it lasts has not been
+measured. See [Roadmap](#roadmap) for what exists and what does not.
 
 ## Vision
 
@@ -89,7 +89,9 @@ Pebble; everything you see is an application.
   and the long press on button 4 always gives the screen back to you.
 - **Settings in a browser.** The device serves a web page for
   installing applications, entering their settings (tokens, addresses)
-  and its own. The page is on the device; nothing leaves your network.
+  and its own. The page is on the device, and so are your settings: what the
+  browser asks outside is the place you type (OpenStreetMap's search)
+  and whether a newer firmware is out (GitHub).
 - **The screen is treated with care.** E-ink ages when it is refreshed
   too often, so data-driven updates are spaced minutes apart, a button
   press is answered at once, and there are no animations. The
@@ -101,15 +103,14 @@ The battery is charged over USB-C. The device does not measure the
 battery and cannot tell whether USB is plugged in, so the power profile
 is a setting, and the screen shows no charge level.
 
-| Profile | What it does |
+| Power saving | What it does |
 | --- | --- |
-| plugged (default) | Wi-Fi always on, the web page always reachable, any polling interval |
-| battery | sleeps between polls, wakes on a timer or any button; polls no more often than every 5 minutes; the web page is reachable for 2 minutes after a button press |
-| extreme power saving | deep sleep between polls; every wake-up is a cold start; buttons 1-3 wake the device, button 4 does not |
+| Disabled (default) | Wi-Fi always on, the web page always reachable, any polling interval |
+| Always | light sleep between polls, woken by a timer or any button; polls no more often than every 5 minutes; the web page is reachable for 2 minutes after a button press |
+| Auto | as Always whenever no computer is on the USB cable |
 
-Battery life has not been measured yet. The estimate for 4000 mAh in
-deep sleep is about a year at one poll per 15 minutes and about four
-and a half months at one per 5 minutes.
+Battery life has not been measured yet. Deep sleep between polls was
+built, tried and put off to a later version.
 
 ## Hardware
 
@@ -146,7 +147,10 @@ the panel, with the datasheet and the pitfalls, is in
 
 You need ESP-IDF 5.5, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
 with `WASI_SDK_PATH` pointing at it (the firmware image carries wasm
-applications), and the board on USB.
+applications), Java 21 or later (the tools), and the board on USB. Or
+take a build from CI: every push makes one for release and one for
+debugging, and every release can be written from the browser at
+<https://perinkpheral.dev/flash>.
 
 ```bash
 . "$IDF_PATH/export.sh"
@@ -163,8 +167,8 @@ If the board does not answer, hold BOOT while plugging it in.
 
 A device with no network stored puts up an open Wi-Fi access point
 named after itself, `Perinkpheral-XXXX`. Join it, open
-<http://192.168.4.1>, enter your network and its password; the device
-restarts and joins. If it cannot - a wrong password - its own access
+<http://192.168.4.1>, enter your network and its password, and press OK on the
+device; it restarts and joins. If it cannot - a wrong password - its own access
 point comes back after two minutes. The second page of About in the menu shows
 where the device is.
 
@@ -176,7 +180,7 @@ Open the device's page and choose the new image under Firmware, or:
 curl --data-binary @firmware/build/perinkpheral.bin http://<address>/api/ota
 ```
 
-The device restarts into the new firmware and keeps it only if it
+Press OK on the device when it asks. It restarts into the new firmware and keeps it only if it
 comes back reachable; otherwise it returns to the one it ran before.
 
 What you get today: a splash, then - on a device with no network yet -
@@ -187,7 +191,8 @@ host's own, Settings and About, in the order you set. Those two, the
 splash and the setup screen are applications too, written with the same
 SDK and built into the firmware.
 
-Host tests of the hardware-independent modules need only a C compiler:
+Host tests of the hardware-independent modules need a C compiler,
+wasi-sdk and Java (the tools check the layers and the languages):
 
 ```bash
 cd firmware/test/host && make test
@@ -200,7 +205,8 @@ without the device. `tools/perinkpheral font` turns a TTF or OTF into a
 ## Writing applications
 
 An application is C compiled to WebAssembly. Its handlers change its
-state and ask for a redraw; `app_on_draw()` paints the state:
+state and ask for a redraw; `app_on_draw()` paints the state. BACK
+leaves an application with no code of its own:
 
 ```c
 #include "app_text.h"
@@ -210,14 +216,9 @@ static int32_t presses;
 
 void app_on_button(int32_t event)
 {
-    switch (event) {
-    case BTN_OK_PRESSED:
+    if (event == BTN_OK_PRESSED) {
         presses++;
         request_redraw(HOST_REDRAW_NORMAL);
-        break;
-    case BTN_BACK_PRESSED:
-        request_exit();
-        break;
     }
 }
 
@@ -285,44 +286,52 @@ flashing the firmware itself. The CLion plugin does the same from the IDE.
    requests of an application's own, delivery to an application that is
    not on the screen, files, an alarm, settings through the device's
    page. The contract is not frozen.
-3. **Host screens - mostly done.** Done: the menu with icons, power-up,
-   the Wi-Fi setup screen with a QR code, and the host's own pages as
-   system applications - Settings with four buttons and no keyboard,
-   Device, About. Left: a second font.
-4. **Power - started.** Done: the battery profile - the chip sleeps
-   when nothing runs, the radio is on only for a poll and for two
-   minutes after a press. Left: measured current and real battery life
-   numbers, then extreme power saving on deep sleep.
-5. **Web UI and catalog - mostly done.** Done: installing from
-   catalogs, settings of applications and of the host, the log. Left:
-   firmware updates pulled from releases, and the API asking who is
-   there.
+3. **Host screens - done.** The menu with icons and an order of your
+   own, power-up, the Wi-Fi setup screen with a QR code, the host's own
+   pages as system applications - Settings with four buttons and no
+   keyboard, About - and two fonts to choose from, Departure Mono and
+   Jersey.
+4. **Power - started.** Done: power saving - the chip sleeps when
+   nothing runs, the radio is on only for a poll and for two minutes
+   after a press. Left: measured current and real battery life numbers;
+   deep sleep is put off to a later version.
+5. **Web UI and catalog - done.** Installing from catalogs, settings
+   of applications and of the host, the log, firmware updates pulled
+   from releases; what cannot be undone - a firmware, a reset, another
+   network - is confirmed on the device's own screen.
 
 The first flash is from a browser: https://perinkpheral.dev/flash writes the
 latest release. Next, not started: MQTT for applications.
 
-Version 1 is ASCII only; other scripts are a task for version 2.
+The device speaks English and Russian: its own words and the
+applications' strings are translated, and letters beyond ASCII come in
+glyph packs installed from the page.
 
 ## Repository
 
 ```
 firmware/              the ESP-IDF project
-  main/                entry point, host loop, scenes, views, services
+  main/                entry point, host loop, scenes, views, services, the web server
   system/              the host's own applications, built into the firmware:
-                       settings, device, about, setup
-  components/          board, epd (panel and display service), gfx, input, ui,
-                       appsys (application runtime), wasm3, appconf
+                       settings, about, setup
+  components/          board, epd (panel and display service), gfx, words, input, ui,
+                       net, deadlines, appconf, appstore (what an application is),
+                       appsys (an application running), wasm3, qr
   test/host/           host tests of the pure modules
 sdk/
   host_api.h           the contract between host and applications
   lib/                 what applications link instead of a C library
   apps/                the sample application, hello; the rest are in perinkpheral-apps
 tools/
+  perinkpheral         the tools: build and check an app, run it on a device or in the simulator,
+                       catalogs, and every generator of the project
+  core/                the tools' library in Kotlin, which the CLion plugin uses too
+  cli/                 the command line in Kotlin, over the library
   preview/             renders the host's screens to PNG without the device
-  perinkpheral         the tools: build and check an app, run it on a device or in the simulator, catalogs
-  core/                the tools in Kotlin, which the CLion plugin uses too
   simulator/           the device without the device, built from the firmware's sources
 assets/fonts/          Departure Mono and Jersey (SIL OFL 1.1), the UI fonts, and their licenses
+assets/mark/           the project's mark
+docs/                  the application guide (PDF, English and Russian) and the web API
 hardware/              the panel notes, the BOM and assembly page, the case model
 CLAUDE.md              the specification: architecture, decisions, milestones, state
 AGENTS.md              bench notes and constraints for coding agents

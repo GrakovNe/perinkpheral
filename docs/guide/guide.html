@@ -140,7 +140,7 @@
   <li>Background work: answers, alarms and device events are delivered while the application is off the screen</li>
 </ul>
 <ul>
-  <li>Storage: a key-value store and files, kept across restarts and reinstalls</li>
+  <li>Storage: a key-value store, kept across restarts and reinstalls, and files, kept across restarts</li>
   <li>Design system: lists, notices, pickers, cells and a button row, drawn by the host</li>
   <li>Notifications: shown by the host over any screen</li>
   <li>Settings: declared in the manifest, edited on the device's web page</li>
@@ -191,7 +191,7 @@
   <tr><td>Loaded instances</td><td class="n">1</td><td>Across all applications</td></tr>
   <tr><td>Floating point</td><td class="n">integer only</td><td>The build rejects a module with a float operation</td></tr>
   <tr><td>C library</td><td class="n"><code>sdk/lib</code></td><td>Strings, numbers, an arena allocator, the <code>memcpy</code> family. The standard C library is absent</td></tr>
-  <tr><td>Installed applications</td><td class="n">24</td><td>Per device, as many as fit: an installation is refused when its code, its files or the room promised to others do not fit. Catalog size is unlimited</td></tr>
+  <tr><td>Installed applications</td><td class="n">24</td><td>Per device, as many as fit: an installation is refused when its code, its files or the room promised to others do not fit. A catalog may list any number; its index is at most 512 KB</td></tr>
 </table>
 
 <h2 id="char-storage">Storage</h2>
@@ -255,7 +255,7 @@
   <tr><td>An answer, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
   <tr><td>The same while off the screen</td><td>Loaded for the call, unloaded after it. The current screen is suspended and restored</td><td class="c">app_init, the handler, app_on_terminate</td></tr>
   <tr><td>Installed, or updated to another version</td><td>Once, on or off the screen</td><td class="c">app_on_installed / app_on_updated</td></tr>
-  <tr><td><code>request_focus()</code> granted by the host</td><td>Stays, on top of the stack</td><td class="c">... app_on_focus, app_on_draw</td></tr>
+  <tr><td><code>request_focus()</code> granted by the host</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_init, app_on_focus, app_on_draw</td></tr>
   <tr><td>The application leaves the screen: BACK, the menu, another application on top</td><td>Unloaded</td><td class="c">app_on_blur, app_on_terminate</td></tr>
 </table>
 
@@ -265,13 +265,13 @@
   <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.</li>
   <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.</li>
   <li><code>app_init()</code> is called before any other handler of an instance.</li>
-  <li>Button events are delivered in order, without loss. Pending timers with the same number are merged. The pieces of one answer are delivered in order, in consecutive calls.</li>
-  <li>Background delivery of an answer can be interrupted. On a button press the instance is unloaded and the remaining pieces are dropped. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute.</li>
+  <li>Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one answer are delivered in order; a settings change or an alarm may be delivered between two of them.</li>
+  <li>Background delivery of an answer can be interrupted. On a button press the instance is unloaded and the remaining pieces are dropped. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute, or after its interval when that is shorter.</li>
 </ul>
 
 <h2 id="model-state">State</h2>
 <p>Global variables are kept until the application is unloaded. Unloading occurs every time the application leaves the screen and after every background call.</p>
-<p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance. A value that must survive a power loss is saved immediately after it changes.</p>
+<p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.</p>
 <p>Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
 
 <h2 id="model-screen">Navigation and refresh</h2>
@@ -304,8 +304,8 @@ tools/perinkpheral sim my-app                      # run it in the simulator on 
 <p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons. The page accepts requests from itself only, as the device does.</p>
 
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.</p>
-<p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has three build targets: <code>my-app</code> (build), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page). The IDE compiles with the flags of the build (<code>tools/perinkpheral flags</code>) and produces the same module.</p>
-<p>The generated headers follow <code>strings/</code> and <code>pictures/</code> while the code is written. A string the code does not use yet, or a translation that lacks a string, is accepted in them; the build refuses both.</p>
+<p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has four build targets: <code>my-app</code> (build), <code>my-app-package</code> (build and check the package, with the report), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page). The IDE compiles with the flags of the build (<code>tools/perinkpheral flags</code>) and produces the same module.</p>
+<p>The generated headers are made when the project is configured, and again when it is reloaded after <code>strings/</code> or <code>pictures/</code> change; the CLion plugin remakes them on every change. A string the code does not use yet, or a translation that lacks a string, is accepted in them; the build refuses both.</p>
 <p>Set <code>WASI_SDK_PATH</code> and <code>PERINKPHERAL_HOST</code> in the CMake environment of the IDE.</p>
 <p>The perINKpheral plugin for CLion (repository <code>perinkpheral-clion-plugin</code>) does this setup itself. It downloads the SDK and wasi-sdk on request, opens an application folder as a CMake project, and adds two run configurations: on the device and in the simulator. Its device window shows the live screen, the buttons, the log and the status of the device or the simulator.</p>
 <h2 id="start-sample">Sample application</h2>
@@ -488,7 +488,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 <h2 id="screen-surface">Surface and colour</h2>
 <ul>
   <li>The origin is the top left corner of the surface. <code>gfx_width()</code> and <code>gfx_height()</code> return its size. Use these values for layout.</li>
-  <li>Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, <code>gfx_*</code> and <code>ui_*</code> calls return <code>HOST_ERR_NOT_DRAWING</code>. Drawing is clipped to the surface.</li>
+  <li>Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, the drawing calls of <code>gfx_*</code> and <code>ui_*</code> return <code>HOST_ERR_NOT_DRAWING</code>; measuring text and fonts works anywhere. Drawing is clipped to the surface.</li>
   <li><code>gfx_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.</li>
   <li>The standard margin is <code>HOST_UI_MARGIN</code> (16 px). Use it at the left and right edges.</li>
 </ul>
@@ -521,7 +521,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 </ol>
 <p>The degree sign is built in at every size.</p>
 <p>The width of a text depends on which option was used. Always measure a text before placing it.</p>
-<p>Limits on user-visible text, such as a title or an option, are given in characters. A field holds half as many two-byte characters as one-byte characters.</p>
+<p>Limits on user-visible text of the manifest, such as a title or an option, are given in characters, whatever their bytes. A field of the contract, such as a notice's line, has a size in bytes, and holds half as many two-byte characters as one-byte characters.</p>
 
 <h2 id="screen-pictures">Pictures and icons</h2>
 <p>The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
@@ -786,7 +786,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li>An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as answers arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.</li>
   <li>The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
   <li>An answer to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the answer is still needed.</li>
-  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request with a body is sent once; its redirect response is delivered as the answer.</li>
+  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the answer.</li>
   <li><code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
@@ -833,7 +833,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td>Bring the application to the screen</td><td class="c">request_focus</td><td>Granted by the host, at most once per 30 s</td></tr>
   <tr><td>Status in the header</td><td class="c">header_status</td><td>An icon and a short text in the header above every screen while the application is off the screen</td></tr>
   <tr><td>Reaction to device start, network connection or clock change</td><td>Intent in the manifest</td><td><code>app_on_intent()</code></td></tr>
-  <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms and poll intervals of the old one: set them here</td></tr>
+  <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms of the old one: set them here. Poll intervals set from code are kept</td></tr>
 </table>
 
 <h2 id="background-notify">Notifications</h2>
@@ -984,10 +984,10 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td>"&lt;title&gt; cannot start", "Update the app."</td><td>Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall</td></tr>
   <tr><td>Poll fails with -3</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
   <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network</td></tr>
-  <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting. Queue more as answers arrive</td></tr>
+  <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting, or the device's queue is full. Queue more as answers arrive</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
-  <tr><td>A press is ignored shortly after start</td><td>A background delivery was in progress. The press interrupted it and the screen is being redrawn</td></tr>
+  <tr><td>A press does not answer a question</td><td>The button went down before the question was on the panel: a press answers only what was shown. Press again</td></tr>
 </table>
 
 <h1 id="publishing">15. Publishing</h1>
@@ -1026,7 +1026,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void app_init(void)</td><td>The instance is loaded and its strings are in place. Once per instance</td></tr>
   <tr><td class="c">void app_on_focus(void)</td><td>The application receives the screen. Start <code>timer_set()</code> timers here</td></tr>
   <tr><td class="c">void app_on_blur(void)</td><td>The application is about to lose the screen</td></tr>
-  <tr><td class="c">void app_on_terminate(void)</td><td>The instance is about to be unloaded, for any reason: leaving the screen, end of a background call, device restart, removal. <code>app_on_blur()</code> precedes it if the application was on the screen</td></tr>
+  <tr><td class="c">void app_on_terminate(void)</td><td>The instance is about to be unloaded: leaving the screen, end of a background call, device restart, removal. Not after a fault stopped it. <code>app_on_blur()</code> precedes it if the application was on the screen</td></tr>
   <tr><td class="c">void app_on_draw(void)</td><td>A frame is needed. Draw the complete frame from the state. The surface is white</td></tr>
   <tr><td class="c">void app_on_button(int32_t event)</td><td>A button event occurs: <code>BTN_&lt;UP|OK|DOWN|BACK&gt;_&lt;KEYDOWN|KEYUP|PRESSED|LONG_PRESSED&gt;</code>. Excludes <code>BTN_BACK_PRESSED</code> and <code>BTN_BACK_LONG_PRESSED</code></td></tr>
   <tr><td class="c">void app_on_back(void)</td><td>BACK is pressed briefly. For applications with internal pages</td></tr>
@@ -1037,7 +1037,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void app_on_settings(void)</td><td>The user saves the application's settings on the web page</td></tr>
   <tr><td class="c">void app_on_intent(int32_t intent)</td><td>A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>_NETWORK_UP</code> (2), <code>_STARTED</code> (3)</td></tr>
   <tr><td class="c">void app_on_installed(void)</td><td>Once after the application is installed: it has not run on this device before, or was removed and installed again</td></tr>
-  <tr><td class="c">void app_on_updated(void)</td><td>Once after another version replaced the one that ran before. The store and the files are kept; alarms and poll intervals are not</td></tr>
+  <tr><td class="c">void app_on_updated(void)</td><td>Once after another version replaced the one that ran before. The store, the files and poll intervals are kept; alarms are not</td></tr>
   <tr><td class="c">uint8_t *app_data_buffer(void)</td><td>Returns the buffer for one piece of data (1 KB). Provided by <code>sdk/lib</code></td></tr>
   <tr><td class="c">uint8_t *app_strings_buffer(void)</td><td>Returns the buffer for the strings of the device's language. Generated by the build</td></tr>
 </table>
@@ -1076,7 +1076,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">ui_button(x, y, name, name_length, action, action_length, mirrored)</td><td>One button: its name on a plate and the action label beside it. Returns the width</td></tr>
   <tr><td class="c">ui_list_visible(list), ui_list_first(list)</td><td>For a <code>host_list_t</code> (count, selected or -1, top, height or 0 for the remaining height, first): number of visible rows; index of the first visible row</td></tr>
   <tr><td class="c">ui_list_row(list, index, label, label_length, value, value_length, icon)</td><td>One row. Rows outside the visible range are skipped. A value up to half the row width is kept whole; the label is shortened with "..."</td></tr>
-  <tr><td class="c">ui_notice(notice)</td><td>Notice on the whole surface from a <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. Empty fields are omitted</td></tr>
+  <tr><td class="c">ui_notice(notice)</td><td>Notice on the whole surface from a <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. <code>first</code> is required; other empty fields are omitted</td></tr>
   <tr><td class="c">ui_reason(status)</td><td>Standard notice for a request status. Returns 1 if drawn, 0 for a 2xx status</td></tr>
   <tr><td class="c">ui_value(x, y, font, value, value_length, unit, unit_length)</td><td>Value with its unit on the baseline. Returns the total width</td></tr>
   <tr><td class="c">ui_value_width(font, value, value_length, unit, unit_length)</td><td>Width of a value with its unit</td></tr>
@@ -1138,7 +1138,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>A numeric setting's value and its range</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock. Fails while the time source is the network</td></tr>
-  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, up to 32: list, title, removal. An application cannot remove itself</td></tr>
+  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in the order of their titles: list, title, removal. An application cannot remove itself</td></tr>
   <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
   <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
   <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>_FORGET_NETWORK</code>, <code>_FACTORY_RESET</code>. Requires a confirmation screen in the application</td></tr>

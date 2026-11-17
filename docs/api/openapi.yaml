@@ -11,7 +11,10 @@ info:
 
     Requests from pages of other sites are refused: a browser request must carry
     the device's own Origin, or none. Errors and plain confirmations are
-    `{"error": "..."}` and `{"ok": "..."}`.
+    `{"error": "..."}` and `{"ok": "..."}`, but for a request refused for its origin,
+    answered `Forbidden.` as text. Besides what each route lists, any of them may be
+    answered 503 when the device is busy or short of memory, and 500 when its storage
+    fails.
 
     Firmware updates, factory reset and a change of the Wi-Fi network wait for
     a press of OK on the device, up to a minute; unanswered is
@@ -131,7 +134,10 @@ components:
         companion: { type: string }
         trusts: { type: array, items: { type: string }, description: Certificate authorities of its own }
         settings: { type: array, items: { type: object }, description: As the manifest declares them, translated }
-        values: { type: object, additionalProperties: { type: string }, description: Stored values; a secret only as set or not }
+        values:
+          type: object
+          additionalProperties: { oneOf: [{ type: string }, { type: boolean }] }
+          description: Stored values; a secret or a link only as set (true) or not (false)
     CatalogFile:
       type: object
       properties:
@@ -257,7 +263,7 @@ paths:
                 ssid: { type: string }
                 password: { type: string }
                 tz: { type: string, description: Time zone to set along, on a device that has none }
-              required: [ssid, password]
+              description: What is left out stays as it was
       responses:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }
@@ -291,12 +297,11 @@ paths:
             schema:
               type: object
               properties:
-                unix: { type: integer, description: Unix seconds, years 2020 to 2100 }
+                unix: { type: integer, description: Unix seconds, from 2026 to before 2100; refused while the network's time is on }
               required: [unix]
       responses:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
 
   /api/apps:
     get:
@@ -529,6 +534,9 @@ paths:
       responses:
         "200":
           description: 1-bit BMP, 400 x 300
+          headers:
+            X-Frame: { schema: { type: integer }, description: How many frames the panel has shown since start }
+            X-Pending: { schema: { type: string, enum: ["0", "1"] }, description: "1: a newer frame is on its way to the panel" }
           content:
             image/bmp: {}
 
@@ -610,12 +618,13 @@ paths:
           in: query
           required: true
           schema: { type: string }
-        - name: value
-          in: query
-          required: true
-          schema: { type: string }
+      requestBody:
+        description: The value as it is; empty removes the key
+        content:
+          application/octet-stream: {}
       responses:
         "200": { $ref: "#/components/responses/Text" }
+        "400": { $ref: "#/components/responses/Text" }
         "500": { $ref: "#/components/responses/Text" }
 
   /api/dev/flash:
@@ -646,4 +655,7 @@ paths:
           required: true
           schema: { type: string, enum: [wdt, abort] }
       responses:
-        "200": { $ref: "#/components/responses/Text" }
+        "400":
+          description: Another kind. A known kind is not answered - the device faults and restarts
+          content:
+            text/plain: {}

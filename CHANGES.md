@@ -5,6 +5,7 @@ notes on GitHub and in the web flasher; a release is not made without one.
 
 ## 0.1.14
 
+- The device's page shows what a release brings when it offers the update.
 - Every push is built: the firmware for release and for debugging, the host tests, the
   applications in the simulator against pictures that were looked at and kept, and the size of
   the image against the last build of `main`.

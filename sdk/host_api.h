@@ -69,9 +69,10 @@ APP_EXPORT(app_init, void app_init(void));
 APP_EXPORT(app_on_focus, void app_on_focus(void));
 APP_EXPORT(app_on_blur, void app_on_blur(void));
 
-/* The last call of an instance, before it is unloaded for any reason:
- * leaving the screen, end of a background delivery, device restart or
- * sleep, removal of the application. Save persistent state here.
+/* The last call of an instance, before it is unloaded: leaving the
+ * screen, end of a background delivery, device restart, removal of the
+ * application. Not called after a fault stopped the instance, nor for
+ * light sleep, which keeps it loaded. Save persistent state here.
  * app_on_blur() is called first if the application was on the screen. */
 APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 
@@ -81,8 +82,8 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
  * app_on_updated: another version of it replaced the one that ran before.
  * Called once, on or off the screen, after app_init(); off the screen the
  * application is loaded for the call. A new version does not inherit the
- * alarms and poll intervals set by the old one: set them again here. The
- * store and the files are kept across an update. */
+ * alarms set by the old one: set them again here. The store, the files
+ * and poll intervals set from code are kept across an update. */
 APP_EXPORT(app_on_installed, void app_on_installed(void));
 APP_EXPORT(app_on_updated, void app_on_updated(void));
 
@@ -169,7 +170,8 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * Delivery can stop without HOST_DATA_LAST and without HOST_DATA_FAILED:
  * a background instance is unloaded when the user presses a button. Only
  * app_on_terminate() is called then. The next HOST_DATA_FIRST starts a
- * new answer. The host repeats an interrupted poll after one minute; an
+ * new answer. The host repeats an interrupted poll after one minute, or after
+ * its interval when that is shorter; an
  * interrupted answer to http_request() is dropped, and the application
  * asks again if it still needs it. Discard partially read data.
  *
@@ -177,7 +179,9 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * list setting: data_item() tells which item the answer is for.
  *
  * Called on and off the screen. Off the screen the application is loaded
- * for the delivery and unloaded after it. Save the result to the store.
+ * for the delivery and unloaded after it; a poll that cannot start at
+ * all - no network, no memory - is told only to an application on the
+ * screen. Save the result to the store.
  * Call request_focus() to request the screen. */
 #define HOST_DATA_FIRST     1
 #define HOST_DATA_LAST      2
@@ -587,7 +591,8 @@ HOST_IMPORT(gfx_picture,
  *
  * The ui_* calls draw the parts that the host screens are built from. The
  * drawing code is in the host and is the same code that draws the menu
- * and the host questions. Valid inside app_on_draw() only. */
+ * and the host questions. The drawing calls are valid inside app_on_draw()
+ * only; ui_text_width() and ui_text_height() work anywhere. */
 
 /* List.
  *
@@ -639,7 +644,8 @@ HOST_IMPORT(ui_list_row,
  * Layout: two lines of large text on the left, a large icon on the right,
  * button labels at the bottom ("<ok> OK" at the left, "BACK <back>" at the
  * right). With `is_working`, three strokes replace the button labels.
- * All texts are null-terminated. Empty texts are not drawn. Without
+ * All texts are null-terminated. `first` is required; other empty texts
+ * are not drawn. Without
  * button labels the notice takes the full height.
  * A destructive question must ignore presses made before it was shown on
  * the panel. */
@@ -913,7 +919,7 @@ HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const vo
 
 /* Runs poll number `poll` of the manifest immediately. The answer is
  * delivered as usual. The host performs one request at a time, at most
- * one per second; a repeated call before the answer has no effect. */
+ * one per second; calls made before the request starts are one. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
 /* Queues a request from code.
@@ -927,8 +933,8 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *              in the end. A request is about 6 s over HTTPS.
  * Answer:      delivered through app_on_data() in pieces, with `tag` as
  *              the request number, on or off the screen. The instance
- *              that receives the answer is not the one that made the
- *              request.
+ *              that receives the answer may not be the one that made the
+ *              request: one that left the screen meanwhile is loaded anew.
  * tag:         a number chosen by the application, HOST_REQUEST_FIRST to
  *              HOST_REQUEST_LAST, distinct from poll numbers:
  *
@@ -975,8 +981,8 @@ HOST_IMPORT(http_request,
 
 /* Sets the interval of poll number `poll`, overriding the manifest:
  * 10 seconds to 1 day, counted from now. The interval persists across
- * restarts until it is set again or the application is removed together
- * with its store. */
+ * restarts and updates until it is set again or the application is
+ * removed. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));
 
 /* ---- Intents ----
@@ -1004,8 +1010,8 @@ HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t s
                                       values derived from the time */
 #define HOST_INTENT_NETWORK_UP   2 /* the device is connected to its network again */
 #define HOST_INTENT_STARTED      3 /* the device was powered up or restarted: restore from
-                                      the store what a restart clears - alarms, poll
-                                      intervals set from code, pending requests */
+                                      the store what a restart clears - alarms and
+                                      pending requests */
 APP_EXPORT(app_on_intent, void app_on_intent(int32_t intent));
 
 /* ---- Alarms ---- */
@@ -1035,7 +1041,7 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * `first_in` seconds from now; 0 means one full period. To align with the
  * minute, pass the seconds left in the current minute.
  * Period: HOST_ALARM_EVERY_MIN to HOST_ALARM_EVERY_MAX seconds. Every
- * call loads the application.
+ * call loads the application when it is not on the screen.
  * Typical use: keeping a header_status() text current while the
  * application is off the screen. */
 #define HOST_ALARM_EVERY_MIN 60
@@ -1176,8 +1182,8 @@ HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length))
 #endif
 
 /* Device information as text. Returns the length; HOST_ERR_NO_SPACE if
- * the buffer is too small; 0 if the value is currently unknown (for
- * example, no address while the device is off the network). */
+ * the buffer is too small; 0 if the value is currently unknown. Off its
+ * network the address is the setup access point's, 192.168.4.1. */
 #define SYS_INFO_VERSION 0 /* firmware version of the build */
 #define SYS_INFO_NAME    1 /* "Perinkpheral-C7B0" */
 #define SYS_INFO_NETWORK 2 /* configured Wi-Fi network */
@@ -1265,7 +1271,8 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 /* Installed applications.
  * An application id is derived from its code and its manifest; another
  * version has another id.
- * sys_app_list():   writes up to `capacity` ids in menu order. Returns
+ * sys_app_list():   writes up to `capacity` ids, in the order of their
+ *                   titles. Returns
  *                   the number of installed applications.
  * sys_app_title():  writes the title. Returns its length.
  * sys_app_remove(): removes the files of the application and keeps its

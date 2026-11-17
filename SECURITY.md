@@ -60,7 +60,8 @@ Does not hold:
   the account over - serves whatever they like, and an Update is one click. The official
   source is a GitHub repository: its safety is that account's.
 - An update is not shown to differ from what was installed: new hosts, a new request for
-  secrets, nothing is pointed out. Only `"system": true` is asked about.
+  secrets, nothing is pointed out. Only `"system": true` and a certificate authority of its
+  own are asked about.
 
 ### Somebody on the same network
 
@@ -96,7 +97,8 @@ Does not hold:
 - While the device has no network, and after two minutes of failing to join one, it puts
   up an **open** access point. Whoever is in range is then "somebody on the same network",
   with everything above. Jamming the home Wi-Fi for two minutes is enough to bring it up.
-  Joining another network from there is asked about on the screen; nothing else is.
+  From there, as from any network, what cannot be undone - another network, a firmware,
+  a reset - is asked about on the screen; the rest is not.
 
 ### Somebody with the device in their hands
 
@@ -107,9 +109,9 @@ Does not hold:
 
 ### A server the device talks to
 
-Holds: HTTPS is verified against the browsers' roots; an answer over 256 KB is cut off; a
+Holds: HTTPS is verified against the browsers' roots; an answer over 256 KB is cut off, 4 MB for one handed on in pieces; a
 JSON answer is picked apart by the host in a stream, with bounds; text that is not ASCII
-is carried and not drawn.
+is drawn from glyph packs, spelled in ASCII or shown as `?`, never run.
 
 Does not hold: plain `http` is allowed and is what a home server gets, so a token in a
 header crosses the home network in the clear; a certificate of the user's own is decided
