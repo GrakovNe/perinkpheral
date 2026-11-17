@@ -83,7 +83,8 @@ if(CONFIG_APP_BUNDLE_APPS)
         endif()
     endforeach()
     file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
-                                                    "${repo_dir}/tools/core/src/*")
+                                                    "${repo_dir}/tools/core/src/*"
+                                                    "${repo_dir}/tools/cli/src/*")
     foreach(app_dir ${app_dirs})
         get_filename_component(app_name "${app_dir}" NAME)
         file(GLOB app_sources CONFIGURE_DEPENDS "${app_dir}/*")
@@ -107,7 +108,8 @@ if(NOT DEFINED ENV{WASI_SDK_PATH})
 endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
 file(GLOB_RECURSE system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
-                                                       "${repo_dir}/tools/core/src/*")
+                                                       "${repo_dir}/tools/core/src/*"
+                                                    "${repo_dir}/tools/cli/src/*")
 foreach(system_app about settings setup)
     set(system_app_dir "${CMAKE_CURRENT_LIST_DIR}/../system/${system_app}")
     set(system_app_out "${system_apps_dir}/${system_app}")

@@ -60,7 +60,7 @@ set they include `test_app`, which builds a real module
 `test_delivery`, the whole way of an answer to an application. Nothing of
 ESP-IDF is needed.
 
-The tools are `tools/perinkpheral` (Kotlin, `tools/core`; Java 21, built on first use).
+The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,
 refuses a module that imports anything `sdk/host_api.h` does not

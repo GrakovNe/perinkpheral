@@ -1,15 +1,42 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # The perINKpheral tools: build, check and run applications, on a device or in the
-# simulator; make a catalog. `perinkpheral` with no arguments says what it does.
+# simulator; make a catalog; and what the project makes of its sources. `perinkpheral` with
+# no arguments says what it does.
 #
-# tools/core, built on first use and again when its sources change; it needs Java 21 or
-# later (JAVA_HOME, or java on PATH). The CLion plugin uses the same core as a library.
+# tools/cli, with tools/core in it, built on first use and again when either's sources
+# change; it needs Java 21 or later (JAVA_HOME, or java on PATH). The CLion plugin uses the
+# same core as a library.
 here=$(cd "$(dirname "$0")" && pwd)
+cli="$here/cli"
 core="$here/core"
-jar="$core/build/libs/perinkpheral.jar"
-if [ ! -f "$jar" ] || [ -n "$(find "$core/src" "$core/build.gradle.kts" -newer "$jar" 2>/dev/null | head -1)" ]; then
-    (cd "$core" && ./gradlew -q cli) >&2 || exit 1
+jar="$cli/build/libs/perinkpheral.jar"
+is_stale() {
+    [ ! -f "$jar" ] || [ -n "$(find "$cli/src" "$core/src" "$cli/build.gradle.kts" "$core/build.gradle.kts" \
+                                  -newer "$jar" 2>/dev/null | head -1)" ]
+}
+if is_stale; then
+    # A build of the firmware runs this several times at once: one of them builds the jar,
+    # and the others wait for it, or they would build it over one another and read it half
+    # written. mkdir is the lock every system has; one left by a build that was killed is
+    # taken back after ten minutes.
+    mkdir -p "$cli/build"
+    lock="$cli/build/.building"
+    waited=0
+    until mkdir "$lock" 2>/dev/null; do
+        waited=$((waited + 1))
+        if [ "$waited" -gt 600 ]; then
+            rmdir "$lock" 2>/dev/null
+            waited=0
+        fi
+        sleep 1
+    done
+    trap 'rmdir "$lock" 2>/dev/null' EXIT INT TERM
+    if is_stale; then
+        (cd "$cli" && ./gradlew -q cli) >&2 || exit 1
+    fi
+    rmdir "$lock"
+    trap - EXIT INT TERM
 fi
 if [ -n "$JAVA_HOME" ]; then java="$JAVA_HOME/bin/java"; else java=java; fi
 exec "$java" -Dperinkpheral.root="$(dirname "$here")" -jar "$jar" "$@"

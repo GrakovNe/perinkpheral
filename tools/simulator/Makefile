@@ -43,7 +43,7 @@ SOURCES := sim.c \
 WASM3_SOURCES := $(wildcard $(WASM3)/*.c)
 
 # The page of the tools, which the simulator serves at its address.
-PAGE := $(ROOT)/tools/core/src/main/resources/org/perinkpheral/core/page.html
+PAGE := $(ROOT)/tools/cli/src/main/resources/org/perinkpheral/cli/page.html
 
 $(BUILD)/perinkpheral-sim: $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc $(BUILD)/page.inc
 	mkdir -p $(BUILD)/wasm3

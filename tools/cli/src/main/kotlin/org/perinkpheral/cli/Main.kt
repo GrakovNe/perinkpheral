@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package org.perinkpheral.core.cli
+package org.perinkpheral.cli
 
 import org.perinkpheral.core.BuildError
 import org.perinkpheral.core.Json
@@ -13,7 +13,6 @@ import org.perinkpheral.core.device.Bmp
 import org.perinkpheral.core.device.DeviceClient
 import org.perinkpheral.core.device.LogFollower
 import org.perinkpheral.core.device.UsbConsole
-import org.perinkpheral.core.firmware.Preview
 import org.perinkpheral.core.simulator.SimulatorNetwork
 import java.io.File
 import java.io.IOException

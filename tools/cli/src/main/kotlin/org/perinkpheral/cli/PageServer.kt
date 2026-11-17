@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package org.perinkpheral.core.cli
+package org.perinkpheral.cli
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -74,7 +74,7 @@ class PageServer(private val client: DeviceClient, private val appDir: File?, pr
             .associate { URLDecoder.decode(it.substringBefore('='), Charsets.UTF_8) to URLDecoder.decode(it.substringAfter('='), Charsets.UTF_8) }
         when {
             exchange.requestMethod == "GET" && path == "/" -> {
-                val page = PageServer::class.java.getResourceAsStream("/org/perinkpheral/core/page.html")!!
+                val page = PageServer::class.java.getResourceAsStream("/org/perinkpheral/cli/page.html")!!
                     .use { String(it.readBytes(), Charsets.UTF_8) }.replace("{{app}}", appDir?.path.orEmpty())
                 answer(exchange, 200, page.toByteArray(), "text/html; charset=utf-8")
             }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package org.perinkpheral.core.firmware
+package org.perinkpheral.cli
 
 import org.perinkpheral.core.BuildError
 import org.perinkpheral.core.device.Bmp

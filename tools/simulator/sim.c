@@ -1486,7 +1486,7 @@ static void press(int button, bool is_long)
     }
 }
 
-/* The page of the tools (tools/core: its screen, buttons and log), made into page.inc by the
+/* The page of the tools (tools/cli: its screen, buttons and log), made into page.inc by the
  * Makefile: what `perinkpheral serve` shows, here at the simulator's own address. */
 static const unsigned char PAGE[] = {
 #include "page.inc"
