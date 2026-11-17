@@ -9,7 +9,7 @@ import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 /**
- * The application guide, docs/guide: guide.html, written by hand, into a PDF, and its
+ * The application guide, docs/guide: source/guide.html, written by hand, into a PDF, and its
  * translations.
  *
  * A translation is made of pieces: a paragraph, a list item, a heading, a caption, a table cell
@@ -19,6 +19,8 @@ import java.util.regex.Pattern
  */
 class Guide(root: File) {
     private val folder = File(root, "docs/guide")
+    /** What the guide is made of, written by hand: guide.html, its translations, the screens. */
+    private val sources = File(folder, "source")
     private val rootUrl = "file://" + root.absoluteFile.normalize().path
 
     // ---- the pieces ----
@@ -67,7 +69,7 @@ class Guide(root: File) {
 
     private fun translations(language: String): Map<String, String> {
         val pairs = HashMap<String, String>()
-        val lines = File(folder, "guide.$language.txt").readLines()
+        val lines = File(sources, "guide.$language.txt").readLines()
         var at = 0
         while (at < lines.size) {
             if (lines[at].isBlank()) {
@@ -87,7 +89,7 @@ class Guide(root: File) {
     private fun isText(piece: String) =
         Regex("[A-Za-z]{2}").containsMatchIn(Regex("<code>.*?</code>|<[^>]+>|&[a-z]+;").replace(piece, ""))
 
-    private fun source() = File(folder, "guide.html").readText()
+    private fun source() = File(sources, "guide.html").readText()
 
     /** The pieces of guide.html, one a line. */
     fun list(): List<String> = pieces(source()).map { flat(it.text) }
@@ -129,7 +131,7 @@ class Guide(root: File) {
         // The running foot is in the style sheet, not in the text.
         val foot = "perINKpheral / application guide"
         pairs[foot]?.let { result = result.replace("content: \"$foot\"", "content: \"$it\"") }
-        File(folder, "guide.$language.html").writeText(result)
+        File(sources, "guide.$language.html").writeText(result)
         return "guide.$language.html: $done pieces translated of ${found.size}"
     }
 
@@ -192,12 +194,12 @@ class Guide(root: File) {
      * table of limits that the headers have otherwise stops it.
      */
     fun pdf(contract: Contract, language: String, outFile: File?): String {
-        ContractTools.checkLimits(contract, File(folder, "guide.html"))
+        ContractTools.checkLimits(contract, File(sources, "guide.html"))
         val suffix = if (language == "en") "" else ".$language"
         val out = outFile ?: File(folder, "perinkpheral-app-guide$suffix.pdf")
         // A translation is made of guide.html and guide.<language>.txt each time: it is never edited.
         if (suffix.isNotEmpty()) apply(language)
-        var source = File(folder, "guide$suffix.html").readText()
+        var source = File(sources, "guide$suffix.html").readText()
         val found = headings(source)
         // Where the fonts, the mark and the screens are: the page is printed from a scratch folder.
         source = source.replace("{{ROOT}}", rootUrl)

@@ -23,5 +23,5 @@ firmware/test/host/build/
 sdk/apps/*/*.wasm
 .DS_Store
 cmake-build-*/
-docs/guide/guide.*.html
+docs/guide/source/guide.*.html
 *.actual.png

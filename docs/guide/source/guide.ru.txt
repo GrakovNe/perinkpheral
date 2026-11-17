@@ -2590,131 +2590,131 @@ perINKpheral / руководство разработчика
 (section
 (раздел
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>connected
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>подключено
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>connected
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>подключено
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>not connected
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>не подключено
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>not connected
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>не подключено
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>arrow up
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>стрелка вверх
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>arrow up
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>стрелка вверх
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>arrow down
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>стрелка вниз
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>arrow down
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>стрелка вниз
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>arrow left
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>стрелка влево
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>arrow left
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>стрелка влево
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>arrow right
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>стрелка вправо
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>arrow right
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>стрелка вправо
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>selected, done
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>выбрано, готово
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>selected, done
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>выбрано, готово
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>cancel, close
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>отмена, закрыть
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>cancel, close
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>отмена, закрыть
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>add
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>добавить
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>add
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>добавить
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>remove
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>убрать
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>remove
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>убрать
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>delete
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>удалить
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>delete
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>удалить
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>settings
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>настройки
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>settings
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>настройки
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>time
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>время
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>time
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>время
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>waiting, timer
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>ожидание, таймер
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>waiting, timer
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>ожидание, таймер
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>notification, alarm
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>уведомление, будильник
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>notification, alarm
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>уведомление, будильник
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>information
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>информация
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>information
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>информация
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>warning, error
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>предупреждение, ошибка
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>warning, error
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>предупреждение, ошибка
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>start, play
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>запуск, воспроизведение
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>start, play
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>запуск, воспроизведение
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>pause
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>пауза
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>pause
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>пауза
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>update; the project mark
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>обновление; знак проекта
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>update; the project mark
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>обновление; знак проекта
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>clear sky
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>ясно
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>clear sky
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>ясно
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>partly cloudy
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>переменная облачность
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>partly cloudy
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>переменная облачность
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>cloudy
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>облачно
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>cloudy
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>облачно
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>rain
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>дождь
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>rain
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>дождь
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>snow
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>снег
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>snow
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>снег
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>thunderstorm
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>гроза
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>thunderstorm
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>гроза
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>wind
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>ветер
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>wind
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>ветер
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>chance of rain
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>вероятность осадков
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>chance of rain
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>вероятность осадков
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>humidity, water
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>влажность, вода
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>humidity, water
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>влажность, вода
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>temperature
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>температура
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>temperature
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>температура
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>power, energy
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>мощность, энергия
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>power, energy
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>мощность, энергия
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>socket, voltage
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>розетка, напряжение
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>socket, voltage
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>розетка, напряжение
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>battery
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>батарея
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>battery
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>батарея
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>home
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>дом
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>home
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>дом
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>light
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>свет
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>light
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>свет
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>door
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>дверь
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>door
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>дверь
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>night
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>ночь
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>night
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>ночь
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>processor
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>процессор
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>processor
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>процессор
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>traffic
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>трафик
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>traffic
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>трафик
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>pressure, level
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>давление, уровень
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>pressure, level
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>давление, уровень
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>sunrise
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>восход
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>sunrise
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>восход
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>sunset
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>закат
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>sunset
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>закат
 
 Memory and file sizes use KB = 1024 bytes and MB = 1048576 bytes.
 Размеры памяти и файлов указаны из расчёта KB = 1024 байта и MB = 1048576 байт.
@@ -3565,7 +3565,7 @@ HOST_ICON_GAUGE
 HOST_ICON_CO2
 =
 
-<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2
 =
 
 HOST_ICON_SUNRISE
