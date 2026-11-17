@@ -2,347 +2,51 @@
 
 # perINKpheral
 
-A desk e-paper companion: a 4.2" e-ink panel, four buttons and an
-ESP32-C6. It sits on the shelf and shows what you glance at - a line of
-the schedule, the track that is playing - without a server behind it.
+Firmware, SDK and tools for perINKpheral, an ESP32-C6 desk E-Ink display
+with four buttons. Applications are WebAssembly modules using ABI 3.
 
-The name is `perinkpheral` in code, repositories and domains and
-`perINKpheral` in prose and on the logo: peripheral vision, peripheral
-device, ink.
+[Project](https://perinkpheral.dev) -
+[Getting started](https://perinkpheral.dev/start) -
+[Hardware](https://perinkpheral.dev/hardware) -
+[Web flasher](https://perinkpheral.dev/flash) -
+[Firmware documentation](https://perinkpheral.dev/firmware) -
+[Developer documentation](https://perinkpheral.dev/sdk).
 
-**Status: a working prototype.** The hardware is assembled and
-verified. The firmware runs wasm applications from its own file
-system, sets itself up over Wi-Fi and takes firmware updates over the
-network, fetches data for them and installs them from a catalog; its
-own settings are on the device and on its web page. It runs from its
-battery, sleeping between polls; how long it lasts has not been
-measured. See [Roadmap](#roadmap) for what exists and what does not.
+Application guide (PDF): [English](docs/guide/perinkpheral-app-guide.pdf),
+[Russian](docs/guide/perinkpheral-app-guide.ru.pdf).
+Official applications and catalog: [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps).
 
-## Vision
+## Build
 
-A separate screen for the desk that is not a second monitor: it can be
-ignored until it is needed and read out of the corner of the eye. In
-one phrase: a TRMNL without the server and with buttons.
+Requires ESP-IDF 5.5, wasi-sdk and Java 21 or later. CI uses ESP-IDF 5.5.5
+and wasi-sdk 34. `tools/perinkpheral` builds the Kotlin tools on first use.
 
-The goal is an extensible operating system with its own applets on
-hardware anyone can repeat.
-
-## Principles
-
-In the order they win arguments:
-
-1. **Peripheral, not a monitor.** No backlight, nothing that moves,
-   nothing that asks for attention. The device is silent until it is
-   looked at, and what it shows is readable at a glance. This is why it
-   is e-ink and why it refreshes rarely.
-2. **Not a thin client.** The device does the work itself: it fetches
-   the data, runs the application and draws the frame. No server
-   prepares pictures for it, the vendor's or your own.
-3. **Your data stays yours.** Showing a calendar must not require
-   binding an account to a machine you do not own. Requests go from the
-   device straight to the source; there is no cloud of ours in between
-   and there never will be. It is also simply faster than a trip around
-   half the globe.
-4. **It has buttons.** A companion is something you can answer, not a
-   picture frame: applications react to presses, and you are always one
-   long press away from taking the screen back.
-5. **Autonomous.** It runs from its battery for months and charges over
-   USB-C; it does not need a cable, a hub or a computer next to it.
-6. **Cheap to repeat.** The most common DIY parts, no custom PCB, a
-   case simple enough to print in any plastic on any printer. If a
-   choice makes the device harder to build at home, it needs a very
-   good reason.
-7. **You decide what is on the screen.** Not a fixed set of dashboards:
-   an SDK and applets that anyone can write and install without
-   reflashing. The host stays small and unchanging so that everything
-   interesting can live in applications.
-
-What follows from this:
-
-- No backend of ours, no accounts, no telemetry.
-- A static catalog of applications instead of a store service.
-- TRMNL compatibility as one application, not as the platform.
-- Everything is open under the MIT license.
-
-## How it works
-
-This section describes the design the firmware is being built to; the
-roadmap says how much of it runs today.
-
-The firmware is a small host that never changes, in the manner of
-Pebble; everything you see is an application.
-
-- **Applications** are WebAssembly modules with a `manifest.json`,
-  installed from a catalog without reflashing. They run in a sandbox,
-  each in a fixed 64 KB of memory, one at a time.
-- **The host fetches, the application draws.** An application declares
-  in its manifest which URLs to poll and how often; the host makes the
-  requests and hands the response to the application, which draws with
-  a small graphics API. The application on the screen can also make its
-  own requests, to the hosts its manifest lists and nowhere else.
-- **Buttons.** Four of them. Presses go to the application on the
-  screen; a long press on button 4 always opens the host menu, where
-  you switch applications with buttons 1 and 3 and confirm with 2. A
-  long press on 2 takes a row of the menu to move: the order is yours.
-- **An application can ask for the screen** when its data arrives in
-  the background - a track that started playing, say. The host decides,
-  and the long press on button 4 always gives the screen back to you.
-- **Settings in a browser.** The device serves a web page for
-  installing applications, entering their settings (tokens, addresses)
-  and its own. The page is on the device, and so are your settings: what the
-  browser asks outside is the place you type (OpenStreetMap's search)
-  and whether a newer firmware is out (GitHub).
-- **The screen is treated with care.** E-ink ages when it is refreshed
-  too often, so data-driven updates are spaced minutes apart, a button
-  press is answered at once, and there are no animations. The
-  intervals are yours to change.
-
-### Power
-
-The battery is charged over USB-C. The device does not measure the
-battery and cannot tell whether USB is plugged in, so the power profile
-is a setting, and the screen shows no charge level.
-
-| Power saving | What it does |
-| --- | --- |
-| Disabled (default) | Wi-Fi always on, the web page always reachable, any polling interval |
-| Always | light sleep between polls, woken by a timer or any button; polls no more often than every 5 minutes; the web page is reachable for 2 minutes after a button press |
-| Auto | as Always whenever no computer is on the USB cable |
-
-Battery life has not been measured yet. Deep sleep between polls was
-built, tried and put off to a later version.
-
-## Hardware
-
-| Part | Notes |
-| --- | --- |
-| Seeed Studio XIAO ESP32-C6 | RISC-V 160 MHz, 512 KB RAM, 4 MB flash, no PSRAM; Wi-Fi 6 (2.4 GHz), BLE 5; Li-ion charger on board |
-| Waveshare 4.2" e-Paper Module | 400×300, 1 bit, SPI; the **V2** panel (SSD1683), jumper on 4-line SPI. The V1 panel has a different controller and will not work |
-| Four-button module ("Independent key switch module 4P") | active low, pull-ups on the module |
-| Li-ion 1S 3.7 V, 4000 mAh, **with a protection board** | on the BAT+/BAT- pads under the XIAO; the protection is mandatory, the board does not cut off over-discharge |
-| Wires | no custom PCB |
-
-| Signal | XIAO pin | GPIO |
-| --- | --- | --- |
-| e-Paper DIN | D10 | 18 |
-| e-Paper CLK | D8 | 19 |
-| e-Paper CS | D7 | 17 |
-| e-Paper DC | D5 | 23 |
-| e-Paper RST | D4 | 22 |
-| e-Paper BUSY | D6 | 16 |
-| e-Paper VCC, GND | 3V3, GND | |
-| Button 1-4 | D0, D1, D2, D3 | 0, 1, 2, 21 |
-| Buttons V, G | 3V3, GND | |
-| Battery + / - | BAT+ / BAT- pads | |
-
-D9 (GPIO20) is free.
-
-The full bill of materials with the case, fasteners and assembly
-drawings is the page `hardware/bom/index.html` (open it in a browser);
-the case is `hardware/step/perinkpheral.step`. Everything learned about
-the panel, with the datasheet and the pitfalls, is in
-`hardware/README.md`.
-
-## Build and flash
-
-You need ESP-IDF 5.5, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
-with `WASI_SDK_PATH` pointing at it (the firmware image carries wasm
-applications), Java 21 or later (the tools), and the board on USB. Or
-take a build from CI: every push makes one for release and one for
-debugging, every push to `main` is a release, and every release can be
-written from the browser at
-<https://perinkpheral.dev/flash>.
-
-```bash
+```sh
+export WASI_SDK_PATH=/path/to/wasi-sdk
 . "$IDF_PATH/export.sh"
 cd firmware
-idf.py set-target esp32c6
 idf.py build
-idf.py -p <port> flash
 ```
 
-The port is `/dev/ttyACM*` on Linux and `/dev/cu.usbmodem*` on macOS.
-If the board does not answer, hold BOOT while plugging it in.
+Host tests, from the repository root, require a C compiler and Make:
 
-### First start
-
-A device with no network stored puts up an open Wi-Fi access point
-named after itself, `Perinkpheral-XXXX`. Join it, open
-<http://192.168.4.1>, enter your network and its password, and press OK on the
-device; it restarts and joins. If it cannot - a wrong password - its own access
-point comes back after two minutes. The second page of About in the menu shows
-where the device is.
-
-### Updating without the cable
-
-Open the device's page and choose the new image under Firmware, or:
-
-```bash
-curl --data-binary @firmware/build/perinkpheral.bin http://<address>/api/ota
+```sh
+make -C firmware/test/host test
 ```
 
-Press OK on the device when it asks. It restarts into the new firmware and keeps it only if it
-comes back reachable; otherwise it returns to the one it ran before.
-
-What you get today: a splash, then - on a device with no network yet -
-a screen that says how to set it up. A press leads to the menu (button
-1 up, 2 ok, 3 down, 4 back; a long press on button 4 returns to the
-menu from anywhere), which lists the installed applications and the
-host's own, Settings and About, in the order you set. Those two, the
-splash and the setup screen are applications too, written with the same
-SDK and built into the firmware.
-
-Host tests of the hardware-independent modules need a C compiler,
-wasi-sdk and Java (the tools check the layers and the languages):
-
-```bash
-cd firmware/test/host && make test
-```
-
-`tools/perinkpheral preview [dir]` renders the host's screens to PNG
-without the device. `tools/perinkpheral font` turns a TTF or OTF into a
-1-bit bitmap font header.
-
-## Writing applications
-
-An application is C compiled to WebAssembly. Its handlers change its
-state and ask for a redraw; `app_on_draw()` paints the state. BACK
-leaves an application with no code of its own:
-
-```c
-#include "app_text.h"
-#include "host_api.h"
-
-static int32_t presses;
-
-void app_on_button(int32_t event)
-{
-    if (event == BTN_OK_PRESSED) {
-        presses++;
-        screen_redraw(HOST_REDRAW_NORMAL);
-    }
-}
-
-void app_on_draw(void)
-{
-    gfx_draw_text(16, 16, HOST_FONT_TEXT, "Hello from wasm", 15);
-}
-```
-
-The whole contract is one header, `sdk/host_api.h`; `sdk/apps/hello` is
-the complete sample. Build it with
-`tools/perinkpheral build sdk/apps/hello --out <dir>` (the tools need Java 21
-or later and are built on first use). An application has
-64 KB for everything and no C library; `sdk/lib` has what it needs to
-build strings. It is unloaded whenever it leaves the screen, so what
-must survive goes into its own small store with `kv_set` and comes
-back with `kv_get`.
-
-An application is a folder with `app.wasm` and `manifest.json`. The
-contract is not frozen yet: it changes while the first applications are
-written. ABI remains 3, with firmware 0.1.30 as its minimum. Commands
-name the subject then the verb (`kv_get`, `gfx_draw_text`), queries name
-what is asked (`gfx_width`, `time_now`), and handlers are
-`app_on_<what happened>` (`app_on_load`, `app_on_picked`).
-
-The host's own pages are written the same way, with a part of the
-contract that reaches into the device: its settings, its clock, its
-applications. It is open to any application that asks for it -
-`"system": true` in the manifest - and the page says so before it
-installs one.
-
-Applications reach a device from a **catalog**: a folder of static files
-with an index, served from anywhere over HTTPS, the way a Debian
-repository is. The device's page lists what its catalogs hold and
-installs with a click. A device holds as many applications as it has
-room for, up to 24, and one that is removed keeps its settings for when
-it comes back. An application says the oldest firmware it runs on - the
-build works it out from the host calls it makes - and the page offers
-none the device is too old for. The
-official applications - a clock, the weather, a timer - are in
-[perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps);
-`tools/perinkpheral catalog` makes a catalog of your own, and its
-address goes onto the device's page next to the official one.
-
-While you work on one, the device takes it over the network, no
-reflashing and no cable:
-
-```
-export PERINKPHERAL_HOST=<the device's address>
-tools/perinkpheral run sdk/apps/hello --shot hello.png
-tools/perinkpheral press 2 2 --shot pressed.png
-```
-
-`run` builds the application, uploads it, restarts the device and
-opens it, about ten seconds in all; `--shot` saves what the panel shows
-as a PNG, and `press` presses the buttons for you. `tools/perinkpheral`
-with no arguments lists the rest: the simulator, the log, the status,
-flashing the firmware itself. The CLion plugin does the same from the IDE.
-
-## Roadmap
-
-1. **Applications without the network - done.** The host kernel
-   (display service, window manager, scenes), the wasm runtime, the
-   host API, applications on the device's file system.
-2. **Drivers and the SDK - done.** Wi-Fi with setup from a phone,
-   firmware updates over the network, time in the user's zone, HTTPS,
-   polls on a schedule with the answer picked apart by the host,
-   requests of an application's own, delivery to an application that is
-   not on the screen, files, an alarm, settings through the device's
-   page. The contract is not frozen.
-3. **Host screens - done.** The menu with icons and an order of your
-   own, power-up, the Wi-Fi setup screen with a QR code, the host's own
-   pages as system applications - Settings with four buttons and no
-   keyboard, About - and two fonts to choose from, Departure Mono and
-   Jersey.
-4. **Power - started.** Done: power saving - the chip sleeps when
-   nothing runs, the radio is on only for a poll and for two minutes
-   after a press. Left: measured current and real battery life numbers;
-   deep sleep is put off to a later version.
-5. **Web UI and catalog - done.** Installing from catalogs, settings
-   of applications and of the host, the log, firmware updates pulled
-   from releases; what cannot be undone - a firmware, a reset, another
-   network - is confirmed on the device's own screen.
-
-The first flash is from a browser: https://perinkpheral.dev/flash writes the
-latest release. Next, not started: MQTT for applications.
-
-The device speaks English and Russian: its own words and the
-applications' strings are translated, and letters beyond ASCII come in
-glyph packs installed from the page.
+CI builds and tests every push. Each successful push to `main` creates a
+[release](https://github.com/GrakovNe/perinkpheral/releases) with release and debug firmware.
 
 ## Repository
 
-```
-firmware/              the ESP-IDF project
-  main/                entry point, host loop, scenes, views, services, the web server
-  system/              the host's own applications, built into the firmware:
-                       settings, about, setup
-  components/          board, epd (panel and display service), gfx, words, input, ui,
-                       net, deadlines, appconf, appstore (what an application is),
-                       appsys (an application running), wasm3, qr
-  test/host/           host tests of the pure modules
-sdk/
-  host_api.h           the contract between host and applications
-  lib/                 what applications link instead of a C library
-  apps/                the sample application, hello; the rest are in perinkpheral-apps
-tools/
-  perinkpheral         the tools: build and check an app, run it on a device or in the simulator,
-                       catalogs, and every generator of the project
-  core/                the tools' library in Kotlin, which the CLion plugin uses too
-  cli/                 the command line in Kotlin, over the library
-  preview/             renders the host's screens to PNG without the device
-  simulator/           the device without the device, built from the firmware's sources
-assets/fonts/          Departure Mono and Jersey (SIL OFL 1.1), the UI fonts, and their licenses
-assets/mark/           the project's mark
-docs/                  the application guide (PDF, English and Russian) and the web API
-hardware/              the panel notes, the BOM and assembly page, the case model
-CLAUDE.md              the specification: architecture, decisions, milestones, state
-AGENTS.md              bench notes and constraints for coding agents
-```
+- `firmware/` - ESP-IDF project, components, system applications and host tests.
+- `sdk/` - host API, application library, CMake support and Hello sample.
+- `tools/` - command line, shared Kotlin core, simulator and screen preview.
+- `docs/` - application guide and web API reference.
+- `hardware/` - panel notes, assembly files and case model.
 
 ## License
 
-MIT, see `LICENSE`. The Departure Mono and Jersey fonts in `assets/fonts/`, and the
-bitmaps made from them in `firmware/components/gfx/fonts/`, are under the SIL Open Font
-License 1.1: `OFL-DepartureMono.txt`, `OFL-Jersey.txt`.
+[MIT](LICENSE). Departure Mono and Jersey fonts and their generated bitmaps
+use [SIL OFL 1.1](assets/fonts/OFL-DepartureMono.txt)
+([Jersey license](assets/fonts/OFL-Jersey.txt)).
