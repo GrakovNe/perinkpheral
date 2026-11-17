@@ -17,6 +17,7 @@ object FirmwareTools {
      *     <!-- style: style.css -->          the stylesheet, in a <style>
      *     <!-- include: about.html -->       a piece of markup, as it is
      *     <!-- script: js/a.js js/b.js -->   the scripts in this order, as one <script>
+     *     <!-- data: NAME ../a.json -->      a JSON file as a constant of the scripts: const NAME = ...;
      *
      * A url("<name>.woff2") in the stylesheet becomes the font itself, as a data: address: the
      * page is one file. departure.woff2 is Departure Mono cut to the letters the page shows
@@ -29,16 +30,17 @@ object FirmwareTools {
         fun inlineFonts(css: String) = Regex("""url\("([\w.-]+\.woff2)"\)""").replace(css) { found ->
             "url(\"data:font/woff2;base64," + Base64.getEncoder().encodeToString(File(web, found.groupValues[1]).readBytes()) + "\")"
         }
-        val marker = Regex("""<!-- (style|include|script): ([^>]+?) -->""")
+        val marker = Regex("""<!-- (style|include|script|data): ([^>]+?) -->""")
         val page = marker.replace(read("page.html")) { found ->
             val names = found.groupValues[2].trim().split(Regex("\\s+"))
             when (found.groupValues[1]) {
                 "style" -> "<style>\n" + inlineFonts(names.joinToString("") { read(it) }) + "</style>"
                 "include" -> names.joinToString("") { read(it) }
+                "data" -> "<script>\nconst ${names[0]} = " + Json.write(Json.parse(read(names[1]))) + ";\n</script>"
                 else -> "<script>\n" + names.joinToString("\n") { read(it) } + "</script>"
             }
         }
-        if (Regex("""<!-- (style|include|script):""").containsMatchIn(page)) throw BuildError("page: a marker was left unfilled")
+        if (Regex("""<!-- (style|include|script|data):""").containsMatchIn(page)) throw BuildError("page: a marker was left unfilled")
         out.parentFile?.mkdirs()
         out.writeText(page)
         packed.outputStream().use { stream ->
@@ -46,6 +48,51 @@ object FirmwareTools {
                 init { def.setLevel(Deflater.BEST_COMPRESSION) }
             }.use { it.write(page.toByteArray()) }
         }
+    }
+
+    /**
+     * The cities Settings offers for the time zone, as a C table made of cities.json - the one
+     * list, which the device's page reads too: each city's English name (the one it is kept by),
+     * its Russian, its POSIX zone. `check`: only say whether the header is what the list makes.
+     */
+    fun cities(json: File, header: File, check: Boolean) {
+        @Suppress("UNCHECKED_CAST")
+        val cities = Json.parse(json.readText()) as List<Map<String, Any?>>
+        fun c(text: Any?) = "\"" + (text as String).replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+        val rows = cities.joinToString("\n") { city -> "    { ${c(city["name"])}, ${c(city["ru"])}, ${c(city["zone"])} }," }
+        val text = """
+            |/*
+            | * SPDX-License-Identifier: MIT
+            | * Copyright (c) 2026 GrakovNe
+            | *
+            | * Made by tools/perinkpheral cities of cities.json; edit that, not this.
+            | *
+            | * The time zones the device offers with its buttons, each by a city in it,
+            | * as POSIX TZ strings with the rules for summer time they have today: the
+            | * city's English name - the one it is kept by - and its Russian. A zone
+            | * that is not here is set from the device's web page.
+            | */
+            |#pragma once
+            |
+            |typedef struct {
+            |    const char *name;
+            |    const char *ru;
+            |    const char *zone;
+            |} city_t;
+            |
+            |static const city_t CITIES[] = {
+            |$rows
+            |};
+            |
+            |#define CITY_COUNT ((int32_t)(sizeof CITIES / sizeof CITIES[0]))
+            |""".trimMargin()
+        if (check) {
+            if (!header.isFile || header.readText() != text) {
+                throw BuildError("${header.path} is not what ${json.name} makes: run tools/perinkpheral cities")
+            }
+            return
+        }
+        header.writeText(text)
     }
 
     /**

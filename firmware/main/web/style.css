@@ -110,7 +110,7 @@ label.file .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis;
 /* Lines a person adds and takes away: a field and its button a line. */
 .rows { display: grid; gap: .6rem; margin-top: .75rem; }
 .rows div { display: flex; gap: .6rem; }
-.rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; }
+.rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; flex: none; }
 .rows button.add { width: 100%; }
 
 /* ---- buttons: ink, or quiet on paper; one lifts when the pointer is over it ---- */

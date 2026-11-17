@@ -182,18 +182,63 @@ static int32_t wrapped(int32_t value, int32_t first, int32_t last)
 
 /* ---- the time zone ---- */
 
-static const char CITY_KEY[] = "city";
+/* The cities by the names the user reads: in Russian when the device speaks it, in English
+ * otherwise. The list is in the order of its English names; city_order[] is the order of the
+ * names shown, made once the language is known. */
+static bool    is_russian;
+static uint8_t city_order[CITY_COUNT];
 
-/* The city the zone was chosen by; a zone several cities share is shown by
- * the one the user picked, and one set elsewhere by the first that has it.
- * -1 when no city here has the zone. */
+static const char *city_name(int32_t city)
+{
+    return is_russian ? CITIES[city].ru : CITIES[city].name;
+}
+
+/* Before, by their bytes: UTF-8 keeps the order of the Cyrillic alphabet, but for Ё. */
+static bool is_before(const char *text, const char *other)
+{
+    int32_t at = 0;
+    while (text[at] != '\0' && text[at] == other[at]) {
+        at++;
+    }
+    return (uint8_t)text[at] < (uint8_t)other[at];
+}
+
+static void order_cities(void)
+{
+    char language[TEXT_MAX + 1];
+    read_setting(SYS_KEY_LANGUAGE, language);
+    is_russian = is_same(language, "ru");
+    for (int32_t at = 0; at < CITY_COUNT; at++) {
+        int32_t city = at;
+        /* by insertion: seventy-odd names, once */
+        while (city > 0 && is_before(city_name(at), city_name(city_order[city - 1]))) {
+            city_order[city] = city_order[city - 1];
+            city--;
+        }
+        city_order[city] = (uint8_t)at;
+    }
+}
+
+/* Where a city stands in city_order[]. */
+static int32_t position_of(int32_t city)
+{
+    for (int32_t at = 0; at < CITY_COUNT; at++) {
+        if (city_order[at] == city) {
+            return at;
+        }
+    }
+    return 0;
+}
+
+/* The city the zone was chosen by - on the device or on its page; a zone several cities share
+ * is shown by the one chosen, and one set otherwise by the first that has it. -1 when no city
+ * here has the zone. */
 static int32_t current_city(void)
 {
     char zone[TEXT_MAX + 1];
     char picked[TEXT_MAX + 1];
     read_setting(SYS_KEY_TIME_ZONE, zone);
-    int32_t picked_length = kv_get(CITY_KEY, sizeof CITY_KEY - 1, picked, TEXT_MAX);
-    picked[picked_length > 0 ? picked_length : 0] = '\0';
+    read_setting(SYS_KEY_TIME_ZONE_CITY, picked);
     int32_t first_with_zone = -1;
     for (int32_t city = 0; city < CITY_COUNT; city++) {
         if (!is_same(CITIES[city].zone, zone)) {
@@ -370,7 +415,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         copy_text(label, TEXT_MAX + 1, app_string(GENERAL[row]));
         if (row == 1) {
             int32_t city = current_city();
-            copy_text(value, TEXT_MAX + 1, city >= 0 ? CITIES[city].name : app_string(STR_CUSTOM));
+            copy_text(value, TEXT_MAX + 1, city >= 0 ? city_name(city) : app_string(STR_CUSTOM));
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
                       app_string(POWER_SAVING_NAMES[read_number(SYS_KEY_POWER_SAVING) % POWER_SAVINGS]));
@@ -395,7 +440,7 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         }
         break;
     case PAGE_ZONE:
-        copy_text(label, TEXT_MAX + 1, CITIES[row].name);
+        copy_text(label, TEXT_MAX + 1, city_name(city_order[row]));
         break;
     case PAGE_APPS: {
         if (!app_title_at(row, label)) {
@@ -554,7 +599,7 @@ static void activate(page_t page, int32_t row)
             open(PAGE_DATE_TIME, 0);
         } else if (row == 1) {
             int32_t city = current_city();
-            open(PAGE_ZONE, city >= 0 ? city : 0);
+            open(PAGE_ZONE, city >= 0 ? position_of(city) : 0);
         } else if (row == 2) {
             /* On: the device runs from its battery. */
             write_number(SYS_KEY_POWER_SAVING, (read_number(SYS_KEY_POWER_SAVING) + 1) % POWER_SAVINGS);
@@ -583,15 +628,16 @@ static void activate(page_t page, int32_t row)
             open(PAGE_CLOCK, 0);
         }
         break;
-    case PAGE_ZONE:
-        if (write_setting(SYS_KEY_TIME_ZONE, CITIES[row].zone) == HOST_OK) {
-            kv_set(CITY_KEY, sizeof CITY_KEY - 1, CITIES[row].name,
-                   app_text_length(CITIES[row].name));
+    case PAGE_ZONE: {
+        const city_t *city = &CITIES[city_order[row]];
+        if (write_setting(SYS_KEY_TIME_ZONE, city->zone) == HOST_OK &&
+            write_setting(SYS_KEY_TIME_ZONE_CITY, city->name) == HOST_OK) {
             go_back();
         } else {
             tell(app_string(STR_FAILED), false);
         }
         break;
+    }
     case PAGE_APPS: {
         if (app_title_at(row, app_to_remove_title)) {
             app_to_remove = app_ids[row];
@@ -701,6 +747,7 @@ static void press_back(void)
 
 void app_init(void)
 {
+    order_cities();
     depth = 0;
     HERE.page = PAGE_ROOT;
     HERE.selected = 0;
@@ -817,12 +864,12 @@ static void draw_value(void)
     app_picker_draw_texts(&edited_choice, above, chosen, below);
 }
 
-/* The cities go round: after the last comes the first. */
-static void draw_zone(int32_t city)
+/* The cities go round: after the last comes the first. `at` is a place in city_order[]. */
+static void draw_zone(int32_t at)
 {
-    app_picker_t zone = { .count = CITY_COUNT, .chosen = city, .wraps = true };
-    app_picker_draw_texts(&zone, CITIES[app_picker_above(&zone)].name, CITIES[city].name,
-                          CITIES[app_picker_below(&zone)].name);
+    app_picker_t zone = { .count = CITY_COUNT, .chosen = at, .wraps = true };
+    app_picker_draw_texts(&zone, city_name(city_order[app_picker_above(&zone)]),
+                          city_name(city_order[at]), city_name(city_order[app_picker_below(&zone)]));
 }
 
 void app_on_draw(void)

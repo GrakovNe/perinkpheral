@@ -1234,6 +1234,7 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 #define SYS_SETTING_MAX 64 /* the longest value, in bytes: a time server's name */
 #define SYS_KEY_TIME_AUTOMATIC      "time_auto"           /* 1: time from the network */
 #define SYS_KEY_TIME_ZONE           "tz"                  /* POSIX TZ string: "MSK-3" */
+#define SYS_KEY_TIME_ZONE_CITY      "tz_city"             /* the city it was chosen by: "St Petersburg" */
 #define SYS_KEY_LANGUAGE            "language"            /* "en", "ru" */
 #define SYS_KEY_FONT                "font"                /* 0 Departure Mono, 1 Jersey */
 #define SYS_KEY_REFRESH_FULL_EVERY  "refresh_full_every"  /* partial refreshes before a full one;

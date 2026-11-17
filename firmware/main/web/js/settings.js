@@ -54,7 +54,8 @@ async function loadSettings() {
   for (const key of ["device_name", "ntp_server", "refresh_min_data_s", "refresh_keepalive_h"])
     byId(key).value = settings[key];
   /* A device that was never told its zone is offered the browser's. */
-  byId("tz").value = settings.tz === ZONE_NOT_SET ? posixZone() : settings.tz;
+  if (settings.tz === ZONE_NOT_SET) showZone(detectedZone());
+  else showZone({ tz: settings.tz, city: settings.tz_city });
   const fullEvery = byId("refresh_full_every");
   /* A value the list does not have - set some other way - gets a line of its own. */
   if (![...fullEvery.options].some(option => Number(option.value) === settings.refresh_full_every))
@@ -106,7 +107,7 @@ saveSettings("general", () => ({ device_name: byId("device_name").value,
                                  default_app: byId("default_app").value,
                                  menu_idle_min: Number(byId("menu_idle_min").value),
                                  power_saving: Number(byId("power_saving").value) }));
-saveSettings("time-zone", () => ({ tz: byId("tz").value, ntp_server: byId("ntp_server").value,
+saveSettings("time-zone", () => ({ ...chosenZone(), ntp_server: byId("ntp_server").value,
                                    time_auto: byId("time_auto").checked }));
 saveSettings("display", () => ({
   refresh_full_every: Number(byId("refresh_full_every").value),
@@ -119,7 +120,48 @@ saveSettings("display", () => ({
 }));
 saveSettings("language-form", () => ({ language: byId("language-choice").value }));
 
-byId("tz-detect").addEventListener("click", () => { byId("tz").value = posixZone(); });
+/* ---- the time zone: by a city of the device's list, or a POSIX string of one's own ---- */
+
+const cityName = city => pageLanguage === "ru" ? city.ru : city.name;
+
+/* The cities by the names the page shows, and "Custom" after them. */
+byId("tz-city").replaceChildren(
+  ...[...CITIES].sort((a, b) => cityName(a).localeCompare(cityName(b), pageLanguage))
+    .map(city => make("option", { value: city.name, textContent: cityName(city) })),
+  make("option", { value: "", textContent: "Custom" }));
+
+const cityCalled = name => CITIES.find(city => city.name === name);
+
+/* The browser's zone: its city by the zone's name, or by its rules, or the rules alone. */
+function detectedZone() {
+  const named = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const city = CITIES.find(have => have.iana.includes(named));
+  if (city) return { tz: city.zone, city: city.name };
+  const tz = posixZone();
+  return { tz, city: "" };
+}
+
+/* A zone shown: its city when it was chosen by one or a city has it, else as it is written. */
+function showZone({ tz, city }) {
+  const chosen = cityCalled(city);
+  const found = chosen && chosen.zone === tz ? chosen : CITIES.find(have => have.zone === tz);
+  byId("tz-city").value = found ? found.name : "";
+  byId("tz").value = tz;
+  byId("tz-own").hidden = Boolean(found);
+}
+
+/* What the form says: the zone and the city it was chosen by, none for one of one's own. */
+function chosenZone() {
+  const city = cityCalled(byId("tz-city").value);
+  return city ? { tz: city.zone, tz_city: city.name } : { tz: byId("tz").value, tz_city: "" };
+}
+
+byId("tz-city").addEventListener("change", () => {
+  const city = cityCalled(byId("tz-city").value);
+  if (city) byId("tz").value = city.zone;
+  byId("tz-own").hidden = Boolean(city);
+});
+byId("tz-detect").addEventListener("click", () => showZone(detectedZone()));
 
 /* ---- the clock by hand: while the network's time is not taken ---- */
 
@@ -154,7 +196,11 @@ byId("wifi").addEventListener("submit", async event => {
   event.preventDefault();
   const network = { ssid: byId("ssid").value, password: byId("password").value };
   /* Setting the device up is one step: it learns where it is along with the network. */
-  if (settings.tz === ZONE_NOT_SET) network.tz = posixZone();
+  if (settings.tz === ZONE_NOT_SET) {
+    const zone = detectedZone();
+    network.tz = zone.tz;
+    network.tz_city = zone.city;
+  }
   toast(CONFIRM_ON_DEVICE);
   if (await send(event.submitter, "/api/wifi", post(network))) afterRestart();
 });

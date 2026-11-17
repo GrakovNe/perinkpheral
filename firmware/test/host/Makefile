@@ -51,6 +51,7 @@ test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
 	@$(TOOLS) check-languages
 	@$(TOOLS) check-layers ../..
+	@$(TOOLS) cities --check && echo "cities.h is what cities.json makes"
 
 test_json_tree: test_json_tree.c tinytest.h $(APPSTORE)/json_tree.c $(APPSTORE)/include/json_tree.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSTORE)/json_tree.c

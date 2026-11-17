@@ -472,7 +472,9 @@ static bool edit_network(const json_t *json, appconf_t *wanted)
 {
     return take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
            take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
-           take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+           take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
+           (json_get(json, "tz_city") == NULL ||
+            take_string(json, "tz_city", wanted->tz_city, sizeof wanted->tz_city));
 }
 
 static esp_err_t handle_wifi(httpd_req_t *request)
@@ -485,8 +487,12 @@ static esp_err_t handle_wifi(httpd_req_t *request)
  * read local time anew whenever they draw. */
 static bool edit_time_zone(const json_t *json, appconf_t *wanted)
 {
+    /* The city it was chosen by goes with it; none, for a zone of one's own. */
+    wanted->tz_city[0] = '\0';
     return json_get(json, "tz") != NULL &&
-           take_string(json, "tz", wanted->tz, sizeof wanted->tz);
+           take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
+           (json_get(json, "tz_city") == NULL ||
+            take_string(json, "tz_city", wanted->tz_city, sizeof wanted->tz_city));
 }
 
 static esp_err_t handle_time(httpd_req_t *request)

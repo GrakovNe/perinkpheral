@@ -60,6 +60,7 @@ components:
         ssid: { type: string }
         address: { type: string }
         tz: { type: string, description: POSIX TZ string }
+        tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
         time: { type: string, description: Local time, when known }
         hostname: { type: string }
         idf: { type: string }
@@ -90,6 +91,7 @@ components:
         wifi_ssid: { type: string, readOnly: true }
         ntp_server: { type: string }
         tz: { type: string, description: POSIX TZ string }
+        tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
         refresh_min_data_s: { type: integer, description: Seconds between refreshes driven by data }
         refresh_full_every: { type: integer, description: "Full refresh after so many partial ones; 0 always full, 255 never" }
         refresh_keepalive_h: { type: integer, description: Hours before a refresh is forced }
@@ -263,6 +265,7 @@ paths:
                 ssid: { type: string }
                 password: { type: string }
                 tz: { type: string, description: Time zone to set along, on a device that has none }
+                tz_city: { type: string, description: The city the zone was chosen by, by its English name }
               description: What is left out stays as it was
       responses:
         "200": { $ref: "#/components/responses/Ok" }
@@ -281,6 +284,7 @@ paths:
               type: object
               properties:
                 tz: { type: string, description: POSIX TZ string, examples: ["MSK-3"] }
+                tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
               required: [tz]
       responses:
         "200": { $ref: "#/components/responses/Ok" }

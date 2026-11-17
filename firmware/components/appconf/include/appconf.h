@@ -21,6 +21,7 @@ extern "C" {
 #define APPCONF_PASS_MAX   64
 #define APPCONF_HOST_MAX   64
 #define APPCONF_TZ_MAX     47
+#define APPCONF_CITY_MAX   31 /* a city of Settings' list, by its English name */
 #define APPCONF_APP_NAME_MAX 13 /* an application's name: MANIFEST_NAME_MAX */
 
 #define APPCONF_NTP_DEFAULT     "pool.ntp.org"
@@ -78,6 +79,9 @@ typedef struct {
     char wifi_password[APPCONF_PASS_MAX + 1];
     char ntp_server[APPCONF_HOST_MAX + 1];
     char tz[APPCONF_TZ_MAX + 1]; /* POSIX TZ string, "MSK-3" */
+    /* The city the zone was chosen by, by its English name ("St Petersburg"): several share a
+     * zone, and the device and the page show the one chosen. Empty: none, or a zone of its own. */
+    char tz_city[APPCONF_CITY_MAX + 1];
 
     /* How the panel is treated: see refresh_policy.h. */
     uint16_t refresh_min_data_s;    /* least seconds between refreshes nobody asked for */

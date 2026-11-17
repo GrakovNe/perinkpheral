@@ -119,11 +119,15 @@
 
   <div class="pane" id="time">
     <form id="time-zone">
-      <label for="tz">Time zone (POSIX)</label>
+      <label for="tz-city">Time zone</label>
       <div class="rows"><div>
-        <input id="tz" maxlength="47" autocomplete="off" required>
+        <select id="tz-city"></select>
         <button type="button" class="quiet" id="tz-detect">Detect</button>
       </div></div>
+      <div id="tz-own" hidden>
+        <label for="tz">POSIX TZ</label>
+        <input id="tz" maxlength="47" autocomplete="off" spellcheck="false">
+      </div>
       <label class="check"><input id="time_auto" type="checkbox">Set time automatically</label>
       <label for="ntp_server">NTP server</label>
       <input id="ntp_server" maxlength="64" autocomplete="off" required>
@@ -250,6 +254,7 @@
 
 <div class="toasts" id="toasts"></div>
 
+<!-- data: CITIES ../../system/settings/cities.json -->
 <!-- script: js/i18n.js js/core.js js/apps.js js/device.js js/settings.js js/main.js -->
 </body>
 </html>

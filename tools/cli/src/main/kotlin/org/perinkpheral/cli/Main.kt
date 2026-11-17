@@ -52,6 +52,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
                                               the glyph packs of letters beyond ASCII
     perinkpheral font <font> --px <size> --name <C name> --out <header> [--chars C] [--only C]
                                               a font into a header of one bit a pixel
+    perinkpheral cities [--check]             Settings' cities.h made of cities.json
     perinkpheral check-layers [firmware dir]  the firmware's layers, by its includes and calls
     perinkpheral check-languages              the firmware's languages are the SDK's
     perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
@@ -167,7 +168,7 @@ private fun simulator(arguments: Arguments): Int {
 }
 
 private fun run(raw: Array<String>): Int {
-    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update"))
+    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update", "check"))
     when (arguments.words.firstOrNull()) {
         "build" -> {
             builder().build(File(arguments.word(1, "the application's folder")),
@@ -191,6 +192,10 @@ private fun run(raw: Array<String>): Int {
             File(arguments.word(3, "the packed page")))
         "flash-manifest" -> FirmwareTools.flashManifest(File(arguments.word(1, "the build")), File(arguments.word(2, "the folder")),
             arguments.word(3, "the version"), arguments.option("prefix").orEmpty())
+        "cities" -> {
+            val folder = File(root(), "firmware/system/settings")
+            FirmwareTools.cities(File(folder, "cities.json"), File(folder, "cities.h"), arguments.has("check"))
+        }
         "check-layers" -> {
             val (broken, checks) = Layers(File(arguments.words.getOrNull(1) ?: File(root(), "firmware").path)).check()
             broken.forEach { println("layers: $it") }

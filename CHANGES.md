@@ -4,6 +4,13 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.19
+
+- The time zone is chosen by a city on the device's page too, from the list the device has;
+  "Custom" takes a POSIX string. Detect finds the browser's city by its zone's name.
+- The cities are in the device's language, on the device and on the page, sorted by the names
+  shown; the city chosen is one setting, so both show the same one of those that share a zone.
+
 ## 0.1.18
 
 - The device's page speaks the device's language - English or Russian - in the terms the device

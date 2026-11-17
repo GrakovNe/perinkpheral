@@ -226,6 +226,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     if (!str_fits(c->tz, APPCONF_TZ_MAX) || !tz_ok(c->tz)) {
         BAD("Time zone must be a POSIX TZ string (max %d).", APPCONF_TZ_MAX);
     }
+    if (!str_fits(c->tz_city, APPCONF_CITY_MAX) || !is_printable_ascii(c->tz_city)) {
+        BAD("Invalid city.");
+    }
 
     if (c->refresh_min_data_s < APPCONF_REFRESH_MIN_DATA_S_LEAST ||
         c->refresh_min_data_s > APPCONF_REFRESH_MIN_DATA_S_MOST) {
@@ -307,6 +310,7 @@ static const appconf_field_t FIELDS[] = {
     TEXT("wifi_password", "wpass", wifi_password, APPCONF_RESTART | APPCONF_OWN_WAY | APPCONF_SECRET),
     TEXT("ntp_server", "ntp", ntp_server, APPCONF_RESTART),
     TEXT("tz", "tz", tz, 0),
+    TEXT("tz_city", "tz_city", tz_city, 0),
     NUMBER("refresh_min_data_s", "rf_data", refresh_min_data_s, APPCONF_REFRESH_MIN_DATA_S_LEAST,
            APPCONF_REFRESH_MIN_DATA_S_MOST, APPCONF_NO_ALSO),
     NUMBER("refresh_min_button_ms", "rf_button", refresh_min_button_ms, 0,
