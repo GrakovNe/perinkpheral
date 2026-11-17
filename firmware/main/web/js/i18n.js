@@ -40,7 +40,7 @@ const RUSSIAN = {
   "Own certificate authorities": "Свои центры сертификации", "Screen": "Экран", "Full": "Весь",
   "With header": "С заголовком", "Set up page": "Страница настройки",
   "Every {0}": "Каждые {0}", "settings kept": "настройки сохранены", "needs firmware {0}": "нужна прошивка {0}",
-  "not set": "не задано", "secret": "секрет",
+  "not set": "не задано",
 
   /* the device */
   "Firmware": "Прошивка", "Built": "Сборка", "Slot": "Слот", "Time": "Время", "Uptime": "Аптайм",

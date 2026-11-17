@@ -328,25 +328,15 @@ function hostOf(app, address) {
   }
 }
 
-/* The numbers a place fills are the place's, and a hidden setting is set elsewhere: neither is
- * a setting of its own to a person. */
-const hiddenKeys = app => new Set([...app.settings.filter(setting => setting.type === "place")
-  .flatMap(place => [place.latitude, place.longitude]),
-  ...app.settings.filter(setting => setting.hidden).map(setting => setting.key)]);
-
 function appFacts(app) {
   const hosts = [...new Set([...(app.hosts || []), ...(app.polls || []).map(poll => poll.url)]
                             .map(address => hostOf(app, address)))];
   const updates = (app.polls || []).map(poll => t("Every {0}", paceOf(app, poll.every)));
-  const hidden = hiddenKeys(app);
-  const stores = app.settings.filter(setting => !hidden.has(setting.key))
-    .map(setting => setting.title + (setting.type === "secret" || setting.type === "link" ? " (" + t("secret") + ")" : ""));
   return [
     ["Name", app.name],
     ["Version", app.version || "-"],
     ["Connects to", hosts.join("\n") || "Nothing"],
     ["Updates", [...new Set(updates)].join(", ") || "On request"],
-    ["Settings", stores.join("\n") || "None"], /* one a line: a name is not broken between two */
     ["Starts with device", (app.intents || []).includes("started") ? "Yes" : "No"],
     ["System access", app.system ? "Yes" : "No"],
     ["Writes files", app.writes_files ? "Yes, 32 KB" : "No"],
