@@ -352,7 +352,7 @@ int gfx_text_sq_width_ex(const char *utf8, int scale, int tracking)
     return w > 0 ? w - tracking : 0;
 }
 
-/* ---- bitmap fonts from tools/fontgen ---- */
+/* ---- bitmap fonts from tools/perinkpheral font ---- */
 
 static const gfx_glyph_t *glyph_among(const gfx_glyph_t *glyphs, int count, uint32_t cp)
 {

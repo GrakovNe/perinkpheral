@@ -102,7 +102,7 @@ int gfx_text_sq_ex(gfx_t *g, int x, int y, const char *utf8, int scale, bool bla
 
 int gfx_text_sq_width_ex(const char *utf8, int scale, int tracking);
 
-/* Bitmap fonts rasterized by tools/fontgen (Departure Mono for everything but
+/* Bitmap fonts rasterized by tools/perinkpheral font (Departure Mono for everything but
  * the logo). Glyph bits: 1 = ink, MSB left, rows padded to a byte. The
  * pen sits on the baseline; `top` is the glyph's rise above it. */
 typedef struct {
@@ -139,7 +139,7 @@ typedef enum {
     GFX_FACE_COUNT,
 } gfx_face_t;
 
-/* Glyph packs (tools/fontgen/mkpack.py): letters beyond ASCII, added to
+/* Glyph packs (tools/perinkpheral glyph-packs): letters beyond ASCII, added to
  * the fonts while the device runs. A pack is used where it lies - it must
  * stay there, at an address that is a multiple of 4 - and holds glyphs for
  * one or several faces. What neither a font nor a pack has is spelled in

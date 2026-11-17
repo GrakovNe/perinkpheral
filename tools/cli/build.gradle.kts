@@ -16,6 +16,10 @@ kotlin {
 
 dependencies {
     implementation("org.perinkpheral:perinkpheral-core:0.1.0")
+    // The fonts' outlines, TrueType and CFF, for the generators of the firmware's fonts and
+    // glyph packs (Apache 2.0, Java alone). The core does not take it: the CLion plugin has no
+    // use for it.
+    implementation("org.apache.pdfbox:fontbox:3.0.3")
 }
 
 // One jar with the core and Kotlin's library in it: build/libs/perinkpheral.jar.

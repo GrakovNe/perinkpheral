@@ -433,7 +433,7 @@ static void change_glyphs(void *argument)
     host_redraw(true);
 }
 
-/* POST /api/glyphs, the body a pack as tools/fontgen/mkpack.py makes it. */
+/* POST /api/glyphs, the body a pack as tools/perinkpheral glyph-packs makes it. */
 static esp_err_t handle_glyphs_install(httpd_req_t *request)
 {
     if (request->content_len < 1 || request->content_len > GLYPHS_PACK_MAX_BYTES) {

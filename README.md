@@ -194,8 +194,8 @@ cd firmware/test/host && make test
 ```
 
 `tools/perinkpheral preview [dir]` renders the host's screens to PNG
-without the device. `tools/fontgen/fontgen.py` turns a TTF into a 1-bit
-bitmap font header and needs the `freetype-py` package.
+without the device. `tools/perinkpheral font` turns a TTF or OTF into a
+1-bit bitmap font header.
 
 ## Writing applications
 
@@ -322,7 +322,6 @@ tools/
   perinkpheral         the tools: build and check an app, run it on a device or in the simulator, catalogs
   core/                the tools in Kotlin, which the CLion plugin uses too
   simulator/           the device without the device, built from the firmware's sources
-  fontgen/             TTF -> 1-bit bitmap font header
 assets/fonts/          Departure Mono and Jersey (SIL OFL 1.1), the UI fonts, and their licenses
 hardware/              the panel notes, the BOM and assembly page, the case model
 CLAUDE.md              the specification: architecture, decisions, milestones, state

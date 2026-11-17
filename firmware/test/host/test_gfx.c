@@ -203,7 +203,7 @@ static void test_text_square(void)
 }
 
 /* A two-glyph bitmap font by hand: 'I' is a 1x3 bar, '?' a 2x2 block,
- * as tools/fontgen would emit them. */
+ * as tools/perinkpheral font would emit them. */
 static const uint8_t tiny_bits[] = { 0x80, 0x80, 0x80, 0xC0, 0xC0 };
 static const gfx_glyph_t tiny_glyphs[] = {
     { '?', 2, 2, 0, 2, 3, 3 },

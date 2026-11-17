@@ -92,10 +92,11 @@ With no network, `tools/perinkpheral usb $PORT --keys 3,2 --out
 shot.png` does presses and the frame over the USB console (`1`-`4` a
 short press, `q` `w` `e` `r` a long press of button 1-4).
 
-Fonts: `tools/fontgen/fontgen.py <ttf> --px N --name <id> --out
-firmware/components/gfx/fonts/<id>.h --preview <file>.png` rasterizes a
-TTF with FreeType in monochrome (printable ASCII) into a `gfx_font_t`
-for `gfx_text_font()`. It needs the `freetype-py` package. The UI font
+Fonts: `tools/perinkpheral font <ttf or otf> --px N --name <id> --out
+firmware/components/gfx/fonts/<id>.h` rasterizes a font one bit a pixel
+(printable ASCII) into a `gfx_font_t` for `gfx_text_font()`; the glyph
+packs are `tools/perinkpheral glyph-packs --out <dir>`, the spelling
+tables `tools/perinkpheral spelling --out firmware/components/gfx/spelling.h`. The UI font
 is `assets/fonts/DepartureMono-Regular.otf`, a pixel font: it is rasterized
 once, at 11 px (`--px 11 --name departure_11`), where it lands on its own
 grid. The sizes on the device are that bitmap drawn at whole multiples

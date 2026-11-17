@@ -1,5 +1,5 @@
 {
-  "_": "The languages the system knows and the glyph packs each needs; the code points of a pack as ranges, both ends in. One place: tools/fontgen/mkpack.py makes the packs of it, tools/perinkpheral checks translations against it, the firmware's list is checked against it by a test.",
+  "_": "The languages the system knows and the glyph packs each needs; the code points of a pack as ranges, both ends in. One place: tools/perinkpheral glyph-packs makes the packs of it, tools/perinkpheral checks translations against it, the firmware's list is checked against it by a test.",
   "packs": {
     "latin": [
       [161, 175],

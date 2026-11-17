@@ -40,6 +40,11 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
     perinkpheral icons                        the host's icons into gfx_icon_art.c
+    perinkpheral spelling --out <header>      how letters with no glyph are spelled in ASCII
+    perinkpheral glyph-packs --out <dir> [--sheet <dir>]
+                                              the glyph packs of letters beyond ASCII
+    perinkpheral font <font> --px <size> --name <C name> --out <header> [--chars C] [--only C]
+                                              a font into a header of one bit a pixel
     perinkpheral check-layers [firmware dir]  the firmware's layers, by its includes and calls
     perinkpheral check-languages              the firmware's languages are the SDK's
     perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
@@ -185,6 +190,15 @@ private fun run(raw: Array<String>): Int {
             if (broken.isNotEmpty()) return 1
         }
         "check-languages" -> println("${checkLanguages(root())} checks, 0 failed")
+        "font" -> {
+            val font = File(arguments.word(1, "the font"))
+            println(Fonts.header(font, runCatching { font.absoluteFile.relativeTo(root().absoluteFile).path }.getOrNull()?.takeUnless { it.startsWith("..") } ?: font.path,
+                (arguments.option("px") ?: fail("--px is required")).toDouble(),
+                arguments.option("name") ?: fail("--name is required"), File(arguments.option("out") ?: fail("--out is required")),
+                arguments.option("chars").orEmpty(), arguments.option("only")))
+        }
+        "glyph-packs" -> GlyphPacks.make(root(), File(arguments.option("out") ?: fail("--out is required")), arguments.option("sheet")?.let { File(it) }).forEach { println(it) }
+        "spelling" -> println(Spelling.make(File(arguments.option("out") ?: fail("--out is required"))))
         "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
         "mark" -> {
             val extra = arguments.words.drop(1).chunked(2).map { (pixels, file) -> pixels.toInt() to File(file) }
