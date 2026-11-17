@@ -407,7 +407,6 @@ function drawCatalog() {
   view.replaceChildren(...rows);
   if (!rows.length && catalogsRead)
     view.append(make("p", { className: "note", textContent: offers.length ? "Nothing found." : "No apps available." }));
-  show("catalog-count", !catalogsRead ? "" : wanted ? t("{0} of {1}", rows.length, offers.length) : String(offers.length));
 }
 
 byId("catalog-search").addEventListener("input", drawCatalog);
@@ -493,6 +492,12 @@ function catalogAddress(line) {
 }
 
 byId("open-sources").replaceWith(iconButton(GEAR, "Sources", () => byId("sources-dialog").showModal()));
+/* The sources read again: what they have now, without reading the page anew. */
+const refreshCatalog = iconButton(REFRESH, "Refresh", async () => {
+  refreshCatalog.disabled = true;
+  try { await loadCatalogs(); } finally { refreshCatalog.disabled = false; }
+});
+byId("refresh-catalog").replaceWith(refreshCatalog);
 
 byId("sources").addEventListener("submit", async event => {
   event.preventDefault();
