@@ -4,22 +4,104 @@ package org.perinkpheral.cli
 /**
  * Cyrillic letters for the Jersey faces, which have none.
  *
- * Jersey (SIL OFL 1.1, no reserved font name) is one construction at four sizes: stems of 2, 3,
- * 4 and 5 pixels for capitals of 10, 15, 20 and 25. A Cyrillic letter is made here from the
- * Latin glyphs of the same face - copied, mirrored, cut and joined - and from stems and bars of
- * the face's own weight, so one description serves all four faces. Covers Russian, Ukrainian,
- * Belarusian, Serbian, Macedonian, Bulgarian and Kazakh.
+ * Jersey (SIL OFL 1.1, no reserved font name): optical masters for the difficult lowercase
+ * junctions, and shared Latin curves and stems for the remaining letters. Each included face
+ * has its own drawings and weights; shortening a capital is not a finished lowercase design.
+ * Covers Russian, Ukrainian, Belarusian, Serbian, Macedonian, Bulgarian and Kazakh.
  */
 class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
     private val h = render('H'.code)!!
     private val cap = h.height
-    private val left = h.left
-    private val right = h.advance - h.width - h.left
     private val width = h.width
     private val xHeight = render('x'.code)!!.height
     private val descent = render('p'.code)!!.height - xHeight
     private val stem = h.rows[0].indexOfFirst { !it }
+    private data class Metrics(
+        val xHeight: Int, val stem: Int, val crossbar: Int, val bowlJoin: Int,
+        val roundCap: Int, val width: Int, val wide: Int, val tailDepth: Int,
+        val overhang: Int, val internalGap: Int,
+    )
+    private val metrics = when (cap) {
+        10 -> Metrics(8, 2, 2, 1, 2, 7, 10, 2, 1, 1)
+        15 -> Metrics(11, 3, 2, 2, 3, 10, 15, 3, 1, 2)
+        25 -> Metrics(19, 5, 3, 3, 4, 16, 23, 4, 2, 3)
+        else -> error("No Cyrillic optical master for Jersey $cap")
+    }
+    private val masters by lazy {
+        drawings().mapValues { (letter, drawing) ->
+            val rows = drawing.trimIndent().lines()
+            require(rows.isNotEmpty() && rows.all { row -> row.length == rows[0].length && row.all { it == '#' || it == '.' } }) {
+                "Jersey $cap $letter: invalid drawing"
+            }
+            val expectedHeight = when (letter) { 'б', 'У', 'З' -> cap; 'д' -> xHeight + metrics.tailDepth; else -> xHeight }
+            require(rows.size == expectedHeight) { "Jersey $cap $letter: expected $expectedHeight rows, got ${rows.size}" }
+            val expectedWidth = when (letter) {
+                'ж', 'м' -> metrics.wide
+                'к' -> render('k'.code)!!.width
+                'д' -> metrics.width + 2 * metrics.overhang
+                'У' -> width
+                'З' -> render('3'.code)!!.width
+                else -> metrics.width
+            }
+            require(rows[0].length == expectedWidth) { "Jersey $cap $letter: expected width $expectedWidth" }
+            rows.map { row -> BooleanArray(row.length) { row[it] == '#' } }.toMutableList().also {
+                checkCounters(letter, it)
+            }
+        }
+    }
     private val out = HashMap<Int, FontFace.Glyph>()
+
+    init {
+        require(xHeight == metrics.xHeight && stem == metrics.stem && render('o'.code)!!.width == metrics.width)
+    }
+
+    private fun master(letter: Char) = copy(masters.getValue(letter))
+    private fun bar(height: Int) = if (height == xHeight) metrics.crossbar else stem
+    private fun bodyWidth(height: Int) = if (height == xHeight) metrics.width else width
+
+    /** Enclosed paper, in reading order. The outside is not a counter, even beside a neck. */
+    private fun counters(rows: List<BooleanArray>): List<IntRange> {
+        val height = rows.size
+        val width = rows[0].size
+        val visited = canvas(width, height)
+        val counters = ArrayList<IntRange>()
+        for (y in 0 until height) for (x in 0 until width) {
+            if (rows[y][x] || visited[y][x]) continue
+            val pending = ArrayDeque<Pair<Int, Int>>()
+            pending.add(x to y)
+            visited[y][x] = true
+            var touchesEdge = false
+            var first = y
+            var last = y
+            while (pending.isNotEmpty()) {
+                val (column, row) = pending.removeFirst()
+                touchesEdge = touchesEdge || column == 0 || column == width - 1 || row == 0 || row == height - 1
+                first = minOf(first, row)
+                last = maxOf(last, row)
+                for ((nextX, nextY) in listOf(column - 1 to row, column + 1 to row, column to row - 1, column to row + 1)) {
+                    if (nextX in 0 until width && nextY in 0 until height && !rows[nextY][nextX] && !visited[nextY][nextX]) {
+                        visited[nextY][nextX] = true
+                        pending.add(nextX to nextY)
+                    }
+                }
+            }
+            if (!touchesEdge) counters += first..last
+        }
+        return counters
+    }
+
+    private fun checkCounters(letter: Char, rows: List<BooleanArray>) {
+        if (letter !in "бвьяъыљњЬЪЫЉЊфФ") return
+        val spaces = counters(rows)
+        val expected = if (letter in "вфФ") 2 else 1
+        require(spaces.size == expected) { "Jersey $cap $letter: expected $expected enclosed counters" }
+        val minimum = if (letter in "вя") metrics.bowlJoin else metrics.roundCap
+        require(spaces.all { it.last - it.first + 1 >= minimum }) { "Jersey $cap $letter: counter too small" }
+        if (letter == 'в') {
+            require(spaces[1].last - spaces[1].first >= spaces[0].last - spaces[0].first) { "Jersey $cap: lower bowl of в is too small" }
+            require(spaces[1].first - spaces[0].last - 1 == metrics.bowlJoin) { "Jersey $cap: wrong join weight in в" }
+        }
+    }
 
     // ---- rows: a list of rows of cells ----
 
@@ -44,7 +126,7 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
     private fun upsideDown(rows: List<BooleanArray>) = rows.reversed().map { it.copyOf() }.toMutableList()
     private fun turned(rows: List<BooleanArray>) = mirror(upsideDown(rows))
 
-    /** Python's row[first:last]. */
+    /** A slice of columns. */
     private fun columns(rows: List<BooleanArray>, first: Int, last: Int? = null) = rows.map { row ->
         val end = minOf(last ?: row.size, row.size)
         row.copyOfRange(minOf(first, end), end)
@@ -87,37 +169,6 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         return rows
     }
 
-    /** Nearest rows: for letters whose strokes run the whole height at a slant. */
-    private fun resample(rows: List<BooleanArray>, height: Int) =
-        MutableList(height) { i -> rows[pyRound(i * (rows.size - 1).toDouble() / (height - 1))].copyOf() }
-
-    /** Shortens a letter of bars and bowls (B, 3) to `height`: bars stay, bowls lose rows from
-     * their edges. */
-    private fun thinBowls(source: List<BooleanArray>, height: Int): MutableList<BooleanArray> {
-        val width = source[0].size
-        val probe = minOf(maxOf(stem + (width - 2 * stem) / 2, 0), width - 1)
-        val rows = copy(source)
-        while (rows.size > height) {
-            val runs = ArrayList<IntArray>()
-            var start: Int? = null
-            for (index in 0..rows.size) {
-                val isBowl = index < rows.size && !rows[index][probe]
-                if (isBowl && start == null) {
-                    start = index
-                } else if (!isBowl && start != null) {
-                    runs += intArrayOf(start, index - start)
-                    start = null
-                }
-            }
-            val long = runs.filter { it[1] > 1 }
-            if (long.isEmpty()) return squash(rows, height)
-            val (first, length) = long.maxWith(compareBy<IntArray>({ it[1] }, { it[0] }))
-            rows.removeAt(first)
-            if (rows.size > height && length > 2) rows.removeAt(first + length - 2)
-        }
-        return rows
-    }
-
     // ---- the face ----
 
     private fun latin(character: Char): Pair<MutableList<BooleanArray>, Int> {
@@ -128,6 +179,22 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
     /** `top`: rows above the baseline; the letter stands on it by default. */
     private fun put(character: Char, rows: List<BooleanArray>, top: Int? = null) {
         val width = rows[0].size
+        val reference = when (character) {
+            'б' -> 'b'
+            'Ђ', 'Ћ', 'ђ', 'ћ' -> 'h'
+            'з', 'э', 'є', 'ө', 'ә' -> 'c'
+            'Э', 'Є', 'Ө', 'Ә', 'З' -> 'C'
+            'в', 'ь', 'ъ', 'ы', 'ю', 'ф' -> 'o'
+            'к', 'ќ', 'қ' -> 'k'
+            'г', 'ґ', 'ѓ' -> 'L'
+            'т' -> 'T'
+            'м', 'ж', 'ш', 'щ' -> 'm'
+            'н', 'п', 'и', 'й', 'ѝ', 'л', 'д', 'ч', 'ц', 'я', 'љ', 'њ', 'џ' -> 'n'
+            else -> 'H'
+        }
+        val spacing = render(reference.code)!!
+        val left = spacing.left
+        val right = spacing.advance - spacing.left - spacing.width
         out[character.code] = FontFace.Glyph(width, rows.size, left, top ?: rows.size, left + width + right, rows)
     }
 
@@ -152,7 +219,10 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         val plainTop = latin(without).second
         val extra = markedTop - plainTop
         if (extra <= 0) return copy(base) to base.size
-        val mark = marked.subList(0, minOf(extra, marked.size))
+        val paddedMark = marked.subList(0, minOf(extra, marked.size))
+        val inkColumns = paddedMark.flatMap { row -> row.indices.filter { row[it] } }
+        if (inkColumns.isEmpty()) return copy(base) to base.size
+        val mark = columns(paddedMark, inkColumns.min(), inkColumns.max() + 1)
         val width = maxOf(base[0].size, mark[0].size)
         val rows = canvas(width, extra + base.size)
         blit(rows, mark, (width - mark[0].size) / 2, 0)
@@ -162,30 +232,30 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
 
     /** The descending tick of Ц and Щ at the right. */
     private fun tail(rows: List<BooleanArray>): Pair<MutableList<BooleanArray>, Int> {
-        val over = maxOf(1, stem - 1)
-        val depth = maxOf(2, stem - 1)
+        val over = metrics.overhang
+        val depth = metrics.tailDepth
         val width = rows[0].size + over
         val out = canvas(width, rows.size + depth)
         blit(out, rows, 0, 0)
-        fill(out, 0, rows.size - stem, width, stem)
+        fill(out, 0, rows.size - bar(rows.size), width, bar(rows.size))
         fill(out, width - stem, rows.size, stem, depth)
         return out to rows.size
     }
 
     /** A descending tick at the right foot of a letter: Қ, Ң. */
     private fun tick(rows: List<BooleanArray>): Pair<MutableList<BooleanArray>, Int> {
-        val over = maxOf(1, stem - 1)
-        val depth = maxOf(2, stem - 1)
+        val over = metrics.overhang
+        val depth = metrics.tailDepth
         val out = canvas(rows[0].size + over, rows.size + depth)
         blit(out, rows, 0, 0)
-        fill(out, rows[0].size - stem, rows.size - stem, stem + over, stem)
+        fill(out, rows[0].size - stem, rows.size - bar(rows.size), stem + over, bar(rows.size))
         fill(out, out[0].size - stem, rows.size, stem, depth)
         return out to rows.size
     }
 
     /** A tick under the middle: Џ. */
     private fun tickUnder(rows: List<BooleanArray>): Pair<MutableList<BooleanArray>, Int> {
-        val depth = maxOf(2, stem - 1)
+        val depth = metrics.tailDepth
         val out = canvas(rows[0].size, rows.size + depth)
         blit(out, rows, 0, 0)
         fill(out, (rows[0].size - stem) / 2, rows.size, stem, depth)
@@ -201,7 +271,7 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         val shift = if (x == 0) over else 0
         val out = canvas(rows[0].size + shift, rows.size)
         blit(out, rows, shift, 0)
-        fill(out, x + shift - over, row ?: ((rows.size - stem) / 2), width + 2 * over, maxOf(1, stem - 1))
+        fill(out, x + shift - over, row ?: ((rows.size - metrics.crossbar) / 2), width + 2 * over, metrics.crossbar)
         return out
     }
 
@@ -233,7 +303,7 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
 
     private fun barredO(source: List<BooleanArray>): MutableList<BooleanArray> {
         val rows = copy(source)
-        fill(rows, stem, (rows.size - maxOf(1, stem - 1)) / 2, rows[0].size - 2 * stem, maxOf(1, stem - 1))
+        fill(rows, stem, (rows.size - metrics.crossbar) / 2, rows[0].size - 2 * stem, metrics.crossbar)
         return rows
     }
 
@@ -249,41 +319,48 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         return rows
     }
 
-    // ---- letters, at a height: capitals and small ones are built alike ----
+    // ---- letters assembled from approved parts ----
 
-    private fun pe(height: Int) = twoStems(height).also { fill(it, 0, 0, width, stem) }
+    private fun pe(height: Int) = twoStems(height, bodyWidth(height)).also {
+        fill(it, 0, 0, it[0].size, bar(height))
+    }
 
-    private fun tseBody(height: Int) = twoStems(height).also { fill(it, 0, height - stem, width, stem) }
+    private fun en(height: Int) = twoStems(height, bodyWidth(height)).also {
+        fill(it, 0, (height - bar(height)) / 2, it[0].size, bar(height))
+    }
+
+    private fun tseBody(height: Int) = twoStems(height, bodyWidth(height)).also {
+        fill(it, 0, height - bar(height), it[0].size, bar(height))
+    }
 
     private fun sha(height: Int): MutableList<BooleanArray> {
-        val shaWidth = 3 * stem + 2 * (width - 2 * stem)
+        val capitalWidth = maxOf(render('M'.code)!!.width, render('W'.code)!!.width)
+        val gap = if (height == xHeight) (metrics.wide - 3 * stem) / 2 else (capitalWidth - 3 * stem + 1) / 2
+        val shaWidth = 3 * stem + 2 * gap
         val rows = twoStems(height, shaWidth)
         fill(rows, (shaWidth - stem) / 2, 0, stem, height)
-        fill(rows, 0, height - stem, shaWidth, stem)
+        fill(rows, 0, height - bar(height), shaWidth, bar(height))
         return rows
     }
 
-    private fun el(height: Int, withFoot: Boolean = true): MutableList<BooleanArray> {
-        val foot = if (withFoot) maxOf(1, stem - 1) else 0
-        val rows = canvas(width + foot, height)
-        fill(rows, foot, stem, stem, height - stem)
-        fill(rows, foot + width - stem, 0, stem, height)
-        for (row in 0 until stem) {
-            val cut = stem - 1 - row
-            fill(rows, foot + cut, row, width - cut, 1)
-        }
-        // The left leg flares out at its foot a step a row, the widest at the bottom: a slope
-        // in the face's pixels, with no pixel standing alone.
-        if (withFoot) {
-            for (step in 0 until foot) fill(rows, step, height - 1 - step, foot - step, 1)
+    private fun el(height: Int): MutableList<BooleanArray> {
+        if (height == xHeight) return master('л')
+        val slope = when (cap) { 10 -> 1; 15 -> 2; else -> 3 }
+        val rows = canvas(width, height)
+        fill(rows, width - stem, 0, stem, height)
+        fill(rows, slope, 0, width - slope, stem)
+        for (row in stem until height) {
+            val offset = slope * (height - 1 - row) / (height - stem - 1)
+            fill(rows, offset, row, stem, 1)
         }
         return rows
     }
 
     private fun de(height: Int): Pair<MutableList<BooleanArray>, Int> {
-        val over = maxOf(1, stem - 1)
-        val depth = maxOf(2, stem - 1)
-        val body = el(height, withFoot = false)
+        if (height == xHeight) return master('д') to height
+        val over = metrics.overhang
+        val depth = metrics.tailDepth
+        val body = el(height)
         val rows = canvas(width + 2 * over, height + depth)
         blit(rows, body, over, 0)
         fill(rows, 0, height - stem, rows[0].size, stem)
@@ -306,23 +383,18 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         return rows
     }
 
-    /** The bowl of U on its right stem: the bottom of the bowl runs into the stem whole, so Ч is
-     * not taken for a 4. The stem goes on alone for two fifths of the height. */
-    private fun che(height: Int, source: List<BooleanArray>): MutableList<BooleanArray> {
-        val sourceWidth = source[0].size
-        val alone = maxOf(stem + 1, height * 2 / 5)
-        val bowl = squash(source, height - alone)
-        // Under the counter, the outer corner at the right is filled: there the stem goes on.
-        for (row in bowl) {
-            val isTwoStems = (0 until stem).all { row[it] } && (stem until sourceWidth - stem).none { row[it] }
-            if (!isTwoStems && row.any { it }) {
-                val last = row.lastIndexOf(true)
-                for (column in last until sourceWidth) row[column] = true
-            }
+    /** A vertical entry and a rounded shoulder; the right stem continues below the join. */
+    private fun che(height: Int): MutableList<BooleanArray> {
+        if (height == xHeight) return master('ч')
+        val rows = canvas(width, height)
+        val joinTop = height / 2 - metrics.roundCap / 2
+        fill(rows, 0, 0, stem, joinTop)
+        fill(rows, width - stem, 0, stem, height)
+        for (row in 0 until metrics.roundCap) {
+            val inset = minOf(row + 1, stem - 1)
+            fill(rows, inset, joinTop + row, width - inset, 1)
         }
-        val tail = canvas(sourceWidth, alone)
-        fill(tail, sourceWidth - stem, 0, stem, alone)
-        return (bowl + tail).toMutableList()
+        return rows
     }
 
     private fun zhe(arms: List<BooleanArray>) = beside(mirror(arms), twoStems(arms.size, stem), arms)
@@ -331,7 +403,10 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         val rows = mirror(source)
         val height = rows.size
         val rowWidth = rows[0].size
-        fill(rows, rowWidth / 2 - 1, (height - stem) / 2, rowWidth - rowWidth / 2 + 1 - stem, stem)
+        val weight = bar(height)
+        val start = if (height == xHeight) maxOf(1, stem / 2) else stem
+        val middle = if (height == xHeight) render('e'.code)!!.rows.indexOfFirst { row -> row.all { it } } else (height - weight) / 2
+        fill(rows, start, middle, rowWidth - start, weight)
         return rows
     }
 
@@ -358,14 +433,14 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         val rows = canvas(stem + gap + source[0].size, height)
         fill(rows, 0, 0, stem, height)
         blit(rows, source, stem + gap, 0)
-        fill(rows, stem, (height - stem) / 2, gap + 1, stem)
+        val weight = bar(height)
+        fill(rows, stem, (height - weight) / 2, gap + 1, weight)
         return rows
     }
 
-    /** Ь and a stem, a pixel closer than the stems of Н: further and they are two letters,
-     * nearer and the bowl runs into the stem. */
+    /** The gap stays smaller than the separation of two glyphs. */
     private fun yeru(soft: List<BooleanArray>): MutableList<BooleanArray> {
-        val gap = maxOf(2, width - 2 * stem - 1)
+        val gap = metrics.internalGap
         return beside(soft, canvas(gap, soft.size), twoStems(soft.size, stem))
     }
 
@@ -373,7 +448,7 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
         val over = stem
         val rows = canvas(soft[0].size + over, soft.size)
         blit(rows, soft, over, 0)
-        fill(rows, 0, 0, over + stem, stem)
+        fill(rows, 0, 0, over + stem, bar(soft.size))
         return rows
     }
 
@@ -389,23 +464,702 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
 
     private fun ieUkrainian(source: List<BooleanArray>): MutableList<BooleanArray> {
         val rows = copy(source)
-        fill(rows, stem, (rows.size - stem) / 2, rows[0].size / 2, stem)
+        val weight = bar(rows.size)
+        val middle = if (rows.size == xHeight) render('e'.code)!!.rows.indexOfFirst { row -> row.all { it } } else (rows.size - weight) / 2
+        fill(rows, stem, middle, rows[0].size - stem, weight)
         return rows
     }
+
+
+    // These are native-pixel drawings, not scaled copies of another Jersey face.
+    private fun drawings(): Map<Char, String> = when (cap) {
+        10 -> mapOf(
+            'б' to """
+                .######
+                ##.....
+                ######.
+                #######
+                ##...##
+                ##...##
+                ##...##
+                ##...##
+                #######
+                .#####.
+            """,
+            'в' to """
+                #####..
+                ##..##.
+                ##..##.
+                ######.
+                ##...##
+                ##...##
+                ######.
+                #####..
+            """,
+            'з' to """
+                .####..
+                ##..##.
+                ....##.
+                ..###..
+                .....##
+                ##...##
+                .######
+                ..####.
+            """,
+            'и' to """
+                ##...##
+                ##...##
+                ##..###
+                ##.####
+                ####.##
+                ###..##
+                ##...##
+                ##...##
+            """,
+            'ж' to """
+                ##..##..##
+                ##..##..##
+                .##.##.##.
+                ..######..
+                .##.##.##.
+                ##..##..##
+                ##..##..##
+                ##..##..##
+            """,
+            'к' to """
+                ##..##
+                ##..##
+                ##.##.
+                ####..
+                ##.##.
+                ##..##
+                ##..##
+                ##..##
+            """,
+            'л' to """
+                ..#####
+                ..#####
+                .##..##
+                .##..##
+                ##...##
+                ##...##
+                ##...##
+                ##...##
+            """,
+            'д' to """
+                ...#####.
+                ...#####.
+                ..##..##.
+                ..##..##.
+                .##...##.
+                .##...##.
+                #########
+                #########
+                ##.....##
+                ##.....##
+            """,
+            'ч' to """
+                ##...##
+                ##...##
+                ###..##
+                .######
+                ..#####
+                .....##
+                .....##
+                .....##
+            """,
+            'ь' to """
+                ##.....
+                ##.....
+                #####..
+                ######.
+                ##...##
+                ##...##
+                ######.
+                #####..
+            """,
+            'я' to """
+                .######
+                ##...##
+                ##...##
+                .######
+                ..#####
+                ..##.##
+                .##..##
+                ##...##
+            """,
+            'м' to """
+                ##......##
+                ###....###
+                ####..####
+                ##.####.##
+                ##..##..##
+                ##..##..##
+                ##......##
+                ##......##
+            """,
+            'У' to """
+                ##...##
+                ##...##
+                ##...##
+                ###.###
+                .######
+                ..####.
+                ...##..
+                ..##...
+                .##....
+                ##.....
+            """,
+            'З' to """
+                .####..
+                ######.
+                ##..##.
+                ....##.
+                ..###..
+                .....##
+                .....##
+                ##...##
+                #######
+                .#####.
+            """,
+        )
+        15 -> mapOf(
+            'б' to """
+                ..########
+                .#########
+                ###.......
+                ###.......
+                #########.
+                ##########
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+                ##########
+                .########.
+                ..######..
+            """,
+            'в' to """
+                ########..
+                #########.
+                ###....###
+                ###....###
+                #########.
+                ########..
+                ###....###
+                ###....###
+                ###....###
+                #########.
+                ########..
+            """,
+            'з' to """
+                ..#####...
+                .#######..
+                ###...###.
+                ......###.
+                ...#####..
+                ......###.
+                .......###
+                ###....###
+                ###....###
+                .########.
+                ..######..
+            """,
+            'и' to """
+                ###....###
+                ###...####
+                ###...####
+                ###..#####
+                ###..#####
+                ###.######
+                ######.###
+                ######.###
+                #####..###
+                #####..###
+                ####...###
+            """,
+            'ж' to """
+                ###...###...###
+                ###...###...###
+                ###...###...###
+                .###..###..###.
+                ..###.###.###..
+                ...#########...
+                ..###.###.###..
+                .###..###..###.
+                ###...###...###
+                ###...###...###
+                ###...###...###
+            """,
+            'к' to """
+                ###..###
+                ###..###
+                ###..###
+                ###.####
+                #######.
+                ######..
+                #######.
+                ###.####
+                ###..###
+                ###..###
+                ###..###
+            """,
+            'л' to """
+                ..########
+                ..########
+                ..###..###
+                ..###..###
+                .###...###
+                .###...###
+                .###...###
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+            """,
+            'д' to """
+                ...########.
+                ...########.
+                ...###..###.
+                ...###..###.
+                ..###...###.
+                ..###...###.
+                ..###...###.
+                .###....###.
+                .###....###.
+                ############
+                ############
+                ###......###
+                ###......###
+                ###......###
+            """,
+            'ч' to """
+                ###....###
+                ###....###
+                ###....###
+                ####...###
+                .#########
+                ..########
+                .......###
+                .......###
+                .......###
+                .......###
+                .......###
+            """,
+            'ь' to """
+                ###.......
+                ###.......
+                ###.......
+                ###.......
+                ########..
+                #########.
+                ###....###
+                ###....###
+                ###....###
+                #########.
+                ########..
+            """,
+            'я' to """
+                ..########
+                .#########
+                ###....###
+                ###....###
+                .#########
+                ..########
+                ...###.###
+                ..###..###
+                .###...###
+                ###....###
+                ###....###
+            """,
+            'м' to """
+                ###.........###
+                ####.......####
+                #####.....#####
+                ######...######
+                ###.###.###.###
+                ###..#####..###
+                ###...###...###
+                ###...###...###
+                ###.........###
+                ###.........###
+                ###.........###
+            """,
+            'У' to """
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+                ###....###
+                ####..####
+                .########.
+                ..######..
+                ...####...
+                ....###...
+                ...####...
+                ..####....
+                .####.....
+                ####......
+                ###.......
+            """,
+            'З' to """
+                .######...
+                .########.
+                ##########
+                ###....###
+                .......###
+                ......####
+                ...######.
+                ...######.
+                ......####
+                .......###
+                .......###
+                ###....###
+                ##########
+                .########.
+                ..######..
+            """,
+        )
+        else -> drawings25()
+    }
+
+
+    private fun drawings25(): Map<Char, String> = mapOf(
+        'б' to """
+            ..##############
+            .###############
+            ################
+            #####...........
+            #####...........
+            #####...........
+            ############....
+            ##############..
+            ###############.
+            ###############.
+            ######....######
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            ######....######
+            .##############.
+            .##############.
+            ..############..
+            ....########....
+        """,
+        'в' to """
+            ############....
+            ##############..
+            ###############.
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            ###############.
+            ##############..
+            ###############.
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            ###############.
+            ##############..
+            ############....
+        """,
+        'з' to """
+            ...#########....
+            .#############..
+            ###############.
+            #####......#####
+            ...........#####
+            ...........#####
+            ..........######
+            .....##########.
+            .....#########..
+            .....##########.
+            ..........######
+            ...........#####
+            ...........#####
+            ...........#####
+            #####......#####
+            ######....######
+            .##############.
+            ..############..
+            ....########....
+        """,
+        'и' to """
+            #####......#####
+            #####......#####
+            #####.....######
+            #####.....######
+            #####....#######
+            #####....#######
+            #####...########
+            #####...########
+            #####..#########
+            #####.##########
+            ##########.#####
+            #########..#####
+            #########..#####
+            ########...#####
+            ########...#####
+            #######....#####
+            #######....#####
+            ######.....#####
+            ######.....#####
+        """,
+        'ж' to """
+            #####....#####....#####
+            #####....#####....#####
+            #####....#####....#####
+            #####....#####....#####
+            .#####...#####...#####.
+            .#####...#####...#####.
+            ..#####..#####..#####..
+            ...#####.#####.#####...
+            ...#####.#####.#####...
+            .....#############.....
+            ...#####.#####.#####...
+            ...#####.#####.#####...
+            ..#####..#####..#####..
+            .#####...#####...#####.
+            .#####...#####...#####.
+            #####....#####....#####
+            #####....#####....#####
+            #####....#####....#####
+            #####....#####....#####
+        """,
+        'к' to """
+            #####....#####
+            #####....#####
+            #####....#####
+            #####....#####
+            #####...######
+            #####..######.
+            ############..
+            ###########...
+            ##########....
+            ###########...
+            ############..
+            #####..######.
+            #####...######
+            #####....#####
+            #####....#####
+            #####....#####
+            #####....#####
+            #####....#####
+            #####....#####
+        """,
+        'л' to """
+            ...#############
+            ...#############
+            ...#############
+            ...#####...#####
+            ...#####...#####
+            ...#####...#####
+            ..#####....#####
+            ..#####....#####
+            ..#####....#####
+            ..#####....#####
+            .#####.....#####
+            .#####.....#####
+            .#####.....#####
+            .#####.....#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+        """,
+        'д' to """
+            .....#############..
+            .....#############..
+            .....#############..
+            .....#####...#####..
+            .....#####...#####..
+            .....#####...#####..
+            ....#####....#####..
+            ....#####....#####..
+            ....#####....#####..
+            ....#####....#####..
+            ...#####.....#####..
+            ...#####.....#####..
+            ...#####.....#####..
+            ...#####.....#####..
+            ..#####......#####..
+            ..#####......#####..
+            ####################
+            ####################
+            ####################
+            #####..........#####
+            #####..........#####
+            #####..........#####
+            #####..........#####
+        """,
+        'ч' to """
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            ######.....#####
+            .###############
+            ..##############
+            ...#############
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+        """,
+        'ь' to """
+            #####...........
+            #####...........
+            #####...........
+            #####...........
+            #####...........
+            #####...........
+            #####...........
+            ############....
+            ##############..
+            ###############.
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            ###############.
+            ##############..
+            ############....
+        """,
+        'я' to """
+            ....############
+            ..##############
+            .###############
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            #####......#####
+            .###############
+            ..##############
+            ....############
+            .....#####.#####
+            .....#####.#####
+            ....#####..#####
+            ...#####...#####
+            ..#####....#####
+            .#####.....#####
+            #####......#####
+            #####......#####
+        """,
+        'м' to """
+            #####.............#####
+            #####.............#####
+            ######...........######
+            ######...........######
+            #######.........#######
+            ########.......########
+            #########.....#########
+            #####.#####.#####.#####
+            #####..#########..#####
+            #####...#######...#####
+            #####....#####....#####
+            #####....#####....#####
+            #####.............#####
+            #####.............#####
+            #####.............#####
+            #####.............#####
+            #####.............#####
+            #####.............#####
+            #####.............#####
+        """,
+        'У' to """
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            #####.......#####
+            ######.....######
+            .######...######.
+            ..######.######..
+            ...###########...
+            ....#########....
+            .....#######.....
+            ......#####......
+            .....######......
+            ....######.......
+            ...######........
+            ..######.........
+            .######..........
+            ######...........
+            #####............
+        """,
+        'З' to """
+            ...#########....
+            .############...
+            ##############..
+            ###############.
+            ######....######
+            #####......#####
+            ...........#####
+            ...........#####
+            ..........######
+            .........######.
+            .....#########..
+            .....########...
+            .....#########..
+            ..........######
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            ...........#####
+            #####......#####
+            ######....######
+            .##############.
+            ..############..
+            ....########....
+        """,
+    )
 
     /** The letters made, by code point. */
     fun glyphs(): Map<Int, FontFace.Glyph> {
         val small = xHeight
         for ((cyrillic, source) in "АВЕКМНОРСТХЁІЇЈЅаеорсухёіїјѕ".zip("ABEKMHOPCTXËIÏJSaeopcyxëiïjs")) same(cyrillic, source)
 
-        val capital = "BCHKLMNORTU3".associateWith { latin(it).first }
-        // Small letters are the capitals at the height of x: bars and corners stay.
-        val lower = capital.mapValues { (_, rows) -> squash(rows, small) }.toMutableMap()
-        lower['B'] = thinBowls(capital.getValue('B'), small)
-        lower['3'] = thinBowls(capital.getValue('3'), small)
-        lower['N'] = resample(capital.getValue('N'), small)
-        val kSmall = latin('k').first
-        lower['K'] = kSmall.subList(kSmall.size - small, kSmall.size).toMutableList()
+        val capital = "BCHKLMNORTU".associateWith { latin(it).first }
+        val lower = mutableMapOf('H' to en(small), 'K' to master('к'))
+        val gheSmall = canvas(latin('L').first[0].size, small)
+        fill(gheSmall, 0, 0, stem, small)
+        fill(gheSmall, 0, 0, gheSmall[0].size, metrics.crossbar)
+        lower['L'] = upsideDown(gheSmall)
+        val teSmall = canvas(latin('T').first[0].size, small)
+        fill(teSmall, (teSmall[0].size - stem) / 2, 0, stem, small)
+        fill(teSmall, 0, 0, teSmall[0].size, metrics.crossbar)
+        lower['T'] = teSmall
         val oSmall = latin('o').first
         val cSmall = latin('c').first
 
@@ -416,8 +1170,8 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
             val ghe = upsideDown(source.getValue('L'))
             letter("Гг", ghe)
             letter("Ґґ", gheUpturn(ghe))
-            letter("Зз", source.getValue('3'))
-            val iCyrillic = mirror(source.getValue('N'))
+            letter("Зз", master(if (isSmall) 'з' else 'З'))
+            val iCyrillic = if (isSmall) master('и') else mirror(source.getValue('N'))
             letter("Ии", iCyrillic)
             letter("Йй", accent(iCyrillic, if (isSmall) 'ŭ' else 'Ŭ', if (isSmall) 'u' else 'U'))
             letter("Лл", el(height))
@@ -426,11 +1180,10 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
             letter("Цц", tail(tseBody(height)))
             letter("Щщ", tail(sha(height)))
             letter("Дд", de(height))
-            letter("Чч", che(height, source.getValue('U')))
-            letter("Яя", mirror(source.getValue('R')))
-            val arms = columns(source.getValue('K'), stem)
-            letter("Жж", zhe(arms))
-            val soft = softSign(height, source.getValue('B'))
+            letter("Чч", che(height))
+            letter("Яя", if (isSmall) master('я') else mirror(source.getValue('R')))
+            letter("Жж", if (isSmall) master('ж') else zhe(columns(source.getValue('K'), stem)))
+            val soft = if (isSmall) master('ь') else softSign(height, source.getValue('B'))
             letter("Ьь", soft)
             letter("Ыы", yeru(soft))
             letter("Ъъ", hardSign(soft))
@@ -466,17 +1219,17 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
                 put('Ә', schwa(source.getValue('O')))
                 put('№', numero(source.getValue('N'), oSmall))
                 put('Ф', ef(cap - 2 * (stem - 1), source.getValue('O'), stem - 1, stem - 1).first)
-                put('У', latin('y').first)
-                put('Ў', accent(latin('y').first, 'Ŭ', 'U'))
+                put('У', master('У'))
+                put('Ў', accent(master('У'), 'Ŭ', 'U'))
             } else {
-                put('в', source.getValue('B'))
+                put('в', master('в'))
                 same('ѐ', 'è')
                 same('һ', 'h')
                 val barred = render(0x0127) // h with a stroke
                 if (barred != null) {
                     out['ћ'.code] = barred
                     val (hooked, hookedTop) = tshe(true)
-                    out['ђ'.code] = FontFace.Glyph(hooked[0].size, hooked.size, left, hookedTop, left + hooked[0].size + right, hooked)
+                    put('ђ', hooked, hookedTop)
                 } else {
                     put('ћ', tshe(false))
                     put('ђ', tshe(true))
@@ -488,26 +1241,17 @@ class JerseyCyrillic(private val render: (Int) -> FontFace.Glyph?) {
                 put('ұ', stroke(tall, stemAt, stem, tall.size - 2 * stem), small)
                 put('ә', turned(latin('e').first))
                 put('к', source.getValue('K'))
-                put('м', source.getValue('M'))
+                put('м', master('м'))
                 put('н', source.getValue('H'))
                 put('т', source.getValue('T'))
-                // b with a flag at the top, as far right as its bowl reaches - where a row of
-                // the stem stands alone between the flag and the bowl; the smallest face has no
-                // room for it and keeps the 6.
-                val (bSmall, bTop) = latin('b')
-                if (bTop - small > stem) {
-                    val flagged = copy(bSmall)
-                    fill(flagged, 0, 0, flagged[0].size, stem)
-                    put('б', flagged, bTop)
-                } else {
-                    put('б', latin('6').first)
-                }
+                put('б', master('б'))
                 put('ф', ef(small, oSmall, cap - small, descent))
                 val (ySmall, yTop) = latin('y')
                 val marked = accent(ySmall, 'ŭ', 'u').first
                 put('ў', marked, yTop + marked.size - ySmall.size)
             }
         }
+        for ((code, glyph) in out) checkCounters(code.toChar(), glyph.rows)
         return out
     }
 }
