@@ -57,9 +57,9 @@ $(BUILD)/page.inc: $(PAGE)
 	mkdir -p $(BUILD)
 	od -An -v -tx1 $(PAGE) | sed -e 's/  */ /g' -e 's/^ //' -e 's/ $$//' -e 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' > $@
 
-$(BUILD)/host_imports.inc: $(SDK)/host_api.h $(ROOT)/tools/hostapi/gen_imports.py
+$(BUILD)/host_imports.inc: $(SDK)/host_api.h
 	mkdir -p $(BUILD)
-	python3 $(ROOT)/tools/hostapi/gen_imports.py $(SDK)/host_api.h $(BUILD)
+	$(ROOT)/tools/perinkpheral imports $(BUILD)
 
 # The binaries the CLion plugin carries. Linux is static (musl): it runs on any
 # distribution. Cross-built with zig.

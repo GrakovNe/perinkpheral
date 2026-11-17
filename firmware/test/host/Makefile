@@ -117,11 +117,11 @@ build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
 	(echo "static const unsigned char wrongarg_wasm[] = {"; xxd -i < $<; echo "};") > $@
 
-build/host_imports.inc: $(SDK)/host_api.h ../../../tools/hostapi/gen_imports.py
-	python3 ../../../tools/hostapi/gen_imports.py $(SDK)/host_api.h build
+build/host_imports.inc: $(SDK)/host_api.h
+	$(TOOLS) imports build
 
-build/src/every-call/every_call.c: gen_every_call.py $(SDK)/host_api.h
-	python3 gen_every_call.py $(SDK)/host_api.h build/src/every-call
+build/src/every-call/every_call.c: $(SDK)/host_api.h
+	$(TOOLS) every-call build/src/every-call
 
 build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
 	$(MKAPP) build/src/every-call --out build/every_call

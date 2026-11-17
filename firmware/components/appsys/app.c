@@ -90,7 +90,7 @@ static const struct {
     M3RawCall   function;
 } HOST_API[] = {
 #define HOST_IMPORT_ROW(name, signature) { #name, signature, app_api_##name },
-#include "host_imports.inc" /* made from sdk/host_api.h by tools/hostapi/gen_imports.py */
+#include "host_imports.inc" /* made from sdk/host_api.h by tools/perinkpheral imports */
 };
 #define HOST_API_COUNT (sizeof HOST_API / sizeof HOST_API[0])
 
@@ -100,7 +100,7 @@ static const struct {
     const char *signature;
     M3RawCall   function;
 } SYSTEM_API[] = {
-#include "system_imports.inc" /* made from sdk/host_api.h by tools/hostapi/gen_imports.py */
+#include "system_imports.inc" /* made from sdk/host_api.h by tools/perinkpheral imports */
 #undef HOST_IMPORT_ROW
 };
 #define SYSTEM_API_COUNT (sizeof SYSTEM_API / sizeof SYSTEM_API[0])

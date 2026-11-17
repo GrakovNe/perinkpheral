@@ -35,6 +35,11 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
                                               run the application in the simulator; Ctrl-C stops it
     perinkpheral preview [dir] [--font jersey] the host's screens as PNGs, rendered on this computer
 
+  What the project makes of its sources:
+    perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
+    perinkpheral every-call <dir>             an application that imports every call, for the tests
+    perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
+
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
     perinkpheral status                       what the device is and how it is doing
     perinkpheral log [--follow] [--app]       its log; --app: only the lines of applications
@@ -159,6 +164,9 @@ private fun run(raw: Array<String>): Int {
             val out = File(arguments.words.getOrNull(1) ?: File(System.getProperty("java.io.tmpdir"), "perinkpheral-preview").path)
             Preview.render(root(), out, arguments.option("font")).forEach { println(it.path) }
         }
+        "imports" -> ContractTools.imports(Sdk(root()).contract, File(arguments.word(1, "the folder")))
+        "every-call" -> ContractTools.everyCall(Sdk(root()).contract, File(arguments.word(1, "the folder")))
+        "check-limits" -> println("${ContractTools.checkLimits(Sdk(root()).contract, File(arguments.word(1, "the guide")))} limits of the guide agree with the headers")
         "new" -> {
             val folder = File(arguments.word(1, "the folder"))
             Applications.create(root(), folder, arguments.option("title").orEmpty(), ::cmakeLists)

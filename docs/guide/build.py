@@ -80,8 +80,8 @@ def main():
     args.add_argument("--out")
     options = args.parse_args()
     # A number of the guide that the headers have otherwise stops the build.
-    checked = subprocess.run([sys.executable, os.path.join(HERE, "check_limits.py")],
-                             capture_output=True, text=True)
+    checked = subprocess.run([os.path.join(HERE, "..", "..", "tools", "perinkpheral"), "check-limits",
+                              os.path.join(HERE, "guide.html")], capture_output=True, text=True)
     if checked.returncode != 0:
         sys.exit(checked.stderr.strip())
     suffix = "" if options.language == "en" else "." + options.language
