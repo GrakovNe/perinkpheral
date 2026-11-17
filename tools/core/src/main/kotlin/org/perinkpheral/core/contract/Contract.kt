@@ -23,6 +23,9 @@ class Contract(private val text: String, private val defines: Map<String, String
 
     val calls: List<Call> by lazy {
         val found = calls("HOST_IMPORT", false) + calls("HOST_SYSTEM_IMPORT", true)
+        found.groupBy { it.name }.filterValues { it.size > 1 }.keys.firstOrNull()?.let {
+            throw BuildError("sdk/host: $it is declared twice")
+        }
         if (found.size < MIN_CALLS) throw BuildError("sdk/host_api.h: only ${found.size} calls found - the header is read wrong")
         found
     }
@@ -149,10 +152,21 @@ class Contract(private val text: String, private val defines: Map<String, String
         private const val MIN_EXPORTS = 10
         private const val MAX_DEPTH = 8
 
-        /** The contract of an SDK folder: its host_api.h and lib/manifest_limits.h. */
+        /** The headers of the contract in the order the umbrella includes them: host_api.h,
+         * then each host/<subject>.h it names. */
+        fun headers(sdk: File): List<File> {
+            val umbrella = File(sdk, "host_api.h")
+            if (!umbrella.isFile) throw BuildError("${sdk.path} has no host_api.h")
+            val subjects = Regex("""^#include "(host/\w+\.h)"""", RegexOption.MULTILINE).findAll(umbrella.readText())
+                .map { File(sdk, it.groupValues[1]) }.toList()
+            subjects.firstOrNull { !it.isFile }?.let { throw BuildError("sdk/host_api.h includes ${it.path}, which is not there") }
+            return listOf(umbrella) + subjects
+        }
+
+        /** The contract of an SDK folder: its headers and lib/manifest_limits.h. */
         fun of(sdk: File): Contract {
-            val header = File(sdk, "host_api.h")
-            val headers = listOf(header, File(sdk, "lib/manifest_limits.h")).filter { it.isFile }
+            val contract = headers(sdk)
+            val headers = (contract + File(sdk, "lib/manifest_limits.h")).filter { it.isFile }
             val defines = LinkedHashMap<String, String>()
             headers.forEach { file ->
                 val withoutComments = file.readText().replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), " ")
@@ -162,7 +176,7 @@ class Contract(private val text: String, private val defines: Map<String, String
                     defines.putIfAbsent(name, body.trim().replace(Regex("""(\d+)[uUlL]+\b"""), "$1"))
                 }
             }
-            return Contract(header.readText(), defines)
+            return Contract(contract.joinToString("\n") { it.readText() }, defines)
         }
     }
 }

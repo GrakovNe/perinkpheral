@@ -57,7 +57,7 @@ $(BUILD)/page.inc: $(PAGE)
 	mkdir -p $(BUILD)
 	od -An -v -tx1 $(PAGE) | sed -e 's/  */ /g' -e 's/^ //' -e 's/ $$//' -e 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' > $@
 
-$(BUILD)/host_imports.inc: $(SDK)/host_api.h
+$(BUILD)/host_imports.inc: $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	mkdir -p $(BUILD)
 	$(ROOT)/tools/perinkpheral imports $(BUILD)
 

@@ -245,7 +245,7 @@ The host draws a header above its own screens and above every application that d
 - The network name and the address are on the second page of About, not in the header.
 
 ### Host API (wasm imports)
-The only contract is `sdk/host_api.h`; applications and the host's import table are built from it, and the build (`tools/perinkpheral build`) refuses a module that imports anything else. It is not frozen and, until the first release, not versioned: the contract is simply changed, with no backward compatibility, and the applications are rebuilt - the ones in `sdk/apps` with the firmware, the ones in perinkpheral-apps by `build.sh` there. `HOST_API_VERSION` and the manifest's `abi` exist for later and stay at 2 until then. What exists today:
+The only contract is `sdk/host_api.h`, written by subject in `sdk/host/` - `base` (the macros, the return codes, the log, `HOST_LAYOUT`), `app` (handlers, buttons, strings, redraw, the header, the stack, timers, intents), `gfx`, `ui` (the kit), `net`, `store` (the store and files), `time` (with alarms), `sys` - which the umbrella includes and the tools read in that order; a call's `HOST_SINCE_` stands beside it, and every struct that crosses the boundary is held to its size on both sides (`HOST_LAYOUT`). Applications and the host's import table are built from it, and the build (`tools/perinkpheral build`) refuses a module that imports anything else. It is not frozen and, until the first release, not versioned: the contract is simply changed, with no backward compatibility, and the applications are rebuilt - the ones in `sdk/apps` with the firmware, the ones in perinkpheral-apps by `build.sh` there. `HOST_API_VERSION` and the manifest's `abi` exist for later and stay at 2 until then. What exists today:
 ```
 gfx_width() / gfx_height()             // the surface: 400x300 full-screen, 400x260 under the header
 gfx_text(x, y, font_id, str_ptr, len)  // y is the top of the line; returns the width drawn
@@ -496,7 +496,8 @@ firmware/              the ESP-IDF project (build from this folder)
   test/host/           host tests of the pure modules (tinytest), and the checks of the layers and the languages
   test/sim/            the applications of this repository in the simulator, and the pictures kept of them
 sdk/
-  host_api.h           the only contract; applications and the host's import table are built from it
+  host_api.h           the only contract, the umbrella of host/; applications and the host's import table are built from it
+  host/                the contract by subject: base, app, gfx, ui, net, store, time, sys
   languages.json       the languages the system knows and the glyph packs each needs
   cmake/               applications as a CMake project for an IDE: the code understood, build, run and the page as targets
   lib/                 what applications link instead of a C library; json_pick, which the host builds too; app_ui, what the

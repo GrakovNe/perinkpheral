@@ -104,29 +104,29 @@ build/wasm3/%.o: $(WASM3)/%.c
 # A file as the bytes of a C array, by POSIX od: xxd is not everywhere.
 c_bytes = od -An -v -tx1 $(1) | sed -e 's/\([0-9a-f][0-9a-f]\)/0x\1,/g'
 
-build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(TOOLS)
+build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h) $(wildcard $(SDK)/lib/*) $(TOOLS)
 	$(MKAPP) apps/probe --out build/probe
 
 build/probe_wasm.h: build/probe/app.wasm
 	(echo "static const unsigned char probe_wasm[] = {"; $(call c_bytes,$<); \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
-build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(TOOLS)
+build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h) $(TOOLS)
 	$(MKAPP) apps/wrongret --out build/wrongret
 
 build/wrongret_wasm.h: build/wrongret/app.wasm
 	(echo "static const unsigned char wrongret_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
-build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(TOOLS)
+build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h) $(TOOLS)
 	$(MKAPP) apps/wrongarg --out build/wrongarg
 
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
 	(echo "static const unsigned char wrongarg_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
-build/host_imports.inc: $(SDK)/host_api.h
+build/host_imports.inc: $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	$(TOOLS) imports build
 
-build/src/every-call/every_call.c: $(SDK)/host_api.h
+build/src/every-call/every_call.c: $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	$(TOOLS) every-call build/src/every-call
 
 build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
@@ -145,7 +145,7 @@ test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wi
 test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_dns.h $(QR_SRCS) $(QR)/include/wifi_qr.h
 	$(CC) $(CFLAGS) -I$(NET)/include $(QR_INCS) -o $@ test_setup.c $(NET)/captive_dns.c $(QR_SRCS)
 
-test_sdk_lib: test_sdk_lib.c tinytest.h $(wildcard $(SDK_LIB)/*.c) $(wildcard $(SDK_LIB)/*.h) $(SDK)/host_api.h
+test_sdk_lib: test_sdk_lib.c tinytest.h $(wildcard $(SDK_LIB)/*.c) $(wildcard $(SDK_LIB)/*.h) $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	$(CC) $(CFLAGS) -I$(SDK) -I$(SDK_LIB) -o $@ test_sdk_lib.c
 
 test_json_pick: test_json_pick.c tinytest.h $(SDK_LIB)/json_pick.c $(SDK_LIB)/json_pick.h

@@ -81,7 +81,7 @@ if(CONFIG_APP_BUNDLE_APPS)
             file(REMOVE_RECURSE "${packed_dir}")
         endif()
     endforeach()
-    file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+    file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h" "${repo_dir}/sdk/host/*"
                                                     "${repo_dir}/tools/core/src/*"
                                                     "${repo_dir}/tools/cli/src/*")
     foreach(app_dir ${app_dirs})
@@ -106,7 +106,7 @@ if(NOT DEFINED ENV{WASI_SDK_PATH})
                         "own, and building them needs wasi-sdk.")
 endif()
 set(system_apps_dir "${CMAKE_BINARY_DIR}/system_apps")
-file(GLOB_RECURSE system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h"
+file(GLOB_RECURSE system_sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h" "${repo_dir}/sdk/host/*"
                                                        "${repo_dir}/tools/core/src/*"
                                                     "${repo_dir}/tools/cli/src/*")
 foreach(system_app about settings setup)
