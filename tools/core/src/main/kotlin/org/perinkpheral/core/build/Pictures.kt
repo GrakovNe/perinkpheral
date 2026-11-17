@@ -85,6 +85,28 @@ object Pictures {
         }
     }
 
+    /** The drawings of a text file, each under its name ("11:" for the host's icons), or under
+     * the file's when it has none: the one reader of the format, the host's icons and mark
+     * read by it as an application's pictures are. */
+    fun drawingsOf(file: File): List<Pair<String, List<BooleanArray>>> =
+        readText(file).map { (name, rows) -> (name ?: file.nameWithoutExtension) to rows }
+
+    /** Rows as the firmware takes them: a bit a cell, the leftmost the highest, every row in
+     * whole bytes. */
+    fun bits(rows: List<BooleanArray>): ByteArray {
+        val out = ByteArrayOutputStream()
+        for (row in rows) {
+            for (start in row.indices step 8) {
+                var byte = 0
+                for (i in 0 until minOf(8, row.size - start)) {
+                    if (row[start + i]) byte = byte or (0x80 ushr i)
+                }
+                out.write(byte)
+            }
+        }
+        return out.toByteArray()
+    }
+
     private fun readText(file: File): List<Pair<String?, List<BooleanArray>>> {
         val drawings = ArrayList<Pair<String?, List<BooleanArray>>>()
         var name: String? = null
@@ -92,7 +114,7 @@ object Pictures {
         file.readLines().forEachIndexed { index, raw ->
             val line = raw.trim()
             if (line.isEmpty() || line.startsWith("//")) return@forEachIndexed
-            if (Regex("[A-Za-z_][A-Za-z0-9_-]*:").matches(line)) {
+            if (Regex("[A-Za-z0-9_][A-Za-z0-9_-]*:").matches(line)) {
                 if (rows.isNotEmpty()) drawings += name to rows
                 name = line.dropLast(1)
                 rows = ArrayList()
@@ -260,15 +282,7 @@ object Pictures {
         val out = ByteArrayOutputStream()
         out.write(rows[0].size)
         out.write(rows.size)
-        for (row in rows) {
-            for (start in row.indices step 8) {
-                var byte = 0
-                for (i in 0 until minOf(8, row.size - start)) {
-                    if (row[start + i]) byte = byte or (0x80 ushr i)
-                }
-                out.write(byte)
-            }
-        }
+        out.write(bits(rows))
         return out.toByteArray()
     }
 

@@ -9,7 +9,7 @@
 #include "gfx_icons.h"
 
 /* The drawings of the host's icons (gfx_icon_art.c, made by
- * tools/fontgen/mkicons.py): an icon has a drawing of 11 cells square, and
+ * tools/perinkpheral icons): an icon has a drawing of 11 cells square, and
  * may have one of 22 and one of 44, each a bit a cell, row by row, a row
  * in whole bytes. */
 #define GFX_ICON_DRAWINGS 3 /* of 11, 22 and 44 cells */

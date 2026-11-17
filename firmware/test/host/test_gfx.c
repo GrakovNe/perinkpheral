@@ -440,7 +440,7 @@ static void test_digits_in_columns(void)
 #define ICON_SURFACE 100
 static uint8_t icon_bits[ICON_SURFACE / 8 * ICON_SURFACE + ICON_SURFACE];
 
-/* Whether a cell of a drawing is ink, as mkicons.py packs it: a row in whole bytes. */
+/* Whether a cell of a drawing is ink, as tools/perinkpheral icons packs it: a row in whole bytes. */
 static bool art_ink(const gfx_icon_drawing_t *drawing, int row, int column)
 {
     const uint8_t *at = GFX_ICON_BITS + drawing->at + row * ((drawing->cells + 7) / 8);

@@ -39,6 +39,8 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
+    perinkpheral icons                        the host's icons into gfx_icon_art.c
+    perinkpheral mark [<pixels> <file>]...    the mark into assets/mark, and on paper at other sizes
 
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
     perinkpheral status                       what the device is and how it is doing
@@ -167,6 +169,13 @@ private fun run(raw: Array<String>): Int {
         "imports" -> ContractTools.imports(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "every-call" -> ContractTools.everyCall(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "check-limits" -> println("${ContractTools.checkLimits(Sdk(root()).contract, File(arguments.word(1, "the guide")))} limits of the guide agree with the headers")
+        "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
+        "mark" -> {
+            val extra = arguments.words.drop(1).chunked(2).map { (pixels, file) -> pixels.toInt() to File(file) }
+            val rects = Icons.mark(root(), extra)
+            println("cells: " + rects.joinToString(", ") { "[${it.joinToString(", ")}]" })
+            println("path: " + rects.joinToString("") { (x, y, w, h) -> "M$x ${y}h${w}v${h}H${x}z" })
+        }
         "new" -> {
             val folder = File(arguments.word(1, "the folder"))
             Applications.create(root(), folder, arguments.option("title").orEmpty(), ::cmakeLists)

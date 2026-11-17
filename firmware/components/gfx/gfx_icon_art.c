@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * Made by tools/fontgen/mkicons.py from firmware/components/gfx/icons:
+ * Made by tools/perinkpheral icons from firmware/components/gfx/icons:
  * change the drawings there and run it again, not this file.
  */
 #include "gfx_icon_art.h"

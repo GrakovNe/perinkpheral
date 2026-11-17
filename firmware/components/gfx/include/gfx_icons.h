@@ -19,7 +19,7 @@ extern "C" {
  * as much thicker: drawn larger, it takes the finest drawing that fits,
  * so a curve or a slant stays smooth where the eleven would be steps.
  * The drawings are firmware/components/gfx/icons, made into
- * gfx_icon_art.c by tools/fontgen/mkicons.py. The order is the
+ * gfx_icon_art.c by tools/perinkpheral icons. The order is the
  * contract's (HOST_ICON_* in host_api.h). */
 #define GFX_ICON_CELLS 11
 
