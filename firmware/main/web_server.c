@@ -30,6 +30,7 @@
 #include "log_capture.h"
 #include "net_time.h"
 #include "app_system.h"
+#include "app_abi.h"
 #include "host_api.h"
 #include "events.h"
 #include "gfx_icons.h"
@@ -203,6 +204,11 @@ static esp_err_t handle_status(httpd_req_t *request)
     json_t *json = json_new_object();
     json_add_string(json, "name", settings.device_name);
     json_add_string(json, "firmware", esp_app_get_description()->version);
+    json_t *abis = json_new_array();
+    for (unsigned i = 0; i < sizeof APP_SUPPORTED_ABIS / sizeof APP_SUPPORTED_ABIS[0]; i++) {
+        json_array_add(abis, json_new_number(APP_SUPPORTED_ABIS[i]));
+    }
+    json_add_item(json, "supported_abis", abis);
     json_add_string(json, "slot", running != NULL ? running->label : "?");
     json_add_bool(json, "on_probation", ota_is_on_probation());
 #ifdef CONFIG_APP_DEV_CONSOLE

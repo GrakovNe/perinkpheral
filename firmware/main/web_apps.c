@@ -690,7 +690,7 @@ static const char *install_file(const char *source, const char *app_name, const 
         app_manifest_result_t result = is_read ? app_manifest_parse(text, &manifest)
                                                : APP_MANIFEST_NOT_JSON;
         if (result == APP_MANIFEST_OTHER_ABI) {
-            problem = "Incompatible firmware version.";
+            problem = "Update the app.";
         } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
             problem = "Invalid manifest.";
         } else if (!app_manifest_runs_on(&manifest, esp_app_get_description()->version)) {
@@ -918,7 +918,7 @@ static esp_err_t handle_install(httpd_req_t *request)
          * something else than its index promised. */
         bool is_conflict = strcmp(problem, "Not enough storage.") == 0 ||
                            strcmp(problem, "Update the firmware.") == 0 ||
-                           strcmp(problem, "Incompatible firmware version.") == 0;
+                           strcmp(problem, "Update the app.") == 0;
         const char *status = strcmp(problem, "Device busy.") == 0     ? "503 Service Unavailable"
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
                              : is_conflict                            ? "409 Conflict"

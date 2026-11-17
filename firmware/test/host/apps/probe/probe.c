@@ -113,7 +113,19 @@ void app_init(void)
     host_log(HOST_LOG_INFO, "init", 4);
 }
 
+/* Notification regressions: installation returns, update traps. */
+void app_on_installed(void)
+{
+    host_log(HOST_LOG_INFO, "installed", 9);
+}
+
+void app_on_updated(void)
+{
+    __builtin_trap();
+}
+
 void app_on_focus(void)
+
 {
     timer_set(TIMER_ON_FOCUS, 500);
 }

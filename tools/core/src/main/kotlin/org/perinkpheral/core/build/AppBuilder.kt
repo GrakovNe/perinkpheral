@@ -86,14 +86,11 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             // As it was written, and the least firmware it runs on: the latest the calls it
             // makes came with. A manifest may ask for more - for a behaviour, not a call - never less.
             val calls = module.imports.filter { it.first == HOST_MODULE }.map { it.second }
-            val (needed, byCall) = sdk.firmwareFor(calls)
+            val (needed, byCall) = sdk.firmwareFor(calls + module.exports)
             val declared = manifest["firmware"] as? String
-            if (declared != null && versionNumber(declared)!! < versionNumber(needed)!!) {
-                throw BuildError("${File(appDir, MANIFEST).path}: \"firmware\" is $declared, and $byCall came with $needed")
-            }
-            val firmware = declared ?: needed
+            val firmware = if (declared != null && versionNumber(declared)!! > versionNumber(needed)!!) declared else needed
             val firmwareLine = when {
-                declared != null -> "  firmware $firmware or later, as the manifest says"
+                declared == firmware -> "  firmware $firmware or later, as the manifest says"
                 byCall != null -> "  firmware $firmware or later, for $byCall"
                 else -> "  firmware $firmware or later"
             }
@@ -174,6 +171,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     }
 
     private fun checkModule(wasm: File, module: Wasm, asksForSystem: Boolean, writesFiles: Boolean) {
+        module.checkTypes(sdk.contract)
         val floats = floatOperations(wasm)
         if (floats.isNotEmpty()) {
             throw BuildError("${wasm.path} uses floating point (${floats.take(4).joinToString(", ")}). The device's " +

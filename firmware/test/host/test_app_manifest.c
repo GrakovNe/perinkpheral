@@ -19,7 +19,7 @@ static app_manifest_result_t parse(const char *json)
 static void test_complete(void)
 {
     CHECK(parse("{\"name\":\"hello\",\"title\":\"Hello\",\"version\":\"0.1.0\","
-                "\"abi\":2,\"fullscreen\":true}") == APP_MANIFEST_OK);
+                "\"abi\":3,\"fullscreen\":true}") == APP_MANIFEST_OK);
     CHECK_STR(manifest.name, "hello");
     CHECK_STR(manifest.title, "Hello");
     CHECK_STR(manifest.version, "0.1.0");
@@ -29,7 +29,7 @@ static void test_complete(void)
 static void test_defaults_and_unknown_fields(void)
 {
     /* no version, no fullscreen, and fields of a later host */
-    CHECK(parse("{\"name\":\"plex\",\"title\":\"Now Playing\",\"abi\":2,"
+    CHECK(parse("{\"name\":\"plex\",\"title\":\"Now Playing\",\"abi\":3,"
                 "\"hosts\":[\"192.168.1.10\"],"
                 "\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"}]}") == APP_MANIFEST_OK);
     CHECK_STR(manifest.version, "");
@@ -47,50 +47,54 @@ static void test_not_json(void)
 
 static void test_name(void)
 {
-    CHECK(parse("{\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
-    CHECK(parse("{\"name\":\"\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
-    CHECK(parse("{\"name\":5,\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"name\":\"\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"name\":5,\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
     /* it becomes a folder and a settings namespace: no capitals, no paths */
-    CHECK(parse("{\"name\":\"Hello\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
-    CHECK(parse("{\"name\":\"../x\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
-    CHECK(parse("{\"name\":\"a b\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"name\":\"Hello\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"name\":\"../x\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
+    CHECK(parse("{\"name\":\"a b\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_BAD_NAME);
 
-    CHECK(parse("{\"name\":\"a234567890123\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK);
-    CHECK(parse("{\"name\":\"a2345678901234\",\"title\":\"T\",\"abi\":2}") ==
+    CHECK(parse("{\"name\":\"a234567890123\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a2345678901234\",\"title\":\"T\",\"abi\":3}") ==
           APP_MANIFEST_BAD_NAME);
-    CHECK(parse("{\"name\":\"my-app_2\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"my-app_2\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK);
 }
 
 static void test_title(void)
 {
-    CHECK(parse("{\"name\":\"a\",\"abi\":2}") == APP_MANIFEST_BAD_TITLE);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"\",\"abi\":2}") == APP_MANIFEST_BAD_TITLE);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"12345678901234567890123\",\"abi\":2}") ==
+    CHECK(parse("{\"name\":\"a\",\"abi\":3}") == APP_MANIFEST_BAD_TITLE);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"\",\"abi\":3}") == APP_MANIFEST_BAD_TITLE);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"12345678901234567890123\",\"abi\":3}") ==
           APP_MANIFEST_OK);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"123456789012345678901234\",\"abi\":2}") ==
+    CHECK(parse("{\"name\":\"a\",\"title\":\"123456789012345678901234\",\"abi\":3}") ==
           APP_MANIFEST_BAD_TITLE);
 }
 
 static void test_other_fields(void)
 {
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"fullscreen\":\"yes\"}") ==
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"fullscreen\":\"yes\"}") ==
           APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"version\":7}") ==
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"version\":7}") ==
           APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"version\":\"123456789012345\"}") ==
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"version\":\"123456789012345\"}") ==
           APP_MANIFEST_OK);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"version\":\"1234567890123456\"}") ==
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"version\":\"1234567890123456\"}") ==
           APP_MANIFEST_BAD_FIELD);
     /* a zero inside a string would cut it short unnoticed */
-    CHECK(parse("{\"name\":\"good\\u0000x\",\"title\":\"T\",\"abi\":2}") != APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"good\\u0000x\",\"title\":\"T\",\"abi\":3}") != APP_MANIFEST_OK);
 }
 
 static void test_abi(void)
 {
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OTHER_ABI);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK);
+    CHECK(manifest.abi == 3);
+    CHECK_STR(app_manifest_result_text(APP_MANIFEST_OTHER_ABI), "Update the app.");
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\"}") == APP_MANIFEST_OTHER_ABI);
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":1}") == APP_MANIFEST_OTHER_ABI);
     CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":\"1\"}") == APP_MANIFEST_OTHER_ABI);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2.5}") == APP_MANIFEST_OTHER_ABI);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3.5}") == APP_MANIFEST_OTHER_ABI);
 }
 
 /* The least firmware an application runs on, and versions as numbers. */
@@ -107,41 +111,41 @@ static void test_firmware(void)
     }
 
     app_manifest_t parsed;
-    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", &parsed) == APP_MANIFEST_OK);
+    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}", &parsed) == APP_MANIFEST_OK);
     CHECK(parsed.firmware == 0 && app_manifest_runs_on(&parsed, "0.0.1"));
-    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":\"0.1.8\"}", &parsed) ==
+    CHECK(app_manifest_parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"firmware\":\"0.1.8\"}", &parsed) ==
           APP_MANIFEST_OK);
     CHECK(parsed.firmware == 1008);
     CHECK(app_manifest_runs_on(&parsed, "0.1.8") && app_manifest_runs_on(&parsed, "0.1.8-0adbfb4"));
     CHECK(app_manifest_runs_on(&parsed, "0.2.0") && !app_manifest_runs_on(&parsed, "0.1.7"));
     CHECK(app_manifest_runs_on(&parsed, NULL) && app_manifest_runs_on(&parsed, "unknown"));
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":\"new\"}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"firmware\":8}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"firmware\":\"new\"}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"firmware\":8}") == APP_MANIFEST_BAD_FIELD);
 }
 
 static void test_settings(void)
 {
-    const char *good = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"},{\"key\":\"units\",\"type\":\"choice\",\"title\":\"Units\",\"options\":[\"celsius\",\"fahrenheit\"],\"help\":\"What the numbers are in.\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"Latitude\"},{\"key\":\"big\",\"type\":\"toggle\",\"title\":\"Large digits\"},{\"key\":\"city\",\"type\":\"text\",\"title\":\"City\"}]}";
+    const char *good = "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"},{\"key\":\"units\",\"type\":\"choice\",\"title\":\"Units\",\"options\":[\"celsius\",\"fahrenheit\"],\"help\":\"What the numbers are in.\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"Latitude\"},{\"key\":\"big\",\"type\":\"toggle\",\"title\":\"Large digits\"},{\"key\":\"city\",\"type\":\"text\",\"title\":\"City\"}]}";
     CHECK(parse(good) == APP_MANIFEST_OK);
     /* no settings at all is fine too */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK);
 
     static const char *const BAD[] = {
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":\"nope\"}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"type\":\"text\",\"title\":\"No key\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"title\":\"No type\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"text\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"colour\",\"title\":\"Unknown type\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"has space\",\"type\":\"text\",\"title\":\"T\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"0123456789012345\",\"type\":\"text\",\"title\":\"T\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[]}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[1]}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"options\":[\"a\"]}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"help\":7}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"A\"},{\"key\":\"k\",\"type\":\"number\",\"title\":\"B\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k0\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k1\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k2\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k3\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k4\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k5\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k6\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k7\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k8\",\"type\":\"text\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":\"nope\"}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"type\":\"text\",\"title\":\"No key\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"title\":\"No type\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"text\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"colour\",\"title\":\"Unknown type\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"has space\",\"type\":\"text\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"0123456789012345\",\"type\":\"text\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"choice\",\"title\":\"T\",\"options\":[1]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"options\":[\"a\"]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"T\",\"help\":7}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\",\"type\":\"text\",\"title\":\"A\"},{\"key\":\"k\",\"type\":\"number\",\"title\":\"B\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k0\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k1\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k2\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k3\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k4\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k5\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k6\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k7\",\"type\":\"text\",\"title\":\"T\"},{\"key\":\"k8\",\"type\":\"text\",\"title\":\"T\"}]}",
     };
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         CHECK(parse(BAD[i]) == APP_MANIFEST_BAD_SETTING);
@@ -175,46 +179,46 @@ static void test_settings(void)
     CHECK(!app_manifest_accepts_setting(good, "city", too_long, NULL));
 
     /* a place is a name, and names the two numbers the page fills for it */
-    const char *with_place = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}";
+    const char *with_place = "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}";
     CHECK(parse(with_place) == APP_MANIFEST_OK);
     CHECK(app_manifest_accepts_setting(with_place, "city", "Berlin, Germany", NULL));
     CHECK(app_manifest_accepts_setting(with_place, "lat", "52.52", NULL));
     CHECK(!app_manifest_accepts_setting(with_place, "lon", "east", NULL));
     static const char *const BAD_PLACES[] = {
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lat\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"text\",\"title\":\"N\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lat\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"number\",\"title\":\"N\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"city\",\"type\":\"place\",\"title\":\"City\",\"latitude\":\"lat\",\"longitude\":\"lon\"},{\"key\":\"lat\",\"type\":\"number\",\"title\":\"N\"},{\"key\":\"lon\",\"type\":\"text\",\"title\":\"N\"}]}",
     };
     for (size_t i = 0; i < sizeof BAD_PLACES / sizeof BAD_PLACES[0]; i++) {
         CHECK(parse(BAD_PLACES[i]) == APP_MANIFEST_BAD_SETTING);
     }
 
     /* the news an application asks for, by name; an unknown kind is a mistake */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && manifest.intents == 0);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":[\"time_changed\",\"network_up\",\"started\"]}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK && manifest.intents == 0);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"intents\":[\"time_changed\",\"network_up\",\"started\"]}") == APP_MANIFEST_OK);
     CHECK(manifest.intents == ((1u << HOST_INTENT_TIME_CHANGED) | (1u << HOST_INTENT_NETWORK_UP) |
                                (1u << HOST_INTENT_STARTED)));
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":[\"moon_phase\"]}") == APP_MANIFEST_BAD_INTENT);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"intents\":\"time_changed\"}") == APP_MANIFEST_BAD_INTENT);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"intents\":[\"moon_phase\"]}") == APP_MANIFEST_BAD_INTENT);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"intents\":\"time_changed\"}") == APP_MANIFEST_BAD_INTENT);
 
     /* the system API is asked for in so many words */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && !manifest.system);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":true}") == APP_MANIFEST_OK && manifest.system);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"system\":\"yes\"}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK && !manifest.system);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"system\":true}") == APP_MANIFEST_OK && manifest.system);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"system\":\"yes\"}") == APP_MANIFEST_BAD_FIELD);
 
     /* certificate authorities of its own: files of the package, two at most */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}") == APP_MANIFEST_OK && manifest.certificate_count == 0);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"root.pem\"]}") == APP_MANIFEST_OK &&
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK && manifest.certificate_count == 0);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\"root.pem\"]}") == APP_MANIFEST_OK &&
           manifest.certificate_count == 1);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"a.pem\",\"b.der\"]}") == APP_MANIFEST_OK &&
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\"a.pem\",\"b.der\"]}") == APP_MANIFEST_OK &&
           manifest.certificate_count == 2);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"a\",\"b\",\"c\"]}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":\"root.pem\"}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"../x\"]}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\".hidden\"]}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[\"app.wasm\"]}") == APP_MANIFEST_BAD_FIELD);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"certificates\":[1]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\"a\",\"b\",\"c\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":\"root.pem\"}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\"../x\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\".hidden\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[\"app.wasm\"]}") == APP_MANIFEST_BAD_FIELD);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"certificates\":[1]}") == APP_MANIFEST_BAD_FIELD);
     {
         char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
         CHECK(app_manifest_certificates("{\"certificates\":[\"a.pem\",\"b.der\"]}", files, 2) == 2 &&
@@ -224,13 +228,13 @@ static void test_settings(void)
     }
 
     /* a default is a value the setting itself would take */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"1\"},{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"15\"},{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"b\",\"options\":[\"a\",\"b\"]}]}") == APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"1\"},{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"15\"},{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"b\",\"options\":[\"a\",\"b\"]}]}") == APP_MANIFEST_OK);
     static const char *const BAD_DEFAULTS[] = {
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"yes\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":1}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"many\"}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"c\",\"options\":[\"a\",\"b\"]}]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"s\",\"type\":\"secret\",\"title\":\"T\",\"default\":\"x\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":\"yes\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"on\",\"type\":\"toggle\",\"title\":\"T\",\"default\":1}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"n\",\"type\":\"number\",\"title\":\"T\",\"default\":\"many\"}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"u\",\"type\":\"choice\",\"title\":\"T\",\"default\":\"c\",\"options\":[\"a\",\"b\"]}]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"s\",\"type\":\"secret\",\"title\":\"T\",\"default\":\"x\"}]}",
     };
     for (size_t i = 0; i < sizeof BAD_DEFAULTS / sizeof BAD_DEFAULTS[0]; i++) {
         CHECK(parse(BAD_DEFAULTS[i]) == APP_MANIFEST_BAD_SETTING);
@@ -253,7 +257,7 @@ static bool setting_value(void *context, const char *key, char *value, size_t va
 static void test_a_server_of_the_users_own(void)
 {
     const char *manifest =
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
         "\"settings\":[{\"key\":\"server\",\"type\":\"url\",\"title\":\"Server\"},"
         "{\"key\":\"token\",\"type\":\"secret\",\"title\":\"Token\"}],"
         "\"polls\":[{\"url\":\"{{server}}/api/states\",\"every\":60}],"
@@ -287,7 +291,7 @@ static void test_a_server_of_the_users_own(void)
 
     /* a link is a whole address the user was given, and the whole of a poll's */
     static const char CALENDAR[] =
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
         "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"Calendar\"}],"
         "\"hosts\":[\"{{feed}}\"],\"polls\":[{\"url\":\"{{feed}}\",\"every\":900}]}";
     CHECK(parse(CALENDAR) == APP_MANIFEST_OK);
@@ -303,20 +307,20 @@ static void test_a_server_of_the_users_own(void)
                                   setting_value, NULL));
     CHECK(!app_manifest_allows_url(CALENDAR, "https://evil.example/ical", setting_value, NULL));
     server_setting = NULL;
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
                 "\"settings\":[{\"key\":\"feed\",\"type\":\"link\",\"title\":\"C\"}],"
                 "\"polls\":[{\"url\":\"{{feed}}/more\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 
     /* a title is counted in characters: twenty-three of any European alphabet */
-    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
+    CHECK(parse("{\"name\":\"a\",\"abi\":3,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
                 "\xD0\xB0\xD1\x80\xD1\x8C \xD0\xB8 \xD0\xBD\xD0\xB0\xD0\xBF\xD0\xBE\xD0\xBC\xD0\xB8\xD0\xBD\xD0\xB0"
                 "\xD0\xBD\xD0\xB8\xD1\x8F\"}") == APP_MANIFEST_OK); /* "Календарь и напоминания": 23 */
-    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
+    CHECK(parse("{\"name\":\"a\",\"abi\":3,\"title\":\"\xD0\x9A\xD0\xB0\xD0\xBB\xD0\xB5\xD0\xBD\xD0\xB4"
                 "\xD0\xB0\xD1\x80\xD1\x8C \xD0\xB8 \xD0\xBD\xD0\xB0\xD0\xBF\xD0\xBE\xD0\xBC\xD0\xB8\xD0\xBD\xD0\xB0"
                 "\xD0\xBD\xD0\xB8\xD1\x8F!\"}") != APP_MANIFEST_OK); /* 24 */
-    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"123456789012345678901234\"}") != APP_MANIFEST_OK);
+    CHECK(parse("{\"name\":\"a\",\"abi\":3,\"title\":\"123456789012345678901234\"}") != APP_MANIFEST_OK);
     /* and not in characters of three bytes each: those would not fit */
-    CHECK(parse("{\"name\":\"a\",\"abi\":2,\"title\":\"\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD"
+    CHECK(parse("{\"name\":\"a\",\"abi\":3,\"title\":\"\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD"
                 "\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\xE4\xB8\xAD\"}") != APP_MANIFEST_OK);
 
     /* a poll's pace may be the user's choice in a setting */
@@ -326,29 +330,29 @@ static void test_a_server_of_the_users_own(void)
     CHECK(app_manifest_interval_seconds("5 parsecs") == 0 && app_manifest_interval_seconds("") == 0);
     {
         static const char PACED[] =
-            "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+            "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
             "\"settings\":[{\"key\":\"every\",\"type\":\"choice\",\"title\":\"Refresh\","
             "\"options\":[\"5 min\",\"1 h\"],\"default\":\"1 h\"}],"
             "\"polls\":[{\"url\":\"https://example.org/x\",\"every\":\"{{every}}\"}]}";
         app_manifest_t paced;
         CHECK(app_manifest_parse(PACED, &paced) == APP_MANIFEST_OK);
         CHECK(paced.poll_every_s[0] == 3600 && strcmp(paced.poll_every_key[0], "every") == 0);
-        CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+        CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
                     "\"polls\":[{\"url\":\"https://example.org/x\",\"every\":\"{{nothing}}\"}]}") ==
               APP_MANIFEST_BAD_POLL);
     }
 
     /* a poll or a host may begin with a setting only when it is a server's */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
                 "\"settings\":[{\"key\":\"server\",\"type\":\"text\",\"title\":\"S\"}],"
                 "\"polls\":[{\"url\":\"{{server}}/x\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
                 "\"polls\":[{\"url\":\"{{nobody}}/x\",\"every\":60}]}") == APP_MANIFEST_BAD_POLL);
 }
 
 static void test_companion(void)
 {
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,"
                 "\"companion\":\"https://example.org/a/setup.html\"}") == APP_MANIFEST_OK);
     /* a browser is to take a secret from it: https, and an address, not a script */
     static const char *const BAD[] = { "\"http://example.org/a\"", "\"https://\"",
@@ -356,14 +360,14 @@ static void test_companion(void)
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         char manifest[160];
         snprintf(manifest, sizeof manifest,
-                 "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"companion\":%s}", BAD[i]);
+                 "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"companion\":%s}", BAD[i]);
         CHECK(parse(manifest) == APP_MANIFEST_BAD_FIELD);
     }
 }
 
 static void test_hosts(void)
 {
-    const char *manifest = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[\"api.example.com\",\"192.168.1.10:32400\"]}";
+    const char *manifest = "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"hosts\":[\"api.example.com\",\"192.168.1.10:32400\"]}";
     CHECK(parse(manifest) == APP_MANIFEST_OK);
     CHECK(app_manifest_allows_url(manifest, "https://api.example.com/v1/x?y=1", NULL, NULL));
     CHECK(app_manifest_allows_url(manifest, "http://API.Example.com", NULL, NULL));
@@ -392,13 +396,13 @@ static void test_hosts(void)
     CHECK(!app_manifest_allows_url(manifest, "ftp://api.example.com/", NULL, NULL));
     CHECK(!app_manifest_allows_url(manifest, "https:///x", NULL, NULL) && !app_manifest_allows_url(manifest, "", NULL, NULL));
     /* no list: nowhere */
-    CHECK(!app_manifest_allows_url("{\"name\":\"a\",\"title\":\"T\",\"abi\":2}", "https://api.example.com/",
+    CHECK(!app_manifest_allows_url("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}", "https://api.example.com/",
                                    NULL, NULL));
     static const char *const BAD[] = {
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":\"api.example.com\"}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[1]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[\"\"]}",
-        "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"hosts\":[\"a\",\"b\",\"c\",\"d\",\"e\"]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"hosts\":\"api.example.com\"}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"hosts\":[1]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"hosts\":[\"\"]}",
+        "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"hosts\":[\"a\",\"b\",\"c\",\"d\",\"e\"]}",
     };
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         CHECK(parse(BAD[i]) == APP_MANIFEST_BAD_HOSTS);
@@ -407,7 +411,7 @@ static void test_hosts(void)
 
 static void test_list_setting(void)
 {
-    const char *json = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\","
+    const char *json = "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"t\","
                        "\"type\":\"list\",\"title\":\"Tickers\",\"default\":[\"AAPL\",\"MSFT\"]}]}";
     CHECK(parse(json) == APP_MANIFEST_OK);
     CHECK(app_manifest_setting_type(json, "t") == APP_SETTING_LIST);
@@ -421,11 +425,11 @@ static void test_list_setting(void)
     CHECK(app_manifest_accepts_setting(json, "t", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR",
                                        NULL));
     /* a line break is a list's alone */
-    const char *text = "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"k\","
+    const char *text = "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"k\","
                        "\"type\":\"text\",\"title\":\"K\"}]}";
     CHECK(!app_manifest_accepts_setting(text, "k", "a\nb", NULL));
     /* a list's default is a list */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"t\",\"type\":"
                 "\"list\",\"title\":\"T\",\"default\":\"AAPL\"}]}") == APP_MANIFEST_BAD_SETTING);
     /* a default as it would be stored: what a setting with nothing stored reads as */
     char preset[16];
@@ -434,7 +438,7 @@ static void test_list_setting(void)
     CHECK(app_manifest_setting_default(json, "t", preset, 9) == -2);
     CHECK(app_manifest_setting_default(json, "none", preset, sizeof preset) == -1);
     CHECK(app_manifest_setting_default(text, "k", preset, sizeof preset) == -1); /* no default */
-    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"settings\":[{\"key\":\"t\",\"type\":"
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"t\",\"type\":"
                 "\"list\",\"title\":\"T\",\"default\":[\"\"]}]}") == APP_MANIFEST_BAD_SETTING);
 }
 

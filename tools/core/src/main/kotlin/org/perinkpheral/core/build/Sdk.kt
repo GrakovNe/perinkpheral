@@ -39,10 +39,10 @@ class Sdk(val root: File) {
     /** The firmware a call came with, by HOST_SINCE_<call> of host_api.h; a call without a
      * line came with HOST_FIRMWARE_FIRST. Every line names a call and no version past VERSION. */
     val callSince: Map<String, String> by lazy {
-        val calls = contract.calls.map { it.name }.toSet()
+        val calls = (contract.calls.map { it.name } + contract.exports.map { it.name }).toSet()
         contract.namesStartingWith("HOST_SINCE_").associate { call ->
             val since = contract.string("HOST_SINCE_$call") ?: throw BuildError("sdk/host_api.h: HOST_SINCE_$call is not a version")
-            if (call !in calls) throw BuildError("sdk/host_api.h: HOST_SINCE_$call names no call")
+            if (call !in calls && contract.written(call) == null) throw BuildError("sdk/host_api.h: HOST_SINCE_$call names no contract entry")
             val number = versionNumber(since) ?: throw BuildError("sdk/host_api.h: HOST_SINCE_$call is not a version")
             if (number > versionNumber(version)!!) {
                 throw BuildError("sdk/host_api.h: HOST_SINCE_$call is $since, past VERSION $version")
@@ -58,9 +58,17 @@ class Sdk(val root: File) {
 
     /** The least firmware an application that makes these calls runs on, and the call that
      * asks for it (null when none asks for more than the first). */
-    fun firmwareFor(calls: Collection<String>): Pair<String, String?> =
-        calls.filter { it in callSince }.maxByOrNull { versionNumber(callSince.getValue(it))!! }
-            ?.let { callSince.getValue(it) to it } ?: (firmwareFirst to null)
+    fun firmwareFor(calls: Collection<String>): Pair<String, String?> {
+        val floor = contract.string("HOST_ABI_${hostApiVersion}_FIRMWARE_FIRST")
+            ?: throw BuildError("SDK has no first firmware for ABI $hostApiVersion")
+        if (versionNumber(floor) == null || versionNumber(floor)!! > versionNumber(version)!!) {
+            throw BuildError("ABI firmware floor $floor is invalid or past VERSION $version")
+        }
+        val newest = calls.filter { it in callSince }.maxByOrNull { versionNumber(callSince.getValue(it))!! }
+        return if (newest != null && versionNumber(callSince.getValue(newest))!! > versionNumber(floor)!!) {
+            callSince.getValue(newest) to newest
+        } else floor to null
+    }
 
     val hostApiVersion: Long by lazy { contract.number("HOST_API_VERSION") }
 

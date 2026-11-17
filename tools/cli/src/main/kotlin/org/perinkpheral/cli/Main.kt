@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 package org.perinkpheral.cli
 
+import org.perinkpheral.core.contract.ContractSnapshot
 import org.perinkpheral.core.BuildError
 import org.perinkpheral.core.Json
 import org.perinkpheral.core.app.Applications
@@ -37,6 +38,8 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral sim-test <dir> [--update]    applications in the simulator, their screens against kept pictures
 
   What the project makes of its sources:
+    perinkpheral contract snapshot|check      record or check the frozen ABI (wasi-sdk required)
+    perinkpheral check-wasm <file>            check import/export wasm types against the contract
     perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
@@ -185,7 +188,18 @@ private fun run(raw: Array<String>): Int {
             val out = File(arguments.words.getOrNull(1) ?: File(System.getProperty("java.io.tmpdir"), "perinkpheral-preview").path)
             Preview.render(root(), out, arguments.option("font")).forEach { println(it.path) }
         }
-        "imports" -> ContractTools.imports(Sdk(root()).contract, File(arguments.word(1, "the folder")))
+        "contract" -> {
+            val sdk = Sdk(root())
+            val action = arguments.word(1, "snapshot or check")
+            if (action !in setOf("snapshot", "check")) fail("contract snapshot|check [--out file]")
+            ContractSnapshot.run(sdk, File(System.getenv("WASI_SDK_PATH") ?: fail("WASI_SDK_PATH is not set")),
+                File(arguments.option("out") ?: File(sdk.sdk, "abi/${sdk.hostApiVersion}.txt").path), action == "check")
+        }
+        "check-wasm" -> {
+            org.perinkpheral.core.build.Wasm(File(arguments.word(1, "the module"))).checkTypes(Sdk(root()).contract)
+        }
+        "imports" ->
+ ContractTools.imports(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "every-call" -> ContractTools.everyCall(Sdk(root()).contract, File(arguments.word(1, "the folder")))
         "check-limits" -> println("${ContractTools.checkLimits(Sdk(root()).contract, File(arguments.word(1, "the guide")))} limits of the guide agree with the headers")
         "page" -> FirmwareTools.page(File(arguments.word(1, "the folder of the page")), File(arguments.word(2, "the page")),

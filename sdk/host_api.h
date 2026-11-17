@@ -6,10 +6,10 @@
  * applications. Applications include this header and link the imports.
  * The host builds its import table from the same names.
  *
- * The API is not frozen before the first release and is not versioned
- * until then. A change requires rebuilding all applications.
- * HOST_API_VERSION and the "abi" field of a manifest stay at 2 until the
- * first release.
+ * ABI 3 is the first frozen generation. Existing names, signatures,
+ * privileges, layouts, values and meanings remain available on later
+ * firmware. Changing a signature or meaning requires a new ABI; additions
+ * use HOST_SINCE_<name> and a firmware minimum. ABI 2 is unsupported.
  *
  * The contract is written by subject in host/, and this header includes all
  * of it: an application includes this one. The tools read the headers in

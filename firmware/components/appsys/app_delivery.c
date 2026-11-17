@@ -40,6 +40,9 @@ static void call_handler(app_t *app, const app_delivery_t *delivery)
 
 static void call(app_t *app, const app_delivery_t *delivery)
 {
+    if (delivery->loaded != NULL) {
+        delivery->loaded(delivery->loaded_context);
+    }
     bool is_answer = delivery->kind == APP_DELIVERY_PIECE ||
                         delivery->kind == APP_DELIVERY_VALUES;
     if (is_answer) {
@@ -109,7 +112,7 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
 {
     bool is_on_screen = wm->current == owner && !wm->suspended;
     if (is_on_screen) {
-        app_t *app = app_scene_app(owner);
+        app_t *app = app_scene_loaded_app(owner);
         if (app != NULL) {
             call(app, delivery);
             /* On the screen there is nothing to ask for. */
@@ -150,7 +153,7 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     }
     app_t *app;
     if (state->in_background == owner) {
-        app = app_scene_app(owner);
+        app = app_scene_loaded_app(owner);
     } else {
         /* An answer for another application while one is still taking its
          * own does not happen - requests go one at a time - but if it did,

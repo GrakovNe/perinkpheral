@@ -174,3 +174,31 @@ bool text_template_fill_url(const char *template_text, text_template_value_fn va
 {
     return fill_or_empty(template_text, value_of, context, filled, filled_size, true);
 }
+
+text_request_result_t text_template_prepare_request(app_poll_t *poll, const char *manifest,
+                                                     text_template_value_fn value_of, void *context,
+                                                     char *url, size_t url_size)
+{
+    if (manifest != NULL) {
+        /* A queued request already expanded its URL. A brace in a link's
+         * literal path must not become another template at send time. */
+        size_t length = strlen(poll->url);
+        if (length >= url_size) {
+            return TEXT_REQUEST_NOT_READY;
+        }
+        memcpy(url, poll->url, length + 1);
+    } else if (!text_template_fill_url(poll->url, value_of, context, url, url_size)) {
+        return TEXT_REQUEST_NOT_READY;
+    }
+    if (manifest != NULL && !app_manifest_allows_url(manifest, url, value_of, context)) {
+        return TEXT_REQUEST_NOT_ALLOWED;
+    }
+    char expanded[APP_HEADER_VALUE_MAX + 1];
+    for (int i = 0; i < poll->header_count; i++) {
+        if (!text_template_fill(poll->headers[i].value, value_of, context, expanded, sizeof expanded)) {
+            return TEXT_REQUEST_NOT_READY;
+        }
+        memcpy(poll->headers[i].value, expanded, strlen(expanded) + 1);
+    }
+    return TEXT_REQUEST_READY;
+}

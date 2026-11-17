@@ -75,11 +75,11 @@ static void test_refusals(void)
 
 static void test_reading(void)
 {
-    json_t *tree = json_parse("{\"name\":\"clock\",\"abi\":2,\"half\":2.5,\"on\":true,"
+    json_t *tree = json_parse("{\"name\":\"clock\",\"abi\":3,\"half\":2.5,\"on\":true,"
                               "\"rows\":[\"a\",\"b\",\"c\"],\"in\":{\"k\":\"v\"}}");
     CHECK(tree != NULL && json_is_object(tree) && json_count(tree) == 6);
     CHECK(json_is_string(json_get(tree, "name")) && strcmp(json_get(tree, "name")->text, "clock") == 0);
-    CHECK(json_is_number(json_get(tree, "abi")) && json_get(tree, "abi")->number == 2 &&
+    CHECK(json_is_number(json_get(tree, "abi")) && json_get(tree, "abi")->number == 3 &&
           json_get(tree, "abi")->is_whole);
     CHECK(json_get(tree, "half")->number == 2 && !json_get(tree, "half")->is_whole);
     CHECK(json_is_bool(json_get(tree, "on")) && json_is_true(json_get(tree, "on")));

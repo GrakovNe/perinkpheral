@@ -80,7 +80,9 @@ HOST_IMPORT(gfx_text_ink, int32_t gfx_text_ink(int32_t font, const char *text, i
 
 /* Shortens `text` to `max_width` pixels. A text that does not fit is cut
  * between characters and "..." is appended. Writes the result to `fitted`
- * without a terminator. Returns its length; 0 if "..." alone does not fit. */
+ * without a terminator. Returns its length; 0 if "..." alone does not fit.
+ * HOST_ERR_NO_SPACE if capacity cannot hold the entire fitted result; no
+ * bytes are copied on error. Capacity 0 succeeds only for an empty result. */
 HOST_IMPORT(gfx_text_fit, int32_t gfx_text_fit(int32_t font, const char *text, int32_t length,
                                                int32_t max_width, char *fitted,
                                                int32_t capacity));
@@ -98,7 +100,8 @@ HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
 /* Sets the colour for the following calls: HOST_PAPER (0) to HOST_INK
  * (16). The colour is HOST_INK at the start of every app_on_draw().
  * Intermediate values are greys produced by dithering: N of every 16
- * pixels are inked, in a fixed 4 x 4 pattern. Use greys for filled areas
+ * pixels are inked, in a fixed 4 x 4 pattern. When the user disables
+ * dithering, 1..7 become paper and 8..15 ink. Use greys for filled areas
  * only; thin lines and small text become unreadable. */
 #define HOST_PAPER 0
 #define HOST_INK   16
@@ -195,7 +198,8 @@ HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t x, int32_t y, int32_t icon, int32
 /* Where an icon drawn at `cell` has ink, in pixels from its top left
  * corner: an icon does not fill its square, and one that stands beside
  * text or at an edge is placed by what is seen. Draws nothing; any time.
- * Returns HOST_ERR_ARGUMENT for an unknown icon. */
+ * first_x/first_y and last_x/last_y are inclusive ink coordinates.
+ * Returns HOST_ERR_ARGUMENT for an unknown icon, leaving ink untouched. */
 typedef struct host_icon_ink {
     int32_t first_x, last_x;
     int32_t first_y, last_y;

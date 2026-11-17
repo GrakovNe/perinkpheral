@@ -108,7 +108,7 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
 
 int32_t app_system_setting_get(const char *key, char *value, int32_t capacity)
 {
-    const appconf_field_t *field = appconf_field(key, strlen(key));
+    const appconf_field_t *field = appconf_application_field(key, strlen(key));
     if (field == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -129,7 +129,7 @@ int32_t app_system_setting_get(const char *key, char *value, int32_t capacity)
 
 int32_t app_system_setting_range(const char *key, int32_t *value, int32_t *least, int32_t *most)
 {
-    const appconf_field_t *field = appconf_field(key, strlen(key));
+    const appconf_field_t *field = appconf_application_field(key, strlen(key));
     if (field == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -161,6 +161,9 @@ static int32_t outcome(settings_outcome_t result)
 
 int32_t app_system_setting_set(const char *key, const char *value)
 {
+    if (appconf_application_field(key, strlen(key)) == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
     char problem[APPCONF_PROBLEM_MAX];
     return outcome(settings_set(key, strlen(key), value, problem, sizeof problem, NULL));
 }

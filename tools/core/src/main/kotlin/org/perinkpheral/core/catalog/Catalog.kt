@@ -15,7 +15,7 @@ import java.security.MessageDigest
  * on a device, and one index is written beside them, `catalog.json`:
  *
  *     { "catalog": 1,
- *       "apps": [ { "name": "clock", "title": "Clock", "version": "0.1.0", "abi": 2,
+ *       "apps": [ { "name": "clock", "title": "Clock", "version": "0.1.0", "abi": 3,
  *                   "description": "The time and the date, across the whole screen",
  *                   "translations": { "ru": { "title": "Часы", "description": "..." } },
  *                   "files": [ { "name": "app.wasm", "size": 1741, "sha256": "..." },
@@ -66,7 +66,7 @@ object Catalog {
     }
 
     private fun entryOf(built: Built): Map<String, Any?> {
-        val manifest = built.manifest
+        val manifest = Json.parse(File(built.dir, AppBuilder.MANIFEST).readText()) as Map<*, *>
         val files = AppBuilder.packageFiles(built.dir).map { name ->
             val data = File(built.dir, name).readBytes()
             linkedMapOf("name" to name, "size" to data.size.toLong(),
@@ -75,8 +75,7 @@ object Catalog {
         val entry = linkedMapOf<String, Any?>("name" to manifest["name"], "title" to manifest["title"],
             "version" to (manifest["version"] ?: ""), "abi" to manifest["abi"], "files" to files)
         // The least firmware it runs on, as the build stamped it: the page offers it to no other.
-        val stamped = Json.parse(File(built.dir, AppBuilder.MANIFEST).readText()) as? Map<*, *>
-        stamped?.get("firmware")?.let { entry["firmware"] = it }
+        manifest["firmware"]?.let { entry["firmware"] = it }
         // The page asks before it installs an application with the system API, or one that
         // trusts a certificate authority of its own: it names the authority.
         if (manifest["system"] == true) entry["system"] = true

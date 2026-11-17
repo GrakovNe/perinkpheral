@@ -43,6 +43,9 @@ typedef enum {
 } app_delivery_kind_t;
 
 typedef struct {
+    /* After loading, before entering the handler (including a trapping handler). */
+    void (*loaded)(void *context);
+    void *loaded_context;
     app_delivery_kind_t kind;
     int                 request;     /* the poll's number in the manifest; the alarm's, for an alarm */
     int                 http_status; /* or, when the request failed, a HOST_FAILED_* */

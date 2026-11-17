@@ -199,6 +199,12 @@ void host_ring_alarm(uint32_t app_id, int alarm_number)
     }
 }
 
+static void note_loaded_version(void *context)
+{
+    const app_manifest_t *app = context;
+    app_kv_set_seen_id(app->name, app->id);
+}
+
 /* An application that has not run here before, or ran as another version,
  * is told so once: loaded for the call when it is not on the screen. */
 static void tell_new_versions(void)
@@ -220,11 +226,12 @@ static void tell_new_versions(void)
         }
     }
     for (int i = 0; i < told; i++) {
-        /* Noted first: a version that crashes in the handler is not told
-         * again at every start. */
-        app_kv_set_seen_id(news[i].name, news[i].id);
+        /* Consumed only after loading, before calling the handler: a load
+         * failure can retry, a trap cannot cause a notification loop. */
         ESP_LOGI(TAG, "%s: %s", news[i].name, news[i].is_update ? "updated" : "installed");
-        app_delivery_t delivery = { .kind = news[i].is_update ? APP_DELIVERY_UPDATED
+        app_delivery_t delivery = { .loaded = note_loaded_version,
+                                    .loaded_context = (void *)launcher_find(news[i].name),
+                                    .kind = news[i].is_update ? APP_DELIVERY_UPDATED
                                                               : APP_DELIVERY_INSTALLED };
         host_deliver(news[i].name, &delivery);
     }

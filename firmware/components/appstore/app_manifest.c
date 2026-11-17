@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "app_manifest.h"
+#include "app_abi.h"
 
 _Static_assert(MANIFEST_PICK_PATHS_MAX == JSON_PICK_PATHS_MAX &&
                    MANIFEST_PICK_PATH_MAX == JSON_PICK_PATH_MAX,
@@ -944,9 +945,12 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
     }
 
     const json_t *abi = json_get(root, "abi");
-    if (!json_is_number(abi) || !abi->is_whole || abi->number != HOST_API_VERSION) {
+    if (!json_is_number(abi) || !abi->is_whole || abi->number < 0 ||
+        abi->number > UINT32_MAX || !app_abi_supported((uint32_t)abi->number)) {
         return APP_MANIFEST_OTHER_ABI;
     }
+
+    manifest->abi = (uint32_t)abi->number;
 
     if (!read_icon(json_get(root, "icon"), manifest)) {
         return APP_MANIFEST_BAD_FIELD;
@@ -1120,7 +1124,7 @@ const char *app_manifest_result_text(app_manifest_result_t result)
     case APP_MANIFEST_BAD_INTENT:
         return "\"intents\" must be a list of time_changed, network_up, started";
     case APP_MANIFEST_OTHER_ABI:
-        return "\"abi\" is missing or is not the one this host speaks";
+        return "Update the app.";
     case APP_MANIFEST_BAD_POLL:
         return "\"polls\" has more than 4 entries, one without an http(s) \"url\" and "
                "an \"every\" of 10 seconds to a day, or with \"each\" of no list setting";

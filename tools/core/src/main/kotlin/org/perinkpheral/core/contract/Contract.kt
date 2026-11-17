@@ -11,7 +11,7 @@ import java.io.File
  * a call's signature is written; the host's table of imports, the build's checks, the test
  * that imports every call and the guide's table of limits are all made from what is read here.
  */
-class Contract(private val text: String, private val defines: Map<String, String>) {
+class Contract(internal val text: String, private val defines: Map<String, String>) {
 
     /** A call of the host: `name` the import's (the macro's first argument), `declared` the C
      * function's, which need not be the same; the signature the interpreter's - i a number of
@@ -19,7 +19,7 @@ class Contract(private val text: String, private val defines: Map<String, String
     data class Call(val name: String, val declared: String, val signature: String, val isSystem: Boolean)
 
     /** A function an application may export and the host calls. */
-    data class Export(val name: String, val arguments: Int, val hasResult: Boolean)
+    data class Export(val name: String, val arguments: Int, val hasResult: Boolean, val signature: String)
 
     val calls: List<Call> by lazy {
         val found = calls("HOST_IMPORT", false) + calls("HOST_SYSTEM_IMPORT", true)
@@ -33,7 +33,7 @@ class Contract(private val text: String, private val defines: Map<String, String
     val exports: List<Export> by lazy {
         val found = declarations("APP_EXPORT").map { (name, result, declared, parameters) ->
             if (declared != name) throw BuildError("sdk/host_api.h: $name is exported as $declared")
-            Export(name, if (parameters == "void") 0 else parameters.split(',').size, result != "void")
+            Export(name, if (parameters == "void") 0 else parameters.split(',').size, result != "void", signature(name, result, parameters))
         }
         if (found.size < MIN_EXPORTS) throw BuildError("sdk/host_api.h: only ${found.size} exports found - the header is read wrong")
         found
@@ -55,16 +55,19 @@ class Contract(private val text: String, private val defines: Map<String, String
 
     private fun calls(macro: String, isSystem: Boolean): List<Call> =
         declarations(macro).map { (name, result, declared, parameters) ->
-            val signature = StringBuilder(if (result == "void") "v" else letter(result, name)).append('(')
-            if (parameters != "void") {
-                parameters.split(',').forEach { parameter ->
-                    // The type is what stands before the parameter's name.
-                    val type = parameter.trim().replace(Regex("""\b\w+\s*$"""), "").ifEmpty { parameter }
-                    signature.append(letter(type, name))
-                }
-            }
-            Call(name, declared, signature.append(')').toString(), isSystem)
+            Call(name, declared, signature(name, result, parameters), isSystem)
         }
+
+    private fun signature(name: String, result: String, parameters: String): String {
+        val signature = StringBuilder(if (result == "void") "v" else letter(result, name)).append('(')
+        if (parameters != "void") {
+            parameters.split(',').forEach { parameter ->
+                val type = parameter.trim().replace(Regex("""\b\w+\s*$"""), "").ifEmpty { parameter }
+                signature.append(letter(type, name))
+            }
+        }
+        return signature.append(')').toString()
+    }
 
     /** `MACRO(name, result declared(parameters));` - the four, the parameters on one line. */
     private fun declarations(macro: String): List<List<String>> =

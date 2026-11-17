@@ -92,7 +92,7 @@ static bool load(app_scene_t *self)
     }
     unsigned grants = (self->manifest.system ? APP_GRANT_SYSTEM : 0) |
                       (self->manifest.writes_files ? APP_GRANT_FILES : 0);
-    switch (app_load(self->manifest.name, self->module, module_size, grants, self->services,
+    switch (app_load(self->manifest.name, self->manifest.abi, self->module, module_size, grants, self->services,
                      &self->app)) {
     case APP_OK:
         return true;
@@ -297,6 +297,12 @@ static const scene_ops_t APP_SCENE_OPS = {
 static bool is_app_scene(const scene_t *scene)
 {
     return scene != NULL && scene->ops == &APP_SCENE_OPS;
+}
+
+app_t *app_scene_loaded_app(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    return is_app_scene(scene) ? self->app : NULL;
 }
 
 app_t *app_scene_app(scene_t *scene)

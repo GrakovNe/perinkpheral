@@ -1,6 +1,7 @@
 {
   "name": "probe",
   "title": "Probe",
+  "version": "0.1.1",
   "writes_files": true,
-  "abi": 2
+  "abi": 3
 }

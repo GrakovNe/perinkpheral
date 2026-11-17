@@ -54,7 +54,7 @@ object ContractTools {
                 "    (void)length;\n    (void)flags;\n    (void)http_status;\n}\n")
         })
         File(out, "manifest.json").writeText(Json.write(linkedMapOf(
-            "name" to out.name, "title" to "Every call", "abi" to 2L, "system" to true, "writes_files" to true)))
+            "name" to out.name, "title" to "Every call", "abi" to contract.number("HOST_API_VERSION"), "system" to true, "writes_files" to true)))
         File(out, "count.h").writeText("#define EVERY_CALL_COUNT ${calls.size}\n")
     }
 

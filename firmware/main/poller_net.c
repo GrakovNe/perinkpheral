@@ -17,6 +17,7 @@
 #include "mbedtls/x509_crt.h"
 
 #include "app_kv.h"
+#include "events.h"
 #include "app_manifest.h"
 #include "app_store.h"
 #include "host_api.h"
@@ -101,7 +102,6 @@ bool poller_net_setting_of(void *context, const char *key, char *value, size_t v
 typedef struct {
     app_poll_t poll;
     char       url[APP_URL_MAX + 1];
-    char       header_value[APP_HEADER_VALUE_MAX + 1];
     host_response_t response; /* what the headers of the answer said */
     const char *paths[JSON_PICK_PATHS_MAX];
     json_pick_t pick;
@@ -254,15 +254,42 @@ static esp_err_t attach_trust(void *conf)
     return err;
 }
 
-/* The request of request->poll with the settings put in. False when a
- * setting it needs is not there yet. */
-static bool prepare(request_t *request, const char *app_name, int method,
-                    esp_http_client_handle_t *client)
+/* The host loop is the sole writer of application KV values. Expanding
+ * the URL, authorizing it and copying every header in one call gives the
+ * request one settings snapshot, including multi-key page saves. */
+typedef struct {
+    request_t *request;
+    bool only_listed_hosts;
+    int failure;
+} preparation_t;
+
+static void prepare_in_host_loop(void *argument)
+{
+    preparation_t *preparation = argument;
+    request_t *request = preparation->request;
+    char *manifest = preparation->only_listed_hosts
+                         ? app_store_read_manifest(STORAGE_APPS_ROOT, request->app_name) : NULL;
+    if (preparation->only_listed_hosts && manifest == NULL) {
+        preparation->failure = HOST_FAILED_NOT_ALLOWED;
+        return;
+    }
+    text_request_result_t result = text_template_prepare_request(&request->poll, manifest,
+                                                                 request_value_of, request,
+                                                                 request->url, sizeof request->url);
+    free(manifest);
+    preparation->failure = result == TEXT_REQUEST_READY ? 0
+                           : result == TEXT_REQUEST_NOT_ALLOWED ? HOST_FAILED_NOT_ALLOWED
+                                                                : HOST_FAILED_NOT_READY;
+}
+
+static int prepare(request_t *request, const char *app_name, int method,
+                    bool only_listed_hosts, esp_http_client_handle_t *client)
 {
     request->app_name = app_name;
-    if (!text_template_fill_url(request->poll.url, request_value_of, request, request->url,
-                                sizeof request->url)) {
-        return false;
+    preparation_t preparation = { .request = request, .only_listed_hosts = only_listed_hosts };
+    events_call_patiently(prepare_in_host_loop, &preparation);
+    if (preparation.failure != 0) {
+        return preparation.failure;
     }
     esp_http_client_config_t config = {
         .url = request->url,
@@ -276,19 +303,13 @@ static bool prepare(request_t *request, const char *app_name, int method,
     };
     *client = esp_http_client_init(&config);
     if (*client == NULL) {
-        return false;
+        return HOST_FAILED_NOT_READY;
     }
     for (int i = 0; i < request->poll.header_count; i++) {
         const app_header_t *header = &request->poll.headers[i];
-        if (!text_template_fill(header->value, request_value_of, request,
-                                request->header_value, sizeof request->header_value)) {
-            esp_http_client_cleanup(*client);
-            *client = NULL;
-            return false;
-        }
-        esp_http_client_set_header(*client, header->name, request->header_value);
+        esp_http_client_set_header(*client, header->name, header->value);
     }
-    return true;
+    return 0;
 }
 
 /* How long a whole answer may take to read, besides the 15 s each read may
@@ -567,11 +588,12 @@ static void ask_network(request_t *request, const char *app_name, int number, in
 {
     bool wants_values = request->poll.pick_count > 0;
     esp_http_client_handle_t client = NULL;
-    if (!prepare(request, app_name, method, &client)) {
+    int preparation_failure = prepare(request, app_name, method, only_listed_hosts, &client);
+    if (preparation_failure != 0) {
         /* Most likely a setting that is not there yet: the application is
          * told, so that it can say what it is waiting for. */
         ESP_LOGI(TAG, "%s/%d: cannot be asked yet", app_name, number);
-        tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_READY);
+        tell_failure(app_name, number, wants_values, preparation_failure);
         return;
     }
     int64_t   started_ms = now_ms();

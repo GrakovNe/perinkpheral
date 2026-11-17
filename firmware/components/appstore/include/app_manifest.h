@@ -17,7 +17,7 @@ extern "C" {
 /* manifest.json of an application, as far as the host reads it today:
  *
  *   { "name": "plex", "title": "Now Playing", "version": "0.1.0",
- *     "abi": 1, "fullscreen": false,
+ *     "abi": 3, "fullscreen": false,
  *     "polls": [
  *       { "url": "http://192.168.1.10:32400/status/sessions",
  *         "headers": { "X-Plex-Token": "{{token}}" }, "every": 15 } ] }
@@ -60,6 +60,7 @@ typedef struct {
     /* The least firmware it runs on, as app_version_number() reads "0.1.8": the
      * SDK it was built with says so. 0: any. */
     uint32_t firmware;
+    uint32_t abi; /* preserved from the manifest through loading */
     bool fullscreen;                   /* absent means false: under the header */
     bool system;                       /* asks for the system API; absent means false */
     /* Writes files of its own ("writes_files"): HOST_FILES_WRITER_MAX of

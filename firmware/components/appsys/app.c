@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #include "app_internal.h"
+#include "app_abi.h"
 
 /* The interpreter's own stack of values, apart from the application's
  * memory. */
@@ -450,10 +451,13 @@ static void load_strings(app_t *app)
  * memory: it is refused instead, whoever forgot to unload the first. */
 static app_t *s_loaded;
 
-app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
+app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, size_t wasm_size,
                            unsigned grants, const app_services_t *services, app_t **loaded)
 {
     *loaded = NULL;
+    if (!app_abi_supported(abi)) {
+        return APP_ERR_OTHER_API;
+    }
     if (s_loaded != NULL) {
         /* The host's mistake, not the application's: said so, since the
          * screen can only say there is no room. */

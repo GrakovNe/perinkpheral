@@ -114,7 +114,7 @@
     <tr><td>Input</td><td>4 buttons</td></tr>
     <tr><td>Application</td><td>WebAssembly module and manifest</td></tr>
     <tr><td>Language</td><td>C, no standard library</td></tr>
-    <tr><td>Interface</td><td>one header, sdk/host_api.h, ABI 2</td></tr>
+    <tr><td>Interface</td><td>one header, sdk/host_api.h, ABI 3</td></tr>
     <tr><td>Memory</td><td>64 KB per application</td></tr>
     <tr><td>Build and upload</td><td>about 10 s, no reflashing</td></tr>
   </table>
@@ -123,8 +123,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 9, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API
-     is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT</div>
+  <div class="facts">revision 10, 2026-11-17 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Contents</h1>
@@ -385,7 +384,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   module  0.8 KB of 48.0 KB
   code    0.5 KB; running it takes about 13.0 KB of the interpreter's 64.0 KB
   memory  9.1 KB of 64.0 KB: 8.0 KB of stack, 1.1 KB of data; 54.9 KB left for app_alloc()
-  firmware any</pre>
+  firmware 0.1.23 or later</pre>
 <table>
   <tr><th style="width:14%">Line</th><th>Measures</th><th style="width:36%">When exceeded</th></tr>
   <tr><td class="c">module</td><td>File size: code and initial data. Executed from flash</td><td>Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing</td></tr>
@@ -425,7 +424,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   "title": "Plex Now Playing",
   "description": "What is playing on your Plex server.",
   "version": "0.1.0",
-  "abi": 2,
+  "abi": 3,
   "hosts": ["{{server}}"],
   "polls": [
     { "url": "{{server}}/status/sessions", "every": "{{every}}",
@@ -448,8 +447,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">title</td><td>1 - 23 characters</td><td>Display name in the menu and on the web page. Translatable</td></tr>
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
-  <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used, starting at 0.1.8. The manifest may specify that version or a later one. Firmware 0.1.8 and later refuses installation and startup of an application requiring a newer version with "Update the firmware." Earlier firmware ignores this field.</td></tr>
+  <tr><td class="c">abi</td><td><code>3</code></td><td>Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware." Firmware before 0.1.8 ignores this field.</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
@@ -476,7 +475,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
 </table>
 <p>A picked path has at most 63 bytes, each property name at most 31 ASCII bytes, and at most eight property or array-index levels. For example, <code>a.b[0]</code> uses three levels. The build and device reject paths beyond these limits.</p>
 <h2 id="package-placeholders">Setting placeholders</h2>
-<p><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.</p>
+<p><code>{{key}}</code> reads the application KV store, including undeclared keys; an absent declared setting uses its manifest default. The value is substituted, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.</p>
 <pre>https://api.example.com/repos/{{owner}}/{{name}}
 {{server}}/api/status
 {{calendar}}
@@ -824,7 +823,7 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
 <h2 id="network-pieces">Streamed responses</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
 {
-    if (flags &amp; HOST_DATA_FAILED) {                /* single call, no data: http_status is a HOST_FAILED_* code */
+    if (flags &amp; HOST_DATA_FAILED) {                /* failure without data; discard all preceding pieces: http_status is a HOST_FAILED_* code */
         last_status = http_status;
         return;
     }
@@ -861,7 +860,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li><code>poll_now(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
-<p>For http_request(), URL substitution and the initial host check happen before queuing. An unset URL setting returns HOST_ERR_ARGUMENT with no callback. Header substitution happens later and may fail with HOST_FAILED_NOT_READY. Expanded URLs fit in 511 bytes; expanded header values fit in 255 bytes. Expansion failure also gives HOST_FAILED_NOT_READY, except for the initial URL check.</p>
+<p>For http_request(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.</p>
 <p>The 16-request ceiling is per application, with no reserved slots. All queued requests share a 16 KB budget for queue records, URLs, headers and bodies. HOST_ERR_NO_SPACE may occur before sixteen requests are waiting. A raw header name is at most 31 bytes; its value is at most 255 bytes.</p>
 <h2 id="network-certificates">Certificate authorities of the application</h2>
 <p>The host verifies HTTPS servers against the browser root set. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
@@ -1109,11 +1108,24 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 </ul>
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
-<p>This part summarizes the host calls and exports for ABI 2. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.</p>
+<p>This part summarizes the host calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.</p>
 <p><code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.</p>
 <p>Host calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.</p>
 <p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.</p>
 <p>A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.</p>
+
+<h2>ABI 3 compatibility</h2>
+<p>ABI 3 is the first frozen generation. Existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; additions carry permanent HOST_SINCE_ stamps. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
+<p>The supported set is {3}. The manifest ABI is retained through loading and checked before execution. The device page uses ABI membership and the firmware minimum together for Install, Update and Update all; /api/status reports supported_abis. The downloaded manifest is authoritative. Catalog publishing copies identity and compatibility metadata from the packaged manifest.</p>
+<p>tools/perinkpheral contract snapshot records sdk/abi/3.txt; contract check runs in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.</p>
+<h2>Binary representation and buffers</h2>
+<p>The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.</p>
+<p>Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_response_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.</p>
+<p>kv_get, data_value, data_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_text_fit also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. data_response copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.</p>
+<p>Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_init or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.</p>
+<p>Only HOST_DATA_LAST makes a streamed answer whole. HOST_DATA_FAILED may follow earlier pieces and invalidates them all. An interrupted answer may end with neither flag. Piece boundaries are unspecified, even inside a UTF-8 character or a document marker. Keep the previous displayed result until LAST.</p>
+<p>Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.</p>
+<p>System settings expose only the explicit page-visible keys listed in sdk/host/sys.h, which specifies types, units, inclusive ranges, special values and restart behaviour for each. Unknown and internal keys, including refresh_min_button_ms, return HOST_ERR_NOT_FOUND for get, set and range. The Wi-Fi SSID is read-only here; the password cannot be read or written here (HOST_ERR_ARGUMENT). Network changes use the page or SYS_DO_FORGET_NETWORK.</p>
 
 <h1 id="ref-codes">16. Return codes</h1>
 <table>
@@ -1461,7 +1473,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);
 <h1 id="ref-limits">24. Limits</h1>
 <table>
   <tr><th style="width:44%">Constant</th><th style="width:22%">Value</th><th>Applies to</th></tr>
-  <tr><td class="c">HOST_API_VERSION</td><td>2</td><td><code>abi</code> in the manifest</td></tr>
+  <tr><td class="c">HOST_API_VERSION</td><td>3</td><td><code>abi</code> in the manifest</td></tr>
   <tr><td class="c">MANIFEST_MODULE_MAX_BYTES</td><td>48 KB</td><td><code>app.wasm</code></td></tr>
   <tr><td class="c">MANIFEST_NAME_MAX</td><td>13 characters</td><td>Application name</td></tr>
   <tr><td class="c">MANIFEST_TITLE_MAX</td><td>23 characters</td><td>Application title</td></tr>

@@ -52,7 +52,9 @@ HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 
 /* The host's settings, by key: the same keys as the device page's
- * /api/settings, and the same rules. A value is text: a number in decimal,
+ * /api/settings form, and the same rules. Only the keys listed below are
+ * public; all other keys return HOST_ERR_NOT_FOUND for get, set and range.
+ * A value is text: a number in decimal,
  * a flag "0" or "1". Settings on the device and the device's page are two
  * ways of writing one store; the host follows what is stored, and any
  * application with system access may read and write it the same way.
@@ -69,8 +71,42 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
  *                      not set this way (the network: SYS_DO_FORGET_NETWORK,
  *                      or the device's page).
  * sys_setting_range(): a number's value and its range. HOST_ERR_ARGUMENT for
- *                      a setting that is text. */
+ *                      a setting that is text. For refresh_full_every,
+ *                      range is 0..50; 255 is also accepted.
+ * All reads copy without NUL; insufficient capacity and errors copy nothing.
+ * Capacity 0 can read an empty value. Each set is checked as one change.
+ *
+ * Open keys (text limits are UTF-8 bytes, excluding NUL; numeric values
+ * are decimal text; ranges are inclusive). Unless stated otherwise a
+ * change takes effect immediately:
+ * time_auto: flag 0 manual, 1 network time; no unit.
+ * tz: text 1..47, POSIX TZ text; printable ASCII without spaces; empty is invalid.
+ * tz_city: printable ASCII text 0..31, city label; empty means custom.
+ * language: text "en" or "ru"; app text changes now, system app titles
+ *     after restart.
+ * font: integer 0 Departure Mono, 1 Jersey; no unit.
+ * refresh_full_every: integer 0..50 partial refreshes before full;
+ *     0 always full, 255 no periodic full refresh.
+ * refresh_min_data_s: integer 10..3600 seconds between data refreshes.
+ * refresh_keepalive_h: integer 1..168 hours before a keep-alive refresh.
+ * refresh_fast: flag 0 normal full refresh, 1 fast full refresh.
+ * dither: flag 0 round shades to ink/paper, 1 ordered dithering.
+ * power_saving: integer 0 disabled, 1 always, 2 unless USB computer connected.
+ * menu_idle_min: integer 1..60 minutes before opening the default app.
+ * header_clock: flag 0 date, 1 clock.
+ * default_app: text 0..13, a-z/0-9/'_'/'-'; empty means none.
+ * device_name: text 1..32, no control characters; restart required.
+ * ntp_server: text 1..64, letters, digits, dots, colons and hyphens; restart required.
+ * wifi_ssid: text 0..32, read only here; empty means unconfigured.
+ * wifi_password: secret text 0..64; neither read nor written here
+ *     (HOST_ERR_ARGUMENT). Change the network on the page, or forget it
+ *     with SYS_DO_FORGET_NETWORK; either restarts the device.
+ * No other key, including refresh_min_button_ms, is accessible. */
 #define SYS_SETTING_MAX 64 /* the longest value, in bytes: a time server's name */
+#define SYS_KEY_NTP_SERVER           "ntp_server"
+#define SYS_KEY_DITHER               "dither"
+#define SYS_KEY_WIFI_SSID            "wifi_ssid"
+#define SYS_KEY_WIFI_PASSWORD        "wifi_password"
 #define SYS_KEY_TIME_AUTOMATIC      "time_auto"           /* 1: time from the network */
 #define SYS_KEY_TIME_ZONE           "tz"                  /* POSIX TZ string: "MSK-3" */
 #define SYS_KEY_TIME_ZONE_CITY      "tz_city"             /* the city it was chosen by: "St Petersburg" */

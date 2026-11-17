@@ -118,7 +118,7 @@ typedef enum {
  * valid until app_unload(). `name` selects the store of kv_*. `grants`:
  * APP_GRANT_* of what may be imported beside the host API; a module that
  * imports more is refused. On failure *loaded is NULL. */
-app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_size,
+app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, size_t wasm_size,
                            unsigned grants, const app_services_t *services, app_t **loaded);
 
 /* `app` may be NULL. */

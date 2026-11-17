@@ -80,7 +80,7 @@ jobs:
           echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
       - name: The tools
         run: tools/perinkpheral > /dev/null
-      - name: Host tests and the layers
+      - name: Host tests, frozen ABI and the layers
         run: make -C firmware/test/host test
       - name: The applications in the simulator
         run: tools/perinkpheral sim-test firmware/test/sim

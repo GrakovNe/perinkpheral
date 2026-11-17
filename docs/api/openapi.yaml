@@ -54,6 +54,11 @@ components:
       properties:
         name: { type: string, description: Device name }
         firmware: { type: string, examples: ["0.1.12-93e9811"] }
+        supported_abis:
+          type: array
+          description: Explicit supported application ABI generations; membership, never a version ceiling.
+          items: { type: integer, minimum: 1 }
+          examples: [[3]]
         slot: { type: string, examples: ["ota_1"] }
         on_probation: { type: boolean, description: A new image not confirmed yet }
         wifi: { type: string, enum: [online, connecting, setup, rescue] }

@@ -1,7 +1,7 @@
 {
   "name": "setup",
   "title": "Wi-Fi setup",
-  "version": "1.0.0",
-  "abi": 2,
+  "version": "1.0.1",
+  "abi": 3,
   "system": true
 }

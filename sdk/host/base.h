@@ -10,17 +10,19 @@
 
 #include <stdint.h>
 
-#include <stdint.h>
-
-#define HOST_API_VERSION 2
+#define HOST_API_VERSION 3
 
 /* The firmware a call came with, for each call that came after the first
- * firmware or changed its signature since: the build stamps an application
+ * firmware: the build stamps an application
  * with the latest firmware among the calls it makes ("firmware" in its
  * manifest), and an older firmware neither installs nor starts it. A call
- * added or changed gets a line, HOST_SINCE_<call>, beside its declaration in
+ * added gets a line, HOST_SINCE_<call>, beside its declaration in
  * the header of its subject, with the version it will be released in. */
-/* Earlier firmwares do not read the manifest's "firmware" field. */
+/* The ABI floor and an explicit manifest minimum can raise this further.
+ * Earlier firmwares do not read the manifest's "firmware" field. */
+/* First firmware supporting ABI 3. Pinned from VERSION for the freeze;
+ * release tags could not be fetched in the editing sandbox. */
+#define HOST_ABI_3_FIRMWARE_FIRST "0.1.30"
 #define HOST_FIRMWARE_FIRST     "0.1.8" /* every call without a line of its own */
 
 /* The host firmware includes this header for its constants. Outside a
@@ -45,6 +47,34 @@
  * lay it out: a change of one is a change of the contract, and the compiler of either side says
  * so. The host reads these structs as a 32-bit wasm module lays them out. */
 #define HOST_LAYOUT(type, size) _Static_assert(sizeof(type) == (size), #type " is laid out as the contract says")
+
+/* Binary representation: wasm32, little endian, two's complement signed
+ * integers. int32_t/uint32_t are 4 bytes aligned to 4, int64_t/uint64_t
+ * are 8 bytes aligned to 8, char/uint8_t are 1 byte aligned to 1. Pointers
+ * are unsigned 32-bit offsets in the module's memory, aligned to 4 in a
+ * struct; zero is NULL. Structs use C field order and natural alignment,
+ * with trailing padding to their alignment. sdk/abi/3.txt records sizes,
+ * alignments, field types and offsets. Call arguments lower pointers and
+ * 32-bit integers to wasm i32, and 64-bit integers to wasm i64.
+ *
+ * Ordinary input bytes are consumed or copied before an import returns;
+ * the host does not retain application pointers. app_data_buffer() and
+ * app_strings_buffer() instead return storage valid for the entire loaded
+ * instance: do not move or release it. Data passed to a handler is valid
+ * only until that handler returns. String-table words are little-endian
+ * uint16_t; picture dimensions and bitmap rows are bytes (host/gfx.h).
+ *
+ * Buffers use byte lengths, without an implicit terminator. Negative
+ * lengths/capacities and out-of-memory ranges return HOST_ERR_ARGUMENT.
+ * Zero capacity is accepted for buffer reads except time_text(); the
+ * destination must still be a valid memory offset. Successful text reads
+ * never append NUL, except the fixed string fields of host_response_t.
+ * Unless a call says it truncates, insufficient capacity returns
+ * HOST_ERR_NO_SPACE and copies nothing. Read/format/measurement errors
+ * leave outputs untouched, except file_read(): a storage error can follow
+ * a partial read. Storage writes can fail after changing storage; no
+ * rollback is promised. If several arguments are invalid, which error is
+ * reported first is unspecified. */
 
 /* Return codes of imports that return no value of their own. */
 #define HOST_OK               0

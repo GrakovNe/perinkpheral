@@ -47,7 +47,7 @@ endif
 
 .PHONY: test clean
 
-test: $(TESTS)
+test: $(TESTS) $(if $(WASI_SDK_PATH),check-abi)
 	@for t in $(TESTS); do ./$$t || exit 1; done
 	@$(TOOLS) check-languages
 	@$(TOOLS) check-layers ../..
@@ -112,13 +112,15 @@ build/probe_wasm.h: build/probe/app.wasm
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
 build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h) $(TOOLS)
-	$(MKAPP) apps/wrongret --out build/wrongret
+	@mkdir -p build/wrongret
+	$(WASI_SDK_PATH)/bin/clang $(subst ;, ,$(shell $(TOOLS) flags compile)) $(subst ;, ,$(shell $(TOOLS) flags link)) apps/wrongret/wrongret.c -o $@
 
 build/wrongret_wasm.h: build/wrongret/app.wasm
 	(echo "static const unsigned char wrongret_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h) $(TOOLS)
-	$(MKAPP) apps/wrongarg --out build/wrongarg
+	@mkdir -p build/wrongarg
+	$(WASI_SDK_PATH)/bin/clang $(subst ;, ,$(shell $(TOOLS) flags compile)) $(subst ;, ,$(shell $(TOOLS) flags link)) apps/wrongarg/wrongarg.c -o $@
 
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
 	(echo "static const unsigned char wrongarg_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
@@ -135,7 +137,10 @@ build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
 build/every_call_wasm.h: build/every_call/app.wasm
 	(echo "static const unsigned char every_call_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
-test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
+build/frozen_probe_wasm.h: ../../../sdk/abi/3/probe/app.wasm
+	(echo "static const unsigned char frozen_probe_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
+
+test_app: test_app.c tinytest.h build/frozen_probe_wasm.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APP_SRCS) $(SDK_LIB)/json_pick.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 
@@ -189,3 +194,21 @@ test_app_store: test_app_store.c tinytest.h $(APPSTORE)/app_store.c $(APPSTORE)/
 clean:
 	rm -rf build
 	rm -f $(TESTS)
+
+# Frozen contracts and packages are inputs, never rebuilt by this target.
+.PHONY: check-abi
+check-abi: build/probe/app.wasm build/wrongarg/app.wasm build/wrongret/app.wasm build/wrongimport/app.wasm
+	@$(TOOLS) contract check
+	@$(TOOLS) check-wasm build/probe/app.wasm
+	@$(TOOLS) check-wasm ../../../sdk/abi/3/probe/app.wasm
+	@$(TOOLS) check-wasm ../../../sdk/abi/3/hello/app.wasm
+	@if $(TOOLS) check-wasm build/wrongarg/app.wasm > build/wrongarg/check.log 2>&1; then cat build/wrongarg/check.log; exit 1; fi
+	@grep -q 'export app_on_timer has wasm type' build/wrongarg/check.log
+	@if $(TOOLS) check-wasm build/wrongret/app.wasm > build/wrongret/check.log 2>&1; then cat build/wrongret/check.log; exit 1; fi
+	@grep -q 'export app_strings_buffer has wasm type' build/wrongret/check.log
+	@if $(TOOLS) check-wasm build/wrongimport/app.wasm > build/wrongimport/check.log 2>&1; then cat build/wrongimport/check.log; exit 1; fi
+	@grep -q 'import host.gfx_width has wasm type' build/wrongimport/check.log
+
+build/wrongimport/app.wasm: apps/wrongimport/wrongimport.c $(TOOLS)
+	@mkdir -p build/wrongimport
+	$(WASI_SDK_PATH)/bin/clang $(subst ;, ,$(shell $(TOOLS) flags compile)) $(subst ;, ,$(shell $(TOOLS) flags link)) $< -o $@

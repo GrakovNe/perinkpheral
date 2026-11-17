@@ -13,6 +13,7 @@
 #include "host_api.h"
 #include "every_call_wasm.h"
 #include "probe_wasm.h"
+#include "frozen_probe_wasm.h"
 #include "wrongarg_wasm.h"
 #include "wrongret_wasm.h"
 #include "tinytest.h"
@@ -276,6 +277,9 @@ static const app_services_t SERVICES = {
     .file_write = fake_file_write,
 };
 
+static const uint8_t *probe_bytes = probe_wasm;
+static size_t probe_size = sizeof probe_wasm;
+
 static app_t *load_probe_as(const char *name)
 {
     logged[0] = '\0';
@@ -283,7 +287,7 @@ static app_t *load_probe_as(const char *name)
     clock_runs = false;
     clock_ms = FAKE_UPTIME_MS;
     app_t *app = NULL;
-    CHECK(app_load(name, probe_wasm, probe_wasm_len, APP_GRANT_FILES, &SERVICES, &app) == APP_OK);
+    CHECK(app_load(name, HOST_API_VERSION, probe_bytes, probe_size, APP_GRANT_FILES, &SERVICES, &app) == APP_OK);
     return app;
 }
 
@@ -536,24 +540,27 @@ static void test_bad_modules(void)
 {
     app_t *app = NULL;
     static const uint8_t garbage[] = { 'n', 'o', 't', ' ', 'w', 'a', 's', 'm' };
-    CHECK(app_load("x", garbage, sizeof garbage, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", 2, garbage, sizeof garbage, 0, &SERVICES, &app) == APP_ERR_OTHER_API);
+    CHECK(app == NULL);
+    CHECK(app_load("x", 4, garbage, sizeof garbage, 0, &SERVICES, &app) == APP_ERR_OTHER_API);
+    CHECK(app_load("x", HOST_API_VERSION, garbage, sizeof garbage, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* an export the host calls, declared otherwise than the contract has it: not run at all */
     app = (app_t *)1;
-    CHECK(app_load("x", wrongret_wasm, sizeof wrongret_wasm, 0, &SERVICES, &app) ==
+    CHECK(app_load("x", HOST_API_VERSION, wrongret_wasm, sizeof wrongret_wasm, 0, &SERVICES, &app) ==
           APP_ERR_BAD_MODULE && app == NULL);
     app = (app_t *)1;
-    CHECK(app_load("x", wrongarg_wasm, sizeof wrongarg_wasm, 0, &SERVICES, &app) ==
+    CHECK(app_load("x", HOST_API_VERSION, wrongarg_wasm, sizeof wrongarg_wasm, 0, &SERVICES, &app) ==
           APP_ERR_BAD_MODULE && app == NULL);
 
     /* a valid header and then nothing sensible */
     static const uint8_t truncated[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00, 0x05, 0x7F };
-    CHECK(app_load("x", truncated, sizeof truncated, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", HOST_API_VERSION, truncated, sizeof truncated, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* (module (memory 2)): more than the one page an application gets */
     static const uint8_t two_pages[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00,
                                          0x05, 0x03, 0x01, 0x00, 0x02 };
-    CHECK(app_load("x", two_pages, sizeof two_pages, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", HOST_API_VERSION, two_pages, sizeof two_pages, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
     CHECK(app == NULL);
 
     /* (module (type (func)) (import "host" "evil" (func (type 0)))) */
@@ -562,7 +569,7 @@ static void test_bad_modules(void)
                                               0x01, 0x04, 'h',  'o',  's',  't',  0x04, 'e',
                                               'v',  'i',  'l',  0x00, 0x00 };
     /* a call the host does not have: a module made for another version of it */
-    CHECK(app_load("x", unknown_import, sizeof unknown_import, 0, &SERVICES, &app) ==
+    CHECK(app_load("x", HOST_API_VERSION, unknown_import, sizeof unknown_import, 0, &SERVICES, &app) ==
           APP_ERR_OTHER_API);
 
     /* (module (type (func (param i32 i32 i32) (result i32)))
@@ -573,10 +580,10 @@ static void test_bad_modules(void)
                                              0x01, 0x7F, 0x02, 0x11, 0x01, 0x04, 'h',  'o',
                                              's',  't',  0x08, 's',  'y',  's',  '_',  'i',
                                              'n',  'f',  'o',  0x00, 0x00 };
-    CHECK(app_load("x", system_import, sizeof system_import, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
-    CHECK(app_load("x", system_import, sizeof system_import, APP_GRANT_FILES, &SERVICES, &app) ==
+    CHECK(app_load("x", HOST_API_VERSION, system_import, sizeof system_import, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", HOST_API_VERSION, system_import, sizeof system_import, APP_GRANT_FILES, &SERVICES, &app) ==
           APP_ERR_BAD_MODULE);
-    CHECK(app_load("x", system_import, sizeof system_import, APP_GRANT_SYSTEM, &SERVICES, &app) == APP_OK);
+    CHECK(app_load("x", HOST_API_VERSION, system_import, sizeof system_import, APP_GRANT_SYSTEM, &SERVICES, &app) == APP_OK);
     app_unload(app);
 
     /* (module (type (func (param i32 i32 i32 i32 i32) (result i32)))
@@ -588,23 +595,23 @@ static void test_bad_modules(void)
                                                  'h',  'o',  's',  't',  0x0A, 'f',  'i',  'l',
                                                  'e',  '_',  'w',  'r',  'i',  't',  'e',  0x00,
                                                  0x00 };
-    CHECK(app_load("x", file_write_import, sizeof file_write_import, APP_GRANT_SYSTEM, &SERVICES,
+    CHECK(app_load("x", HOST_API_VERSION, file_write_import, sizeof file_write_import, APP_GRANT_SYSTEM, &SERVICES,
                    &app) == APP_ERR_BAD_MODULE);
-    CHECK(app_load("x", file_write_import, sizeof file_write_import, APP_GRANT_FILES, &SERVICES,
+    CHECK(app_load("x", HOST_API_VERSION, file_write_import, sizeof file_write_import, APP_GRANT_FILES, &SERVICES,
                    &app) == APP_OK);
     app_unload(app);
 
     /* A module that imports every call of host_api.h, each as the header
      * declares it: the host's table has them all, with those signatures. */
-    CHECK(app_load("x", every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &app) == APP_OK);
+    CHECK(app_load("x", HOST_API_VERSION, every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &app) == APP_OK);
 
     /* One instance at a time: a second is refused while the first is loaded,
      * and the first keeps running. */
     app_t *second = (app_t *)1;
-    CHECK(app_load("y", every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &second) ==
+    CHECK(app_load("y", HOST_API_VERSION, every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &second) ==
           APP_ERR_NO_MEMORY && second == NULL);
     app_unload(app);
-    CHECK(app_load("y", every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &second) == APP_OK);
+    CHECK(app_load("y", HOST_API_VERSION, every_call_wasm, sizeof every_call_wasm, APP_GRANT_SYSTEM | APP_GRANT_FILES, &SERVICES, &second) == APP_OK);
     app_unload(second);
 
     /* a name the host has, asked of another module */
@@ -613,12 +620,12 @@ static void test_bad_modules(void)
                                             0x01, 0x03, 'e',  'n',  'v',  0x0A, 'g',  'f',
                                             'x',  '_',  'h',  'e',  'i',  'g',  'h',  't',
                                             0x00, 0x00 };
-    CHECK(app_load("x", other_module, sizeof other_module, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", HOST_API_VERSION, other_module, sizeof other_module, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     /* an import section that says it is longer than the file */
     static const uint8_t lying_section[] = { 0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00,
                                              0x02, 0x7F, 0x01 };
-    CHECK(app_load("x", lying_section, sizeof lying_section, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
+    CHECK(app_load("x", HOST_API_VERSION, lying_section, sizeof lying_section, 0, &SERVICES, &app) == APP_ERR_BAD_MODULE);
 
     app_unload(NULL); /* allowed */
 }
@@ -749,7 +756,7 @@ static void test_color_and_local_time(void)
     app_unload(app);
 }
 
-int main(void)
+static void test_probe_contract(void)
 {
     test_lifecycle();
     test_buttons_and_redraw();
@@ -767,5 +774,43 @@ int main(void)
     test_trap_stops_the_application();
     test_runaway_handlers_are_stopped();
     test_bad_modules();
+}
+
+static void test_frozen_hello_state(void)
+{
+    FILE *fixture = fopen("../../../sdk/abi/3/hello/presses.bin", "rb");
+    uint8_t original[4];
+    CHECK(fixture != NULL && fread(original, 1, sizeof original, fixture) == sizeof original);
+    fclose(fixture);
+    CHECK(fake_kv_set("hello", "presses", original, sizeof original) == HOST_OK);
+    FILE *module = fopen("../../../sdk/abi/3/hello/app.wasm", "rb");
+    CHECK(module != NULL);
+    CHECK(fseek(module, 0, SEEK_END) == 0);
+    long size = ftell(module);
+    rewind(module);
+    uint8_t *bytes = malloc((size_t)size);
+    CHECK(bytes != NULL && fread(bytes, 1, (size_t)size, module) == (size_t)size);
+    fclose(module);
+    app_t *app = NULL;
+    CHECK(app_load("hello", 3, bytes, (size_t)size, 0, &SERVICES, &app) == APP_OK);
+    draw(app);
+    CHECK(!app_has_stopped(app));
+    app_button(app, BTN_UP, BTN_PRESSED);
+    app_terminate(app);
+    CHECK(!app_has_stopped(app));
+    uint8_t changed[4];
+    CHECK(fake_kv_get("hello", "presses", changed, sizeof changed) == sizeof changed);
+    CHECK(changed[0] == 43 && changed[1] == 0 && changed[2] == 0 && changed[3] == 0);
+    app_unload(app);
+    free(bytes);
+}
+
+int main(void)
+{
+    test_probe_contract();
+    probe_bytes = frozen_probe_wasm;
+    probe_size = sizeof frozen_probe_wasm;
+    test_probe_contract();
+    test_frozen_hello_state();
     REPORT();
 }

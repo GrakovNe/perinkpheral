@@ -131,6 +131,8 @@ const RUSSIAN = {
   "Invalid manifest.": "Неверный манифест.", "Invalid pack.": "Неверный пакет.",
   "Invalid catalog entry.": "Неверная запись каталога.", "Invalid source URL.": "Неверный адрес источника.",
   "Checksum mismatch.": "Контрольная сумма не совпадает.", "Download failed.": "Загрузка не удалась.",
+  "Application ABIs": "ABI приложений",
+  "Update the app.": "Обновите приложение.",
   "Incompatible firmware version.": "Несовместимая версия прошивки.",
   "Update the firmware.": "Обновите прошивку.", "App not found.": "Приложение не найдено.",
   "Not installed.": "Не установлено.", "No image.": "Нет образа.", "Forbidden.": "Запрещено.",

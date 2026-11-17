@@ -28,7 +28,12 @@
 HOST_IMPORT(kv_get, int32_t kv_get(const char *key, int32_t key_length, void *value,
                                    int32_t capacity));
 
-/* Writes a value. Length 0 deletes the key. */
+/* Writes a value. Length 0 deletes the key. Keys declared as "url" or
+ * "link" in the manifest belong to the user: kv_set() returns
+ * HOST_ERR_ARGUMENT for them, including deletion. Other keys need not be
+ * declared in the manifest. kv_get() copies bytes without a terminator;
+ * a missing key returns HOST_ERR_NOT_FOUND. Insufficient capacity returns
+ * HOST_ERR_NO_SPACE without copying; capacity 0 can read an empty value. */
 HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const void *value,
                                    int32_t length));
 

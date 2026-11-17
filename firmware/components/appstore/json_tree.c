@@ -414,14 +414,19 @@ json_t *json_add_string(json_t *object, const char *name, const char *text)
     return json_add_item(object, name, json_new_string(text));
 }
 
-json_t *json_add_number(json_t *object, const char *name, int64_t number)
+json_t *json_new_number(int64_t number)
 {
     json_t *node = new_node(JSON_NUMBER);
     if (node != NULL) {
         node->number = number;
         node->is_whole = true;
     }
-    return json_add_item(object, name, node);
+    return node;
+}
+
+json_t *json_add_number(json_t *object, const char *name, int64_t number)
+{
+    return json_add_item(object, name, json_new_number(number));
 }
 
 json_t *json_add_bool(json_t *object, const char *name, bool value)

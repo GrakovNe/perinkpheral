@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include <string.h>
+#include <stdlib.h>
 
 #include "app_manifest.h"
 #include "poll_schedule.h"
@@ -11,7 +12,7 @@
 
 /* ---- polls in the manifest ---- */
 
-#define MANIFEST_START "{\"name\":\"a\",\"title\":\"T\",\"abi\":2,\"polls\":"
+#define MANIFEST_START "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"polls\":"
 
 static void test_polls_in_the_manifest(void)
 {
@@ -284,7 +285,7 @@ static void test_pick(void)
 {
     static app_poll_t poll;
     const char *with_pick =
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"https://a.example/x\","
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"https://a.example/x\","
         "\"every\":600,\"pick\":[\"current.temperature_2m\",\"daily.weather_code[0]\"]},"
         "{\"url\":\"http://b.example/y\",\"every\":60}]}";
     app_manifest_t manifest;
@@ -297,10 +298,10 @@ static void test_pick(void)
     CHECK(app_manifest_parse_poll(with_pick, 1, &poll) == APP_MANIFEST_OK && poll.pick_count == 0);
 
     const char *bad[] = {
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":\"a.b\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[1]}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[\"\"]}]}",
-        ("{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":["
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":\"a.b\"}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[1]}]}",
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":[\"\"]}]}",
+        ("{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,\"pick\":["
          "\"0123456789012345678901234567890123456789012345678901234567890123\"]}]}"),
     };
     for (int i = 0; i < 4; i++) {
@@ -311,7 +312,7 @@ static void test_pick(void)
 #define LIST_SETTINGS "\"settings\":[{\"key\":\"t\",\"type\":\"list\",\"title\":\"Tickers\"}," \
                       "{\"key\":\"x\",\"type\":\"text\",\"title\":\"X\"}]"
     const char *each =
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"https://q.example/chart/{{t}}\",\"every\":600,\"each\":\"t\",\"pick\":[\"c[*]\",\"m.n\"]}]}";
     CHECK(app_manifest_parse(each, &manifest) == APP_MANIFEST_OK);
     CHECK(app_manifest_parse_poll(each, 0, &poll) == APP_MANIFEST_OK);
@@ -319,26 +320,26 @@ static void test_pick(void)
     CHECK_STR(poll.pick[0], "c[*]");
     const char *bad_lists[] = {
         /* two "[*]" in one path */
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3,\"polls\":[{\"url\":\"http://a/x\",\"every\":60,"
         "\"pick\":[\"a[*].b[*]\"]}]}",
         /* "each" of a setting that is no list, and of none */
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{x}}\",\"every\":60,\"each\":\"x\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{t}}\",\"every\":60,\"each\":\"nope\"}]}",
     };
     for (int i = 0; i < 3; i++) {
         CHECK(app_manifest_parse(bad_lists[i], &manifest) == APP_MANIFEST_BAD_POLL);
     }
     /* two polls over lists: each makes one request at a time */
-    CHECK(app_manifest_parse("{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":"
+    CHECK(app_manifest_parse("{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":"
                              "[{\"url\":\"http://a/{{t}}\",\"every\":60,\"each\":\"t\"},{\"url\":"
                              "\"http://b/{{t}}\",\"every\":60,\"each\":\"t\"}]}", &manifest) == APP_MANIFEST_OK);
 
     /* one list, several sources: a poll takes the items of its prefix, without it; the one
      * without a prefix takes what no other claims */
     const char *sources =
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":["
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":["
         "{\"url\":\"http://y/{{t}}\",\"every\":60,\"each\":\"t\"},"
         "{\"url\":\"http://m/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"MOEX:\"},"
         "{\"url\":\"http://s/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"SPB:\"}]}";
@@ -362,13 +363,13 @@ static void test_pick(void)
     CHECK(app_manifest_poll_takes(&poll, "MOEX:SBER", &value));
     /* a prefix needs a list to be of, and has no spaces */
     const char *bad_prefixes[] = {
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/x\",\"every\":60,\"prefix\":\"MOEX:\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"M X\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"\"}]}",
-        "{\"name\":\"w\",\"title\":\"W\",\"abi\":2," LIST_SETTINGS ",\"polls\":[{\"url\":"
+        "{\"name\":\"w\",\"title\":\"W\",\"abi\":3," LIST_SETTINGS ",\"polls\":[{\"url\":"
         "\"http://a/{{t}}\",\"every\":60,\"each\":\"t\",\"prefix\":\"0123456789ABCDEF\"}]}",
     };
     for (int i = 0; i < 4; i++) {
@@ -439,8 +440,41 @@ static void test_setting_interval_restored(void)
     CHECK(poll_schedule_normalize_interval(UINT32_MAX) == APP_POLL_EVERY_MAX_S);
 }
 
+static void test_queued_destination_after_settings_change(void)
+{
+    const char *manifest = "{\"hosts\":[\"{{base}}\"],\"settings\":[{\"key\":\"base\",\"type\":\"url\",\"title\":\"Server\"}]}";
+    app_poll_t *request = calloc(1, sizeof *request);
+    CHECK(request != NULL);
+    request->header_count = 1;
+    strcpy(request->headers[0].name, "Authorization");
+    strcpy(request->headers[0].value, "Bearer {{token}}");
+    /* The queued, expanded URL still names the old server. Current KV
+     * names another: the new token must not reach the old destination. */
+    strcpy(request->url, "http://old.example/api");
+    char url[APP_URL_MAX + 1];
+    CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_NOT_ALLOWED);
+    CHECK_STR(request->headers[0].value, "Bearer {{token}}");
+    strcpy(request->url, "http://10.0.0.2:8123/api");
+    CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_READY);
+    CHECK_STR(url, "http://10.0.0.2:8123/api");
+    CHECK_STR(request->headers[0].value, "Bearer s3cret");
+    strcpy(request->url, "http://10.0.0.2:8123/api?literal={{evil}}");
+    CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_READY);
+    CHECK_STR(url, "http://10.0.0.2:8123/api?literal={{evil}}");
+    /* Undeclared KV keys are allowed in templates; invalid header bytes
+     * are still refused at use, whoever wrote them. */
+    strcpy(request->headers[0].value, "{{evil}}");
+    CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_NOT_READY);
+    free(request);
+}
+
 int main(void)
 {
+    test_queued_destination_after_settings_change();
     test_setting_interval_restored();
     test_pick_paths();
     test_floor_and_removal();

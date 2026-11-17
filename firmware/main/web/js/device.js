@@ -58,6 +58,7 @@ function statusFacts() {
     ["Device", [
       ["Name", status.name],
       ["Firmware", status.firmware && (status.on_probation ? t("{0} (verifying)", status.firmware) : status.firmware)],
+      ["Application ABIs", (status.supported_abis || []).join(", ")],
       ["Built", builtOn(status.built)],
       ["ESP-IDF", status.idf],
       ["Slot", status.slot],
@@ -94,6 +95,7 @@ const factList = facts => facts.flatMap(([name, value]) =>
 async function loadStatus() {
   status = await ask("/api/status");
   statusAt = Date.now();
+  drawTiles();
   drawStatus();
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);

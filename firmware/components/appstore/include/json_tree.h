@@ -93,6 +93,7 @@ static inline bool json_is_true(const json_t *node)
 json_t *json_new_object(void);
 json_t *json_new_array(void);
 json_t *json_new_string(const char *text);
+json_t *json_new_number(int64_t number);
 
 /* Appends `item` to an array. The array owns it afterwards. */
 void json_array_add(json_t *array, json_t *item);

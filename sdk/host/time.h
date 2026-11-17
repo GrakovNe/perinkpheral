@@ -99,7 +99,9 @@ HOST_IMPORT(time_local, int32_t time_local(host_local_time_t *now));
 HOST_IMPORT(time_local_at, int32_t time_local_at(int64_t unix_time, host_local_time_t *parts));
 
 /* Formats a moment as text in the device language and local time. Writes
- * up to `capacity` bytes without a terminator. Returns the length.
+ * up to `capacity` bytes without a terminator, cut between UTF-8
+ * characters. Returns the length copied. Capacity must be positive:
+ * zero returns HOST_ERR_ARGUMENT. Errors leave text untouched.
  *   HOST_TIME_CLOCK      "15:04"
  *   HOST_TIME_DATE       "Fri 13 Nov"
  *   HOST_TIME_WEEKDAY    "Friday"

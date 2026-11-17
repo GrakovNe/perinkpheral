@@ -31,8 +31,8 @@ C, без стандартной библиотеки
 Interface
 Интерфейс
 
-one header, sdk/host_api.h, ABI 2
-один заголовочный файл, sdk/host_api.h, ABI 2
+one header, sdk/host_api.h, ABI 3
+один заголовочный файл, sdk/host_api.h, ABI 3
 
 Memory
 Память
@@ -2950,8 +2950,8 @@ HTTPS завершается с HOST_FAILED_NOT_TRUSTED (-6)
 <code>http_request()</code> returns HOST_ERR_NO_SPACE (-4)
 <code>http_request()</code> возвращает HOST_ERR_NO_SPACE (-4)
 
-This part summarizes the host calls and exports for ABI 2. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.
-Этот раздел кратко описывает вызовы хоста и экспорты для ABI 2. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.
+This part summarizes the host calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.
+Этот раздел кратко описывает вызовы хоста и экспорты для ABI 3. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.
 
 Host calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.
 Вызовы хоста возвращают ошибки <code>HOST_ERR_*</code> напрямую. Сетевые ошибки приходят позже в обработчик данных как статусы <code>HOST_FAILED_*</code>; см. «Ошибки запросов» в разделе 9.
@@ -4242,3 +4242,57 @@ Paths have at most 63 bytes, property names at most 31 ASCII bytes, and extracti
 
 Optional: true for a setting written by something else - an integration through the device's web API, a companion page - and left off the device page's form. Stored and read like any other
 Необязательно: true для настройки, которую записывает что-то другое - интеграция через веб-API устройства или страница-компаньон; в форме на странице устройства её нет. Хранится и читается как любая другая
+
+revision 10, 2026-11-17 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 10, 2026-11-17 / зафиксированный host API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+
+Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."
+Поколение зафиксированного контракта хоста. Принимаются только явно поддерживаемые поколения; ABI 2 получает ответ "Обновите приложение."
+
+The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware." Firmware before 0.1.8 ignores this field.
+Минимальный выпуск прошивки. Сборка берёт максимум из нижней границы ABI 3 (0.1.30), версий появления используемых импортов и экспортов и явно указанного минимума манифеста. Для новых флагов и поведения манифеста минимум указывают явно. Более старая прошивка отказывает в установке и запуске с ответом "Обновите прошивку." Прошивки до 0.1.8 игнорируют это поле.
+
+failure without data; discard all preceding pieces: http_status is a HOST_FAILED_* code
+ошибка без данных; отбросить все предыдущие фрагменты: http_status содержит код HOST_FAILED_*
+
+For http_request(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.
+Для http_request() URL подставляется и впервые проверяется до постановки в очередь. Неустановленное значение URL даёт HOST_ERR_ARGUMENT без обработчика ответа. В очереди остаётся раскрытый адрес. Перед отправкой адрес проверяется заново, а заголовки заполняются из того же текущего снимка KV. Если изменение настроек запретило прежний адрес, приходит HOST_FAILED_NOT_ALLOWED; запрос никогда молча не перенаправляется на новый сервер. Отсутствующие или недопустимые значения заголовков дают HOST_FAILED_NOT_READY. Подготовленный запрос сохраняет свой снимок при передаче. URL вмещает 511 байт, значение заголовка - 255 байт; тело копируется при постановке в очередь.
+
+ABI 3 compatibility
+Совместимость ABI 3
+
+ABI 3 is the first frozen generation. Existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; additions carry permanent HOST_SINCE_ stamps. Firmware releases and ABI generations are independent. Missing exports remain optional.
+ABI 3 - первое зафиксированное поколение. Существующие имена, типы wasm, привилегии, константы, раскладки и значения сохраняются в следующих прошивках. Изменение сигнатуры или смысла требует нового ABI; дополнения получают постоянные отметки HOST_SINCE_. Выпуски прошивки и поколения ABI независимы. Отсутствующие экспорты остаются необязательными.
+
+The supported set is {3}. The manifest ABI is retained through loading and checked before execution. The device page uses ABI membership and the firmware minimum together for Install, Update and Update all; /api/status reports supported_abis. The downloaded manifest is authoritative. Catalog publishing copies identity and compatibility metadata from the packaged manifest.
+Поддерживается множество {3}. ABI манифеста передаётся до загрузки и проверяется до выполнения кода. Страница устройства вместе проверяет принадлежность ABI и минимум прошивки для Install, Update и Update all; /api/status сообщает supported_abis. Окончательное решение принимается по загруженному манифесту. При публикации каталога данные об идентичности и совместимости берутся из упакованного манифеста.
+
+tools/perinkpheral contract snapshot records sdk/abi/3.txt; contract check runs in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.
+tools/perinkpheral contract snapshot записывает sdk/abi/3.txt; contract check выполняется в тестах хоста и CI. Записанные элементы нельзя менять или удалять; дополнения разрешены. Запись снимка также отказывает при изменении. Зафиксированные пакеты sdk/abi/3/ служат входами тестов и не пересобираются ими: Probe, Hello, Settings с переводами и состояние Hello (presses = 42, четыре байта little-endian). Нижняя граница ABI 3 - 0.1.30, первая прошивка ABI 3.
+
+Binary representation and buffers
+Бинарное представление и буферы
+
+The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.
+Контракт использует раскладку C для wasm32 little-endian и дополнительный код для знаковых целых. Указатель - беззнаковое 32-битное смещение в памяти; ноль означает NULL. Размер и выравнивание 32-битных целых и указателей равны 4, 64-битных целых - 8, байтов - 1. Структуры сохраняют порядок полей C, естественное выравнивание и конечное заполнение. sdk/abi/3.txt записывает каждый размер, выравнивание, тип и смещение поля. Размер, число строк и смещения таблицы строк - 16-битные слова little-endian. Размеры картинок задаются байтами; строки битовой карты идут старшим битом вперёд и дополняются до целого числа байтов.
+
+Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_response_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.
+Входные буферы используются или копируются до возврата импорта. Хост сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_response_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.
+
+kv_get, data_value, data_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_text_fit also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. data_response copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.
+kv_get, data_value, data_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_text_fit также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. data_response копирует min(capacity, размер структуры хоста), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.
+
+Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_init or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.
+Уведомления об установке и обновлении считаются доставленными после загрузки и до обработчика, в том числе при отсутствии обработчика или trap в app_init либо обработчике. Ошибка загрузки оставляет уведомление до запуска устройства или перечитывания списка приложений. Обновление означает другой идентификатор пакета из модуля и манифеста, независимо от порядка строк версий.
+
+Only HOST_DATA_LAST makes a streamed answer whole. HOST_DATA_FAILED may follow earlier pieces and invalidates them all. An interrupted answer may end with neither flag. Piece boundaries are unspecified, even inside a UTF-8 character or a document marker. Keep the previous displayed result until LAST.
+Только HOST_DATA_LAST делает потоковый ответ полным. HOST_DATA_FAILED может прийти после предыдущих фрагментов и отменяет их все. Прерванный ответ может закончиться без обоих флагов. Границы фрагментов не определены, даже внутри символа UTF-8 или маркера документа. Сохраняйте предыдущий показанный результат до LAST.
+
+Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.
+Отрисовка сохраняет существующие правила: совместные флаги перерисовки выбирают CLEAN раньше NO_BLINK, затем SOON; QUESTION независим. При отключённом дизеринге оттенки gfx_color 1..7 становятся бумагой, 8..15 - чернилами. Первые и последние координаты чернил иконки включительны; end_x текста исключителен.
+
+System settings expose only the explicit page-visible keys listed in sdk/host/sys.h, which specifies types, units, inclusive ranges, special values and restart behaviour for each. Unknown and internal keys, including refresh_min_button_ms, return HOST_ERR_NOT_FOUND for get, set and range. The Wi-Fi SSID is read-only here; the password cannot be read or written here (HOST_ERR_ARGUMENT). Network changes use the page or SYS_DO_FORGET_NETWORK.
+Системные настройки открывают только явно перечисленные видимые на странице ключи sdk/host/sys.h, где для каждого указаны тип, единицы, включительные диапазоны, специальные значения и необходимость перезапуска. Неизвестные и внутренние ключи, включая refresh_min_button_ms, возвращают HOST_ERR_NOT_FOUND для get, set и range. SSID Wi-Fi здесь доступен только для чтения; пароль нельзя ни читать, ни писать (HOST_ERR_ARGUMENT). Сеть изменяют через страницу или SYS_DO_FORGET_NETWORK.
+
+<code>{{key}}</code> reads the application KV store, including undeclared keys; an absent declared setting uses its manifest default. The value is substituted, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.
+<code>{{key}}</code> читает KV-хранилище приложения, включая необъявленные ключи; отсутствующая объявленная настройка берётся из значения по умолчанию в манифесте. Значение подставляется с процентным кодированием: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны два ключа, <code>/repos/{{owner}}/{{name}}</code>. Начальная настройка <code>url</code> и настройка <code>link</code> вставляются без изменений. Настройка <code>list</code> вставляется поэлементно с кодированием и запятыми между элементами: <code>symbols={{tickers}}</code> превращается в <code>symbols=AAPL,MSFT</code>. Пустая настройка в URL или заголовке опроса даёт <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен.

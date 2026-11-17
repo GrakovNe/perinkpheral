@@ -17,8 +17,11 @@
  *              Valid until the handler returns.
  * flags:       HOST_DATA_FIRST on the first piece, HOST_DATA_LAST on the
  *              last one. A short answer is one piece with both flags.
- *              HOST_DATA_FAILED: single call without data; the request
- *              was not made or was interrupted.
+ *              HOST_DATA_FAILED: a call without data; the request was
+ *              not made or failed, possibly after earlier pieces. Only
+ *              LAST makes an answer whole; FAILED discards all preceding
+ *              pieces. Piece boundaries are unspecified, even within a
+ *              character or a document marker.
  * http_status: HTTP status, delivered with the first piece. With
  *              HOST_DATA_FAILED: a HOST_FAILED_* code.
  *
@@ -48,7 +51,7 @@
 #define HOST_FAILED_NO_NETWORK  (-1) /* no network connection */
 #define HOST_FAILED_NO_ANSWER   (-2) /* no answer from the server, or an incomplete answer */
 #define HOST_FAILED_NOT_READY   (-3) /* a {{setting}} used by the request is empty */
-#define HOST_FAILED_NOT_ALLOWED (-4) /* redirect to a host outside the manifest "hosts" list */
+#define HOST_FAILED_NOT_ALLOWED (-4) /* destination outside the current manifest "hosts" list */
 #define HOST_FAILED_TIMEOUT     (-5) /* timeout after the server was reached */
 #define HOST_FAILED_NOT_TRUSTED (-6) /* HTTPS certificate not trusted: self-signed, expired,
                                         or issued for another name */
@@ -165,11 +168,20 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *              host sends "User-Agent: perinkpheral"; a User-Agent header
  *              given here replaces it. The same for polls. Each name is
  *              at most 31 bytes and each raw value at most 255 bytes.
- * {{key}}      in the URL and in header values is replaced by the setting
- *              with that key, as in a poll. URL substitution and the
- *              initial host check happen before queuing: an unset URL
- *              setting returns HOST_ERR_ARGUMENT with no callback. Header
- *              substitution happens later and can give HOST_FAILED_NOT_READY.
+ * {{key}}      reads the application's KV store, including keys not
+ *              declared as settings. An absent declared setting uses its
+ *              manifest default. URL values are percent encoded (except
+ *              a leading url/link setting); list values use commas.
+ *              URL substitution and the initial host check happen before
+ *              queuing: an unset URL value returns HOST_ERR_ARGUMENT with
+ *              no callback. The expanded destination stays queued. At send
+ *              time it is authorized again and headers are expanded from
+ *              the same current KV snapshot. After a settings change a
+ *              queued request whose destination is no longer allowed fails
+ *              with HOST_FAILED_NOT_ALLOWED; it is never silently retargeted.
+ *              Missing/invalid header values give HOST_FAILED_NOT_READY.
+ *              Once prepared, a request keeps that snapshot even if settings
+ *              change during transmission. Body bytes are copied at queue time.
  *              Expanded URLs fit in 511 bytes; expanded header values fit
  *              in 255 bytes. Expansion failure gives HOST_FAILED_NOT_READY,
  *              except for the initial URL check.

@@ -229,6 +229,8 @@ window.addEventListener("message", event => {
 
 /* Installs the application from its source, or installs it over itself: an update. */
 async function install(button, offer) {
+  const problem = compatibilityProblem(offer.app);
+  if (problem) { toast(problem); return; }
   /* The system API is the owner's to give: the page asks, once, in so many words. */
   if (offer.app.system &&
       !await confirmed(t("{0} requests system access.", offerSays(offer, "title")), "Install")) return;
@@ -253,11 +255,13 @@ function picture(icon, cell) {
   return box;
 }
 
-/* The firmware an application of a catalog needs, when this one is older; else null.
- * An application is built for the firmware of its SDK and says so in "firmware". */
-function firmwareNeeded(app) {
-  const own = status.firmware;
-  return app.firmware && own && isNewer(releaseOf(app.firmware), releaseOf(own)) ? app.firmware : null;
+/* One result for Install, Update and Update all; downloaded manifests are
+ * checked again by the device. Missing ABI information is incompatible. */
+function compatibilityProblem(app) {
+  const result = appCompatibility(app, status);
+  if (result === "abi") return t("Update the app.");
+  if (result === "firmware") return t("needs firmware {0}", app.firmware);
+  return "";
 }
 
 /* An application on the device. `offer` is what a catalog has under its name, if any. */
@@ -276,9 +280,9 @@ function tile(have, offer) {
   if (offer && offer.app.version !== have.version) {
     /* An update this firmware is too old for is not offered: the tile says
      * what it needs instead, where it can be read. */
-    const needed = firmwareNeeded(offer.app);
+    const needed = compatibilityProblem(offer.app);
     if (needed) {
-      box.append(make("small", { className: "needs", textContent: t("Update needs firmware {0}", needed) }));
+      box.append(make("small", { className: "needs", textContent: needed }));
     } else {
       const update = make("button", { className: "action", textContent: "Update" });
       update.title = offer.app.version;
@@ -369,7 +373,7 @@ let catalogsRead = false;
 const available = () => offered.filter(offer => !installed.some(have => have.name === offer.app.name));
 
 /* What the catalogs have another version of, that this firmware can run. */
-const updates = () => offered.filter(offer => !firmwareNeeded(offer.app) &&
+const updates = () => offered.filter(offer => !compatibilityProblem(offer.app) &&
   installed.some(have => have.name === offer.app.name && have.version !== offer.app.version));
 
 /* The catalog: everything the sources have, the installed among it - Installed, or Update when
@@ -384,13 +388,13 @@ function drawCatalog() {
   const rows = found.sort((a, b) => kept(b) - kept(a) || offerSays(a, "title").localeCompare(offerSays(b, "title"), pageLanguage))
     .map(offer => {
       const row = make("div", { className: "offer" }), text = make("div");
-      const needed = firmwareNeeded(offer.app);
+      const needed = compatibilityProblem(offer.app);
       /* Already in the page's language, from the index: nothing to put into it. */
       text.append(make("b", { textContent: offerSays(offer, "title"), translate: false }));
       if (offerSays(offer, "description"))
         text.append(make("span", { className: "about", textContent: offerSays(offer, "description"), translate: false }));
       text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
-                                                (needed ? " - " + t("needs firmware {0}", needed) : "") }));
+                                                (needed ? " - " + needed : "") }));
       const have = installed.find(app => app.name === offer.app.name);
       const isUpdate = have && have.version !== offer.app.version;
       const button = make("button", { className: "quiet", textContent: !have ? "Install" : isUpdate ? "Update" : "Installed" });

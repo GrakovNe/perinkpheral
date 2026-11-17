@@ -159,6 +159,9 @@ const appconf_field_t *appconf_fields(int *count);
 /* NULL for a key there is no setting for. */
 const appconf_field_t *appconf_field(const char *key, size_t length);
 
+/* The frozen settings surface visible on the page. Internal keys are absent. */
+const appconf_field_t *appconf_application_field(const char *key, size_t length);
+
 /* A number's or a flag's value. */
 int32_t appconf_number(const appconf_t *c, const appconf_field_t *field);
 /* A text's value. */

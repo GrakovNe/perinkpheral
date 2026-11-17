@@ -137,9 +137,9 @@ static void install_probe(void)
     snprintf(path, sizeof path, "%s/probe", root);
     mkdir(path, 0755);
     snprintf(path, sizeof path, "%s/probe/app.wasm", root);
-    copy_file("build/probe/app.wasm", path);
+    copy_file("../../../sdk/abi/3/probe/app.wasm", path);
     snprintf(path, sizeof path, "%s/probe/manifest.json", root);
-    copy_file("build/probe/manifest.json", path);
+    copy_file("../../../sdk/abi/3/probe/manifest.json", path);
 
     app_manifest_t manifest;
     CHECK(app_store_list(root, &manifest, 1) == 1);
@@ -372,9 +372,127 @@ static void test_a_scene_that_is_not_an_application(void)
     CHECK(app_scene_take_reaction(&menu.scene).kind == SCENE_IGNORED);
 }
 
+static void count_notification(void *context)
+{
+    int *count = context;
+    (*count)++;
+}
+
+static void test_notification_consumption(void)
+{
+    start_on(&menu.scene);
+    int consumed = 0;
+    app_delivery_t notification = { .kind = APP_DELIVERY_INSTALLED,
+                                    .loaded = count_notification, .loaded_context = &consumed };
+    char module[128], unavailable[128];
+    snprintf(module, sizeof module, "%s/probe/app.wasm", root);
+    snprintf(unavailable, sizeof unavailable, "%s/probe/held.wasm", root);
+    CHECK(rename(module, unavailable) == 0);
+    app_deliver(&state, &wm, probe, &notification, 0);
+    CHECK(consumed == 0);
+    CHECK(rename(unavailable, module) == 0);
+    app_deliver(&state, &wm, probe, &notification, 0);
+    CHECK(consumed == 1);
+    /* Update's handler traps. The load hook has already consumed it. */
+    start_on(probe);
+    notification.kind = APP_DELIVERY_UPDATED;
+    app_deliver(&state, &wm, probe, &notification, 0);
+    CHECK(consumed == 2);
+    CHECK(app_scene_app(probe) == NULL || app_has_stopped(app_scene_app(probe)));
+    probe->ops->leave(probe);
+    /* A stopped on-screen instance is loaded too. In particular, a trap
+     * in app_init must not leave the notification pending forever. */
+    start_on(probe);
+    app_t *app = app_scene_app(probe);
+    CHECK(app != NULL);
+    app_button(app, 4, BTN_PRESSED);
+    CHECK(app_has_stopped(app));
+    notification.kind = APP_DELIVERY_INSTALLED;
+    app_deliver(&state, &wm, probe, &notification, 0);
+    CHECK(consumed == 3);
+    probe->ops->leave(probe);
+}
+
+static int32_t frozen_file_read(const char *name, const char *file, int32_t offset,
+                                 void *bytes, int32_t capacity)
+{
+    (void)name;
+    char path[256];
+    snprintf(path, sizeof path, "../../../sdk/abi/3/settings/%s", file);
+    FILE *input = fopen(path, "rb");
+    if (input == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    CHECK(fseek(input, offset, SEEK_SET) == 0);
+    size_t length = fread(bytes, 1, (size_t)capacity, input);
+    fclose(input);
+    return (int32_t)length;
+}
+
+static int32_t frozen_file_size(const char *name, const char *file)
+{
+    (void)name;
+    char path[256];
+    snprintf(path, sizeof path, "../../../sdk/abi/3/settings/%s", file);
+    struct stat info;
+    return stat(path, &info) == 0 ? (int32_t)info.st_size : HOST_ERR_NOT_FOUND;
+}
+
+static const char *fixture_language;
+static const char *frozen_language(void) { return fixture_language; }
+
+static int32_t frozen_setting_get(const char *key, char *value, int32_t capacity)
+{
+    if (strcmp(key, SYS_KEY_LANGUAGE) != 0) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if (capacity < 2) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(value, fixture_language, 2);
+    return 2;
+}
+
+static void test_frozen_settings_translation(void)
+{
+    start_on(&menu.scene);
+    char *text = app_store_read_manifest("../../../sdk/abi/3", "settings");
+    app_manifest_t manifest;
+    CHECK(text != NULL && app_manifest_parse(text, &manifest) == APP_MANIFEST_OK);
+    free(text);
+    CHECK(manifest.abi == 3 && manifest.system);
+    app_services_t services = SERVICES;
+    services.language = frozen_language;
+    services.file_read = frozen_file_read;
+    services.file_size = frozen_file_size;
+    services.system_setting_get = frozen_setting_get;
+    scene_t *settings = app_scene_create(&manifest, "../../../sdk/abi/3", &services);
+    CHECK(settings != NULL);
+    static uint8_t english[(400 * 260 / 8)], russian[(400 * 260 / 8)];
+    gfx_t surface;
+    fixture_language = "en";
+    CHECK(app_scene_begin_background(settings) != NULL);
+    gfx_init(&surface, english, 400, 260);
+    gfx_clear(&surface, false);
+    app_draw(app_scene_app(settings), &surface);
+    CHECK(!app_has_stopped(app_scene_app(settings)));
+    app_scene_end_background(settings);
+    fixture_language = "ru";
+    CHECK(app_scene_begin_background(settings) != NULL);
+    gfx_init(&surface, russian, 400, 260);
+    gfx_clear(&surface, false);
+    app_draw(app_scene_app(settings), &surface);
+    CHECK(!app_has_stopped(app_scene_app(settings)));
+    CHECK(memcmp(english, russian, sizeof english) != 0);
+    app_scene_end_background(settings);
+    app_scene_destroy(settings);
+}
+
 int main(void)
 {
     install_probe();
+    test_frozen_settings_translation();
+    test_notification_consumption();
     test_on_the_screen();
     test_off_the_screen();
     test_asks_for_the_screen();

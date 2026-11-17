@@ -6,6 +6,29 @@ the device's page - without one, the notes are the commits since the release bef
 
 
 
+## 0.1.30
+
+- ABI 3 is the first frozen application contract. ABI 2 packages are refused with
+  "Update the app." Reinstall the rebuilt catalog applications; their patch versions rise.
+  Firmware and ABI versions remain independent; future firmware preserves ABI 3.
+- Queued destinations are authorized again before sending, from the same application KV
+  view that fills their headers. A settings change cannot send new credentials to a stale
+  destination. Disallowed queued requests fail instead of moving to another server.
+- System access exposes only the explicit settings surface of the web page. Internal and
+  unknown keys return `HOST_ERR_NOT_FOUND`; `sdk/host/sys.h` documents every public key.
+- Install/update notifications remain pending after a load failure and are consumed before
+  entering a loaded callback, including one that traps. Package identity includes both
+  module and manifest, independently of version-string ordering.
+- Headers specify binary layouts, pointer lifetimes, buffer/error rules, streamed failures
+  and rendering precedence. Calendar accepts its opening marker across arbitrary pieces.
+- Tools check actual Wasm function types and an append-only recorded contract, and host
+  tests run frozen Probe, Hello and Settings packages, translations and saved Hello state.
+  The ABI 3 firmware floor is pinned to `VERSION` (0.1.23); release tags were unavailable
+  in the editing sandbox. The build takes the maximum of this floor, introduction stamps
+  and the manifest's explicit minimum.
+- Status exposes `supported_abis`. Install, Update and Update all use the same ABI and
+  firmware compatibility check; catalog metadata comes from the packaged manifest.
+
 ## 0.1.26
 
 - A setting may be `"hidden": true` in its manifest: written by an integration or a companion

@@ -357,6 +357,22 @@ const appconf_field_t *appconf_field(const char *key, size_t length)
     return NULL;
 }
 
+const appconf_field_t *appconf_application_field(const char *key, size_t length)
+{
+    static const char *const KEYS[] = {
+        "device_name", "ntp_server", "tz", "tz_city", "refresh_min_data_s",
+        "refresh_full_every", "refresh_keepalive_h", "refresh_fast", "dither", "font",
+        "time_auto", "power_saving", "default_app", "menu_idle_min", "header_clock", "language",
+        "wifi_ssid", "wifi_password",
+    };
+    for (size_t i = 0; i < sizeof KEYS / sizeof KEYS[0]; i++) {
+        if (strlen(KEYS[i]) == length && memcmp(KEYS[i], key, length) == 0) {
+            return appconf_field(key, length);
+        }
+    }
+    return NULL;
+}
+
 int32_t appconf_number(const appconf_t *c, const appconf_field_t *field)
 {
     const uint8_t *at = (const uint8_t *)c + field->offset;

@@ -1153,7 +1153,7 @@ static int32_t services_file_write(const char *app_name, const char *file, int32
 
 static int32_t services_setting_get(const char *key, char *value, int32_t capacity)
 {
-    const appconf_field_t *field = appconf_field(key, strlen(key));
+    const appconf_field_t *field = appconf_application_field(key, strlen(key));
     if (field == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -1172,7 +1172,7 @@ static int32_t services_setting_get(const char *key, char *value, int32_t capaci
 
 static int32_t services_setting_range(const char *key, int32_t *value, int32_t *least, int32_t *most)
 {
-    const appconf_field_t *field = appconf_field(key, strlen(key));
+    const appconf_field_t *field = appconf_application_field(key, strlen(key));
     if (field == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
@@ -1189,10 +1189,13 @@ static int32_t services_setting_range(const char *key, int32_t *value, int32_t *
  * typeface, the language, the clock in the header. */
 static int32_t services_setting_set(const char *key, const char *value)
 {
-    const appconf_field_t *field = appconf_field(key, strlen(key));
+    const appconf_field_t *field = appconf_application_field(key, strlen(key));
     appconf_t wanted = s_settings;
     char      problem[APPCONF_PROBLEM_MAX];
-    if (field == NULL || (field->flags & APPCONF_OWN_WAY) != 0 || !appconf_put(&wanted, field, value) ||
+    if (field == NULL) {
+        return HOST_ERR_NOT_FOUND;
+    }
+    if ((field->flags & APPCONF_OWN_WAY) != 0 || !appconf_put(&wanted, field, value) ||
         !appconf_validate(&wanted, problem, sizeof problem)) {
         return HOST_ERR_ARGUMENT;
     }
@@ -1310,6 +1313,21 @@ static void intent(int kind)
 
 /* An application that has not run here before, or ran as another version,
  * is told so, as the device tells it: what ran last is kept in the state. */
+typedef struct {
+    char path[PATH_BYTES];
+    uint32_t id;
+} seen_version_t;
+
+static void note_loaded_version(void *context)
+{
+    const seen_version_t *version = context;
+    FILE *file = fopen(version->path, "wb");
+    if (file != NULL) {
+        fwrite(&version->id, sizeof version->id, 1, file);
+        fclose(file);
+    }
+}
+
 static void tell_new_version(void)
 {
     /* What the device calls the version: its module and its manifest. */
@@ -1338,13 +1356,11 @@ static void tell_new_version(void)
     if (seen == id) {
         return;
     }
-    file = fopen(path, "wb");
-    if (file != NULL) {
-        fwrite(&id, sizeof id, 1, file);
-        fclose(file);
-    }
     say('I', "sim", "%s: %s", s_options.app, seen != 0 ? "updated" : "installed");
-    app_delivery_t delivery = { .kind = seen != 0 ? APP_DELIVERY_UPDATED : APP_DELIVERY_INSTALLED };
+    seen_version_t version = { .id = id };
+    snprintf(version.path, sizeof version.path, "%s", path);
+    app_delivery_t delivery = { .kind = seen != 0 ? APP_DELIVERY_UPDATED : APP_DELIVERY_INSTALLED,
+                               .loaded = note_loaded_version, .loaded_context = &version };
     deliver(&delivery);
 }
 

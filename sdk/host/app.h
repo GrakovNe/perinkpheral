@@ -31,11 +31,16 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 /* app_on_installed: the application was installed - from a catalog, by the
  * development tools, or with the firmware - and has not run on this device
  * before, or was removed and installed again.
- * app_on_updated: another version of it replaced the one that ran before.
+ * app_on_updated: another package replaced the one that ran before.
+ * Package identity is the id derived from both module and manifest, not
+ * version-string ordering: changing either makes another package.
  * Called once, on or off the screen, after app_init(); off the screen the
  * application is loaded for the call. A new version does not inherit the
  * alarms set by the old one: set them again here. The store, the files
- * and poll intervals set from code are kept across an update. */
+ * and poll intervals set from code are kept across an update. A load
+ * failure leaves the notification pending for the next startup/reload.
+ * Once loaded it is consumed before the callback (or a missing callback),
+ * even if app_init() or the callback traps: it is not retried endlessly. */
 APP_EXPORT(app_on_installed, void app_on_installed(void));
 APP_EXPORT(app_on_updated, void app_on_updated(void));
 
@@ -126,7 +131,7 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * character that the glyph packs of the language do not cover.
  *
  * Table format: 16 bits buffer size in bytes, 16 bits string count, one
- * 16-bit offset from the table start per string, then the strings,
+ * 16-bit offset from the table start per string, all little endian; then the strings,
  * null-terminated. */
 APP_EXPORT(app_strings_buffer, uint8_t *app_strings_buffer(void));
 
@@ -135,7 +140,8 @@ APP_EXPORT(app_strings_buffer, uint8_t *app_strings_buffer(void));
  * An argument is a text; if `text` is NULL, it is a number.
  * The pattern and each text argument are cut to HOST_TEXT_MAX bytes.
  * The filled result is at most HOST_TEXT_MAX bytes, then cut to capacity,
- * without a terminator, cut between characters. Returns the length. */
+ * without a terminator, cut between characters. Returns the length.
+ * Capacity 0 returns 0; invalid arguments leave the output untouched. */
 typedef struct host_text_argument {
     int32_t     number;
     const char *text;
@@ -203,7 +209,8 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * application only when it was pressed after this picture reached the
  * panel: a press meant for the picture before, or made while the panel was
  * still drawing, is not an answer. The other buttons are not held back.
- * Pending redraw flags are combined with OR. Each consumed redraw with
+ * Pending redraw flags are combined with OR. Refresh precedence is
+ * CLEAN, then NO_BLINK, then SOON; QUESTION is independent. Each consumed redraw with
  * QUESTION starts a new question; a consumed redraw without it ends it.
  * NORMAL cannot clear a QUESTION still pending. Use QUESTION when opening
  * a question, not for later redraws. OK KEYDOWN is consumed by the host;

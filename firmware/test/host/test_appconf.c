@@ -317,8 +317,26 @@ static void test_fields(void)
     CHECK(appconf_needs_restart(&before, &now));
 }
 
+static void test_application_surface(void)
+{
+    static const char *const OPEN[] = {
+        "device_name", "ntp_server", "tz", "tz_city", "refresh_min_data_s",
+        "refresh_full_every", "refresh_keepalive_h", "refresh_fast", "dither", "font",
+        "time_auto", "power_saving", "default_app", "menu_idle_min", "header_clock", "language",
+        "wifi_ssid", "wifi_password",
+    };
+    for (unsigned i = 0; i < sizeof OPEN / sizeof OPEN[0]; i++) {
+        CHECK(appconf_application_field(OPEN[i], strlen(OPEN[i])) == appconf_field(OPEN[i], strlen(OPEN[i])));
+    }
+    CHECK(appconf_field("refresh_min_button_ms", 21) != NULL);
+    CHECK(appconf_application_field("refresh_min_button_ms", 21) == NULL);
+    CHECK(appconf_application_field("hostname", 8) == NULL);
+    CHECK(appconf_application_field("future", 6) == NULL);
+}
+
 int main(void)
 {
+    test_application_surface();
     test_fields();
     test_refresh_policy_settings();
     test_default_app();

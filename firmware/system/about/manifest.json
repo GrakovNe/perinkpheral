@@ -1,8 +1,8 @@
 {
   "name": "about",
   "title": "About",
-  "version": "1.0.0",
-  "abi": 2,
+  "version": "1.0.1",
+  "abi": 3,
   "fullscreen": true,
   "system": true,
   "icon": [
