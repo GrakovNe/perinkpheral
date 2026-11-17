@@ -3,7 +3,9 @@
  * before what cannot be undone, and the sections a link can lead to. */
 "use strict";
 
-const SLOTS = 24, SOURCES_MAX = 4, ZONE_NOT_SET = "UTC0";
+/* The device's limits are the firmware's own: CATALOG_INSTALLED_MAX, CATALOG_SOURCES_MAX and
+ * the manifest's MANIFEST_* come from its headers when the page is made (page.html). */
+const ZONE_NOT_SET = "UTC0";
 const byId = id => document.getElementById(id);
 const show = (id, text) => { byId(id).textContent = text; };
 const make = (tag, properties) => Object.assign(document.createElement(tag), properties || {});

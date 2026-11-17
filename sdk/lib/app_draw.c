@@ -46,3 +46,18 @@ void app_draw_actions(const char *ok, const char *back)
     back = back != NULL ? back : "";
     ui_actions(ok, app_text_length(ok), back, app_text_length(back));
 }
+
+void app_draw_cells(host_cell_t *cells, const uint8_t *const *pictures, const int32_t *icons,
+                    int32_t count)
+{
+    int32_t size = 0;
+    for (int32_t i = 0; i < count; i++) {
+        int32_t fits = ui_cell_fit(&cells[i], pictures != NULL ? pictures[i] : 0,
+                                   icons != NULL ? icons[i] : HOST_ICON_NONE);
+        size = fits > size ? fits : size;
+    }
+    for (int32_t i = 0; i < count; i++) {
+        cells[i].size = size;
+        ui_cell(&cells[i], pictures != NULL ? pictures[i] : 0, icons != NULL ? icons[i] : HOST_ICON_NONE);
+    }
+}

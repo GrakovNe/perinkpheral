@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "app_host.h"
+#include "catalog.h"
 
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -158,7 +159,9 @@ void app_host_tell_started(void)
 /* The alarms that come again and again: how often each, and when it is
  * due next on the deadlines' own clock - so that a late call does not
  * make every one after it late. A restart forgets them with the alarms. */
-#define RECURRING_MAX 8
+/* One for every application the device holds, on the average: an application that keeps a line
+ * in the header needs one, and most need none. One past them is HOST_ERR_NO_SPACE. */
+#define RECURRING_MAX CATALOG_INSTALLED_MAX
 typedef struct {
     uint32_t app_id; /* 0: free */
     int      alarm;

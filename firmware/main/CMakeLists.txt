@@ -18,7 +18,10 @@ idf_component_register(SRCS ${srcs}
 # browser as it is: every browser unpacks gzip.
 set(web_dir "${CMAKE_CURRENT_LIST_DIR}/web")
 file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js" "${web_dir}/*.woff2"
-                                              "${CMAKE_CURRENT_LIST_DIR}/../../tools/cli/src/main/kotlin/org/perinkpheral/cli/FirmwareTools.kt")
+                                              "${CMAKE_CURRENT_LIST_DIR}/../../tools/cli/src/main/kotlin/org/perinkpheral/cli/FirmwareTools.kt"
+                                              "${CMAKE_CURRENT_LIST_DIR}/../system/settings/cities.json"
+                                              "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/catalog.h"
+                                              "${CMAKE_CURRENT_LIST_DIR}/../../sdk/lib/manifest_limits.h")
 set(page "${CMAKE_BINARY_DIR}/index.html")
 set(packed_page "${CMAKE_BINARY_DIR}/index.html.gz")
 add_custom_command(OUTPUT "${page}" "${packed_page}"

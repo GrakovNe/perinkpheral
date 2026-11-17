@@ -99,6 +99,22 @@ int32_t ui_actions(const char *ok, int32_t ok_length, const char *back, int32_t 
 {
     (void)ok; (void)ok_length; (void)back; (void)back_length; return HOST_OK;
 }
+/* A cell fits in the size of its value's length, longer values in larger numbers - smaller
+ * type; what was drawn is kept to be looked at. */
+static int32_t drawn_sizes[4], drawn_cells;
+int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
+{
+    (void)picture; (void)icon;
+    return 1 + (int32_t)strlen(cell->value) / 4;
+}
+int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
+{
+    (void)picture; (void)icon;
+    if (drawn_cells < 4) {
+        drawn_sizes[drawn_cells++] = cell->size;
+    }
+    return HOST_OK;
+}
 int32_t data_value(int32_t index, char *text, int32_t capacity) { (void)index; (void)text; (void)capacity; return -1; }
 int32_t data_count(int32_t index) { (void)index; return -1; }
 int32_t data_element(int32_t index, int32_t element, char *text, int32_t capacity)
@@ -130,6 +146,15 @@ static void test_text(void)
     char tight[4];
     CHECK(app_time_text(0, HOST_TIME_DATE, tight, sizeof tight) == 3 && tight[3] == '\0');
     CHECK(app_time_text(0, HOST_TIME_DATE, tight, 0) == 0);
+}
+
+static void test_cells_in_one_size(void)
+{
+    host_cell_t cells[3] = { { .value = "1" }, { .value = "12345678" }, { .value = "12" } };
+    drawn_cells = 0;
+    app_draw_cells(cells, 0, 0, 3);
+    CHECK(drawn_cells == 3);
+    CHECK(drawn_sizes[0] == 3 && drawn_sizes[1] == 3 && drawn_sizes[2] == 3); /* the longest's size */
 }
 
 static void test_session(void)
@@ -232,6 +257,7 @@ int main(void)
     test_paces();
     test_fixed_numbers_at_the_edges();
     test_session();
+    test_cells_in_one_size();
     test_places();
     test_days();
     test_centring();

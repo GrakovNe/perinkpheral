@@ -9,6 +9,8 @@
 
 #include <stdint.h>
 
+#include "host_api.h"
+
 /* Width of `text` in `font` (HOST_FONT_*), in pixels. */
 int32_t app_text_width(int32_t font, const char *text);
 
@@ -31,3 +33,11 @@ void app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
 /* The row of buttons along the bottom: what OK and BACK do. NULL or "" is
  * no button. */
 void app_draw_actions(const char *ok, const char *back);
+
+/* Cells that stand together, drawn in one size: the size the longest of
+ * their values can have (ui_cell_fit), so that the values read as one row.
+ * `size` of every cell is set. `pictures` and `icons` may be NULL for none;
+ * otherwise one each, 0 and HOST_ICON_NONE for a cell without. What goes in
+ * a cell and where the cells stand are the application's. */
+void app_draw_cells(host_cell_t *cells, const uint8_t *const *pictures, const int32_t *icons,
+                    int32_t count);

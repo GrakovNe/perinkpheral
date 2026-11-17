@@ -272,6 +272,7 @@
 <h2 id="model-state">State</h2>
 <p>Global variables are kept until the application is unloaded. Unloading occurs every time the application leaves the screen and after every background call.</p>
 <p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.</p>
+<p>Where the user is - a page, a selected row, a value half set - is kept in the session, not in the store: up to 128 bytes (<code>HOST_SESSION_MAX</code>) in memory, kept while the application is in the stack and through its unloads. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
 <p>Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
 
 <h2 id="model-screen">Navigation and refresh</h2>
@@ -619,6 +620,7 @@ drop:
   <tr><td class="c">HOST_REDRAW_SOON</td><td>Immediate, without a button press</td><td>Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown</td></tr>
   <tr><td class="c">HOST_REDRAW_CLEAN</td><td>Full refresh: 2 - 3 s, one flash, removes ghosting</td><td>Images that must be clean; the end of a frame sequence</td></tr>
   <tr><td class="c">HOST_REDRAW_NO_BLINK</td><td>Immediate; excluded from the periodic full refresh</td><td>List navigation; values that change every second</td></tr>
+  <tr><td class="c">HOST_REDRAW_QUESTION</td><td>OK reaches the application only when it is pressed after this frame is on the panel. Each request with the flag is a new question; a request without it ends the question</td><td>A question that OK answers: removal, reset, anything that cannot be undone</td></tr>
 </table>
 <p>Redraw requests are unlimited.</p>
 <p>Each refresh uses battery energy and wears the panel. Frequent changes also make the device distracting. See section 13 for guidelines.</p>
@@ -1095,7 +1097,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">void request_exit(void)</td><td>Closes the application: one step down the stack. Valid in button, back and timer handlers</td></tr>
-  <tr><td class="c">void request_focus(void)</td><td>Requests the screen from a background handler. Granted by the host, at most once per 30 s</td></tr>
+  <tr><td class="c">void request_focus(void)</td><td>Requests the screen from a background handler. Granted by the host at most once per 30 s, not within 30 s of a button press, and not over a question waiting for an answer</td></tr>
+  <tr><td class="c">int32_t session_set(data, length)</td><td>Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen</td></tr>
+  <tr><td class="c">int32_t session_get(buffer, capacity)</td><td>Copies what is kept. Returns its length; 0 for none; <code>HOST_ERR_NO_SPACE</code> when the buffer is smaller</td></tr>
   <tr><td class="c">notify(notice)</td><td>Queues a notification from a <code>host_notice_t</code>: first (required), second, detail, icon. <code>HOST_ERR_NO_SPACE</code> when four are queued</td></tr>
   <tr><td class="c">header_status(side, icon, text, length)</td><td>Sets an icon and up to 31 bytes of text in the header, shown above every screen while the application is off the screen. Empty icon and text release the side. Cleared by a restart</td></tr>
   <tr><td class="c">timer_set(id, milliseconds)</td><td>One-shot timer, id 0 - 3. 0 ms cancels. A new call restarts it</td></tr>
@@ -1171,11 +1175,16 @@ void    app_draw_centered(int32_t center, int32_t y, int32_t font, const char *t
 int32_t app_text_center_x(int32_t center, int32_t font, const char *text);
 void    app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
 void    app_draw_actions(const char *ok, const char *back);         /* the row of buttons; NULL: no button */
+void    app_draw_cells(host_cell_t *cells, const uint8_t *const *pictures,
+                       const int32_t *icons, int32_t count);         /* cells in one size: the longest value's */
 
 #include "app_state.h"                                       /* the store, by null-terminated key */
 bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);  /* first field: int32_t version */
-void    app_state_save(const char *key, const void *state, int32_t size);             /* one flash write */
-void    app_state_forget(const char *key);
+bool    app_state_save(const char *key, const void *state, int32_t size);             /* one flash write; false: not stored */
+bool    app_state_forget(const char *key);
+bool    app_session_save(const void *state, int32_t size);       /* where the user is: in app_on_blur() */
+bool    app_session_load(void *state, int32_t size);             /* in app_on_focus(); exactly `size` bytes */
+APP_SESSION_FITS(type);                                          /* the struct fits HOST_SESSION_MAX */
 int32_t app_setting(const char *key, char *text, int32_t text_size);   /* length; 0: not set or too long */
 int32_t app_setting_count(const char *key);                                           /* items of a list */
 int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);  /* length; 0: none */
@@ -1214,8 +1223,8 @@ void    app_text_add_fixed(app_text_t *text, int64_t value, int32_t decimals, in
 <pre>typedef enum { APP_UI_IGNORED, APP_UI_CHANGED, APP_UI_DONE, APP_UI_CANCELLED } app_ui_result_t;
 
 typedef host_list_t app_list_t;        /* count, selected (-1: none), top, height, first */
-app_ui_result_t app_list_button(app_list_t *list, int32_t event);    /* UP, DOWN: changed; OK: done; BACK: cancelled */
-int32_t         app_list_first(app_list_t *list);                    /* call in app_on_draw() before drawing rows */
+app_ui_result_t app_list_button(app_list_t *list, int32_t event);    /* UP, DOWN: changed, held: a page; OK: done; BACK: cancelled */
+int32_t         app_list_first(app_list_t *list);                    /* call in app_on_draw() before drawing rows; keeps `first` */
 
 typedef struct { int32_t count; int32_t chosen; bool wraps; } app_picker_t;
 app_ui_result_t app_picker_button(app_picker_t *picker, int32_t event);

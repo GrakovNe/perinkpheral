@@ -4,6 +4,26 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.21
+
+- An application keeps where the user was in it - the page, the row, a value half set - when
+  another application's data or a question of the device takes its place for a moment, and
+  comes back to it. Settings, Calendar and HA do; it is gone when the application is left,
+  opened anew from the menu, or the device restarts.
+- A question is answered only by an OK pressed once it is on the screen: a press meant for the
+  screen before it, or made while the panel was still drawing, no longer answers it.
+- An application in the background no longer takes the screen within 30 seconds of a press, or
+  over a question. After a long BACK, the notifications that wait show at the next press.
+- Lists stand still while the selection moves inside them; a long UP or DOWN moves a page. In
+  the date and time a long press steps far: minutes by ten, days by a week.
+- Settings: power saving and the menu's timeout are chosen with Save and Cancel; the time zone's
+  city and the default application from a list; Buttons says what holding a button does. The
+  page's title in the header is no longer covered by another application's status.
+- For developers: the contract is written by subject (`sdk/host/`), with `host_api.h` including
+  it all; `session_set` / `session_get` and `app_session_save` / `app_session_load`;
+  `HOST_REDRAW_QUESTION`; `app_draw_cells` draws cells in one size; `app_state_save` says
+  whether it stored; a repeating alarm for every application the device holds.
+
 ## 0.1.20
 
 - Fixes found by a review of the whole project. An application with system access that

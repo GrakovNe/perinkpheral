@@ -18,6 +18,8 @@ object FirmwareTools {
      *     <!-- include: about.html -->       a piece of markup, as it is
      *     <!-- script: js/a.js js/b.js -->   the scripts in this order, as one <script>
      *     <!-- data: NAME ../a.json -->      a JSON file as a constant of the scripts: const NAME = ...;
+     *     <!-- defines: a.h NAME b.h NAME --> numbers a C header defines, as constants of the scripts:
+     *                                          the page holds the device to the device's own limits
      *
      * A url("<name>.woff2") in the stylesheet becomes the font itself, as a data: address: the
      * page is one file. departure.woff2 is Departure Mono cut to the letters the page shows
@@ -30,23 +32,41 @@ object FirmwareTools {
         fun inlineFonts(css: String) = Regex("""url\("([\w.-]+\.woff2)"\)""").replace(css) { found ->
             "url(\"data:font/woff2;base64," + Base64.getEncoder().encodeToString(File(web, found.groupValues[1]).readBytes()) + "\")"
         }
-        val marker = Regex("""<!-- (style|include|script|data): ([^>]+?) -->""")
+        val marker = Regex("""<!-- (style|include|script|data|defines): ([^>]+?) -->""")
         val page = marker.replace(read("page.html")) { found ->
             val names = found.groupValues[2].trim().split(Regex("\\s+"))
             when (found.groupValues[1]) {
                 "style" -> "<style>\n" + inlineFonts(names.joinToString("") { read(it) }) + "</style>"
                 "include" -> names.joinToString("") { read(it) }
                 "data" -> "<script>\nconst ${names[0]} = " + Json.write(Json.parse(read(names[1]))) + ";\n</script>"
+                "defines" -> "<script>\n" + defines(web, names) + "</script>"
                 else -> "<script>\n" + names.joinToString("\n") { read(it) } + "</script>"
             }
         }
-        if (Regex("""<!-- (style|include|script|data):""").containsMatchIn(page)) throw BuildError("page: a marker was left unfilled")
+        if (Regex("""<!-- (style|include|script|data|defines):""").containsMatchIn(page)) throw BuildError("page: a marker was left unfilled")
         out.parentFile?.mkdirs()
         out.writeText(page)
         packed.outputStream().use { stream ->
             object : GZIPOutputStream(stream) {
                 init { def.setLevel(Deflater.BEST_COMPRESSION) }
             }.use { it.write(page.toByteArray()) }
+        }
+    }
+
+    /** `const NAME = <number>;` for every name, read from the header named before it. */
+    private fun defines(web: File, names: List<String>): String {
+        var header: String? = null
+        return buildString {
+            for (name in names) {
+                if (name.endsWith(".h")) {
+                    header = File(web, name).readText().replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), " ")
+                    continue
+                }
+                val text = header ?: throw BuildError("page: $name is named before any header")
+                val value = Regex("""^#define[ \t]+$name[ \t]+(\d+)[ \t]*$""", RegexOption.MULTILINE).find(text)
+                    ?.groupValues?.get(1) ?: throw BuildError("page: $name is no number of its header")
+                append("const $name = $value;\n")
+            }
         }
     }
 

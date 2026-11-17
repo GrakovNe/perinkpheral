@@ -37,6 +37,10 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * minute, pass the seconds left in the current minute.
  * Period: HOST_ALARM_EVERY_MIN to HOST_ALARM_EVERY_MAX seconds. Every
  * call loads the application when it is not on the screen.
+ * Returns HOST_OK; HOST_ERR_ARGUMENT for an invalid number; HOST_ERR_NO_SPACE
+ * when the device holds as many repeating alarms as it can - one for every
+ * application it can hold. Say so in the log: a line in the header that
+ * stops changing is otherwise taken for a hang.
  * Typical use: keeping a header_status() text current while the
  * application is off the screen. */
 #define HOST_ALARM_EVERY_MIN 60

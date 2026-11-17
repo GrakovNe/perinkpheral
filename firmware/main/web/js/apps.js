@@ -110,11 +110,10 @@ function settingFields(app) {
 }
 
 /* A list setting: a line an item, stored as the items with a line break between them. */
-const LIST_ITEM_MAX = 63;
 
 function listField(value) {
   const box = editableList(make("div", { className: "rows" }),
-                           { values: value ? value.split("\n") : [], input: { maxLength: LIST_ITEM_MAX } });
+                           { values: value ? value.split("\n") : [], input: { maxLength: MANIFEST_LIST_ITEM_MAX } });
   box.setValue = text => box.setValues(text ? text.split("\n") : []);
   box.listValue = () => box.values().join("\n");
   return box;
@@ -139,7 +138,7 @@ function settingField(app, setting) {
       input.append(make("option", { value: option, textContent: label(option, at) })));
     input.value = value;
   } else {
-    input = make("input", { maxLength: 255, autocomplete: "off" });
+    input = make("input", { maxLength: MANIFEST_SETTING_VALUE_MAX, autocomplete: "off" });
     if (setting.type === "toggle") {
       input.type = "checkbox";
       input.checked = value === "1";
@@ -157,7 +156,7 @@ function settingField(app, setting) {
         input.type = "url";
         input.placeholder = "https://";
       }
-      if (setting.type === "link") input.maxLength = 255;
+      if (setting.type === "link") input.maxLength = MANIFEST_SETTING_VALUE_MAX;
       input.value = value;
     }
   }
@@ -201,7 +200,7 @@ function fillFromCompanion(values) {
   let filled = 0;
   for (const input of byId("app-fields").querySelectorAll("[data-key]")) {
     const value = values[input.dataset.key];
-    if (typeof value !== "string" || value.length > 255) continue;
+    if (typeof value !== "string" || value.length > MANIFEST_SETTING_VALUE_MAX) continue;
     if (input.dataset.type === "toggle") input.checked = value === "1";
     else if (input.dataset.type === "list") input.setValue(value);
     else input.value = value;
@@ -379,7 +378,7 @@ const available = () => offered.filter(offer => !installed.some(have => have.nam
  * ones. What was here before comes first: it returns with its settings. */
 function drawCatalog() {
   const kept = offer => removed.includes(offer.app.name);
-  const isFull = installed.length >= SLOTS;
+  const isFull = installed.length >= CATALOG_INSTALLED_MAX;
   const wanted = byId("catalog-search").value.trim().toLowerCase();
   const offers = available();
   const found = offers.filter(offer => !wanted ||
@@ -422,7 +421,7 @@ function inMenuOrder(apps) {
 function drawTiles() {
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles);
-  show("app-count", t("{0} of {1}", installed.length, SLOTS));
+  show("app-count", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
   drawCatalog();
 }
 
@@ -437,7 +436,7 @@ async function loadApps() {
 /* The list of sources, as the device keeps it: there with no network too. */
 async function loadSources() {
   sources = (await ask("/api/sources")).sources;
-  editableList(byId("source-rows"), { values: sources, most: SOURCES_MAX, fixedFirst: true,
+  editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true,
                                       input: { placeholder: "https://" } });
 }
 

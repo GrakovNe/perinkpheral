@@ -2968,3 +2968,20 @@ description
 What the application does, in a line: shown in the catalog and on the web page. Translatable
 Что делает приложение, одной строкой: показывается в каталоге и на веб-странице. Переводится
 
+Where the user is - a page, a selected row, a value half set - is kept in the session, not in the store: up to 128 bytes (<code>HOST_SESSION_MAX</code>) in memory, kept while the application is in the stack and through its unloads. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.
+Где находится пользователь - страница, выбранная строка, наполовину заданное значение - хранится в сессии, а не в хранилище: до 128 байт (<code>HOST_SESSION_MAX</code>) в памяти, пока приложение в стеке, в том числе между выгрузками. Сессия сохраняется в <code>app_on_blur()</code> и читается в <code>app_on_focus()</code> через <code>app_session_save()</code> и <code>app_session_load()</code>. Она очищается, когда приложение покидает стек, когда его снова открывают из меню, и при перезагрузке. Экземпляр, загруженный для фонового вызова, может её читать, но не может менять.
+
+OK reaches the application only when it is pressed after this frame is on the panel. Each request with the flag is a new question; a request without it ends the question
+OK доходит до приложения, только если нажат после того, как этот кадр появился на панели. Каждый запрос с флагом - новый вопрос; запрос без флага завершает вопрос
+
+A question that OK answers: removal, reset, anything that cannot be undone
+Вопрос, на который отвечает OK: удаление, сброс, всё, что нельзя отменить
+
+Requests the screen from a background handler. Granted by the host at most once per 30 s, not within 30 s of a button press, and not over a question waiting for an answer
+Запрашивает экран из фонового обработчика. Хост даёт его не чаще раза в 30 с, не раньше чем через 30 с после нажатия кнопки и не поверх вопроса, ждущего ответа
+
+Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen
+Хранит до <code>HOST_SESSION_MAX</code> (128) байт, пока приложение в стеке. Длина 0 очищает. <code>HOST_ERR_ARGUMENT</code> для экземпляра, загруженного вне экрана
+
+Copies what is kept. Returns its length; 0 for none; <code>HOST_ERR_NO_SPACE</code> when the buffer is smaller
+Копирует сохранённое. Возвращает длину; 0, если ничего нет; <code>HOST_ERR_NO_SPACE</code>, если буфер меньше
