@@ -189,7 +189,13 @@ HOST_IMPORT(gfx_draw_bitmap_file,
 #define HOST_ICON_CO2            40
 #define HOST_ICON_SUNRISE        41
 #define HOST_ICON_SUNSET         42
-#define HOST_ICON_COUNT          43
+#define HOST_ICON_PARTICLES      43
+#define HOST_ICON_POLLEN         44
+#define HOST_ICON_GAS            45
+#define HOST_ICON_DUST           46
+#define HOST_ICON_LEAF           47
+#define HOST_ICON_MASK           48
+#define HOST_ICON_COUNT          49
 #define HOST_ICON_CELLS          11
 #define HOST_ICON_CELL_MAX       16
 HOST_IMPORT(gfx_draw_icon, int32_t gfx_draw_icon(int32_t x, int32_t y, int32_t icon, int32_t cell));

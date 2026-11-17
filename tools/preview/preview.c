@@ -343,7 +343,9 @@ int main(int argc, char **argv)
     static const struct {
         const char *name;
         int         first, end;
-    } SHEETS[] = { { "icons", 0, ICONS_OF_THE_HOST }, { "icons-more", ICONS_OF_THE_HOST, GFX_ICON_COUNT } };
+    } SHEETS[] = { { "icons", 0, ICONS_OF_THE_HOST },
+                   { "icons-more", ICONS_OF_THE_HOST, GFX_ICON_PARTICLES },
+                   { "icons-air", GFX_ICON_PARTICLES, GFX_ICON_COUNT } };
     for (size_t sheet = 0; sheet < sizeof SHEETS / sizeof SHEETS[0]; sheet++) {
         start_screen(&online, &content);
         for (int icon = SHEETS[sheet].first; icon < SHEETS[sheet].end; icon++) {

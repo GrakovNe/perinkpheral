@@ -7,7 +7,7 @@ import java.security.MessageDigest
 import java.io.File
 import java.nio.file.Files
 
-/** A recorded entry can never be removed or changed. New entries are compatible additions. */
+/** Recorded entries stay fixed; the icon count grows only with appended icon IDs. */
 object ContractSnapshot {
     private val ignored = setOf("HOST_IMPORT", "HOST_SYSTEM_IMPORT", "HOST_LAYOUT")
 
@@ -30,11 +30,25 @@ object ContractSnapshot {
     private fun checkRecorded(current: Map<String, String>, out: File, check: Boolean, label: String) {
         if (out.isFile) {
             val recorded = read(out)
-            val broken = recorded.filter { (key, value) -> current[key] != value }
+            val broken = recorded.filter { (key, value) ->
+                current[key] != value && !iconCountAddition(key, value, current, recorded)
+            }
             if (broken.isNotEmpty()) throw BuildError("$label changed:\n" + broken.entries.joinToString("\n") {
                 "  ${it.key}: recorded ${it.value}; now ${current[it.key] ?: "missing"}"
             })
         } else if (check) throw BuildError("Missing $label: ${out.path}")
+    }
+
+    /* The count describes the set, so appending icons grows it without changing
+     * any existing icon. Only a contiguous set of new ids permits that growth. */
+    private fun iconCountAddition(key: String, value: String, current: Map<String, String>, recorded: Map<String, String>): Boolean {
+        if (key != "constant HOST_ICON_COUNT") return false
+        val before = value.toIntOrNull() ?: return false
+        val after = current[key]?.toIntOrNull() ?: return false
+        if (after <= before) return false
+        val additions = current.filterKeys { it.startsWith("constant HOST_ICON_") && it !in recorded }
+            .values.map { it.toIntOrNull() ?: return false }.sorted()
+        return additions == (before until after).toList()
     }
 
     private fun write(entries: Map<String, String>, out: File, label: String) {

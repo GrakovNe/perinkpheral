@@ -583,7 +583,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <p>Текст манифеста для пользователя ограничен и числом символов, и числом байт UTF-8, равным удвоенному лимиту символов. Название содержит до 23 символов и 46 байт. Поле контракта, например строка уведомления, имеет размер в байтах и вмещает вдвое меньше двухбайтовых символов, чем однобайтовых.</p>
 
 <h2 id="screen-pictures">Картинки и иконки</h2>
-<p>Хост предоставляет 43 встроенные иконки: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.</p>
+<p>Хост предоставляет 49 встроенных иконок: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.</p>
 <p><code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.</p>
 <table>
   <tr><th style="width:27%">Константа</th><th style="width:23%">Значение</th><th style="width:27%">Константа</th><th>Значение</th></tr>
@@ -609,11 +609,15 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c">HOST_ICON_NETWORK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>трафик</td><td class="c">HOST_ICON_GAUGE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>давление, уровень</td></tr>
   <tr><td class="c">HOST_ICON_CO2</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>восход</td></tr>
   <tr><td class="c">HOST_ICON_SUNSET</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>закат</td><td class="c"></td><td></td></tr>
+  <tr><td class="c">HOST_ICON_PARTICLES</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-67px" alt=""></span>мелкие частицы</td><td class="c">HOST_ICON_POLLEN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-92px;top:-67px" alt=""></span>пыльца</td></tr>
+  <tr><td class="c">HOST_ICON_GAS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-168px;top:-67px" alt=""></span>газ, молекула</td><td class="c">HOST_ICON_DUST</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-244px;top:-67px" alt=""></span>пыль в воздухе</td></tr>
+  <tr><td class="c">HOST_ICON_LEAF</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-320px;top:-67px" alt=""></span>чистый воздух</td><td class="c">HOST_ICON_MASK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>плохое качество воздуха</td></tr>
 </table>
 
 <div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" alt=""><figcaption>Собственные иконки хоста при клетке 2 и 4 пикселя</figcaption></figure>
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" alt=""><figcaption>Погодные, домашние и астрономические иконки при размере клетки 2 и 4 пикселя</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" alt=""><figcaption>Иконки качества воздуха с клетками 2 и 4 пикселя</figcaption></figure>
 </div>
 
 <p>Собственные картинки приложения размещаются в папке <code>pictures/</code>. Поддерживаются форматы PNG, PBM и текстовый. Текстовый файл содержит строки из <code>#</code> (чернила) и <code>.</code> (бумага) и может содержать несколько именованных картинок:</p>
@@ -1514,7 +1518,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);
   <tr><td class="c">HOST_LOG_TEXT_MAX</td><td>200 байт</td><td>Строка журнала</td></tr>
   <tr><td class="c">HOST_ICON_CELLS</td><td>11</td><td>Сетка иконки в клетках</td></tr>
   <tr><td class="c">HOST_ICON_CELL_MAX</td><td>16</td><td>Размер клетки иконки в пикселях</td></tr>
-  <tr><td class="c">HOST_ICON_COUNT</td><td>43</td><td>Встроенные иконки</td></tr>
+  <tr><td class="c">HOST_ICON_COUNT</td><td>49</td><td>Встроенные иконки</td></tr>
   <tr><td class="c">Таблица строк одного языка</td><td>8 КБ</td><td>Загружается хостом</td></tr>
   <tr><td class="c">Упакованный манифест</td><td>8192 байт</td><td>Включая форматирование и версию прошивки</td></tr>
 </table>

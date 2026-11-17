@@ -2482,8 +2482,8 @@ the code calls <code>file_write()</code> and the manifest lacks <code>"writes_fi
 writes_files
 writes_files
 
-The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.
-Хост предоставляет 43 встроенные иконки: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.
+The host provides 49 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.
+Хост предоставляет 49 встроенных иконок: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.
 
 <code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.
 <code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.
@@ -4305,3 +4305,42 @@ tools/perinkpheral contract snapshot записывает контракт в sd
 
 Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
 Команды называют предмет, затем действие (<code>kv_get</code>, <code>gfx_draw_text</code>); запросы называют предмет и то, что требуется узнать (<code>gfx_width</code>, <code>time_now</code>); события, вызываемые хостом, используют <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
+
+HOST_ICON_PARTICLES
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-67px" alt=""></span>fine particles
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-67px" alt=""></span>мелкие частицы
+
+HOST_ICON_POLLEN
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-92px;top:-67px" alt=""></span>pollen
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-92px;top:-67px" alt=""></span>пыльца
+
+HOST_ICON_GAS
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-168px;top:-67px" alt=""></span>gas, molecule
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-168px;top:-67px" alt=""></span>газ, молекула
+
+HOST_ICON_DUST
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-244px;top:-67px" alt=""></span>airborne dust
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-244px;top:-67px" alt=""></span>пыль в воздухе
+
+HOST_ICON_LEAF
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-320px;top:-67px" alt=""></span>clean air
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-320px;top:-67px" alt=""></span>чистый воздух
+
+HOST_ICON_MASK
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>poor air quality
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>плохое качество воздуха
+
+Air quality icons at cell sizes of 2 and 4 pixels
+Иконки качества воздуха с клетками 2 и 4 пикселя

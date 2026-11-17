@@ -583,7 +583,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <p>User-visible manifest text has both a character limit and a UTF-8 byte limit of twice that character limit. A title is at most 23 characters and 46 bytes. A field of the contract, such as a notice's line, has a size in bytes, and holds half as many two-byte characters as one-byte characters.</p>
 
 <h2 id="screen-pictures">Pictures and icons</h2>
-<p>The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
+<p>The host provides 49 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
 <p><code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
 <table>
   <tr><th style="width:27%">Constant</th><th style="width:23%">Meaning</th><th style="width:27%">Constant</th><th>Meaning</th></tr>
@@ -609,11 +609,15 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c">HOST_ICON_NETWORK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>traffic</td><td class="c">HOST_ICON_GAUGE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>pressure, level</td></tr>
   <tr><td class="c">HOST_ICON_CO2</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>sunrise</td></tr>
   <tr><td class="c">HOST_ICON_SUNSET</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>sunset</td><td class="c"></td><td></td></tr>
+  <tr><td class="c">HOST_ICON_PARTICLES</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-67px" alt=""></span>fine particles</td><td class="c">HOST_ICON_POLLEN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-92px;top:-67px" alt=""></span>pollen</td></tr>
+  <tr><td class="c">HOST_ICON_GAS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-168px;top:-67px" alt=""></span>gas, molecule</td><td class="c">HOST_ICON_DUST</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-244px;top:-67px" alt=""></span>airborne dust</td></tr>
+  <tr><td class="c">HOST_ICON_LEAF</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-320px;top:-67px" alt=""></span>clean air</td><td class="c">HOST_ICON_MASK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>poor air quality</td></tr>
 </table>
 
 <div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" alt=""><figcaption>The host's own icons at cell sizes of 2 and 4 pixels</figcaption></figure>
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" alt=""><figcaption>The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" alt=""><figcaption>Air quality icons at cell sizes of 2 and 4 pixels</figcaption></figure>
 </div>
 
 <p>An application's own pictures are placed in the <code>pictures/</code> folder. Supported formats are PNG, PBM and text. A text file contains rows of <code>#</code> (ink) and <code>.</code> (paper) and can hold several named pictures:</p>
@@ -1514,7 +1518,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);
   <tr><td class="c">HOST_LOG_TEXT_MAX</td><td>200 bytes</td><td>Log line</td></tr>
   <tr><td class="c">HOST_ICON_CELLS</td><td>11</td><td>Icon grid in cells</td></tr>
   <tr><td class="c">HOST_ICON_CELL_MAX</td><td>16</td><td>Icon cell size in pixels</td></tr>
-  <tr><td class="c">HOST_ICON_COUNT</td><td>43</td><td>Built-in icons</td></tr>
+  <tr><td class="c">HOST_ICON_COUNT</td><td>49</td><td>Built-in icons</td></tr>
   <tr><td class="c">String table of one language</td><td>8 KB</td><td>Loaded by the host</td></tr>
   <tr><td class="c">Packaged manifest</td><td>8192 bytes</td><td>Formatting and firmware stamp included</td></tr>
 </table>

@@ -67,6 +67,12 @@ typedef enum {
     GFX_ICON_CO2,
     GFX_ICON_SUNRISE,
     GFX_ICON_SUNSET,
+    GFX_ICON_PARTICLES,
+    GFX_ICON_POLLEN,
+    GFX_ICON_GAS,
+    GFX_ICON_DUST,
+    GFX_ICON_LEAF,
+    GFX_ICON_MASK,
     GFX_ICON_COUNT,
 } gfx_icon_id_t;
 
