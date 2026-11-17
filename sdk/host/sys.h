@@ -9,9 +9,6 @@
 
 #include "base.h"
 
-#define HOST_SINCE_sys_setting_get   "0.1.13" /* the host's settings by key */
-#define HOST_SINCE_sys_setting_set   "0.1.13"
-#define HOST_SINCE_sys_setting_range "0.1.13"
 
 /* ---- System API ----
  *
@@ -44,10 +41,10 @@ HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t 
 
 /* Draws the wordmark "perINKpheraL" in the square font. (x, y) is the top
  * left corner. `scale`: 1 to SYS_LOGO_SCALE_MAX; scale 5 is 357 px wide.
- * sys_logo() is a drawing call. The width and height calls are valid in
+ * sys_draw_logo() is a drawing call. The width and height calls are valid in
  * any handler. */
 #define SYS_LOGO_SCALE_MAX 5
-HOST_SYSTEM_IMPORT(sys_logo, int32_t sys_logo(int32_t x, int32_t y, int32_t scale));
+HOST_SYSTEM_IMPORT(sys_draw_logo, int32_t sys_draw_logo(int32_t x, int32_t y, int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 
@@ -166,19 +163,18 @@ HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text,
 /* HOST_OK means removal is queued, not completed. It waits for the handler
  * to return. Only one removal may wait; a second request in the same
  * handler returns HOST_ERR_NO_SPACE and leaves the first queued. */
-#define HOST_SINCE_sys_app_remove "0.1.23"
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 
 /* Default application: opened after a restart, after the menu idle time,
  * and by BACK in the menu.
- * sys_app_default() returns its id, or 0 if none is set.
+ * sys_app_get_default() returns its id, or 0 if none is set.
  * sys_app_set_default(0) clears the setting. The setting is stored by
  * application name and survives an update of the application. */
-HOST_SYSTEM_IMPORT(sys_app_default, uint32_t sys_app_default(void));
+HOST_SYSTEM_IMPORT(sys_app_get_default, uint32_t sys_app_get_default(void));
 HOST_SYSTEM_IMPORT(sys_app_set_default, int32_t sys_app_set_default(uint32_t id));
 
 /* Irreversible actions. The device restarts after each. */
 #define SYS_DO_RESTART        0
 #define SYS_DO_FORGET_NETWORK 1 /* the device starts with its setup access point */
 #define SYS_DO_FACTORY_RESET  2 /* erases the settings and all application stores */
-HOST_SYSTEM_IMPORT(sys_do, int32_t sys_do(int32_t action));
+HOST_SYSTEM_IMPORT(sys_run, int32_t sys_run(int32_t action));

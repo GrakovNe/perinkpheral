@@ -72,7 +72,7 @@ typedef enum {
 
 /* The icon with its top left corner at (x, y), in a square of 11 cells of
  * `cell` pixels. False for an id that is not one of the above. */
-bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black);
+bool gfx_draw_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black);
 
 /* The pixels of an icon drawn at `cell` that have ink in them, from its top
  * left corner: an icon does not fill its square, and what stands beside

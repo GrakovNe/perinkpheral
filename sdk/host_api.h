@@ -6,10 +6,14 @@
  * applications. Applications include this header and link the imports.
  * The host builds its import table from the same names.
  *
- * ABI 3 is the first frozen generation. Existing names, signatures,
+ * ABI 3 is being prepared for its first frozen release. After release,
+ * existing names, signatures,
  * privileges, layouts, values and meanings remain available on later
  * firmware. Changing a signature or meaning requires a new ABI; additions
- * use HOST_SINCE_<name> and a firmware minimum. ABI 2 is unsupported.
+ * after the 0.1.30 floor use HOST_SINCE_<name> and a firmware minimum.
+ * ABI 2 is unsupported.
+ * Commands use subject then verb (gfx_draw_text); queries name what is
+ * asked (gfx_width); host-called events are app_on_<what happened>.
  *
  * The contract is written by subject in host/, and this header includes all
  * of it: an application includes this one. The tools read the headers in

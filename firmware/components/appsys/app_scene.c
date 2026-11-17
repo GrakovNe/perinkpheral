@@ -270,7 +270,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
     }
     if (!app_has_stopped(self->app)) {
         /* Drawing is itself the answer to any request made so far - one made at its entry, in
-         * app_init() or app_on_focus(), among them: a question asked there is a question. */
+         * app_on_load() or app_on_focus(), among them: a question asked there is a question. */
         if (app_take_redraw_request(self->app)) {
             take_question(self, app_take_redraw_flags(self->app));
         }

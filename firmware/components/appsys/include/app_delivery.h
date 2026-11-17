@@ -30,11 +30,11 @@ extern "C" {
  * takes it from both. */
 #define APP_FOCUS_MIN_GAP_MS 30000
 
-struct host_response; /* host_response_t of host_api.h */
+struct host_answer_info; /* host_answer_info_t of host_api.h */
 
 typedef enum {
     APP_DELIVERY_PIECE,  /* a piece of an answer as it came: app_on_data() */
-    APP_DELIVERY_VALUES, /* the values picked out of an answer: app_on_values() */
+    APP_DELIVERY_VALUES, /* the values picked out of an answer: app_on_picked() */
     APP_DELIVERY_INTENT,   /* news it asked for: app_on_intent(); `request` is which */
     APP_DELIVERY_ALARM,    /* the alarm it set has come: app_on_alarm() */
     APP_DELIVERY_SETTINGS, /* the user changed its settings: app_on_settings() */
@@ -53,7 +53,7 @@ typedef struct {
      * is on the screen. News that there is nothing new. */
     bool only_on_screen;
     /* PIECE and VALUES: what else is known of the answer, or NULL */
-    const struct host_response *response;
+    const struct host_answer_info *response;
     /* PIECE and VALUES of a poll with "each": the item of the list it went
      * over. Without has_item, none. */
     bool has_item;
@@ -71,8 +71,8 @@ typedef struct {
 #define APP_SETTINGS_SHOWN_SOON_MS (30 * 1000)
 
 /* For how long after a press of the user's an application in the background does not take the
- * screen: somebody is reading or setting something, and request_focus() would take it from
- * under their hands. What cannot wait is a notify(). */
+ * screen: somebody is reading or setting something, and screen_request() would take it from
+ * under their hands. What cannot wait is a notification_post(). */
 #define APP_FOCUS_AFTER_PRESS_MS (30 * 1000)
 
 typedef struct {

@@ -327,7 +327,7 @@ HOST_FUNCTION(time_boot_id)
     m3ApiReturn(services->boot_id != NULL ? services->boot_id() : 0);
 }
 
-HOST_FUNCTION(log)
+HOST_FUNCTION(log_write)
 {
     m3ApiGetArg(int32_t, level);
     m3ApiGetArg(uint32_t, text_offset);
@@ -343,7 +343,7 @@ HOST_FUNCTION(log)
         for (int32_t i = 0; i < length; i++) {
             line[i] = text[i] >= ' ' && text[i] <= '~' ? (char)text[i] : '?';
         }
-        APP_OF(runtime)->services->log(level, line, length);
+        APP_OF(runtime)->services->log_write(level, line, length);
     }
     m3ApiSuccess();
 }

@@ -56,7 +56,7 @@ static int32_t data_began, data_ended, data_failed;
 
 static void mark(int32_t x, int32_t row)
 {
-    gfx_rect(x, row, 1, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(x, row, 1, 1, HOST_RECT_FILLED);
 }
 
 /* Never true, but the compiler cannot know: with it the recursion below
@@ -106,17 +106,17 @@ static void draw_store_checks(void)
     kv_set("kept", 4, for_the_next_life, sizeof for_the_next_life);
 }
 
-void app_init(void)
+void app_on_load(void)
 {
     uint8_t kept;
     found_on_start = kv_get("kept", 4, &kept, sizeof kept) == 1 && kept == 7;
-    host_log(HOST_LOG_INFO, "init", 4);
+    log_write(HOST_LOG_INFO, "init", 4);
 }
 
 /* Notification regressions: installation returns, update traps. */
 void app_on_installed(void)
 {
-    host_log(HOST_LOG_INFO, "installed", 9);
+    log_write(HOST_LOG_INFO, "installed", 9);
 }
 
 void app_on_updated(void)
@@ -132,7 +132,7 @@ void app_on_focus(void)
 
 void app_on_blur(void)
 {
-    host_log(HOST_LOG_INFO, "blur", 4);
+    log_write(HOST_LOG_INFO, "blur", 4);
 }
 
 void app_on_button(int32_t event)
@@ -142,7 +142,7 @@ void app_on_button(int32_t event)
         __builtin_trap();
     }
     if (button == BUTTON_EXIT) {
-        request_exit();
+        screen_leave();
         return;
     }
     if (button == BUTTON_SPIN_FOREVER) {
@@ -153,19 +153,19 @@ void app_on_button(int32_t event)
         presses = descend_forever(1);
     }
     if (button == BUTTON_REDRAW_SOON || button == BUTTON_REDRAW_CLEAN) {
-        request_redraw(button == BUTTON_REDRAW_SOON ? HOST_REDRAW_SOON : HOST_REDRAW_CLEAN);
+        screen_redraw(button == BUTTON_REDRAW_SOON ? HOST_REDRAW_SOON : HOST_REDRAW_CLEAN);
         return;
     }
     if (button == BUTTON_REDRAW_STREAM) {
-        request_redraw(HOST_REDRAW_NO_BLINK);
+        screen_redraw(HOST_REDRAW_NO_BLINK);
         return;
     }
     if (button == BUTTON_DRAW_OUTSIDE) {
-        result_outside_draw = gfx_rect(0, 0, 1, 1, HOST_RECT_FILLED);
+        result_outside_draw = gfx_draw_rect(0, 0, 1, 1, HOST_RECT_FILLED);
         return;
     }
     presses += button;
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }
 
 enum { REQUEST_WITH_HEADERS = 3, REQUEST_OF_JSON = 4 };
@@ -188,28 +188,28 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     }
     if (request == REQUEST_WITH_HEADERS) {
         /* asks for the screen when the answer is described as the test sent it */
-        struct { host_response_t response; int32_t guard; } output = { .guard = 12345 };
-        host_response_t prefix = { .length = 12345 };
-        int32_t prefix_bytes = data_response(&prefix, sizeof prefix.status);
+        struct { host_answer_info_t response; int32_t guard; } output = { .guard = 12345 };
+        host_answer_info_t prefix = { .length = 12345 };
+        int32_t prefix_bytes = answer_info(&prefix, sizeof prefix.status);
         unsigned char saved_prefix[sizeof prefix];
         for (unsigned i = 0; i < sizeof prefix; i++) {
             saved_prefix[i] = ((unsigned char *)&prefix)[i];
         }
-        int32_t zero_bytes = data_response(&prefix, 0);
+        int32_t zero_bytes = answer_info(&prefix, 0);
         bool prefix_unchanged = true;
         for (unsigned i = 0; i < sizeof prefix; i++) {
             prefix_unchanged = prefix_unchanged && ((unsigned char *)&prefix)[i] == saved_prefix[i];
         }
-        if (data_response(&output.response, sizeof output) == sizeof output.response &&
+        if (answer_info(&output.response, sizeof output) == sizeof output.response &&
             output.guard == 12345 && prefix_bytes == sizeof prefix.status &&
             prefix.status == 304 && prefix.length == 12345 &&
             zero_bytes == 0 && prefix_unchanged &&
-            data_response(&prefix, -1) == HOST_ERR_ARGUMENT &&
-            data_response((host_response_t *)65534, 4) == HOST_ERR_ARGUMENT &&
+            answer_info(&prefix, -1) == HOST_ERR_ARGUMENT &&
+            answer_info((host_answer_info_t *)65534, 4) == HOST_ERR_ARGUMENT &&
             output.response.status == 304 &&
             output.response.length == -1 && output.response.retry_after == 30 &&
             same_bytes(output.response.etag, "\"v7\"") && output.response.link[0] == '\0') {
-            request_focus();
+            screen_request();
         }
         return;
     }
@@ -227,7 +227,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
             const char *count = json_pick_value(&pick, 1);
             if (name != NULL && count != NULL && same_bytes(name, "second") &&
                 same_bytes(count, "2")) {
-                request_focus();
+                screen_request();
             }
         }
         return;
@@ -246,7 +246,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     data_pieces++;
     if (flags & HOST_DATA_LAST) {
         data_ended++;
-        request_focus();
+        screen_request();
     }
 }
 
@@ -261,7 +261,7 @@ static bool same_text(const char *left, const char *right)
     return *left == *right;
 }
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 {
     if (http_status == 0) {
         values_failed = request;
@@ -273,15 +273,15 @@ void app_on_values(int32_t request, int32_t http_status)
                         app_value_number(0, 1, &tenths) && tenths == -35 &&
                         app_value_text(1, text, sizeof text) && same_text(text, "Rain") &&
                         !app_value_number(2, 0, &missing) &&
-                        data_value(2, text, sizeof text) == HOST_ERR_NOT_FOUND &&
-                        data_value(1, too_small, sizeof too_small) == HOST_ERR_NO_SPACE &&
-                        data_value(1, (char *)0xFFFFFF00u, 4) == HOST_ERR_ARGUMENT &&
-                        data_value(99, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        answer_value(2, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        answer_value(1, too_small, sizeof too_small) == HOST_ERR_NO_SPACE &&
+                        answer_value(1, (char *)0xFFFFFF00u, 4) == HOST_ERR_ARGUMENT &&
+                        answer_value(99, text, sizeof text) == HOST_ERR_NOT_FOUND &&
                         /* a list path: its elements, and no single value */
                         app_value_count(3) == 2 && app_value_element_text(3, 1, text, sizeof text) &&
-                        same_text(text, "b") && data_value(3, text, sizeof text) == HOST_ERR_NOT_FOUND &&
-                        app_value_count(0) == 1 && app_value_count(2) == 0 && data_item() == -1;
-    request_redraw(HOST_REDRAW_NORMAL);
+                        same_text(text, "b") && answer_value(3, text, sizeof text) == HOST_ERR_NOT_FOUND &&
+                        app_value_count(0) == 1 && app_value_count(2) == 0 && answer_item() == -1;
+    screen_redraw(HOST_REDRAW_NORMAL);
 }
 
 /* Called through a table of functions, the way a C function pointer is. */
@@ -352,14 +352,14 @@ static bool numbers_parse(void)
 void app_on_timer(int32_t id)
 {
     fired_timer = id;
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_draw(void)
 {
-    gfx_rect(0, ROW_PRESSES, presses, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(0, ROW_PRESSES, presses, 1, HOST_RECT_FILLED);
     if (fired_timer >= 0) {
-        gfx_rect(0, ROW_TIMER, fired_timer + 1, 1, HOST_RECT_FILLED);
+        gfx_draw_rect(0, ROW_TIMER, fired_timer + 1, 1, HOST_RECT_FILLED);
     }
     if (result_outside_draw == HOST_ERR_NOT_DRAWING) {
         mark(0, ROW_NOT_DRAWING);
@@ -374,18 +374,18 @@ void app_on_draw(void)
     int32_t visible = ui_list_visible(&at_its_start);
     if (visible > 0 && ui_list_first(&at_its_start) == 0 &&
         ui_list_first(&at_its_end) == 100 - visible &&
-        ui_list_row(&not_a_list, 0, "a", 1, "", 0, HOST_ICON_NONE) == HOST_ERR_ARGUMENT &&
-        ui_list_row(&three, 0, "a", 1, "", 0, 999) == HOST_ERR_ARGUMENT &&
+        ui_draw_list_row(&not_a_list, 0, "a", 1, "", 0, HOST_ICON_NONE) == HOST_ERR_ARGUMENT &&
+        ui_draw_list_row(&three, 0, "a", 1, "", 0, 999) == HOST_ERR_ARGUMENT &&
         ui_list_visible((const host_list_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT &&
-        ui_notice((const host_notice_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT) {
+        ui_draw_notice((const host_notice_t *)0xFFFFFF00u) == HOST_ERR_ARGUMENT) {
         mark(0, ROW_UI);
     }
 
     const char *far_outside_memory = (const char *)0xFFFFFF00u;
-    if (gfx_text(0, ROW_TEXT, HOST_FONT_TEXT, far_outside_memory, 16) == HOST_ERR_ARGUMENT) {
+    if (gfx_draw_text(0, ROW_TEXT, HOST_FONT_TEXT, far_outside_memory, 16) == HOST_ERR_ARGUMENT) {
         mark(0, ROW_BAD_ARGUMENTS);
     }
-    if (gfx_text(0, ROW_TEXT, UNKNOWN_FONT, "x", 1) == HOST_ERR_ARGUMENT) {
+    if (gfx_draw_text(0, ROW_TEXT, UNKNOWN_FONT, "x", 1) == HOST_ERR_ARGUMENT) {
         mark(2, ROW_BAD_ARGUMENTS);
     }
 
@@ -423,17 +423,17 @@ void app_on_draw(void)
     const int32_t refusals[] = {
         timer_set(HOST_TIMER_COUNT, 10),
         timer_set(0, -1),
-        gfx_bitmap(0, 0, 8, 8, bits_outside_memory),
-        gfx_text(0, 0, HOST_FONT_TEXT, "x", -1),
-        gfx_rect(0, 0, HUGE, HUGE, HOST_RECT_FILLED),
-        gfx_line(0, 0, HUGE, HUGE),
+        gfx_draw_bitmap(0, 0, 8, 8, bits_outside_memory),
+        gfx_draw_text(0, 0, HOST_FONT_TEXT, "x", -1),
+        gfx_draw_rect(0, 0, HUGE, HUGE, HOST_RECT_FILLED),
+        gfx_draw_line(0, 0, HUGE, HUGE),
     };
     for (int32_t i = 0; i < (int32_t)(sizeof refusals / sizeof refusals[0]); i++) {
         if (refusals[i] == HOST_ERR_ARGUMENT) {
             mark(2 * i, ROW_MORE_REFUSALS);
         }
     }
-    if (gfx_text(0, OFF_THE_SURFACE, HOST_FONT_TEXT, long_text, sizeof long_text) ==
+    if (gfx_draw_text(0, OFF_THE_SURFACE, HOST_FONT_TEXT, long_text, sizeof long_text) ==
         HOST_TEXT_MAX * one_glyph) {
         mark(12, ROW_MORE_REFUSALS);
     }
@@ -450,23 +450,23 @@ void app_on_draw(void)
     }
 
     static const uint8_t ink_at_0_and_2[] = { 0xA0 };
-    gfx_bitmap(0, ROW_BITMAP, 3, 1, ink_at_0_and_2);
-    gfx_line(0, ROW_LINE, 3, ROW_LINE);
-    gfx_text(0, ROW_TEXT, HOST_FONT_TEXT, "I", 1);
+    gfx_draw_bitmap(0, ROW_BITMAP, 3, 1, ink_at_0_and_2);
+    gfx_draw_line(0, ROW_LINE, 3, ROW_LINE);
+    gfx_draw_text(0, ROW_TEXT, HOST_FONT_TEXT, "I", 1);
 
-    gfx_rect(0, ROW_COLOR, 8, 1, HOST_RECT_FILLED);
-    if (gfx_color(HOST_PAPER) == HOST_OK) {
-        gfx_rect(2, ROW_COLOR, 2, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(0, ROW_COLOR, 8, 1, HOST_RECT_FILLED);
+    if (gfx_set_color(HOST_PAPER) == HOST_OK) {
+        gfx_draw_rect(2, ROW_COLOR, 2, 1, HOST_RECT_FILLED);
         /* a clear bit of a bitmap leaves the bar alone, a set one is paper too */
         static const uint8_t nothing_set[] = { 0x00 };
-        gfx_bitmap(4, ROW_COLOR, 4, 1, nothing_set);
+        gfx_draw_bitmap(4, ROW_COLOR, 4, 1, nothing_set);
     }
     /* half dark: every other pixel of this row, by the host's pattern */
-    if (gfx_color(8) == HOST_OK) {
-        gfx_rect(16, ROW_COLOR, 16, 1, HOST_RECT_FILLED);
+    if (gfx_set_color(8) == HOST_OK) {
+        gfx_draw_rect(16, ROW_COLOR, 16, 1, HOST_RECT_FILLED);
     }
-    if (gfx_color(HOST_INK + 1) == HOST_ERR_ARGUMENT && gfx_color(-1) == HOST_ERR_ARGUMENT &&
-        gfx_color(HOST_INK) == HOST_OK) {
+    if (gfx_set_color(HOST_INK + 1) == HOST_ERR_ARGUMENT && gfx_set_color(-1) == HOST_ERR_ARGUMENT &&
+        gfx_set_color(HOST_INK) == HOST_OK) {
         mark(10, ROW_COLOR);
     }
 
@@ -477,7 +477,7 @@ void app_on_draw(void)
         mark(2, ROW_VALUES);
     }
     char no_value[4];
-    if (data_value(0, no_value, sizeof no_value) == HOST_ERR_NOT_FOUND) {
+    if (answer_value(0, no_value, sizeof no_value) == HOST_ERR_NOT_FOUND) {
         mark(4, ROW_VALUES);
     }
     if (numbers_parse()) {
@@ -489,8 +489,8 @@ void app_on_draw(void)
     if (calls_through_pointers()) {
         mark(8, ROW_VALUES);
     }
-    if (poll_now(1) == HOST_OK && poll_now(2) == HOST_ERR_ARGUMENT &&
-        poll_now(-1) == HOST_ERR_ARGUMENT) {
+    if (poll_run(1) == HOST_OK && poll_run(2) == HOST_ERR_ARGUMENT &&
+        poll_run(-1) == HOST_ERR_ARGUMENT) {
         mark(12, ROW_VALUES);
     }
     if (poll_set_interval(0, 0) == HOST_OK && poll_set_interval(0, 3600) == HOST_OK &&
@@ -513,22 +513,22 @@ void app_on_draw(void)
     static const char BODY[] = "{\"a\":1}";
     static const char FIVE_HEADERS[] = "A: 1\nB: 2\nC: 3\nD: 4\nE: 5";
     enum { REQUEST_ACTION = HOST_REQUEST_FIRST + 3 };
-    if (http_request(REQUEST_ACTION, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS,
+    if (http_send(REQUEST_ACTION, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS,
                      sizeof HEADERS - 1, BODY, sizeof BODY - 1) == HOST_OK &&
         /* a tag that could be taken for a poll, and one past the last */
-        http_request(HOST_REQUEST_FIRST - 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
+        http_send(HOST_REQUEST_FIRST - 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
-        http_request(HOST_REQUEST_LAST + 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
+        http_send(HOST_REQUEST_LAST + 1, HOST_HTTP_GET, URL, sizeof URL - 1, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_METHOD_LAST + 1, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) ==
+        http_send(REQUEST_ACTION, HOST_HTTP_METHOD_LAST + 1, URL, sizeof URL - 1, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_send(REQUEST_ACTION, HOST_HTTP_GET, "http://a/\nHost: b", 17, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "",
+        http_send(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, "no colon here", 13, "",
                      0) == HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, FIVE_HEADERS,
+        http_send(REQUEST_ACTION, HOST_HTTP_GET, URL, sizeof URL - 1, FIVE_HEADERS,
                      sizeof FIVE_HEADERS - 1, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_GET, URL, 0, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
-        http_request(REQUEST_ACTION, HOST_HTTP_GET, (const char *)0xFFFFFF00u, 8, "", 0, "", 0) ==
+        http_send(REQUEST_ACTION, HOST_HTTP_GET, URL, 0, "", 0, "", 0) == HOST_ERR_ARGUMENT &&
+        http_send(REQUEST_ACTION, HOST_HTTP_GET, (const char *)0xFFFFFF00u, 8, "", 0, "", 0) ==
             HOST_ERR_ARGUMENT) {
         mark(18, ROW_VALUES);
     }
@@ -644,21 +644,21 @@ void app_on_draw(void)
     if (boundaries_checked && time_from_local(&carried_year, &moment) == HOST_OK && moment == HOST_TIME_MIN) {
         mark(26, ROW_LOCAL_TIME);
     }
-    host_response_t outside;
-    if (data_response(&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {
+    host_answer_info_t outside;
+    if (answer_info(&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {
         mark(20, ROW_LOCAL_TIME);
     }
 
     /* Far beyond the surface: has to vanish, not land somewhere. */
-    gfx_rect(gfx_width(), gfx_height(), 5000, 5000, HOST_RECT_FILLED);
+    gfx_draw_rect(gfx_width(), gfx_height(), 5000, 5000, HOST_RECT_FILLED);
 
     /* The file is "0123456789": its first two bytes as a row of sixteen. */
-    gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 0);
-    gfx_icon(0, ROW_PICTURE + 2, HOST_ICON_PLUS, 1);
-    if (gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "none.bin", 8, 0) == HOST_ERR_NOT_FOUND &&
-        gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 9) == HOST_ERR_NOT_FOUND &&
-        gfx_icon(0, 0, 99, 1) == HOST_ERR_ARGUMENT &&
-        gfx_icon(0, 0, HOST_ICON_PLUS, 0) == HOST_ERR_ARGUMENT) {
+    gfx_draw_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 0);
+    gfx_draw_icon(0, ROW_PICTURE + 2, HOST_ICON_PLUS, 1);
+    if (gfx_draw_bitmap_file(0, ROW_PICTURE, 16, 1, "none.bin", 8, 0) == HOST_ERR_NOT_FOUND &&
+        gfx_draw_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 9) == HOST_ERR_NOT_FOUND &&
+        gfx_draw_icon(0, 0, 99, 1) == HOST_ERR_ARGUMENT &&
+        gfx_draw_icon(0, 0, HOST_ICON_PLUS, 0) == HOST_ERR_ARGUMENT) {
         mark(30, ROW_PICTURE);
     }
 }

@@ -21,7 +21,7 @@ static bool to_text(int32_t length, char *text, int32_t text_size)
 
 bool app_value_text(int32_t index, char *text, int32_t text_size)
 {
-    int32_t length = text_size > 0 ? data_value(index, text, text_size - 1) : HOST_ERR_NO_SPACE;
+    int32_t length = text_size > 0 ? answer_value(index, text, text_size - 1) : HOST_ERR_NO_SPACE;
     return to_text(length, text, text_size);
 }
 
@@ -49,13 +49,13 @@ bool app_value_fixed(int32_t index, int32_t decimals, int64_t *number)
 
 int32_t app_value_count(int32_t index)
 {
-    int32_t count = data_count(index);
+    int32_t count = answer_count(index);
     return count > 0 ? count : 0;
 }
 
 bool app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size)
 {
-    int32_t length = text_size > 0 ? data_element(index, element, text, text_size - 1)
+    int32_t length = text_size > 0 ? answer_element(index, element, text, text_size - 1)
                                    : HOST_ERR_NO_SPACE;
     return to_text(length, text, text_size);
 }

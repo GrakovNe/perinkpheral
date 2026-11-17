@@ -77,13 +77,13 @@ void app_on_button(int32_t event)
     if (event == BTN_OK_PRESSED) {
         /* Round and round; memory and uptime are read anew each time. */
         is_state_page = !is_state_page;
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
     }
 }
 
 static void draw_logo_page(void)
 {
-    sys_logo((gfx_width() - sys_logo_width(LOGO_SCALE)) / 2, LOGO_TOP, LOGO_SCALE);
+    sys_draw_logo((gfx_width() - sys_logo_width(LOGO_SCALE)) / 2, LOGO_TOP, LOGO_SCALE);
 
     char version[48];
     app_text_t text;
@@ -94,8 +94,8 @@ static void draw_logo_page(void)
     version[prefix + (length > 0 ? length : 0)] = '\0';
     draw_centered(VERSION_TOP, HOST_FONT_TEXT, version);
 
-    int32_t modules = gfx_qr(0, 0, 0, PROJECT_ADDRESS, sizeof PROJECT_ADDRESS - 1);
-    gfx_qr((gfx_width() - modules * MODULE_PIXELS) / 2, CODE_TOP, MODULE_PIXELS, PROJECT_ADDRESS,
+    int32_t modules = gfx_draw_qr(0, 0, 0, PROJECT_ADDRESS, sizeof PROJECT_ADDRESS - 1);
+    gfx_draw_qr((gfx_width() - modules * MODULE_PIXELS) / 2, CODE_TOP, MODULE_PIXELS, PROJECT_ADDRESS,
            sizeof PROJECT_ADDRESS - 1);
 
     draw_centered(CREDITS_TOP, HOST_FONT_SMALL, "(c) 2026 Max Grakov");

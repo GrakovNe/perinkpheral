@@ -78,7 +78,7 @@ void gfx_fill(gfx_t *g, int x, int y, int w, int h, bool black);
 void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness, bool black);
 
 /* A black line one pixel wide, both ends included. */
-void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
+void gfx_draw_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
 
 /* A picture as the build (tools/perinkpheral) writes it: a byte of how many cells wide, a
  * byte of how many tall, and the cells a bit each - 1 is ink, the leftmost
@@ -88,7 +88,7 @@ void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black);
 int  gfx_picture_width(const uint8_t *picture);
 int  gfx_picture_height(const uint8_t *picture);
 int  gfx_picture_bytes(const uint8_t *picture); /* header and all */
-void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black);
+void gfx_draw_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black);
 
 /* The square font (font_square.c), the wordmark's: every glyph is a square
  * on a grid of three strokes and two gaps, `scale` pixels per stroke (scale
@@ -176,7 +176,7 @@ int gfx_text_tabular_width(const gfx_font_t *font, const char *utf8);
 /* `text` as it fits into `max_width`: whole, or its start with "..." after
  * it, or nothing when not even that fits. `fitted` takes up to `capacity`
  * bytes with the terminator. ASCII. */
-void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
+void gfx_fit_text(const gfx_font_t *font, const char *text, int max_width, char *fitted,
                   size_t capacity);
 
 /* The fonts in the firmware: Departure Mono, drawn on an 11 px grid and

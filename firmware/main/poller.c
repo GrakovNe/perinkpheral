@@ -605,7 +605,7 @@ static bool run_wanted_poll(void)
     int items = 0;
     if (!is_round) {
         /* Taken now, before its answer: what the application does with that
-         * answer - poll_now() of this same poll, when it was not ready - asks
+         * answer - poll_run() of this same poll, when it was not ready - asks
          * for the next one, and is not to be undone when this one ends. */
         lock();
         poll_schedule_answered(&s_schedule, app, poll);
@@ -863,7 +863,7 @@ void poller_hurry(const char *app_name)
     wake();
 }
 
-/* poll_now() at most once a second (host_api.h): one asked sooner is made when the second is
+/* poll_run() at most once a second (host_api.h): one asked sooner is made when the second is
  * up, so an application that asks again from every answer does not keep the network to itself. */
 #define POLL_NOW_EVERY_MS 1000
 static int64_t s_polled_now_at_ms = -POLL_NOW_EVERY_MS;

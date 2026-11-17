@@ -263,13 +263,13 @@ static const app_services_t SERVICES = {
     .time_zone_offset_at = fake_time_zone_offset_at,
     .uptime_ms = fake_uptime_ms,
     .boot_id = fake_boot_id,
-    .log = record_log,
+    .log_write = record_log,
     .timer_set = record_timer,
     .kv_get = fake_kv_get,
     .kv_set = fake_kv_set,
     .dithers = always_dithers,
-    .poll_now = fake_poll_now,
-    .http_request = fake_http_request,
+    .poll_run = fake_poll_now,
+    .http_send = fake_http_request,
     .poll_set_interval = fake_poll_set_interval,
     .alarm_set = fake_alarm_set,
     .file_size = fake_file_size,
@@ -468,7 +468,7 @@ static void test_data(void)
     CHECK(gfx_get(&surface, 0, ROW_UI));
 
     /* what the headers said is there for the handler to ask, and only then */
-    host_response_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };
+    host_answer_info_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };
     app_answer_begins(app, &described, 304, -1);
     app_data(app, 3, response, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 304);
     app_answer_ends(app);

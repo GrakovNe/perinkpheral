@@ -17,7 +17,7 @@ extern "C" {
  * selected row is white on a black bar and is kept in the middle while
  * rows remain in both directions. A scroll bar is drawn at the right edge
  * when the rows exceed the height. Used by the host menu and by
- * ui_list_row(). Pure; rendered by tools/preview. */
+ * ui_draw_list_row(). Pure; rendered by tools/preview. */
 
 #define LIST_NO_ICON       (-1)
 #define LIST_NONE_SELECTED (-1)

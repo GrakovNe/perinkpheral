@@ -61,25 +61,25 @@ static void test_clear_and_pixel(void)
 static void test_line(void)
 {
     fresh();
-    gfx_line(&g, 2, 3, 9, 3, true);
+    gfx_draw_line(&g, 2, 3, 9, 3, true);
     CHECK(count_black() == 8); /* both ends are drawn */
     CHECK(gfx_get(&g, 2, 3) && gfx_get(&g, 9, 3));
 
     fresh();
-    gfx_line(&g, 5, 10, 5, 4, true); /* backwards works the same */
+    gfx_draw_line(&g, 5, 10, 5, 4, true); /* backwards works the same */
     CHECK(count_black() == 7 && gfx_get(&g, 5, 4) && gfx_get(&g, 5, 10));
 
     fresh();
-    gfx_line(&g, 0, 0, 7, 7, true);
+    gfx_draw_line(&g, 0, 0, 7, 7, true);
     CHECK(count_black() == 8 && gfx_get(&g, 3, 3));
 
     fresh();
-    gfx_line(&g, 4, 4, 4, 4, true);
+    gfx_draw_line(&g, 4, 4, 4, 4, true);
     CHECK(count_black() == 1);
 
     /* a line that leaves the surface is cut, not wrapped */
     fresh();
-    gfx_line(&g, W - 3, 0, W + 20, 0, true);
+    gfx_draw_line(&g, W - 3, 0, W + 20, 0, true);
     CHECK(count_black() == 3);
 }
 
@@ -301,7 +301,7 @@ static void test_picture(void)
     CHECK(gfx_picture_width(PICTURE) == 3 && gfx_picture_height(PICTURE) == 2);
     CHECK(gfx_picture_bytes(PICTURE) == (int)sizeof PICTURE);
     fresh();
-    gfx_picture(&g, 10, 4, PICTURE, 2, true);
+    gfx_draw_picture(&g, 10, 4, PICTURE, 2, true);
     CHECK(count_black() == 3 * 2 * 2);
     CHECK(gfx_get(&g, 10, 4) && gfx_get(&g, 11, 5) && !gfx_get(&g, 12, 4) && gfx_get(&g, 14, 4));
     CHECK(gfx_get(&g, 12, 6) && gfx_get(&g, 13, 7) && !gfx_get(&g, 10, 6));
@@ -317,7 +317,7 @@ static void test_in_latin(void)
     CHECK(gfx_text_font_width(font, "a \xE2\x80\x94 b\xE2\x80\xA6") == gfx_text_font_width(font, "a - b..."));
     CHECK(gfx_text_font_width(font, "\xE4\xB8\xAD") == gfx_text_font_width(font, "?"));
     char fitted[32];
-    gfx_text_fit(font, "\xD0\x9C\xD0\xBE\xD1\x81\xD0\xBA\xD0\xB2\xD0\xB0", gfx_text_font_width(font, "Mo..."),
+    gfx_fit_text(font, "\xD0\x9C\xD0\xBE\xD1\x81\xD0\xBA\xD0\xB2\xD0\xB0", gfx_text_font_width(font, "Mo..."),
                  fitted, sizeof fitted);
     CHECK_STR(fitted, "\xD0\x9C\xD0\xBE...");
 }
@@ -379,7 +379,7 @@ static void test_text_cut(void)
     CHECK(gfx_text_cut(moscow, 1) == 0 && gfx_text_cut("abc", 2) == 2 && gfx_text_cut("", 5) == 0);
     /* a buffer too small for the whole text holds whole characters of it */
     char small[8];
-    gfx_text_fit(gfx_font_system(), moscow, 10000, small, sizeof small);
+    gfx_fit_text(gfx_font_system(), moscow, 10000, small, sizeof small);
     CHECK_STR(small, "\xD0\x9C\xD0\xBE\xD1\x81");
 }
 
@@ -389,24 +389,24 @@ static void test_text_fit(void)
     int character = gfx_text_font_width(font, "x");
     char fitted[24];
 
-    gfx_text_fit(font, "Berlin", 6 * character, fitted, sizeof fitted);
+    gfx_fit_text(font, "Berlin", 6 * character, fitted, sizeof fitted);
     CHECK_STR(fitted, "Berlin");
     /* one character short: the end gives way to three dots */
-    gfx_text_fit(font, "Saint Petersburg", 15 * character, fitted, sizeof fitted);
+    gfx_fit_text(font, "Saint Petersburg", 15 * character, fitted, sizeof fitted);
     CHECK_STR(fitted, "Saint Peters...");
     /* no space is left before the dots */
-    gfx_text_fit(font, "Saint Petersburg", 9 * character, fitted, sizeof fitted);
+    gfx_fit_text(font, "Saint Petersburg", 9 * character, fitted, sizeof fitted);
     CHECK_STR(fitted, "Saint...");
-    gfx_text_fit(font, "Berlin", 4 * character, fitted, sizeof fitted);
+    gfx_fit_text(font, "Berlin", 4 * character, fitted, sizeof fitted);
     CHECK_STR(fitted, "B...");
     /* not even one character and the dots: nothing */
-    gfx_text_fit(font, "Berlin", 3 * character, fitted, sizeof fitted);
+    gfx_fit_text(font, "Berlin", 3 * character, fitted, sizeof fitted);
     CHECK_STR(fitted, "");
-    gfx_text_fit(font, "", 0, fitted, sizeof fitted);
+    gfx_fit_text(font, "", 0, fitted, sizeof fitted);
     CHECK_STR(fitted, "");
     /* the buffer is a limit too */
     char small[8];
-    gfx_text_fit(font, "Saint Petersburg", 100 * character, small, sizeof small);
+    gfx_fit_text(font, "Saint Petersburg", 100 * character, small, sizeof small);
     CHECK_STR(small, "Saint P");
 }
 
@@ -447,14 +447,14 @@ static bool art_ink(const gfx_icon_drawing_t *drawing, int row, int column)
     return (at[column / 8] >> (7 - column % 8)) & 1;
 }
 
-/* What gfx_icon draws at `cell` pixels a cell of the eleven is `drawing`, each
+/* What gfx_draw_icon draws at `cell` pixels a cell of the eleven is `drawing`, each
  * of its cells a square of `scale` pixels. */
 static bool drawn_from(gfx_icon_id_t id, int cell, const gfx_icon_drawing_t *drawing, int scale)
 {
     gfx_t surface;
     gfx_init(&surface, icon_bits, ICON_SURFACE, ICON_SURFACE);
     gfx_clear(&surface, false);
-    gfx_icon(&surface, id, 0, 0, cell, true);
+    gfx_draw_icon(&surface, id, 0, 0, cell, true);
     for (int y = 0; y < drawing->cells * scale; y++) {
         for (int x = 0; x < drawing->cells * scale; x++) {
             if (gfx_get(&surface, x, y) != art_ink(drawing, y / scale, x / scale)) {

@@ -241,7 +241,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         }
         ((manifest["polls"] as? List<*>) ?: emptyList<Any>()).forEachIndexed { number, poll ->
             val picks = (poll as Map<*, *>)["pick"].let { it is List<*> && it.isNotEmpty() }
-            val handler = if (picks) "app_on_values" else "app_on_data"
+            val handler = if (picks) "app_on_picked" else "app_on_data"
             if (handler !in exports) {
                 throw BuildError("${wasm.path}: poll $number of the manifest ${if (picks) "has \"pick\"" else "has no \"pick\""}, " +
                     "and the module has no $handler()")
@@ -353,7 +353,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             "alarm_set" to "app_on_alarm",
             "alarm_set_at" to "app_on_alarm",
             "alarm_set_every" to "app_on_alarm",
-            "http_request" to "app_on_data",
+            "http_send" to "app_on_data",
         )
     }
 }

@@ -49,12 +49,12 @@ struct app {
     const char           *name;
 
     IM3Function exports[EXPORT_COUNT]; /* NULL: not exported */
-    /* Set only while app_on_values() runs: what data_value() reads. */
+    /* Set only while app_on_picked() runs: what answer_value() reads. */
     json_pick_t *picked;
-    /* Set only while a handler of an answer runs: what data_response() and
-     * data_item() say. */
+    /* Set only while a handler of an answer runs: what answer_info() and
+     * answer_item() say. */
     bool                   is_in_answer;
-    const host_response_t *response;
+    const host_answer_info_t *response;
     int                    response_status;
     int                    answer_item;
     uint32_t    data_buffer_offset; /* where in its memory the application takes data */

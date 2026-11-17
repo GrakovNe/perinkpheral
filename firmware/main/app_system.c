@@ -213,7 +213,7 @@ int32_t app_system_app_remove(const char *asking, uint32_t id)
     if (app == NULL) {
         return HOST_ERR_NOT_FOUND;
     }
-    /* Not the one asking, whichever of its handlers asks - app_init()'s
+    /* Not the one asking, whichever of its handlers asks - app_on_load()'s
      * too: its code runs from the flash that removing it frees, in the
      * interpreter closing it would free. It is removed from another, or
      * from the page. */

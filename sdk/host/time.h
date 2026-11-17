@@ -20,7 +20,7 @@
 
 /* An alarm calls app_on_alarm(id) once at its time, on or off the screen.
  * Off the screen the application is loaded for the call and can request
- * the screen with request_focus(). An application has HOST_ALARM_COUNT
+ * the screen with screen_request(). An application has HOST_ALARM_COUNT
  * alarms, numbered from 0. Setting an alarm again moves it.
  * timer_set() works only on the screen; alarms work everywhere.
  *
@@ -52,7 +52,7 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * application can use several slots; none are reserved per application.
  * Say so in the log: a line in the header that
  * stops changing is otherwise taken for a hang.
- * Typical use: keeping a header_status() text current while the
+ * Typical use: keeping a header_set_status() text current while the
  * application is off the screen. */
 #define HOST_ALARM_EVERY_MIN 60
 #define HOST_ALARM_EVERY_MAX 86400
@@ -128,7 +128,6 @@ HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char 
  * Returns HOST_OK and writes the moment to unix_time, or HOST_ERR_ARGUMENT
  * for an invalid pointer or a normalized moment outside the supported range.
  * On error the output is untouched. */
-#define HOST_SINCE_time_from_local "0.1.23"
 HOST_IMPORT(time_from_local, int32_t time_from_local(const host_local_time_t *parts,
                                                     int64_t *unix_time));
 

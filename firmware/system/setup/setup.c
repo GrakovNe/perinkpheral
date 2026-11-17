@@ -22,7 +22,7 @@
 void app_on_button(int32_t event)
 {
     if (BTN_ACTION_OF(event) == BTN_PRESSED) {
-        request_exit();
+        screen_leave();
     }
 }
 
@@ -42,7 +42,7 @@ static void draw_line(int32_t line, const char *verb, const char *what)
     int32_t length = app_text_length(text);
     int32_t baseline = gfx_height() - (TEXT_LINES - line) * LINE_HEIGHT + LINE_HEIGHT -
                        TEXT_DESCENT;
-    gfx_text((gfx_width() - gfx_text_width(HOST_FONT_TEXT, text, length)) / 2,
+    gfx_draw_text((gfx_width() - gfx_text_width(HOST_FONT_TEXT, text, length)) / 2,
              baseline - gfx_font_ascent(HOST_FONT_TEXT), HOST_FONT_TEXT, text, length);
 }
 
@@ -53,11 +53,11 @@ void app_on_draw(void)
     /* The code as large as fits over the two lines of text, in the middle. */
     read_info(SYS_INFO_JOIN_CODE, value);
     int32_t length = app_text_length(value);
-    int32_t modules = gfx_qr(0, 0, 0, value, length);
+    int32_t modules = gfx_draw_qr(0, 0, 0, value, length);
     int32_t height = gfx_height() - TEXT_LINES * LINE_HEIGHT - TOP_GAP;
     int32_t cell = modules > 0 ? height / (modules + 2 * QUIET_MODULES) : 0;
     if (cell > 0) {
-        gfx_qr((gfx_width() - modules * cell) / 2, TOP_GAP + (height - modules * cell) / 2, cell,
+        gfx_draw_qr((gfx_width() - modules * cell) / 2, TOP_GAP + (height - modules * cell) / 2, cell,
                value, length);
     }
 

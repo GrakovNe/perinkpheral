@@ -40,7 +40,7 @@ static int header_icon(gfx_t *g, int icon, int edge, bool from_right)
     int cap = gfx_font_cap_height(gfx_font_system());
     int ink_left = from_right ? edge - width : edge;
     int ink_top = HEADER_BASELINE - cap / 2 - height / 2;
-    gfx_icon(g, (gfx_icon_id_t)icon, ink_left - ink.first_x, ink_top - ink.first_y, ICON_CELL,
+    gfx_draw_icon(g, (gfx_icon_id_t)icon, ink_left - ink.first_x, ink_top - ink.first_y, ICON_CELL,
              true);
     return width;
 }
@@ -63,9 +63,9 @@ void screens_header(gfx_t *g, const screens_header_t *header)
     wm_header_share(gfx_text_font_width(font, left), gfx_text_font_width(font, right), available,
                     &left_max, &right_max);
     char fitted[HEADER_TEXT_BUFFER];
-    gfx_text_fit(font, left, left_max, fitted, sizeof fitted);
+    gfx_fit_text(font, left, left_max, fitted, sizeof fitted);
     gfx_text_font(g, text_left, HEADER_BASELINE, font, fitted, true);
-    gfx_text_fit(font, right, right_max, fitted, sizeof fitted);
+    gfx_fit_text(font, right, right_max, fitted, sizeof fitted);
     gfx_text_font(g, text_right - gfx_text_font_width(font, fitted), HEADER_BASELINE, font, fitted,
                   true);
     gfx_fill(g, 0, g->h - 1, g->w, 1, true);

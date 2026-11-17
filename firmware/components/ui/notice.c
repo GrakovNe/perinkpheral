@@ -45,7 +45,7 @@ void notice_draw(gfx_t *g, const notice_t *notice)
             x = icon_left + (icon_size - ink_width) / 2 - ink.first_x;
             y = (body_height - ink_height) / 2 - ink.first_y;
         }
-        gfx_icon(g, (gfx_icon_id_t)notice->icon, x, y, NOTICE_ICON_CELL, true);
+        gfx_draw_icon(g, (gfx_icon_id_t)notice->icon, x, y, NOTICE_ICON_CELL, true);
         text_right = icon_left - NOTICE_TEXT_ICON_GAP;
     }
     const gfx_font_t *large = gfx_font(GFX_FONT_MEDIUM);
@@ -65,14 +65,14 @@ void notice_draw(gfx_t *g, const notice_t *notice)
         const gfx_font_t *font = gfx_text_font_width(large, text) <= room ? large
                                                                             : gfx_font_system();
         char fitted[NOTICE_TEXT_BUFFER];
-        gfx_text_fit(font, text, room, fitted, sizeof fitted);
+        gfx_fit_text(font, text, room, fitted, sizeof fitted);
         gfx_text_font(g, NOTICE_MARGIN, baseline, font, fitted, true);
     }
 
     if (notice->detail != NULL) {
         const gfx_font_t *font = gfx_font_system();
         char fitted[NOTICE_DETAIL_BUFFER];
-        gfx_text_fit(font, notice->detail, text_right - NOTICE_MARGIN, fitted, sizeof fitted);
+        gfx_fit_text(font, notice->detail, text_right - NOTICE_MARGIN, fitted, sizeof fitted);
         gfx_text_font(g, NOTICE_MARGIN, baseline - NOTICE_LINE_STEP + NOTICE_DETAIL_STEP, font,
                       fitted, true);
     }

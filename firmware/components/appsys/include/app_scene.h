@@ -37,7 +37,7 @@ scene_t *app_scene_create_in_place(const app_manifest_t *manifest, const uint8_t
  * one that has stopped. */
 app_t *app_scene_app(scene_t *scene);
 
-/* The loaded instance, including one stopped by app_init or another handler.
+/* The loaded instance, including one stopped by app_on_load or another handler.
  * For delivery bookkeeping; handlers on a stopped instance are skipped. */
 app_t *app_scene_loaded_app(scene_t *scene);
 

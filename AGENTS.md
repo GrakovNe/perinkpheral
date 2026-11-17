@@ -169,7 +169,12 @@ Code:
   `test/host/apps/probe` with its check in `test_app.c`. An export the
   host calls is added to the header and called in `appsys/app.c`, whose
   count of them stops the build until it is. After the first release,
-  changing a signature means a new `HOST_API_VERSION`.
+  changing a signature means a new `HOST_API_VERSION`. Commands use subject
+  then verb (`kv_get`, `gfx_draw_text`); queries name the subject and what
+  is asked (`gfx_width`, `time_now`); events are `app_on_<what happened>`
+  (`app_on_load`, `app_on_picked`). ABI 3 requires firmware 0.1.30;
+  `HOST_SINCE_` stamps only additions after that floor. The contract snapshot
+  is `sdk/abi/3.txt`; fixture hashes are separate, in `sdk/abi/3/fixtures.txt`.
 - The application is not trusted: `app.c` and the `app_api_*.c` check
   every offset and length against the module's memory before using it.
   Keep them free of ESP-IDF; what they need from the device comes in as

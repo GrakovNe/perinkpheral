@@ -209,7 +209,7 @@ uint32_t app_manifest_interval_seconds(const char *text);
 bool app_manifest_accepts_setting(const char *json, const char *key, const char *value,
                                   bool *is_secret);
 
-/* Where an application may send requests of its own (http_request): the
+/* Where an application may send requests of its own (http_send): the
  * manifest's "hosts", up to APP_HOSTS_MAX names, each as it stands in a
  * URL - "api.example.com", "192.168.1.10:32400" - or "{{key}}" for the
  * server the user named in the setting of the "url" type under that key,

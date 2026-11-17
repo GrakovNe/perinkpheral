@@ -380,7 +380,7 @@ typedef struct job {
     int             status; /* HTTP, or a HOST_FAILED_* */
     uint8_t        *answer;
     size_t          answer_length;
-    host_response_t response;
+    host_answer_info_t response;
 } job_t;
 
 static bool            s_last_use_failed; /* what the header's icon says */
@@ -613,7 +613,7 @@ static void exchange(job_t *job, char *next, size_t next_size)
     }
     const json_t *status = json_get(answer, "status");
     job->status = json_is_number(status) ? (int)status->number : HOST_FAILED_NO_ANSWER;
-    host_response_t *response = &job->response;
+    host_answer_info_t *response = &job->response;
     response->status = job->status;
     const json_t *got_headers = json_get(answer, "headers");
     copy_answer_header(got_headers, "content-type", response->content_type, sizeof response->content_type);
@@ -1245,19 +1245,19 @@ static const app_services_t SERVICES = {
     .time_zone_offset_at = offset_at,
     .uptime_ms = services_uptime,
     .boot_id = services_boot_id,
-    .log = services_log,
+    .log_write = services_log,
     .timer_set = services_timer,
     .kv_get = kv_get,
     .kv_set = kv_set,
     .dithers = services_dithers,
-    .poll_now = services_poll_now,
-    .http_request = services_request,
+    .poll_run = services_poll_now,
+    .http_send = services_request,
     .poll_set_interval = services_poll_interval,
     .alarm_set = services_alarm,
     .alarm_set_every = services_alarm_every,
-    .header_status = services_header_status,
+    .header_set_status = services_header_status,
     .language = services_language,
-    .notify = services_notify,
+    .notification_post = services_notify,
     .file_size = services_file_size,
     .file_read = services_file_read,
     .file_write = services_file_write,
@@ -1453,7 +1453,7 @@ static void answer_due(const deadline_id_t *id)
     }
     case DUE_POLL:
         /* The next time first: what the poll brings - an answer of "not ready" is delivered
-         * at once - may ask for it sooner (poll_now), and that is not to be undone. */
+         * at once - may ask for it sooner (poll_run), and that is not to be undone. */
         set_due(DUE_POLL, id->number, (int64_t)s_poll_every_s[id->number] * MS_PER_SECOND);
         start_poll(id->number);
         break;

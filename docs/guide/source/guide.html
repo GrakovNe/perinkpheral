@@ -238,7 +238,7 @@
   <tr><td>Device events (intents)</td><td class="n">3</td><td>Started, time changed, network up</td></tr>
   <tr><td>Installation, update</td><td class="n">once each</td><td><code>app_on_installed()</code>, <code>app_on_updated()</code></td></tr>
   <tr><td>Queued notifications</td><td class="n">4</td><td>Per device</td></tr>
-  <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>request_focus()</code>; granted by the host</td></tr>
+  <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>screen_request()</code>; granted by the host</td></tr>
   <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network. 0 until first set. The time zone is a host setting</td></tr>
 </table>
 
@@ -260,11 +260,11 @@
 <h2 id="model-life">Application lifecycle</h2>
 <table>
   <tr><th style="width:27%">Event</th><th style="width:33%">Instance</th><th>Handlers, in order</th></tr>
-  <tr><td>The user opens the application</td><td>Loaded; stays while it has the screen</td><td class="c">app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
-  <tr><td>A response, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
-  <tr><td>The same while off the screen</td><td>Loaded for the delivery, unloaded when it ends. Stream chunks share one instance. The current screen is suspended and restored</td><td class="c">app_init, the handler, app_on_terminate</td></tr>
+  <tr><td>The user opens the application</td><td>Loaded; stays while it has the screen</td><td class="c">app_on_load, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
+  <tr><td>A response, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_picked / app_on_alarm / app_on_intent / app_on_settings</td></tr>
+  <tr><td>The same while off the screen</td><td>Loaded for the delivery, unloaded when it ends. Stream chunks share one instance. The current screen is suspended and restored</td><td class="c">app_on_load, the handler, app_on_terminate</td></tr>
   <tr><td>Installed, or updated to another version</td><td>Once, on or off the screen</td><td class="c">app_on_installed / app_on_updated</td></tr>
-  <tr><td><code>request_focus()</code> granted by the host</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_init, app_on_focus, app_on_draw</td></tr>
+  <tr><td><code>screen_request()</code> granted by the host</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_on_load, app_on_focus, app_on_draw</td></tr>
   <tr><td>The application leaves the screen: BACK, the menu, another application on top</td><td>Unloaded</td><td class="c">app_on_blur, app_on_terminate</td></tr>
 </table>
 
@@ -273,18 +273,18 @@
   <li>Handlers are run one at a time, each to completion. Locking is unnecessary.</li>
   <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.</li>
   <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.</li>
-  <li><code>app_init()</code> is called before any other handler of an instance.</li>
+  <li><code>app_on_load()</code> is called before any other handler of an instance.</li>
   <li>Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one response are delivered in order; a settings change or an alarm may be delivered between two of them.</li>
   <li>Background delivery of a response can be interrupted. A button press, screen switch, application-list reload or delivery to another application can unload the instance and drop the remaining pieces. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute, or after its interval when that is shorter.</li>
 </ul>
 
 <h2 id="model-state">State</h2>
 <p>Global variables are kept until the application is unloaded. It is unloaded when it leaves the screen and after a background delivery ends. A streamed response keeps the same instance between chunks; it also handles intervening events for that application.</p>
-<p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.</p>
+<p>State is loaded in <code>app_on_load()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.</p>
 <p>Use session memory for temporary UI state: the current page, selected row or unfinished edit. Up to 128 bytes (<code>HOST_SESSION_MAX</code>) survive unloads while the application remains in the navigation stack. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
 <p>Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.</p>
 
-<p>The session is attached after app_init() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_init() returns HOST_ERR_ARGUMENT.</p>
+<p>The session is attached after app_on_load() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_on_load() returns HOST_ERR_ARGUMENT.</p>
 <h2 id="model-screen">Navigation and refresh</h2>
 <p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.</p>
 <p>The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.</p>
@@ -339,10 +339,10 @@ static int32_t presses;
 static void draw_line(int32_t line, const char *text)
 {
     int32_t line_height = gfx_font_height(HOST_FONT_TEXT);
-    gfx_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
+    gfx_draw_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
 }
 
-void app_init(void)                 /* load the state from the store */
+void app_on_load(void)                 /* load the state from the store */
 {
     kv_get(PRESSES_KEY, PRESSES_KEY_LENGTH, &amp;presses, sizeof presses);
 }
@@ -359,7 +359,7 @@ void app_on_button(int32_t event)   /* update the state, request a redraw */
     case BTN_OK_PRESSED:
     case BTN_DOWN_PRESSED:
         presses++;
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
         break;
     }
 }
@@ -402,8 +402,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <li>the manifest exceeds a limit;</li>
   <li>a translation does not match <code>en.json</code> (section 12);</li>
   <li>a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;</li>
-  <li>the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_request()</code> and lacks the handler that receives the result;</li>
-  <li>the manifest declares a poll or intents and the code lacks <code>app_on_values()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;</li>
+  <li>the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_send()</code> and lacks the handler that receives the result;</li>
+  <li>the manifest declares a poll or intents and the code lacks <code>app_on_picked()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;</li>
   <li>the code draws and lacks <code>app_on_draw()</code>;</li>
   <li>a string of <code>strings/</code> or a picture of <code>pictures/</code> is not used in the code.</li>
 </ul>
@@ -452,7 +452,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
-  <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
+  <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_send()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
   <tr><td class="c"><code>settings</code></td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
   <tr><td class="c">system</td><td>true / false (default)</td><td>Enables the <code>sys_*</code> calls. The web page warns the user before installation</td></tr>
@@ -470,8 +470,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code></td></tr>
   <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the response is streamed</td></tr>
-  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item a response is for</td></tr>
-  <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list</td></tr>
+  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>answer_item()</code> gives the item a response is for</td></tr>
+  <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>answer_item()</code> is the position in the whole list</td></tr>
 </table>
 <p>A picked path has at most 63 bytes, each property name at most 31 ASCII bytes, and at most eight property or array-index levels. For example, <code>a.b[0]</code> uses three levels. The build and device reject paths beyond these limits.</p>
 <h2 id="package-placeholders">Setting placeholders</h2>
@@ -486,7 +486,7 @@ https://api.example.com/quote?symbols={{tickers}}</pre>
              "each": "tickers", "pick": ["quote.name", "quote.closes[*]"] } ]
 
 response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
-<p>A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>data_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.</p>
+<p>A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.</p>
 
 <h2 id="package-settings">Settings</h2>
 <p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
@@ -547,7 +547,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <ul>
   <li>The origin is the top left corner of the surface. <code>gfx_width()</code> and <code>gfx_height()</code> return its size. Use these values for layout.</li>
   <li>Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, the drawing calls of <code>gfx_*</code> and <code>ui_*</code> return <code>HOST_ERR_NOT_DRAWING</code>; measuring text and fonts works anywhere. Drawing is clipped to the surface.</li>
-  <li><code>gfx_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.</li>
+  <li><code>gfx_set_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.</li>
   <li>The standard margin is <code>HOST_UI_MARGIN</code> (16 px). Use it at the left and right edges.</li>
 </ul>
 
@@ -566,9 +566,9 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 </table>
 
 <ul>
-  <li>The <code>y</code> argument of <code>gfx_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.</li>
+  <li>The <code>y</code> argument of <code>gfx_draw_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.</li>
   <li>Add <code>HOST_FONT_TABULAR</code> to the font for numbers that change in place, such as a clock or a countdown. All digits then have the same width. Every call that takes a font accepts the flag. Pass the same flag when measuring.</li>
-  <li><code>gfx_text_fit()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.</li>
+  <li><code>gfx_fit_text()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.</li>
 </ul>
 
 <h2 id="screen-letters">Text beyond ASCII</h2>
@@ -584,7 +584,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 
 <h2 id="screen-pictures">Pictures and icons</h2>
 <p>The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
-<p><code>gfx_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
+<p><code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
 <table>
   <tr><th style="width:27%">Constant</th><th style="width:23%">Meaning</th><th style="width:27%">Constant</th><th>Meaning</th></tr>
   <tr><td class="c">HOST_ICON_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>connected</td><td class="c">HOST_ICON_NO_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>not connected</td></tr>
@@ -625,8 +625,8 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 ..#######..</pre>
 <h3>Application C code</h3>
 <pre>#include "pictures.h"   /* generated by the build */
-gfx_picture(x, y, PICTURE_DROP, 4);    /* 44 px: cell size 4 */
-gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
+gfx_draw_picture(x, y, PICTURE_DROP, 4);    /* 44 px: cell size 4 */
+gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 
 <p>Rules for text files:</p>
 <ul>
@@ -637,9 +637,9 @@ gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 </ul>
 <p>The constant is <code>PICTURE_</code> followed by the picture name in upper case. Characters other than letters and digits are replaced with <code>_</code>. Example: <code>half-moon</code> becomes <code>PICTURE_HALF_MOON</code>.</p>
 <p><code>tools/perinkpheral pictures pictures/</code> prints the pictures as the build reads them.</p>
-<p>A picture is stored as one bit per cell. <code>gfx_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.</p>
+<p>A picture is stored as one bit per cell. <code>gfx_draw_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.</p>
 <p>Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more detail. Pictures then match the icons in weight.</p>
-<p>Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.</p>
+<p>Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.</p>
 
 <h2 id="screen-kit">Kit</h2>
 <p>The kit is the set of interface parts that the host's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.</p>
@@ -649,28 +649,28 @@ gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 <p>Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in the host.</p>
 <table>
   <tr><th style="width:27%">Call</th><th>Description</th><th style="width:32%">Use</th></tr>
-  <tr><td class="c">ui_list_row, ui_list_first, ui_list_visible</td><td>List: one row per line, a value or icon at the right edge, the selected row inverted, a scroll bar. Without a selection, UP and DOWN scroll</td><td>More than three items; menus; settings</td></tr>
-  <tr><td class="c">ui_cell, ui_cell_fit</td><td>Name, picture and value in a box of any size; the value at the largest size that fits</td><td>Dashboards with one, two or four values</td></tr>
-  <tr><td class="c">ui_value</td><td>Value with its unit on the same baseline: "18 km/h"</td><td>Any number with a unit</td></tr>
-  <tr><td class="c">ui_notice</td><td>Two large lines, one text line, a large icon, button labels</td><td>Questions, errors, empty states, work in progress</td></tr>
-  <tr><td class="c">ui_reason</td><td>Standard notice for a request status: "Loading", "Not set up", "No network", "Access denied", "No answer"</td><td>Any screen that depends on the network</td></tr>
-  <tr><td class="c">ui_actions, ui_button</td><td>Button row at the bottom: OK action at the left, BACK action at the right</td><td>Screens where a button action needs a label</td></tr>
-  <tr><td class="c">ui_picker</td><td>One value from a sequence: the selected value framed, neighbours above and below</td><td>Selection among a few values with UP and DOWN</td></tr>
-  <tr><td class="c">ui_date</td><td>Time, date or both; one part is set at a time</td><td>Entry of a moment</td></tr>
-  <tr><td class="c">ui_frame</td><td>Frame with arrows for the available directions</td><td>Marks the value that the buttons change</td></tr>
-  <tr><td class="c">ui_bar</td><td>Filled portion of a total, from the left</td><td>Quantities. Changes with the data</td></tr>
-  <tr><td class="c">ui_chart</td><td>Series of integers as a line, an area, bars or steps, scaled to a box</td><td>History of one value. Changes with the data</td></tr>
-  <tr><td class="c">ui_title, ui_text, ui_text_lines, ui_icon</td><td>Page title with a rule; text in four styles, on one line or wrapped; icons at three sizes</td><td>Basic page elements</td></tr>
+  <tr><td class="c">ui_draw_list_row, ui_list_first, ui_list_visible</td><td>List: one row per line, a value or icon at the right edge, the selected row inverted, a scroll bar. Without a selection, UP and DOWN scroll</td><td>More than three items; menus; settings</td></tr>
+  <tr><td class="c">ui_draw_cell, ui_cell_fit</td><td>Name, picture and value in a box of any size; the value at the largest size that fits</td><td>Dashboards with one, two or four values</td></tr>
+  <tr><td class="c">ui_draw_value</td><td>Value with its unit on the same baseline: "18 km/h"</td><td>Any number with a unit</td></tr>
+  <tr><td class="c">ui_draw_notice</td><td>Two large lines, one text line, a large icon, button labels</td><td>Questions, errors, empty states, work in progress</td></tr>
+  <tr><td class="c">ui_draw_reason</td><td>Standard notice for a request status: "Loading", "Not set up", "No network", "Access denied", "No answer"</td><td>Any screen that depends on the network</td></tr>
+  <tr><td class="c">ui_draw_actions, ui_draw_button</td><td>Button row at the bottom: OK action at the left, BACK action at the right</td><td>Screens where a button action needs a label</td></tr>
+  <tr><td class="c">ui_draw_picker</td><td>One value from a sequence: the selected value framed, neighbours above and below</td><td>Selection among a few values with UP and DOWN</td></tr>
+  <tr><td class="c">ui_draw_date</td><td>Time, date or both; one part is set at a time</td><td>Entry of a moment</td></tr>
+  <tr><td class="c">ui_draw_frame</td><td>Frame with arrows for the available directions</td><td>Marks the value that the buttons change</td></tr>
+  <tr><td class="c">ui_draw_bar</td><td>Filled portion of a total, from the left</td><td>Quantities. Changes with the data</td></tr>
+  <tr><td class="c">ui_draw_chart</td><td>Series of integers as a line, an area, bars or steps, scaled to a box</td><td>History of one value. Changes with the data</td></tr>
+  <tr><td class="c">ui_draw_title, ui_draw_text, ui_draw_text_lines, ui_draw_icon</td><td>Page title with a rule; text in four styles, on one line or wrapped; icons at three sizes</td><td>Basic page elements</td></tr>
 </table>
 <div class="screens">
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-list.png" alt=""><figcaption>ui_list_row: a list of rows with values</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-picker.png" alt=""><figcaption>ui_picker: selecting one value</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-date.png" alt=""><figcaption>ui_date: setting a date or a time</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-list.png" alt=""><figcaption>ui_draw_list_row: a list of rows with values</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-picker.png" alt=""><figcaption>ui_draw_picker: selecting one value</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-date.png" alt=""><figcaption>ui_draw_date: setting a date or a time</figcaption></figure>
 </div>
 <div class="screens">
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-question.png" alt=""><figcaption>ui_notice: a question</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-message.png" alt=""><figcaption>ui_notice: a message with a reason</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-progress.png" alt=""><figcaption>ui_notice with is_working: work in progress</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-question.png" alt=""><figcaption>ui_draw_notice: a question</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-message.png" alt=""><figcaption>ui_draw_notice: a message with a reason</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-progress.png" alt=""><figcaption>ui_draw_notice with is_working: work in progress</figcaption></figure>
 </div>
 <p>Button handling for lists, pickers and dates is implemented in the SDK library (<code>app_ui.h</code>). The application calls it from <code>app_on_button()</code> and acts on the result. See section 7.</p>
 <p>The <code>kit</code> application in the catalog shows every part on a separate page. Its source code is a working example for each part.</p>
@@ -701,17 +701,17 @@ gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
     case BTN_OK_PRESSED:       start();  break;
     case BTN_OK_LONG_PRESSED:  reset();  break;
     }
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 
 <h2 id="buttons-back">BACK</h2>
 <table>
   <tr><th style="width:36%">Application</th><th>Short press of BACK</th></tr>
   <tr><td>Without <code>app_on_back()</code></td><td>Closes the application (one step down the stack)</td></tr>
-  <tr><td>With <code>app_on_back()</code></td><td>Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>request_exit()</code></td></tr>
+  <tr><td>With <code>app_on_back()</code></td><td>Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>screen_leave()</code></td></tr>
 </table>
 <p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.</p>
-<p><code>request_exit()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>request_focus()</code>.</p>
+<p><code>screen_leave()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>screen_request()</code>.</p>
 
 <h2 id="buttons-kit">Lists, pickers, dates</h2>
 <pre>#include "app_ui.h"
@@ -722,7 +722,7 @@ void app_on_button(int32_t event)
 {
     switch (app_list_button(&amp;list, event)) {
     case APP_UI_DONE:      open_item(list.selected);               break;   /* OK */
-    case APP_UI_CHANGED:   request_redraw(HOST_REDRAW_NO_BLINK);   break;   /* UP, DOWN */
+    case APP_UI_CHANGED:   screen_redraw(HOST_REDRAW_NO_BLINK);   break;   /* UP, DOWN */
     default:               break;
     }
 }
@@ -731,7 +731,7 @@ void app_on_draw(void)
 {
     int32_t first = app_list_first(&amp;list);
     for (int32_t row = first; row &lt; first + ui_list_visible(&amp;list) &amp;&amp; row &lt; list.count; row++) {
-        ui_list_row(&amp;list, row, label_of(row), label_length(row), "", 0, HOST_ICON_NONE);
+        ui_draw_list_row(&amp;list, row, label_of(row), label_length(row), "", 0, HOST_ICON_NONE);
     }
 }</pre>
 <p><code>app_picker_t</code> and <code>app_date_t</code> follow the same pattern. The application keeps a struct, passes button events to one function and draws with another. The button function returns <code>APP_UI_CHANGED</code>, <code>APP_UI_DONE</code>, <code>APP_UI_CANCELLED</code> or <code>APP_UI_IGNORED</code>.</p>
@@ -743,7 +743,7 @@ void app_on_draw(void)
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
 
-void app_init(void)
+void app_on_load(void)
 {
     if (kv_get("state", 5, &amp;state, sizeof state) != sizeof state || state.version != 2) {
         state = (state_t){ .version = 2, .minutes = 25 };     /* no stored state, or an older version */
@@ -770,38 +770,38 @@ void app_init(void)
 <p>Network availability is reported in the response: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
 <table>
   <tr><th style="width:20%">Method</th><th style="width:33%">Trigger</th><th>Delivery</th></tr>
-  <tr><td>Poll with <code>pick</code></td><td>Schedule</td><td><code>app_on_values()</code>, once, with the extracted values</td></tr>
+  <tr><td>Poll with <code>pick</code></td><td>Schedule</td><td><code>app_on_picked()</code>, once, with the extracted values</td></tr>
   <tr><td>Poll without <code>pick</code></td><td>Schedule</td><td><code>app_on_data()</code> in pieces, with the poll number</td></tr>
-  <tr><td>Poll with <code>each</code></td><td>Schedule; one request per item of a list setting</td><td>As above, once per item. <code>data_item()</code> gives the item</td></tr>
-  <tr><td><code>http_request()</code></td><td>Code: after a button press, or as a follow-up request</td><td><code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)</td></tr>
+  <tr><td>Poll with <code>each</code></td><td>Schedule; one request per item of a list setting</td><td>As above, once per item. <code>answer_item()</code> gives the item</td></tr>
+  <tr><td><code>http_send()</code></td><td>Code: after a button press, or as a follow-up request</td><td><code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)</td></tr>
 </table>
 
 <h2 id="network-values">Values extracted by the host</h2>
 <pre>#include "app_values.h"
 enum { VALUE_TEMPERATURE, VALUE_CODE };            /* order of "pick" in the manifest */
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 {
     int32_t tenths, code;
-    last_status = http_status;                     /* for ui_reason() when there is no data */
+    last_status = http_status;                     /* for ui_draw_reason() when there is no data */
     if (http_status == 200 &amp;&amp;
         app_value_number(VALUE_TEMPERATURE, 1, &amp;tenths) &amp;&amp;      /* "21.46" -> 215 */
         app_value_number(VALUE_CODE, 0, &amp;code)) {
         keep(tenths, code);                        /* save to the store */
     }                                              /* otherwise keep the previous data */
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 <p>Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.</p>
 <p>A path that is absent from the response has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
 <h3>Lists</h3>
-<p>A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:</p>
+<p>A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_draw_chart()</code>:</p>
 <pre>/* "pick": ["quote.name", "quote.closes[*]"] */
 static int32_t prices[HOST_CHART_VALUES_MAX];
 static int32_t count;
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 {
-    int32_t item = data_item();                                    /* which ticker of the list */
+    int32_t item = answer_item();                                    /* which ticker of the list */
     if (http_status == 200) {
         count = app_value_series(1, 2, prices, HOST_CHART_VALUES_MAX);  /* hundredths; "null": a gap */
     }
@@ -834,22 +834,22 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
     read_piece(data, length);                      /* data is valid until the handler returns */
     if (flags &amp; HOST_DATA_LAST) {
         take_what_was_read();                      /* the response is complete */
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
     }
 }</pre>
 <ul>
   <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. A response can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).</li>
   <li>Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new response.</li>
-  <li>Inside the handler, <code>data_response(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.</li>
+  <li>Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.</li>
 </ul>
 
-<p>Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: data_response() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.</p>
+<p>Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: answer_info() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.</p>
 <h2 id="network-request">Requests from code</h2>
 <pre>enum { REQUEST_TOGGLE = HOST_REQUEST_FIRST };
 static const char URL[]     = "{{server}}/api/services/light/toggle";
 static const char HEADERS[] = "Authorization: Bearer {{token}}\nContent-Type: application/json";
 
-http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1,
+http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1,
              body, body_length);</pre>
 <ul>
   <li>Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.</li>
@@ -857,10 +857,10 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li>The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
   <li>A response to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the response is still needed.</li>
   <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.</li>
-  <li><code>poll_now(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
+  <li><code>poll_run(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
-<p>For http_request(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.</p>
+<p>For http_send(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.</p>
 <p>The 16-request ceiling is per application, with no reserved slots. All queued requests share a 16 KB budget for queue records, URLs, headers and bodies. HOST_ERR_NO_SPACE may occur before sixteen requests are waiting. A raw header name is at most 31 bytes; its value is at most 255 bytes.</p>
 <h2 id="network-certificates">Certificate authorities of the application</h2>
 <p>The host verifies HTTPS servers against the browser root set. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
@@ -884,7 +884,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td class="c">HOST_FAILED_TOO_LARGE (-7)</td><td>Response larger than 256 KB (extracted values) or 4 MB (streamed)</td></tr>
   <tr><td class="c">HOST_FAILED_NO_MEMORY (-8)</td><td>Insufficient device memory for the request</td></tr>
 </table>
-<p>Save the last status in the store. When there is no data to display, pass the status to <code>ui_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:</p>
+<p>Save the last status in the store. When there is no data to display, pass the status to <code>ui_draw_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:</p>
 <table>
   <tr><th style="width:34%">Status</th><th style="width:46%">Notice</th><th>Return value</th></tr>
   <tr><td class="c">0 (no request yet)</td><td>Loading</td><td>1</td></tr>
@@ -901,24 +901,24 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><th style="width:26%">Task</th><th style="width:31%">Mechanism</th><th>Notes</th></tr>
   <tr><td>Scheduled data</td><td>Poll in the manifest</td><td>Active after a restart without code</td></tr>
   <tr><td>Action at a set time</td><td class="c">alarm_set, alarm_set_at, alarm_set_every</td><td>Alarms are cleared by a restart. Restore them in the <code>started</code> intent from a time kept in the store</td></tr>
-  <tr><td>Message to the user</td><td class="c">notify</td><td>Shown by the host over the current screen until dismissed</td></tr>
-  <tr><td>Bring the application to the screen</td><td class="c">request_focus</td><td>Granted by the host, at most once per 30 s</td></tr>
-  <tr><td>Status in the header</td><td class="c">header_status</td><td>An icon and short text above every screen with a header, including the owning application's screen. A screen's left text takes precedence over kept left status; kept right status takes precedence over the screen's right text</td></tr>
+  <tr><td>Message to the user</td><td class="c">notification_post</td><td>Shown by the host over the current screen until dismissed</td></tr>
+  <tr><td>Bring the application to the screen</td><td class="c">screen_request</td><td>Granted by the host, at most once per 30 s</td></tr>
+  <tr><td>Status in the header</td><td class="c">header_set_status</td><td>An icon and short text above every screen with a header, including the owning application's screen. A screen's left text takes precedence over kept left status; kept right status takes precedence over the screen's right text</td></tr>
   <tr><td>Reaction to device start, network connection or clock change</td><td>Intent in the manifest</td><td><code>app_on_intent()</code></td></tr>
   <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms of the old one: set them here. Poll intervals set from code are kept</td></tr>
 </table>
 
-<p>request_focus() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
+<p>screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
 <p>An application relying on <code>HOST_REDRAW_QUESTION</code> or on these focus rules writes <code>"firmware": "0.1.21"</code> in its manifest. The calls themselves do not raise the minimum firmware version.</p>
-<h2 id="background-notify">Notifications</h2>
+<h2 id="background-notification_post">Notifications</h2>
 <pre>void app_on_alarm(int32_t id)                      /* the application is loaded for this call */
 {
     host_notice_t notice = { .first = "Time", .second = "is up", .icon = HOST_ICON_BELL };
-    notify(&amp;notice);
+    notification_post(&amp;notice);
 }</pre>
-<p>After <code>notify()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.</p>
+<p>After <code>notification_post()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.</p>
 <p>The notification is managed entirely by the host. The application stays unloaded while it is displayed.</p>
-<p>Use <code>notify()</code> instead of <code>request_focus()</code> when the message fits in two lines.</p>
+<p>Use <code>notification_post()</code> instead of <code>screen_request()</code> when the message fits in two lines.</p>
 
 <h2 id="background-alarms">Alarms, timers</h2>
 <table>
@@ -1009,7 +1009,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="design-state">State and time</h2>
 <div class="rule"><b>Save state before every unload.</b> Keep persistent data in the store. Save navigation and unfinished editing state to the session in <code>app_on_blur()</code>; restore it in <code>app_on_focus()</code>. Opening from the menu starts a new session.</div>
 <div class="rule"><b>Keep the displayed data until new data is complete.</b> After a failed or interrupted request, keep the previous data on the screen.</div>
-<div class="rule"><b>Explain an empty screen.</b> Call <code>ui_reason()</code> to show "Not set up", "No network" or "Loading".</div>
+<div class="rule"><b>Explain an empty screen.</b> Call <code>ui_draw_reason()</code> to show "Not set up", "No network" or "Loading".</div>
 <div class="rule"><b>Handle an unknown or changed clock.</b> Handle <code>time_now() == 0</code>. Use <code>alarm_set()</code> for a delay ("in ten minutes") and <code>alarm_set_at()</code> for a clock time ("at seven").</div>
 
 <h2 id="design-user">Interaction and data</h2>
@@ -1039,7 +1039,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">tools/perinkpheral catalog &lt;folder&gt; --out &lt;dir&gt;</td><td>Builds a folder of applications into a catalog</td></tr>
 </table>
 <p>Log bytes outside printable ASCII, including UTF-8 bytes and line breaks, are replaced with "?".</p>
-<p><code>host_log(level, text, length)</code> writes one line of up to 200 bytes to the device log. It replaces <code>printf</code>.</p>
+<p><code>log_write(level, text, length)</code> writes one line of up to 200 bytes to the device log. It replaces <code>printf</code>.</p>
 <p><code>press ... --shot</code> waits for the panel to finish and saves the frame. This can be used to script regression tests of the application's screens.</p>
 
 <h2 id="tools-simulator">Simulator</h2>
@@ -1082,13 +1082,13 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="tools-problems">Common problems</h2>
 <table>
   <tr><th style="width:34%">Symptom</th><th>Probable cause</th></tr>
-  <tr><td>Blank screen</td><td>Drawing outside <code>app_on_draw()</code>, or a missing <code>request_redraw()</code> after a state change</td></tr>
-  <tr><td>State lost after leaving and returning</td><td>State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_init()</code></td></tr>
+  <tr><td>Blank screen</td><td>Drawing outside <code>app_on_draw()</code>, or a missing <code>screen_redraw()</code> after a state change</td></tr>
+  <tr><td>State lost after leaving and returning</td><td>State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_on_load()</code></td></tr>
   <tr><td>"&lt;title&gt; crashed" with "memory alloca..."</td><td>Executed code exceeds the interpreter memory. See the build warning and "Memory" in section 13</td></tr>
   <tr><td>"&lt;title&gt; cannot start", "Update the app."</td><td>Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall</td></tr>
   <tr><td>Poll fails with HOST_FAILED_NOT_READY (-3)</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
   <tr><td>HTTPS fails with HOST_FAILED_NOT_TRUSTED (-6)</td><td>Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network</td></tr>
-  <tr><td><code>http_request()</code> returns HOST_ERR_NO_SPACE (-4)</td><td>16 of the application's requests are waiting, or the device's queue is full. Queue more as responses arrive</td></tr>
+  <tr><td><code>http_send()</code> returns HOST_ERR_NO_SPACE (-4)</td><td>16 of the application's requests are waiting, or the device's queue is full. Queue more as responses arrive</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
   <tr><td>A press does not answer a question</td><td>The button went down before the question was on the panel: a press answers only what was shown. Press again</td></tr>
@@ -1114,17 +1114,19 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.</p>
 <p>A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.</p>
 
+<p>Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).</p>
+
 <h2>ABI 3 compatibility</h2>
-<p>ABI 3 is the first frozen generation. Existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; additions carry permanent HOST_SINCE_ stamps. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
+<p>ABI 3 is being prepared for its first frozen release. After release, existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; HOST_SINCE_ stamps only entries added after the ABI 3 floor, 0.1.30. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
 <p>The supported set is {3}. The manifest ABI is retained through loading and checked before execution. The device page uses ABI membership and the firmware minimum together for Install, Update and Update all; /api/status reports supported_abis. The downloaded manifest is authoritative. Catalog publishing copies identity and compatibility metadata from the packaged manifest.</p>
-<p>tools/perinkpheral contract snapshot records sdk/abi/3.txt; contract check runs in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.</p>
+<p>tools/perinkpheral contract snapshot records the contract in sdk/abi/3.txt and package hashes separately in sdk/abi/3/fixtures.txt; contract check verifies both in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.</p>
 <h2>Binary representation and buffers</h2>
 <p>The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.</p>
-<p>Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_response_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.</p>
-<p>kv_get, data_value, data_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_text_fit also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. data_response copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.</p>
-<p>Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_init or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.</p>
+<p>Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.</p>
+<p>kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.</p>
+<p>Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_on_load or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.</p>
 <p>Only HOST_DATA_LAST makes a streamed answer whole. HOST_DATA_FAILED may follow earlier pieces and invalidates them all. An interrupted answer may end with neither flag. Piece boundaries are unspecified, even inside a UTF-8 character or a document marker. Keep the previous displayed result until LAST.</p>
-<p>Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.</p>
+<p>Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_set_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.</p>
 <p>System settings expose only the explicit page-visible keys listed in sdk/host/sys.h, which specifies types, units, inclusive ranges, special values and restart behaviour for each. Unknown and internal keys, including refresh_min_button_ms, return HOST_ERR_NOT_FOUND for get, set and range. The Wi-Fi SSID is read-only here; the password cannot be read or written here (HOST_ERR_ARGUMENT). Network changes use the page or SYS_DO_FORGET_NETWORK.</p>
 
 <h1 id="ref-codes">16. Return codes</h1>
@@ -1142,7 +1144,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>Export the handlers required by the features your application uses. The host skips absent handlers; the build rejects a feature without its required handler (section 4).</p>
 <table>
   <tr><th style="width:42%">Export</th><th>Called when</th></tr>
-  <tr><td class="c">void app_init(void)</td><td>The instance is loaded and its strings are in place. Once per instance</td></tr>
+  <tr><td class="c">void app_on_load(void)</td><td>The instance is loaded and its strings are in place. Once per instance</td></tr>
   <tr><td class="c">void app_on_focus(void)</td><td>The application receives the screen. Start <code>timer_set()</code> timers here</td></tr>
   <tr><td class="c">void app_on_blur(void)</td><td>The application is about to lose the screen</td></tr>
   <tr><td class="c">void app_on_terminate(void)</td><td>The instance is about to be unloaded: leaving the screen, end of a background delivery, device restart, removal. Not after a fault stopped it. <code>app_on_blur()</code> precedes it if the application was on the screen</td></tr>
@@ -1152,7 +1154,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void app_on_timer(int32_t id)</td><td>A timer expires</td></tr>
   <tr><td class="c">void app_on_alarm(int32_t id)</td><td>An alarm expires, on or off the screen</td></tr>
   <tr><td class="c">void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)</td><td>A response chunk arrives. <code>request</code> is the poll number or request tag. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>HOST_DATA_LAST</code>, <code>HOST_DATA_FAILED</code></td></tr>
-  <tr><td class="c">void app_on_values(int32_t request, int32_t http_status)</td><td>The response to a poll with <code>pick</code> arrives. Values are readable inside the handler</td></tr>
+  <tr><td class="c">void app_on_picked(int32_t request, int32_t http_status)</td><td>The response to a poll with <code>pick</code> arrives. Values are readable inside the handler</td></tr>
   <tr><td class="c">void app_on_settings(void)</td><td>The user saves the application's settings on the web page</td></tr>
   <tr><td class="c">void app_on_intent(int32_t intent)</td><td>A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>HOST_INTENT_NETWORK_UP</code> (2), <code>HOST_INTENT_STARTED</code> (3)</td></tr>
   <tr><td class="c">void app_on_installed(void)</td><td>Once after the application is installed: it has not run on this device before, or was removed and installed again</td></tr>
@@ -1169,48 +1171,48 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">gfx_width(void), gfx_height(void)</td><td>Surface size: 400 x 260 below the header, 400 x 300 full-screen</td></tr>
-  <tr><td class="c">gfx_color(color)</td><td>Sets the drawing colour: <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16)</td></tr>
-  <tr><td class="c">gfx_text(x, y, font, text, length)</td><td>Draws text; <code>y</code> is the top of the line. Returns the width. Up to 127 bytes</td></tr>
+  <tr><td class="c">gfx_set_color(color)</td><td>Sets the drawing colour: <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16)</td></tr>
+  <tr><td class="c">gfx_draw_text(x, y, font, text, length)</td><td>Draws text; <code>y</code> is the top of the line. Returns the width. Up to 127 bytes</td></tr>
   <tr><td class="c">gfx_text_width(font, text, length)</td><td>Returns the width of the text</td></tr>
   <tr><td class="c">gfx_text_ink(font, text, length, ink)</td><td>Where the visible pixels of the text begin and end, into a <code>host_text_ink_t</code> (first_x, end_x). To centre what is seen</td></tr>
-  <tr><td class="c">gfx_text_fit(font, text, length, max_width, fitted, capacity)</td><td>Shortens the text with "..." to fit the width. Returns the new length</td></tr>
+  <tr><td class="c">gfx_fit_text(font, text, length, max_width, fitted, capacity)</td><td>Shortens the text with "..." to fit the width. Returns the new length</td></tr>
   <tr><td class="c">gfx_font_height(font), gfx_font_ascent(font), gfx_font_cap_height(font)</td><td>Line height; distance from the line top to the baseline; height of capitals and digits</td></tr>
-  <tr><td class="c">gfx_rect(x, y, w, h, fill)</td><td>Rectangle: <code>HOST_RECT_OUTLINE</code> or <code>HOST_RECT_FILLED</code></td></tr>
-  <tr><td class="c">gfx_line(x0, y0, x1, y1)</td><td>Line, 1 px wide, end points included</td></tr>
-  <tr><td class="c">gfx_picture(x, y, picture, cell)</td><td>Picture generated by the build from <code>pictures/</code>: width byte, height byte, one bit per cell. Cell size 1 - 16 px</td></tr>
-  <tr><td class="c">gfx_icon(x, y, icon, cell)</td><td>Built-in icon <code>HOST_ICON_*</code>, 11 x 11 cells. Cell size 1 - 16 px</td></tr>
+  <tr><td class="c">gfx_draw_rect(x, y, w, h, fill)</td><td>Rectangle: <code>HOST_RECT_OUTLINE</code> or <code>HOST_RECT_FILLED</code></td></tr>
+  <tr><td class="c">gfx_draw_line(x0, y0, x1, y1)</td><td>Line, 1 px wide, end points included</td></tr>
+  <tr><td class="c">gfx_draw_picture(x, y, picture, cell)</td><td>Picture generated by the build from <code>pictures/</code>: width byte, height byte, one bit per cell. Cell size 1 - 16 px</td></tr>
+  <tr><td class="c">gfx_draw_icon(x, y, icon, cell)</td><td>Built-in icon <code>HOST_ICON_*</code>, 11 x 11 cells. Cell size 1 - 16 px</td></tr>
   <tr><td class="c">gfx_icon_ink(icon, cell, ink)</td><td>The pixels an icon drawn at <code>cell</code> covers, into a <code>host_icon_ink_t</code> (first_x, last_x, first_y, last_y)</td></tr>
-  <tr><td class="c">gfx_bitmap(x, y, w, h, bits)</td><td>Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits are transparent</td></tr>
-  <tr><td class="c">gfx_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by the host from an application file, starting at <code>offset</code></td></tr>
-  <tr><td class="c">gfx_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
-  <tr><td class="c">void request_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION accepts OK only from a press begun after the question reached the panel</td></tr>
-  <tr><td class="c">header_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
+  <tr><td class="c">gfx_draw_bitmap(x, y, w, h, bits)</td><td>Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits are transparent</td></tr>
+  <tr><td class="c">gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by the host from an application file, starting at <code>offset</code></td></tr>
+  <tr><td class="c">gfx_draw_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
+  <tr><td class="c">void screen_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION accepts OK only from a press begun after the question reached the panel</td></tr>
+  <tr><td class="c">header_set_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
 </table>
 
 <p>Drawing coordinates are bounded to -4096 through 4096. Both bitmap calls require positive dimensions no larger than the current surface, even if clipping would hide the excess. QR cell size is 0 - 16.</p>
 <h1 id="ref-kit">19. Kit</h1>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">ui_text(x, y, style, text, length, max_width)</td><td>Text in a style: <code>HOST_UI_TEXT</code>, <code>HOST_UI_TITLE</code>, <code>HOST_UI_CAPTION</code>, <code>HOST_UI_VALUE</code>; shortened to <code>max_width</code> (0: unlimited). Returns the width</td></tr>
-  <tr><td class="c">ui_text_lines(x, y, style, text, length, width, max_lines)</td><td>Text wrapped at spaces to <code>width</code>, up to <code>max_lines</code> (1 - 8); the last line is shortened with "...". Returns the number of lines</td></tr>
+  <tr><td class="c">ui_draw_text(x, y, style, text, length, max_width)</td><td>Text in a style: <code>HOST_UI_TEXT</code>, <code>HOST_UI_TITLE</code>, <code>HOST_UI_CAPTION</code>, <code>HOST_UI_VALUE</code>; shortened to <code>max_width</code> (0: unlimited). Returns the width</td></tr>
+  <tr><td class="c">ui_draw_text_lines(x, y, style, text, length, width, max_lines)</td><td>Text wrapped at spaces to <code>width</code>, up to <code>max_lines</code> (1 - 8); the last line is shortened with "...". Returns the number of lines</td></tr>
   <tr><td class="c">ui_text_width(style, text, length), ui_text_height(style)</td><td>Text width and line height of a style</td></tr>
-  <tr><td class="c">ui_title(text, length)</td><td>Page title with a rule. Returns the <code>y</code> of the content area</td></tr>
-  <tr><td class="c">ui_icon(x, y, icon, size)</td><td>Built-in icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>HOST_UI_ICON_MEDIUM</code> (44), <code>HOST_UI_ICON_LARGE</code> (99)</td></tr>
-  <tr><td class="c">ui_actions(ok, ok_length, back, back_length)</td><td>Button row at the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). Length 0 omits a button; a single button is centred</td></tr>
-  <tr><td class="c">ui_button(x, y, name, name_length, action, action_length, mirrored)</td><td>One button: its name on a plate and the action label beside it. Returns the width</td></tr>
+  <tr><td class="c">ui_draw_title(text, length)</td><td>Page title with a rule. Returns the <code>y</code> of the content area</td></tr>
+  <tr><td class="c">ui_draw_icon(x, y, icon, size)</td><td>Built-in icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>HOST_UI_ICON_MEDIUM</code> (44), <code>HOST_UI_ICON_LARGE</code> (99)</td></tr>
+  <tr><td class="c">ui_draw_actions(ok, ok_length, back, back_length)</td><td>Button row at the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). Length 0 omits a button; a single button is centred</td></tr>
+  <tr><td class="c">ui_draw_button(x, y, name, name_length, action, action_length, mirrored)</td><td>One button: its name on a plate and the action label beside it. Returns the width</td></tr>
   <tr><td class="c">ui_list_visible(list), ui_list_first(list)</td><td>For a <code>host_list_t</code> (count, selected or -1, top, height or 0 for the remaining height, first): number of visible rows; index of the first visible row</td></tr>
-  <tr><td class="c">ui_list_row(list, index, label, label_length, value, value_length, icon)</td><td>One row. Rows outside the visible range are skipped. A value up to half the row width is kept whole; the label is shortened with "..."</td></tr>
-  <tr><td class="c">ui_notice(notice)</td><td>Notice on the whole surface from a <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. <code>first</code> is required; other empty fields are omitted</td></tr>
-  <tr><td class="c">ui_reason(status)</td><td>Standard notice for a request status. Returns 1 if drawn, 0 for a 2xx status</td></tr>
-  <tr><td class="c">ui_value(x, y, font, value, value_length, unit, unit_length)</td><td>Value with its unit on the baseline. Returns the total width</td></tr>
+  <tr><td class="c">ui_draw_list_row(list, index, label, label_length, value, value_length, icon)</td><td>One row. Rows outside the visible range are skipped. A value up to half the row width is kept whole; the label is shortened with "..."</td></tr>
+  <tr><td class="c">ui_draw_notice(notice)</td><td>Notice on the whole surface from a <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. <code>first</code> is required; other empty fields are omitted</td></tr>
+  <tr><td class="c">ui_draw_reason(status)</td><td>Standard notice for a request status. Returns 1 if drawn, 0 for a 2xx status</td></tr>
+  <tr><td class="c">ui_draw_value(x, y, font, value, value_length, unit, unit_length)</td><td>Value with its unit on the baseline. Returns the total width</td></tr>
   <tr><td class="c">ui_value_width(font, value, value_length, unit, unit_length)</td><td>Width of a value with its unit</td></tr>
-  <tr><td class="c">ui_cell(cell, picture, icon)</td><td>Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none) or a built-in icon (<code>HOST_ICON_NONE</code>: none). Picture size: 88 px in a full-surface cell, 44 px otherwise</td></tr>
+  <tr><td class="c">ui_draw_cell(cell, picture, icon)</td><td>Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none) or a built-in icon (<code>HOST_ICON_NONE</code>: none). Picture size: 88 px in a full-surface cell, 44 px otherwise</td></tr>
   <tr><td class="c">ui_cell_fit(cell, picture, icon)</td><td>Returns the size class that fits the cell; 1 is the largest. Use the largest returned number for all cells of a screen</td></tr>
-  <tr><td class="c">ui_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
-  <tr><td class="c">ui_chart(chart, values)</td><td>Draws a series of integers using host_chart_t; missing values use HOST_CHART_NO_VALUE</td></tr>
-  <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
-  <tr><td class="c">ui_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel</td></tr>
-  <tr><td class="c">ui_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel</td></tr>
+  <tr><td class="c">ui_draw_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
+  <tr><td class="c">ui_draw_chart(chart, values)</td><td>Draws a series of integers using host_chart_t; missing values use HOST_CHART_NO_VALUE</td></tr>
+  <tr><td class="c">ui_draw_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
+  <tr><td class="c">ui_draw_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel</td></tr>
+  <tr><td class="c">ui_draw_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel</td></tr>
 </table>
 
 <h2 id="ref-chart">Chart fields and flags</h2>
@@ -1234,8 +1236,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-navigation">Navigation and session</h2>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">void request_exit(void)</td><td>Closes the application: one step down the stack. Valid in button, back and timer handlers</td></tr>
-  <tr><td class="c">void request_focus(void)</td><td>Requests the screen from a background handler; decided after delivery ends. Refused within 30 s of a press, over a question waiting for its answer, or within 30 s of the last grant. A refusal is discarded, with no retry</td></tr>
+  <tr><td class="c">void screen_leave(void)</td><td>Closes the application: one step down the stack. Valid in button, back and timer handlers</td></tr>
+  <tr><td class="c">void screen_request(void)</td><td>Requests the screen from a background handler; decided after delivery ends. Refused within 30 s of a press, over a question waiting for its answer, or within 30 s of the last grant. A refusal is discarded, with no retry</td></tr>
   <tr><td class="c">int32_t session_set(data, length)</td><td>Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen</td></tr>
   <tr><td class="c">int32_t session_get(buffer, capacity)</td><td>Copies what is kept. Returns its length; 0 for none; <code>HOST_ERR_NO_SPACE</code> when the buffer is smaller</td></tr>
 </table>
@@ -1243,8 +1245,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-notifications">Notifications and header status</h2>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">notify(notice)</td><td>Queues a notification from a <code>host_notice_t</code>: first (required), second, detail, icon. <code>HOST_ERR_NO_SPACE</code> when four are queued</td></tr>
-  <tr><td class="c">header_status(side, icon, text, length)</td><td>Sets an icon and up to 31 bytes of text above screens with a header, including the owner's screen. A screen's left text wins over kept left status; kept right status wins over screen text. Empty icon and text release the side. Cleared by a restart, removal or an update that changes the application id</td></tr>
+  <tr><td class="c">notification_post(notice)</td><td>Queues a notification from a <code>host_notice_t</code>: first (required), second, detail, icon. <code>HOST_ERR_NO_SPACE</code> when four are queued</td></tr>
+  <tr><td class="c">header_set_status(side, icon, text, length)</td><td>Sets an icon and up to 31 bytes of text above screens with a header, including the owner's screen. A screen's left text wins over kept left status; kept right status wins over screen text. Empty icon and text release the side. Cleared by a restart, removal or an update that changes the application id</td></tr>
 </table>
 
 <h2 id="ref-store">Store and files</h2>
@@ -1260,21 +1262,21 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-network">Network</h2>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">poll_now(poll)</td><td>Queues a manifest poll; repeated pending requests are coalesced. Does not wait for a response</td></tr>
+  <tr><td class="c">poll_run(poll)</td><td>Queues a manifest poll; repeated pending requests are coalesced. Does not wait for a response</td></tr>
   <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Sets a persistent code override of 10 - 86400 s; other nonzero values or an unknown poll give HOST_ERR_ARGUMENT. 0 forgets the override and resumes the manifest or interval setting. The code override takes precedence over that setting. A changed effective interval resets the deadline from now; the same interval does not. HOST_ERR_FAILED means the override could not be kept or forgotten</td></tr>
-  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Headers: "Name: value" lines</td></tr>
-  <tr><td class="c">data_value(index, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value</td></tr>
-  <tr><td class="c">data_count(index)</td><td>Inside <code>app_on_values()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path</td></tr>
-  <tr><td class="c">data_element(index, element, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies element <code>element</code> of path <code>index</code>, as <code>data_value()</code> does</td></tr>
-  <tr><td class="c">data_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response</td></tr>
-  <tr><td class="c">data_response(response, capacity)</td><td>Inside a data handler: copies the first min(capacity, sizeof(host_response_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
+  <tr><td class="c">http_send(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Headers: "Name: value" lines</td></tr>
+  <tr><td class="c">answer_value(index, text, capacity)</td><td>Inside <code>app_on_picked()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value</td></tr>
+  <tr><td class="c">answer_count(index)</td><td>Inside <code>app_on_picked()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path</td></tr>
+  <tr><td class="c">answer_element(index, element, text, capacity)</td><td>Inside <code>app_on_picked()</code>: copies element <code>element</code> of path <code>index</code>, as <code>answer_value()</code> does</td></tr>
+  <tr><td class="c">answer_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_picked()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response</td></tr>
+  <tr><td class="c">answer_info(response, capacity)</td><td>Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
 </table>
 
 <h2 id="ref-text">Text and logging</h2>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Replaces <code>{0}</code> .. <code>{3}</code> with <code>host_text_argument_t</code> values. Pattern, text arguments and filled result are each limited to HOST_TEXT_MAX bytes. The result is cut to capacity without a terminator; returns its byte length</td></tr>
-  <tr><td class="c">void host_log(level, text, length)</td><td>Writes one log line of up to 200 bytes. Levels: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
+  <tr><td class="c">void log_write(level, text, length)</td><td>Writes one log line of up to 200 bytes. Levels: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
 </table>
 <p>Time arguments to <code>time_local_at()</code>, <code>time_text()</code> and <code>alarm_set_at()</code> accept Unix seconds 1767225600 through 4102444800: 2026-01-01 through 2100-01-01 UTC, inclusive (<code>HOST_TIME_MIN</code> through <code>HOST_TIME_MAX</code>). Outside this range they return <code>HOST_ERR_ARGUMENT</code> and leave destinations unchanged. <code>time_from_local()</code> applies the same range to the Unix moment after normalizing the local fields; an out-of-range result leaves its destination unchanged.</p>
 <h1 id="ref-time">21. Time</h1>
@@ -1303,9 +1305,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>A numeric setting's value and its range</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock to Unix seconds 1767225600 - 4102444800 (2026-01-01 through 2100-01-01 UTC, inclusive). HOST_ERR_ARGUMENT outside this range; HOST_ERR_FAILED while the time source is the network. On failure the clock is unchanged</td></tr>
   <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself</td></tr>
-  <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
-  <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
-  <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen</td></tr>
+  <tr><td class="c">sys_app_get_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
+  <tr><td class="c">sys_draw_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
+  <tr><td class="c">sys_run(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen</td></tr>
 </table>
 
 <h1 id="ref-library">23. SDK library</h1>
@@ -1391,8 +1393,8 @@ int32_t app_value_count(int32_t index);
 bool    app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size);
 bool    app_value_element_fixed(int32_t index, int32_t element, int32_t decimals, int64_t *number);
 int32_t app_value_series(int32_t index, int32_t decimals, int32_t *values, int32_t capacity);
-                         /* numbers for ui_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit */</pre>
-<p>These functions work only inside <code>app_on_values()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.</p>
+                         /* numbers for ui_draw_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit */</pre>
+<p>These functions work only inside <code>app_on_picked()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.</p>
 <p>Numeric readers accept -INT32_MAX through INT32_MAX in 32 bits, and -INT64_MAX through INT64_MAX in 64 bits.</p>
 <h2 id="lib-fixed">app_fixed.h: numbers with decimals</h2>
 <pre>/* "356.27", 2 -> 35627; exponents too */

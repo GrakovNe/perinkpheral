@@ -114,7 +114,7 @@
     <tr><td>Ввод</td><td>4 кнопки</td></tr>
     <tr><td>Приложение</td><td>Модуль WebAssembly и манифест</td></tr>
     <tr><td>Язык</td><td>C, без стандартной библиотеки</td></tr>
-    <tr><td>Интерфейс</td><td>один заголовочный файл, sdk/host_api.h, ABI 2</td></tr>
+    <tr><td>Интерфейс</td><td>один заголовочный файл, sdk/host_api.h, ABI 3</td></tr>
     <tr><td>Память</td><td>64 КБ на приложение</td></tr>
     <tr><td>Сборка и загрузка</td><td>около 10 с, без перепрошивки</td></tr>
   </table>
@@ -123,7 +123,7 @@
     <li><b>II</b>Руководство разработчика: пакет, экран, ввод, хранение, сеть</li>
     <li><b>III</b>Справочник: API хоста и библиотека SDK</li>
   </ul>
-  <div class="facts">редакция 9, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT</div>
+  <div class="facts">редакция 10, 2026-11-17 / зафиксированный host API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Содержание</h1>
@@ -238,7 +238,7 @@
   <tr><td>События устройства (интенты)</td><td class="n">3</td><td>Запуск, изменение времени, появление сети</td></tr>
   <tr><td>Установка, обновление</td><td class="n">по разу</td><td><code>app_on_installed()</code>, <code>app_on_updated()</code></td></tr>
   <tr><td>Уведомлений в очереди</td><td class="n">4</td><td>На устройство</td></tr>
-  <tr><td>Захват экрана</td><td class="n">не чаще 1 раза в 30 с</td><td><code>request_focus()</code>; разрешается хостом</td></tr>
+  <tr><td>Захват экрана</td><td class="n">не чаще 1 раза в 30 с</td><td><code>screen_request()</code>; разрешается хостом</td></tr>
   <tr><td>Часы</td><td class="n">секунды Unix</td><td>Устанавливаются из сети. 0 до первой установки. Часовой пояс - настройка хоста</td></tr>
 </table>
 
@@ -260,11 +260,11 @@
 <h2 id="model-life">Жизненный цикл приложения</h2>
 <table>
   <tr><th style="width:27%">Событие</th><th style="width:33%">Экземпляр</th><th>Обработчики, по порядку</th></tr>
-  <tr><td>Пользователь открывает приложение</td><td>Загружается; остаётся, пока владеет экраном</td><td class="c">app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
-  <tr><td>Ответ, будильник, интент или изменение настроек, пока приложение на экране</td><td>Тот же экземпляр</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
-  <tr><td>То же, пока приложение не на экране</td><td>Загружается на доставку, выгружается по её завершении. Потоковые части используют один экземпляр. Текущий экран приостанавливается и восстанавливается</td><td class="c">app_init, обработчик, app_on_terminate</td></tr>
+  <tr><td>Пользователь открывает приложение</td><td>Загружается; остаётся, пока владеет экраном</td><td class="c">app_on_load, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
+  <tr><td>Ответ, будильник, интент или изменение настроек, пока приложение на экране</td><td>Тот же экземпляр</td><td class="c">app_on_data / app_on_picked / app_on_alarm / app_on_intent / app_on_settings</td></tr>
+  <tr><td>То же, пока приложение не на экране</td><td>Загружается на доставку, выгружается по её завершении. Потоковые части используют один экземпляр. Текущий экран приостанавливается и восстанавливается</td><td class="c">app_on_load, обработчик, app_on_terminate</td></tr>
   <tr><td>Установлено или обновлено до другой версии</td><td>Один раз, на экране или вне его</td><td class="c">app_on_installed / app_on_updated</td></tr>
-  <tr><td><code>request_focus()</code> разрешён хостом</td><td>Выгружается, затем открывается на вершине стека</td><td class="c">... app_on_terminate; app_init, app_on_focus, app_on_draw</td></tr>
+  <tr><td><code>screen_request()</code> разрешён хостом</td><td>Выгружается, затем открывается на вершине стека</td><td class="c">... app_on_terminate; app_on_load, app_on_focus, app_on_draw</td></tr>
   <tr><td>Приложение уходит с экрана: BACK, меню, другое приложение сверху</td><td>Выгружается</td><td class="c">app_on_blur, app_on_terminate</td></tr>
 </table>
 
@@ -273,18 +273,18 @@
   <li>Обработчики выполняются по одному, каждый до завершения. Блокировки не нужны.</li>
   <li>Обработчик ограничен 3 секундами. Обработчик, превысивший лимит или вызвавший ловушку (например, на неверном указателе), останавливается. Приложение завершается, показывается экран ошибки. Хост продолжает работу.</li>
   <li>Обработчики возвращают <code>void</code>. Перерисовка, экран или выход получаются запросом. Запросы применяются после возврата из обработчика.</li>
-  <li><code>app_init()</code> вызывается раньше любого другого обработчика экземпляра.</li>
+  <li><code>app_on_load()</code> вызывается раньше любого другого обработчика экземпляра.</li>
   <li>События кнопок доставляются по порядку; ждать могут 16, следующее теряется. Ожидающие таймеры с одним номером объединяются. Фрагменты одного ответа доставляются по порядку; между двумя из них может прийти изменение настроек или будильник.</li>
   <li>Фоновая доставка ответа может прерваться. Нажатие кнопки, смена экрана, перечитывание списка приложений или доставка другому приложению могут выгрузить экземпляр и отбросить оставшиеся части. Вызывается только <code>app_on_terminate()</code>. Опрос повторяется через минуту или через свой интервал, если он короче.</li>
 </ul>
 
 <h2 id="model-state">Состояние</h2>
 <p>Глобальные переменные сохраняются до выгрузки приложения. Оно выгружается при уходе с экрана и по завершении фоновой доставки. При потоковом ответе один экземпляр остаётся загруженным между частями; он также обрабатывает промежуточные события этого приложения.</p>
-<p>Состояние загружается в <code>app_init()</code> и сохраняется в <code>app_on_terminate()</code> - последнем вызове каждого экземпляра, не остановленного из-за сбоя. Значение, которое должно пережить отключение питания, сохраняется сразу после изменения.</p>
+<p>Состояние загружается в <code>app_on_load()</code> и сохраняется в <code>app_on_terminate()</code> - последнем вызове каждого экземпляра, не остановленного из-за сбоя. Значение, которое должно пережить отключение питания, сохраняется сразу после изменения.</p>
 <p>Используйте память сессии для временного состояния интерфейса: текущей страницы, выбранной строки или незавершённого ввода. До 128 байт (<code>HOST_SESSION_MAX</code>) сохраняются при выгрузке, пока приложение остаётся в стеке навигации. Сохраняйте их в <code>app_on_blur()</code>, восстанавливайте в <code>app_on_focus()</code> через <code>app_session_save()</code> и <code>app_session_load()</code>. Сессия очищается при выходе приложения из стека, повторном открытии из меню и перезапуске. Фоновый экземпляр может читать её, но не менять.</p>
 <p>Для меток времени, сохраняемых между перезапусками, используйте <code>time_now()</code>. Вместе со временем работы сохраняйте <code>time_boot_id()</code>, чтобы обнаружить предыдущий запуск и отбросить старое значение. Идентификатор запуска - случайное ненулевое 32-битное число; совпадение не гарантирует отсутствия перезапуска.</p>
 
-<p>Сессия подключается после возврата из app_init(). Читайте её в app_on_focus() или обработчике фоновой доставки; session_set() в app_init() возвращает HOST_ERR_ARGUMENT.</p>
+<p>Сессия подключается после возврата из app_on_load(). Читайте её в app_on_focus() или обработчике фоновой доставки; session_set() в app_on_load() возвращает HOST_ERR_ARGUMENT.</p>
 <h2 id="model-screen">Навигация и обновление экрана</h2>
 <p>Навигация организована как стек. Внизу находится меню. Приложение, открытое из меню, помещается сверху. Уведомление, вопрос хоста или приложение, запросившее экран, помещается над текущим экраном.</p>
 <p>Верхний элемент снимается коротким нажатием BACK. Длинным нажатием BACK стек очищается и открывается меню.</p>
@@ -339,10 +339,10 @@ static int32_t presses;
 static void draw_line(int32_t line, const char *text)
 {
     int32_t line_height = gfx_font_height(HOST_FONT_TEXT);
-    gfx_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
+    gfx_draw_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
 }
 
-void app_init(void)                 /* загрузить состояние из хранилища */
+void app_on_load(void)                 /* загрузить состояние из хранилища */
 {
     kv_get(PRESSES_KEY, PRESSES_KEY_LENGTH, &amp;presses, sizeof presses);
 }
@@ -359,7 +359,7 @@ void app_on_button(int32_t event)   /* изменить состояние, за
     case BTN_OK_PRESSED:
     case BTN_DOWN_PRESSED:
         presses++;
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
         break;
     }
 }
@@ -384,7 +384,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   module  0.8 KB of 48.0 KB
   code    0.5 KB; running it takes about 13.0 KB of the interpreter's 64.0 KB
   memory  9.1 KB of 64.0 KB: 8.0 KB of stack, 1.1 KB of data; 54.9 KB left for app_alloc()
-  firmware any</pre>
+  firmware 0.1.23 or later</pre>
 <table>
   <tr><th style="width:14%">Строка</th><th>Что измеряет</th><th style="width:36%">При превышении</th></tr>
   <tr><td class="c">module</td><td>Размер файла: код и начальные данные. Исполняется из флеш-памяти</td><td>Перенесите картинки и таблицы в <code>files/</code>. Используйте Kit вместо собственной отрисовки</td></tr>
@@ -402,8 +402,8 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <li>манифест превышает лимит;</li>
   <li>перевод не соответствует <code>en.json</code> (раздел 12);</li>
   <li>функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у хоста нет;</li>
-  <li>код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_request()</code> и не содержит обработчика, который получает результат;</li>
-  <li>манифест объявляет опрос или интенты, а в коде нет <code>app_on_values()</code>, <code>app_on_data()</code> или <code>app_on_intent()</code>;</li>
+  <li>код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_send()</code> и не содержит обработчика, который получает результат;</li>
+  <li>манифест объявляет опрос или интенты, а в коде нет <code>app_on_picked()</code>, <code>app_on_data()</code> или <code>app_on_intent()</code>;</li>
   <li>код рисует и не содержит <code>app_on_draw()</code>;</li>
   <li>строка из <code>strings/</code> или картинка из <code>pictures/</code> не используется в коде.</li>
 </ul>
@@ -424,7 +424,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   "title": "Plex Now Playing",
   "description": "What is playing on your Plex server.",
   "version": "0.1.0",
-  "abi": 2,
+  "abi": 3,
   "hosts": ["{{server}}"],
   "polls": [
     { "url": "{{server}}/status/sessions", "every": "{{every}}",
@@ -447,12 +447,12 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">title</td><td>1 - 23 символа</td><td>Отображаемое название в меню и на веб-странице. Переводится</td></tr>
   <tr><td class="c">description</td><td>1 - 95 символов, необязательно</td><td>Что делает приложение, одной строкой: показывается в каталоге и на веб-странице. Переводится</td></tr>
   <tr><td class="c">version</td><td>до 15 байт</td><td>Задаётся разработчиком. Другая версия в каталоге предлагается как обновление</td></tr>
-  <tr><td class="c">abi</td><td><code>2</code></td><td>Версия API хоста, под которую собрано приложение. Несовпадение отклоняется при установке</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>Минимальная версия прошивки, необходимая приложению. Сборка выбирает наибольшую минимальную версию среди используемых вызовов хоста, начиная с 0.1.8. Манифест может указывать эту или более позднюю версию. Прошивка 0.1.8 и новее отклоняет установку и запуск приложения, которому нужна более новая версия, с сообщением "Update the firmware." Более ранние прошивки игнорируют это поле.</td></tr>
+  <tr><td class="c">abi</td><td><code>3</code></td><td>Поколение зафиксированного контракта хоста. Принимаются только явно поддерживаемые поколения; ABI 2 получает ответ "Обновите приложение."</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>Минимальный выпуск прошивки. Сборка берёт максимум из нижней границы ABI 3 (0.1.30), версий появления используемых импортов и экспортов и явно указанного минимума манифеста. Для новых флагов и поведения манифеста минимум указывают явно. Более старая прошивка отказывает в установке и запуске с ответом "Обновите прошивку." Прошивки до 0.1.8 игнорируют это поле.</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (по умолчанию)</td><td>false: сверху заголовок хоста, поверхность 400 x 260. true: поверхность 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 строк по 11 символов <code>#</code> и <code>.</code></td><td>Показывается в меню, на веб-странице и в каталогах. Необязательно</td></tr>
   <tr><td class="c">polls</td><td>до 4</td><td>Запросы по расписанию, которые выполняет хост (ниже). Опрос может проходить по настройке-списку</td></tr>
-  <tr><td class="c">hosts</td><td>до 4, каждый до 63 байт</td><td>Адреса, разрешённые для <code>http_request()</code>: имя, имя с портом либо <code>{{key}}</code> настройки типа <code>url</code> или <code>link</code>. Требуется только для запросов из кода; на опросы не распространяется</td></tr>
+  <tr><td class="c">hosts</td><td>до 4, каждый до 63 байт</td><td>Адреса, разрешённые для <code>http_send()</code>: имя, имя с портом либо <code>{{key}}</code> настройки типа <code>url</code> или <code>link</code>. Требуется только для запросов из кода; на опросы не распространяется</td></tr>
   <tr><td class="c"><code>settings</code></td><td>до 8</td><td>Форма настроек на веб-странице устройства (ниже)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>События устройства, по которым загружается приложение. Неизвестное значение приводит к ошибке сборки</td></tr>
   <tr><td class="c">system</td><td>true / false (по умолчанию)</td><td>Включает вызовы <code>sys_*</code>. Перед установкой веб-страница предупреждает пользователя</td></tr>
@@ -470,12 +470,12 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">every</td><td>от 10 до 86400 секунд либо <code>"{{key}}"</code> настройки</td><td>Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется хостом. Пока пользователь не выбрал, интервал равен <code>default</code> настройки, а без него - 15 минутам; приложение не сохраняет для него значение</td></tr>
   <tr><td class="c">headers</td><td>до 4; значение до 255 байт</td><td><code>{{key}}</code> поддерживается в значениях. Используются для отправки токена или собственного <code>User-Agent</code> приложения вместо хостового <code>perinkpheral</code></td></tr>
   <tr><td class="c">pick</td><td>до 16 путей, каждый до 63 байт</td><td>Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> вместо одного индекса берёт все элементы массива: <code>close[*]</code> (раздел 9). Значения извлекает хост. Без <code>pick</code> ответ приходит потоком</td></tr>
-  <tr><td class="c">each</td><td>ключ настройки <code>list</code></td><td>По запросу на каждый пункт списка, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>data_item()</code> сообщает, к какому пункту относится ответ</td></tr>
-  <tr><td class="c">prefix</td><td>до 15 символов; используется с <code>each</code></td><td>Опрос берёт только пункты, которые начинаются с него; <code>{{key}}</code> - пункт без него. Опрос того же списка без префикса берёт пункты, на которые не претендует ни один другой. Так один список обслуживает несколько источников: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> - позиция во всём списке</td></tr>
+  <tr><td class="c">each</td><td>ключ настройки <code>list</code></td><td>По запросу на каждый пункт списка, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>answer_item()</code> сообщает, к какому пункту относится ответ</td></tr>
+  <tr><td class="c">prefix</td><td>до 15 символов; используется с <code>each</code></td><td>Опрос берёт только пункты, которые начинаются с него; <code>{{key}}</code> - пункт без него. Опрос того же списка без префикса берёт пункты, на которые не претендует ни один другой. Так один список обслуживает несколько источников: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>answer_item()</code> - позиция во всём списке</td></tr>
 </table>
 <p>Путь для извлечения содержит не более 63 байт, каждое имя свойства - не более 31 байта ASCII, а число уровней свойств и индексов массива не превышает восьми. Например, <code>a.b[0]</code> занимает три уровня. Сборка и устройство отклоняют пути, превышающие эти ограничения.</p>
 <h2 id="package-placeholders">Подстановки настроек</h2>
-<p><code>{{key}}</code> любой настройки заменяется её значением с процентным кодированием: всё, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Начальная настройка <code>url</code> и настройка <code>link</code> вставляются без изменения. Настройка <code>list</code> вставляется как закодированные элементы через запятую: <code>symbols={{tickers}}</code> становится <code>symbols=AAPL,MSFT</code>. Опрос с пустой настройкой в URL или заголовках завершается с <code>HOST_FAILED_NOT_READY</code>; токен в заголовке поэтому обязателен.</p>
+<p><code>{{key}}</code> читает KV-хранилище приложения, включая необъявленные ключи; отсутствующая объявленная настройка берётся из значения по умолчанию в манифесте. Значение подставляется с процентным кодированием: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны два ключа, <code>/repos/{{owner}}/{{name}}</code>. Начальная настройка <code>url</code> и настройка <code>link</code> вставляются без изменений. Настройка <code>list</code> вставляется поэлементно с кодированием и запятыми между элементами: <code>symbols={{tickers}}</code> превращается в <code>symbols=AAPL,MSFT</code>. Пустая настройка в URL или заголовке опроса даёт <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен.</p>
 <pre>https://api.example.com/repos/{{owner}}/{{name}}
 {{server}}/api/status
 {{calendar}}
@@ -486,7 +486,7 @@ https://api.example.com/quote?symbols={{tickers}}</pre>
              "each": "tickers", "pick": ["quote.name", "quote.closes[*]"] } ]
 
 response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
-<p>Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке хост пытается выполнить один опрос с <code>data_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.</p>
+<p>Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке хост пытается выполнить один опрос с <code>answer_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.</p>
 
 <h2 id="package-settings">Настройки</h2>
 <p>Настройки объявляются в манифесте. Веб-страница устройства строит форму настроек только по манифесту. Каждое значение хранится как текст в хранилище приложения под ключом настройки.</p>
@@ -502,6 +502,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c"><code>help</code></td><td>Необязательный: до 95 символов и 190 байт UTF-8; без него пусто. Переводится</td></tr>
   <tr><td class="c"><code>default</code></td><td>Необязательный: непустая строка или непустой массив для list. Без него значение не задано. Запрещён для secret и place</td></tr>
   <tr><td class="c"><code>options</code></td><td>Обязателен для choice, запрещён для остальных: 1 - 8 строк, каждая 1 - 23 символа и до 46 байт UTF-8. Сохраняемые значения должны быть печатным ASCII</td></tr>
+  <tr><td class="c"><code>hidden</code></td><td>Необязательно: true для настройки, которую записывает что-то другое - интеграция через веб-API устройства или страница-компаньон; в форме на странице устройства её нет. Хранится и читается как любая другая</td></tr>
   <tr><td class="c"><code>latitude</code>, <code>longitude</code></td><td>Обязательны для place: ключи двух разных настроек number в том же манифесте</td></tr>
 </table>
 <h3>Типы настроек</h3>
@@ -546,7 +547,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <ul>
   <li>Начало координат - левый верхний угол поверхности. <code>gfx_width()</code> и <code>gfx_height()</code> возвращают её размер. Используйте эти значения для компоновки.</li>
   <li>Вызовы отрисовки работают внутри <code>app_on_draw()</code>. В начале каждого вызова поверхность белая. В любом другом обработчике вызовы отрисовки <code>gfx_*</code> и <code>ui_*</code> возвращают <code>HOST_ERR_NOT_DRAWING</code>; измерение текста и шрифтов работает везде. Отрисовка обрезается по границам поверхности.</li>
-  <li><code>gfx_color()</code> задаёт цвет для последующих вызовов, от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16). В начале каждого <code>app_on_draw()</code> цвет равен <code>HOST_INK</code>. Промежуточные значения - оттенки серого, получаемые дизерингом. Используйте серый только для заливок: тонкие линии и мелкий текст становятся нечитаемыми.</li>
+  <li><code>gfx_set_color()</code> задаёт цвет для последующих вызовов, от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16). В начале каждого <code>app_on_draw()</code> цвет равен <code>HOST_INK</code>. Промежуточные значения - оттенки серого, получаемые дизерингом. Используйте серый только для заливок: тонкие линии и мелкий текст становятся нечитаемыми.</li>
   <li>Стандартное поле - <code>HOST_UI_MARGIN</code> (16 пикселей). Используйте его у левого и правого краёв.</li>
 </ul>
 
@@ -565,9 +566,9 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 </table>
 
 <ul>
-  <li>Аргумент <code>y</code> вызова <code>gfx_text()</code> - верх строки. Базовая линия находится на <code>y + ascent</code>; верх прописных - на <code>y + ascent - cap_height</code>.</li>
+  <li>Аргумент <code>y</code> вызова <code>gfx_draw_text()</code> - верх строки. Базовая линия находится на <code>y + ascent</code>; верх прописных - на <code>y + ascent - cap_height</code>.</li>
   <li>Добавляйте <code>HOST_FONT_TABULAR</code> к шрифту для чисел, меняющихся на месте, например часов или обратного отсчёта. Все цифры получают одинаковую ширину. Флаг принимает любой вызов с аргументом шрифта. При измерении передавайте тот же флаг.</li>
-  <li><code>gfx_text_fit()</code> сокращает текст до заданной ширины и добавляет "...". Обрезка идёт по границе символа, поэтому результат остаётся корректным UTF-8.</li>
+  <li><code>gfx_fit_text()</code> сокращает текст до заданной ширины и добавляет "...". Обрезка идёт по границе символа, поэтому результат остаётся корректным UTF-8.</li>
 </ul>
 
 <h2 id="screen-letters">Текст за пределами ASCII</h2>
@@ -583,36 +584,36 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 
 <h2 id="screen-pictures">Картинки и иконки</h2>
 <p>Хост предоставляет 43 встроенные иконки: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.</p>
-<p><code>gfx_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.</p>
+<p><code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.</p>
 <table>
   <tr><th style="width:27%">Константа</th><th style="width:23%">Значение</th><th style="width:27%">Константа</th><th>Значение</th></tr>
-  <tr><td class="c">HOST_ICON_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>подключено</td><td class="c">HOST_ICON_NO_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>не подключено</td></tr>
-  <tr><td class="c">HOST_ICON_UP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>стрелка вверх</td><td class="c">HOST_ICON_DOWN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>стрелка вниз</td></tr>
-  <tr><td class="c">HOST_ICON_LEFT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>стрелка влево</td><td class="c">HOST_ICON_RIGHT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>стрелка вправо</td></tr>
-  <tr><td class="c">HOST_ICON_CHECK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>выбрано, готово</td><td class="c">HOST_ICON_CROSS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>отмена, закрыть</td></tr>
-  <tr><td class="c">HOST_ICON_PLUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>добавить</td><td class="c">HOST_ICON_MINUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>убрать</td></tr>
-  <tr><td class="c">HOST_ICON_TRASH</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>удалить</td><td class="c">HOST_ICON_GEAR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>настройки</td></tr>
-  <tr><td class="c">HOST_ICON_CLOCK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>время</td><td class="c">HOST_ICON_HOURGLASS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>ожидание, таймер</td></tr>
-  <tr><td class="c">HOST_ICON_BELL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>уведомление, будильник</td><td class="c">HOST_ICON_INFO</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>информация</td></tr>
-  <tr><td class="c">HOST_ICON_WARNING</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>предупреждение, ошибка</td><td class="c">HOST_ICON_PLAY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>запуск, воспроизведение</td></tr>
-  <tr><td class="c">HOST_ICON_PAUSE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>пауза</td><td class="c">HOST_ICON_UPDATE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>обновление; знак проекта</td></tr>
-  <tr><td class="c">HOST_ICON_SUN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>ясно</td><td class="c">HOST_ICON_PARTLY_CLOUDY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>переменная облачность</td></tr>
-  <tr><td class="c">HOST_ICON_CLOUD</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>облачно</td><td class="c">HOST_ICON_RAIN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>дождь</td></tr>
-  <tr><td class="c">HOST_ICON_SNOW</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>снег</td><td class="c">HOST_ICON_THUNDER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>гроза</td></tr>
-  <tr><td class="c">HOST_ICON_WIND</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>ветер</td><td class="c">HOST_ICON_UMBRELLA</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>вероятность осадков</td></tr>
-  <tr><td class="c">HOST_ICON_DROP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>влажность, вода</td><td class="c">HOST_ICON_THERMOMETER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>температура</td></tr>
-  <tr><td class="c">HOST_ICON_BOLT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>мощность, энергия</td><td class="c">HOST_ICON_PLUG</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>розетка, напряжение</td></tr>
-  <tr><td class="c">HOST_ICON_BATTERY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>батарея</td><td class="c">HOST_ICON_HOME</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>дом</td></tr>
-  <tr><td class="c">HOST_ICON_BULB</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>свет</td><td class="c">HOST_ICON_DOOR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>дверь</td></tr>
-  <tr><td class="c">HOST_ICON_MOON</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>ночь</td><td class="c">HOST_ICON_CHIP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>процессор</td></tr>
-  <tr><td class="c">HOST_ICON_NETWORK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>трафик</td><td class="c">HOST_ICON_GAUGE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>давление, уровень</td></tr>
-  <tr><td class="c">HOST_ICON_CO2</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>восход</td></tr>
-  <tr><td class="c">HOST_ICON_SUNSET</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>закат</td><td class="c"></td><td></td></tr>
+  <tr><td class="c">HOST_ICON_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>подключено</td><td class="c">HOST_ICON_NO_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>не подключено</td></tr>
+  <tr><td class="c">HOST_ICON_UP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>стрелка вверх</td><td class="c">HOST_ICON_DOWN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>стрелка вниз</td></tr>
+  <tr><td class="c">HOST_ICON_LEFT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>стрелка влево</td><td class="c">HOST_ICON_RIGHT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>стрелка вправо</td></tr>
+  <tr><td class="c">HOST_ICON_CHECK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>выбрано, готово</td><td class="c">HOST_ICON_CROSS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>отмена, закрыть</td></tr>
+  <tr><td class="c">HOST_ICON_PLUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>добавить</td><td class="c">HOST_ICON_MINUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>убрать</td></tr>
+  <tr><td class="c">HOST_ICON_TRASH</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>удалить</td><td class="c">HOST_ICON_GEAR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>настройки</td></tr>
+  <tr><td class="c">HOST_ICON_CLOCK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>время</td><td class="c">HOST_ICON_HOURGLASS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>ожидание, таймер</td></tr>
+  <tr><td class="c">HOST_ICON_BELL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>уведомление, будильник</td><td class="c">HOST_ICON_INFO</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>информация</td></tr>
+  <tr><td class="c">HOST_ICON_WARNING</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>предупреждение, ошибка</td><td class="c">HOST_ICON_PLAY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>запуск, воспроизведение</td></tr>
+  <tr><td class="c">HOST_ICON_PAUSE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>пауза</td><td class="c">HOST_ICON_UPDATE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>обновление; знак проекта</td></tr>
+  <tr><td class="c">HOST_ICON_SUN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>ясно</td><td class="c">HOST_ICON_PARTLY_CLOUDY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>переменная облачность</td></tr>
+  <tr><td class="c">HOST_ICON_CLOUD</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>облачно</td><td class="c">HOST_ICON_RAIN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>дождь</td></tr>
+  <tr><td class="c">HOST_ICON_SNOW</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>снег</td><td class="c">HOST_ICON_THUNDER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>гроза</td></tr>
+  <tr><td class="c">HOST_ICON_WIND</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>ветер</td><td class="c">HOST_ICON_UMBRELLA</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>вероятность осадков</td></tr>
+  <tr><td class="c">HOST_ICON_DROP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>влажность, вода</td><td class="c">HOST_ICON_THERMOMETER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>температура</td></tr>
+  <tr><td class="c">HOST_ICON_BOLT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>мощность, энергия</td><td class="c">HOST_ICON_PLUG</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>розетка, напряжение</td></tr>
+  <tr><td class="c">HOST_ICON_BATTERY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>батарея</td><td class="c">HOST_ICON_HOME</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>дом</td></tr>
+  <tr><td class="c">HOST_ICON_BULB</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>свет</td><td class="c">HOST_ICON_DOOR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>дверь</td></tr>
+  <tr><td class="c">HOST_ICON_MOON</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>ночь</td><td class="c">HOST_ICON_CHIP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>процессор</td></tr>
+  <tr><td class="c">HOST_ICON_NETWORK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>трафик</td><td class="c">HOST_ICON_GAUGE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>давление, уровень</td></tr>
+  <tr><td class="c">HOST_ICON_CO2</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>восход</td></tr>
+  <tr><td class="c">HOST_ICON_SUNSET</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>закат</td><td class="c"></td><td></td></tr>
 </table>
 
 <div class="screens">
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>Собственные иконки хоста при клетке 2 и 4 пикселя</figcaption></figure>
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" alt=""><figcaption>Погодные, домашние и астрономические иконки при размере клетки 2 и 4 пикселя</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" alt=""><figcaption>Собственные иконки хоста при клетке 2 и 4 пикселя</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" alt=""><figcaption>Погодные, домашние и астрономические иконки при размере клетки 2 и 4 пикселя</figcaption></figure>
 </div>
 
 <p>Собственные картинки приложения размещаются в папке <code>pictures/</code>. Поддерживаются форматы PNG, PBM и текстовый. Текстовый файл содержит строки из <code>#</code> (чернила) и <code>.</code> (бумага) и может содержать несколько именованных картинок:</p>
@@ -624,8 +625,8 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 ..#######..</pre>
 <h3>Код приложения на C</h3>
 <pre>#include "pictures.h"   /* создан сборкой */
-gfx_picture(x, y, PICTURE_DROP, 4);    /* 44 пикс.: размер клетки 4 */
-gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 пикс.: размер клетки 2 */</pre>
+gfx_draw_picture(x, y, PICTURE_DROP, 4);    /* 44 пикс.: размер клетки 4 */
+gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 пикс.: размер клетки 2 */</pre>
 
 <p>Правила для текстовых файлов:</p>
 <ul>
@@ -636,40 +637,40 @@ gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 пикс.: размер клетк�
 </ul>
 <p>Константа - <code>PICTURE_</code> и имя картинки в верхнем регистре. Символы, кроме букв и цифр, заменяются на <code>_</code>. Пример: <code>half-moon</code> превращается в <code>PICTURE_HALF_MOON</code>.</p>
 <p><code>tools/perinkpheral pictures pictures/</code> печатает картинки так, как их читает сборка.</p>
-<p>Картинка хранится по одному биту на клетку. <code>gfx_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.</p>
+<p>Картинка хранится по одному биту на клетку. <code>gfx_draw_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.</p>
 <p>Используйте те же сетки, что у встроенных иконок: 11 клеток либо 22 и 44 клетки для большей детализации. Тогда картинки совпадают с иконками по насыщенности.</p>
-<p>Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.</p>
+<p>Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_draw_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.</p>
 
 <h2 id="screen-kit">Kit</h2>
 <p>Kit - набор элементов интерфейса, из которых собраны экраны самого хоста. Приложения могут использовать те же элементы через вызовы <code>ui_*</code>.</p>
 <div class="screens">
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt=""><figcaption>Примитивы интерфейса: заголовок, текст, подпись, иконки, значение, кнопка, полоса и действия</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/kit-primitives.png" alt=""><figcaption>Примитивы интерфейса: заголовок, текст, подпись, иконки, значение, кнопка, полоса и действия</figcaption></figure>
 </div>
 <p>Использовать Kit необязательно: вызовами <code>gfx_*</code> можно нарисовать что угодно. У Kit три преимущества. Приложение выглядит как остальная система. Оно следует за будущими изменениями внешнего вида без пересборки. Оно меньше, потому что код отрисовки находится в хосте.</p>
 <table>
   <tr><th style="width:27%">Вызов</th><th>Описание</th><th style="width:32%">Применение</th></tr>
-  <tr><td class="c">ui_list_row, ui_list_first, ui_list_visible</td><td>Список: одна строка на элемент, значение или иконка у правого края, выбранная строка инвертирована, полоса прокрутки. Без выбора UP и DOWN прокручивают список</td><td>Более трёх элементов; меню; настройки</td></tr>
-  <tr><td class="c">ui_cell, ui_cell_fit</td><td>Название, картинка и значение в прямоугольной области заданного размера; значение - наибольшим шрифтом, который помещается</td><td>Панели с одним, двумя или четырьмя значениями</td></tr>
-  <tr><td class="c">ui_value</td><td>Значение с единицей на одной базовой линии: "18 km/h"</td><td>Любое число с единицей</td></tr>
-  <tr><td class="c">ui_notice</td><td>Две крупные строки, строка текста, крупная иконка, подписи кнопок</td><td>Вопросы, ошибки, пустые состояния, выполнение работы</td></tr>
-  <tr><td class="c">ui_reason</td><td>Стандартное сообщение для статуса запроса: "Загрузка", "Настройте", "Нет сети", "Нет доступа", "Нет ответа"</td><td>Любой экран, зависящий от сети</td></tr>
-  <tr><td class="c">ui_actions, ui_button</td><td>Строка кнопок внизу: действие OK слева, действие BACK справа</td><td>Экраны, где действие кнопки нужно подписать</td></tr>
-  <tr><td class="c">ui_picker</td><td>Одно значение из ряда: выбранное в рамке, соседние сверху и снизу</td><td>Выбор из нескольких значений кнопками UP и DOWN</td></tr>
-  <tr><td class="c">ui_date</td><td>Дата, время или оба значения; за один шаг задаётся одна часть</td><td>Ввод момента времени</td></tr>
-  <tr><td class="c">ui_frame</td><td>Рамка со стрелками доступных направлений</td><td>Отмечает значение, изменяемое кнопками</td></tr>
-  <tr><td class="c">ui_bar</td><td>Заполненная слева доля от целого</td><td>Количества. Меняется вместе с данными</td></tr>
-  <tr><td class="c">ui_chart</td><td>Ряд целых чисел в виде линии, области, столбцов или ступеней, масштабированный под прямоугольник</td><td>История одного значения. Изменяется вместе с данными</td></tr>
-  <tr><td class="c">ui_title, ui_text, ui_text_lines, ui_icon</td><td>Заголовок страницы с линейкой; текст в четырёх стилях, в одну строку или с переносом; иконки трёх размеров</td><td>Базовые элементы страницы</td></tr>
+  <tr><td class="c">ui_draw_list_row, ui_list_first, ui_list_visible</td><td>Список: одна строка на элемент, значение или иконка у правого края, выбранная строка инвертирована, полоса прокрутки. Без выбора UP и DOWN прокручивают список</td><td>Более трёх элементов; меню; настройки</td></tr>
+  <tr><td class="c">ui_draw_cell, ui_cell_fit</td><td>Название, картинка и значение в прямоугольной области заданного размера; значение - наибольшим шрифтом, который помещается</td><td>Панели с одним, двумя или четырьмя значениями</td></tr>
+  <tr><td class="c">ui_draw_value</td><td>Значение с единицей на одной базовой линии: "18 km/h"</td><td>Любое число с единицей</td></tr>
+  <tr><td class="c">ui_draw_notice</td><td>Две крупные строки, строка текста, крупная иконка, подписи кнопок</td><td>Вопросы, ошибки, пустые состояния, выполнение работы</td></tr>
+  <tr><td class="c">ui_draw_reason</td><td>Стандартное сообщение для статуса запроса: "Загрузка", "Настройте", "Нет сети", "Нет доступа", "Нет ответа"</td><td>Любой экран, зависящий от сети</td></tr>
+  <tr><td class="c">ui_draw_actions, ui_draw_button</td><td>Строка кнопок внизу: действие OK слева, действие BACK справа</td><td>Экраны, где действие кнопки нужно подписать</td></tr>
+  <tr><td class="c">ui_draw_picker</td><td>Одно значение из ряда: выбранное в рамке, соседние сверху и снизу</td><td>Выбор из нескольких значений кнопками UP и DOWN</td></tr>
+  <tr><td class="c">ui_draw_date</td><td>Дата, время или оба значения; за один шаг задаётся одна часть</td><td>Ввод момента времени</td></tr>
+  <tr><td class="c">ui_draw_frame</td><td>Рамка со стрелками доступных направлений</td><td>Отмечает значение, изменяемое кнопками</td></tr>
+  <tr><td class="c">ui_draw_bar</td><td>Заполненная слева доля от целого</td><td>Количества. Меняется вместе с данными</td></tr>
+  <tr><td class="c">ui_draw_chart</td><td>Ряд целых чисел в виде линии, области, столбцов или ступеней, масштабированный под прямоугольник</td><td>История одного значения. Изменяется вместе с данными</td></tr>
+  <tr><td class="c">ui_draw_title, ui_draw_text, ui_draw_text_lines, ui_draw_icon</td><td>Заголовок страницы с линейкой; текст в четырёх стилях, в одну строку или с переносом; иконки трёх размеров</td><td>Базовые элементы страницы</td></tr>
 </table>
 <div class="screens">
-  <figure><img src="{{ROOT}}/docs/guide/screens/kit-list.png" alt=""><figcaption>ui_list_row: список строк со значениями</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/screens/kit-picker.png" alt=""><figcaption>ui_picker: выбор одного значения</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/screens/kit-date.png" alt=""><figcaption>ui_date: установка даты или времени</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-list.png" alt=""><figcaption>ui_draw_list_row: список строк со значениями</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-picker.png" alt=""><figcaption>ui_draw_picker: выбор одного значения</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-date.png" alt=""><figcaption>ui_draw_date: установка даты или времени</figcaption></figure>
 </div>
 <div class="screens">
-  <figure><img src="{{ROOT}}/docs/guide/screens/notice-question.png" alt=""><figcaption>ui_notice: вопрос</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/screens/kit-message.png" alt=""><figcaption>ui_notice: сообщение с причиной</figcaption></figure>
-  <figure><img src="{{ROOT}}/docs/guide/screens/notice-progress.png" alt=""><figcaption>ui_notice с is_working: выполняется работа</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-question.png" alt=""><figcaption>ui_draw_notice: вопрос</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/kit-message.png" alt=""><figcaption>ui_draw_notice: сообщение с причиной</figcaption></figure>
+  <figure><img src="{{ROOT}}/docs/guide/source/screens/notice-progress.png" alt=""><figcaption>ui_draw_notice с is_working: выполняется работа</figcaption></figure>
 </div>
 <p>Обработка кнопок для списков, выбора значения и дат реализована в библиотеке SDK (<code>app_ui.h</code>). Приложение вызывает её из <code>app_on_button()</code> и действует по результату. См. раздел 7.</p>
 <p>Приложение <code>kit</code> из каталога показывает каждый элемент на отдельной странице. Его исходный код - рабочий пример для каждого элемента.</p>
@@ -700,17 +701,17 @@ gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 пикс.: размер клетк�
     case BTN_OK_PRESSED:       start();  break;
     case BTN_OK_LONG_PRESSED:  reset();  break;
     }
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 
 <h2 id="buttons-back">BACK</h2>
 <table>
   <tr><th style="width:36%">Приложение</th><th>Короткое нажатие BACK</th></tr>
   <tr><td>Без <code>app_on_back()</code></td><td>Закрывает приложение (один шаг вниз по стеку)</td></tr>
-  <tr><td>С <code>app_on_back()</code></td><td>Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>request_exit()</code></td></tr>
+  <tr><td>С <code>app_on_back()</code></td><td>Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>screen_leave()</code></td></tr>
 </table>
 <p>Короткое нажатие BACK передаётся в <code>app_on_back()</code> или закрывает приложение без этого экспорта. Долгое нажатие BACK открывает меню хоста. Остальные события получает <code>app_on_button()</code>, но в режиме вопроса хост поглощает OK KEYDOWN. Последующие события OK передаются лишь при нажатии, начавшемся после появления вопроса на панели.</p>
-<p><code>request_exit()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>request_focus()</code>.</p>
+<p><code>screen_leave()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>screen_request()</code>.</p>
 
 <h2 id="buttons-kit">Списки, выбор значения, даты</h2>
 <pre>#include "app_ui.h"
@@ -721,7 +722,7 @@ void app_on_button(int32_t event)
 {
     switch (app_list_button(&amp;list, event)) {
     case APP_UI_DONE:      open_item(list.selected);               break;   /* OK */
-    case APP_UI_CHANGED:   request_redraw(HOST_REDRAW_NO_BLINK);   break;   /* UP, DOWN */
+    case APP_UI_CHANGED:   screen_redraw(HOST_REDRAW_NO_BLINK);   break;   /* UP, DOWN */
     default:               break;
     }
 }
@@ -730,7 +731,7 @@ void app_on_draw(void)
 {
     int32_t first = app_list_first(&amp;list);
     for (int32_t row = first; row &lt; first + ui_list_visible(&amp;list) &amp;&amp; row &lt; list.count; row++) {
-        ui_list_row(&amp;list, row, label_of(row), label_length(row), "", 0, HOST_ICON_NONE);
+        ui_draw_list_row(&amp;list, row, label_of(row), label_length(row), "", 0, HOST_ICON_NONE);
     }
 }</pre>
 <p><code>app_picker_t</code> и <code>app_date_t</code> работают так же. Приложение хранит структуру, передаёт события кнопок одной функции и рисует другой. Функция кнопок возвращает <code>APP_UI_CHANGED</code>, <code>APP_UI_DONE</code>, <code>APP_UI_CANCELLED</code> или <code>APP_UI_IGNORED</code>.</p>
@@ -742,7 +743,7 @@ void app_on_draw(void)
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
 
-void app_init(void)
+void app_on_load(void)
 {
     if (kv_get("state", 5, &amp;state, sizeof state) != sizeof state || state.version != 2) {
         state = (state_t){ .version = 2, .minutes = 25 };     /* нет сохранённого состояния или старая версия */
@@ -769,38 +770,38 @@ void app_init(void)
 <p>О доступности сети сообщает ответ: запрос, сделанный без сети, завершается ошибкой <code>HOST_FAILED_NO_NETWORK</code>.</p>
 <table>
   <tr><th style="width:20%">Способ</th><th style="width:33%">Запуск</th><th>Доставка</th></tr>
-  <tr><td>Опрос с <code>pick</code></td><td>Расписание</td><td><code>app_on_values()</code>, один раз, с извлечёнными значениями</td></tr>
+  <tr><td>Опрос с <code>pick</code></td><td>Расписание</td><td><code>app_on_picked()</code>, один раз, с извлечёнными значениями</td></tr>
   <tr><td>Опрос без <code>pick</code></td><td>Расписание</td><td><code>app_on_data()</code> фрагментами, с номером опроса</td></tr>
-  <tr><td>Опрос с <code>each</code></td><td>Расписание; по запросу на пункт настройки-списка</td><td>Как выше, по разу на пункт. <code>data_item()</code> сообщает пункт</td></tr>
-  <tr><td><code>http_request()</code></td><td>Код: после нажатия кнопки или как последующий запрос</td><td><code>app_on_data()</code> фрагментами, с тегом, выбранным приложением (16 - 255)</td></tr>
+  <tr><td>Опрос с <code>each</code></td><td>Расписание; по запросу на пункт настройки-списка</td><td>Как выше, по разу на пункт. <code>answer_item()</code> сообщает пункт</td></tr>
+  <tr><td><code>http_send()</code></td><td>Код: после нажатия кнопки или как последующий запрос</td><td><code>app_on_data()</code> фрагментами, с тегом, выбранным приложением (16 - 255)</td></tr>
 </table>
 
 <h2 id="network-values">Значения, извлечённые хостом</h2>
 <pre>#include "app_values.h"
 enum { VALUE_TEMPERATURE, VALUE_CODE };            /* порядок "pick" в манифесте */
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 {
     int32_t tenths, code;
-    last_status = http_status;                     /* для ui_reason(), когда данных нет */
+    last_status = http_status;                     /* для ui_draw_reason(), когда данных нет */
     if (http_status == 200 &amp;&amp;
         app_value_number(VALUE_TEMPERATURE, 1, &amp;tenths) &amp;&amp;      /* "21.46" -> 215 */
         app_value_number(VALUE_CODE, 0, &amp;code)) {
         keep(tenths, code);                        /* сохранить в хранилище */
     }                                              /* иначе оставить прежние данные */
-    request_redraw(HOST_REDRAW_NORMAL);
+    screen_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 <p>Числа - целые. <code>app_value_number()</code> возвращает значение, умноженное на <code>10^decimals</code> и округлённое до целого.</p>
 <p>У пути, отсутствующего в ответе, нет значения: <code>app_value_number()</code> возвращает false. Отсутствующее значение означает отсутствие данных.</p>
 <h3>Списки</h3>
-<p>Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_chart()</code>:</p>
+<p>Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_draw_chart()</code>:</p>
 <pre>/* "pick": ["quote.name", "quote.closes[*]"] */
 static int32_t prices[HOST_CHART_VALUES_MAX];
 static int32_t count;
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 {
-    int32_t item = data_item();                                    /* какой тикер из списка */
+    int32_t item = answer_item();                                    /* какой тикер из списка */
     if (http_status == 200) {
         count = app_value_series(1, 2, prices, HOST_CHART_VALUES_MAX);  /* сотые; "null" - пропуск */
     }
@@ -822,7 +823,7 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
 <h2 id="network-pieces">Потоковые ответы</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
 {
-    if (flags &amp; HOST_DATA_FAILED) {                /* один вызов, без данных: http_status - код HOST_FAILED_* */
+    if (flags &amp; HOST_DATA_FAILED) {                /* ошибка без данных; отбросить все предыдущие фрагменты: http_status содержит код HOST_FAILED_* */
         last_status = http_status;
         return;
     }
@@ -833,22 +834,22 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
     read_piece(data, length);                      /* данные действительны до возврата из обработчика */
     if (flags &amp; HOST_DATA_LAST) {
         take_what_was_read();                      /* ответ получен целиком */
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
     }
 }</pre>
 <ul>
   <li>Обрабатывайте каждый кусок по приходу и храните только данные для показа. Используйте конечный автомат, <code>json_pick</code> из SDK или свой разборщик. Ответ может занимать несколько мегабайт; у приложения 64 КБ. <code>json_pick</code> принимает и пути списков, с буфером, который даёт приложение (раздел 23).</li>
   <li>Заменяйте отображаемые данные только по <code>HOST_DATA_LAST</code>. Доставка может прекратиться без последнего фрагмента и без ошибки (раздел 3). <code>HOST_DATA_FIRST</code> всегда начинает новый ответ.</li>
-  <li>В обработчике <code>data_response(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.</li>
+  <li>В обработчике <code>answer_info(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.</li>
 </ul>
 
-<p>Успешные части ответа имеют общие метаданные. Завершающий вызов с HOST_DATA_FAILED может не иметь метаданных: data_response() возвращает код ошибки как status, length -1 и пустые строки заголовков. Неверный или незавершённый JSON с извлечением значений даёт HOST_FAILED_NO_ANSWER, даже если HTTP-ответ получен.</p>
+<p>Успешные части ответа имеют общие метаданные. Завершающий вызов с HOST_DATA_FAILED может не иметь метаданных: answer_info() возвращает код ошибки как status, length -1 и пустые строки заголовков. Неверный или незавершённый JSON с извлечением значений даёт HOST_FAILED_NO_ANSWER, даже если HTTP-ответ получен.</p>
 <h2 id="network-request">Запросы из кода</h2>
 <pre>enum { REQUEST_TOGGLE = HOST_REQUEST_FIRST };
 static const char URL[]     = "{{server}}/api/services/light/toggle";
 static const char HEADERS[] = "Authorization: Bearer {{token}}\nContent-Type: application/json";
 
-http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1,
+http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof HEADERS - 1,
              body, body_length);</pre>
 <ul>
   <li>Запросы разрешены только на адреса, перечисленные в манифесте. Подстановки <code>{{key}}</code> работают в URL и в значениях заголовков, поэтому коду не нужно читать токен.</li>
@@ -856,10 +857,10 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li>Хост отправляет <code>User-Agent: perinkpheral</code>. Заголовок <code>User-Agent</code> от приложения заменяет его, в опросе и в запросе.</li>
   <li>Прерванный ответ на запрос из кода (раздел 3) отбрасывается: запрос не повторяется. Если ответ ещё нужен, запросите снова из <code>app_on_terminate()</code> или позже.</li>
   <li>Для <code>GET</code> хост выполняет до трёх перенаправлений. Перенаправление на адрес вне списка завершается ошибкой <code>HOST_FAILED_NOT_ALLOWED</code>. Запрос другим методом отправляется один раз; ответ с перенаправлением доставляется как ответ на запрос.</li>
-  <li><code>poll_now(n)</code> запрашивает опрос <code>n</code> через общую очередь без ожидания ответа; повторные ожидающие запросы объединяются, например при нажатии кнопки обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например по заголовку Retry-After.</li>
+  <li><code>poll_run(n)</code> запрашивает опрос <code>n</code> через общую очередь без ожидания ответа; повторные ожидающие запросы объединяются, например при нажатии кнопки обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например по заголовку Retry-After.</li>
 </ul>
 
-<p>Для http_request() подстановка URL и первая проверка хоста выполняются до постановки в очередь. Пустая настройка URL возвращает HOST_ERR_ARGUMENT без вызова обработчика. Подстановка заголовков выполняется позже и может дать HOST_FAILED_NOT_READY. URL после подстановки занимает до 511 байт, значение заголовка - до 255 байт. Ошибка подстановки также даёт HOST_FAILED_NOT_READY, кроме первой проверки URL.</p>
+<p>Для http_send() URL подставляется и впервые проверяется до постановки в очередь. Неустановленное значение URL даёт HOST_ERR_ARGUMENT без обработчика ответа. В очереди остаётся раскрытый адрес. Перед отправкой адрес проверяется заново, а заголовки заполняются из того же текущего снимка KV. Если изменение настроек запретило прежний адрес, приходит HOST_FAILED_NOT_ALLOWED; запрос никогда молча не перенаправляется на новый сервер. Отсутствующие или недопустимые значения заголовков дают HOST_FAILED_NOT_READY. Подготовленный запрос сохраняет свой снимок при передаче. URL вмещает 511 байт, значение заголовка - 255 байт; тело копируется при постановке в очередь.</p>
 <p>Лимит 16 ожидающих запросов задан на приложение без резервирования мест. Все запросы делят 16 KB на записи очереди, URL, заголовки и тела. HOST_ERR_NO_SPACE возможен и при меньшем числе запросов. Имя исходного заголовка - до 31 байта, значение - до 255 байт.</p>
 <h2 id="network-certificates">Центры сертификации приложения</h2>
 <p>Хост проверяет HTTPS-серверы по набору корневых сертификатов браузеров. Запрос к серверу, сертификат которого выдан центром сертификации вне этого набора, завершается с <code>HOST_FAILED_NOT_TRUSTED</code>. Приложение, которому нужен такой сервер, приносит корневой сертификат этого центра в своём пакете и называет его в манифесте:</p>
@@ -883,7 +884,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td class="c">HOST_FAILED_TOO_LARGE (-7)</td><td>Ответ больше 256 КБ (извлечение значений) или 4 МБ (потоком)</td></tr>
   <tr><td class="c">HOST_FAILED_NO_MEMORY (-8)</td><td>Недостаточно памяти устройства для запроса</td></tr>
 </table>
-<p>Сохраняйте последний статус в хранилище. Когда данных для отображения нет, передавайте статус в <code>ui_reason()</code>. Вызов рисует стандартное сообщение для статуса и возвращает, было ли что-то нарисовано:</p>
+<p>Сохраняйте последний статус в хранилище. Когда данных для отображения нет, передавайте статус в <code>ui_draw_reason()</code>. Вызов рисует стандартное сообщение для статуса и возвращает, было ли что-то нарисовано:</p>
 <table>
   <tr><th style="width:34%">Статус</th><th style="width:46%">Сообщение</th><th>Возвращаемое значение</th></tr>
   <tr><td class="c">0 (запроса ещё не было)</td><td>Загрузка</td><td>1</td></tr>
@@ -900,24 +901,24 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><th style="width:26%">Задача</th><th style="width:31%">Механизм</th><th>Примечания</th></tr>
   <tr><td>Данные по расписанию</td><td>Опрос в манифесте</td><td>Действует после перезагрузки без кода</td></tr>
   <tr><td>Действие в заданное время</td><td class="c">alarm_set, alarm_set_at, alarm_set_every</td><td>Будильники сбрасываются при перезагрузке. Восстанавливайте их в интенте <code>started</code> по времени из хранилища</td></tr>
-  <tr><td>Сообщение пользователю</td><td class="c">notify</td><td>Показывается хостом поверх текущего экрана, пока не будет закрыто</td></tr>
-  <tr><td>Вывод приложения на экран</td><td class="c">request_focus</td><td>Разрешается хостом, не чаще раза в 30 с</td></tr>
-  <tr><td>Статус в заголовке</td><td class="c">header_status</td><td>Иконка и короткий текст над экранами с заголовком, включая экран владельца. Собственный левый текст экрана важнее сохранённого левого статуса; сохранённый правый статус важнее правого текста экрана</td></tr>
+  <tr><td>Сообщение пользователю</td><td class="c">notification_post</td><td>Показывается хостом поверх текущего экрана, пока не будет закрыто</td></tr>
+  <tr><td>Вывод приложения на экран</td><td class="c">screen_request</td><td>Разрешается хостом, не чаще раза в 30 с</td></tr>
+  <tr><td>Статус в заголовке</td><td class="c">header_set_status</td><td>Иконка и короткий текст над экранами с заголовком, включая экран владельца. Собственный левый текст экрана важнее сохранённого левого статуса; сохранённый правый статус важнее правого текста экрана</td></tr>
   <tr><td>Реакция на запуск устройства, подключение к сети или изменение часов</td><td>Интент в манифесте</td><td><code>app_on_intent()</code></td></tr>
   <tr><td>Настройка после установки или обновления</td><td class="c">app_on_installed, app_on_updated</td><td>Один раз. Новая версия не наследует будильники старой: задайте их здесь. Интервалы опросов, заданные из кода, сохраняются</td></tr>
 </table>
 
-<p>request_focus() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.</p>
+<p>screen_request() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.</p>
 <p>Приложение, которое полагается на <code>HOST_REDRAW_QUESTION</code> или на эти правила передачи экрана, указывает <code>"firmware": "0.1.21"</code> в манифесте. Сами вызовы не повышают минимальную версию прошивки.</p>
-<h2 id="background-notify">Уведомления</h2>
+<h2 id="background-notification_post">Уведомления</h2>
 <pre>void app_on_alarm(int32_t id)                      /* приложение загружено для этого вызова */
 {
     host_notice_t notice = { .first = "Time", .second = "is up", .icon = HOST_ICON_BELL };
-    notify(&amp;notice);
+    notification_post(&amp;notice);
 }</pre>
-<p>После возврата из <code>notify()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.</p>
+<p>После возврата из <code>notification_post()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.</p>
 <p>Уведомлением полностью управляет хост. Пока оно показано, приложение остаётся выгруженным.</p>
-<p>Используйте <code>notify()</code> вместо <code>request_focus()</code>, когда сообщение помещается в две строки.</p>
+<p>Используйте <code>notification_post()</code> вместо <code>screen_request()</code>, когда сообщение помещается в две строки.</p>
 
 <h2 id="background-alarms">Будильники, таймеры</h2>
 <table>
@@ -1008,7 +1009,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="design-state">Состояние и время</h2>
 <div class="rule"><b>Сохраняйте состояние перед каждой выгрузкой.</b> Постоянные данные храните в хранилище. Навигацию и незавершённый ввод сохраняйте в сессии в <code>app_on_blur()</code>; восстанавливайте в <code>app_on_focus()</code>. Открытие из меню начинает новую сессию.</div>
 <div class="rule"><b>Сохраняйте показанные данные, пока новые не получены целиком.</b> После неудавшегося или прерванного запроса оставляйте на экране прежние данные.</div>
-<div class="rule"><b>Объясняйте пустой экран.</b> Вызывайте <code>ui_reason()</code>, чтобы показать "Настройте", "Нет сети" или "Загрузка".</div>
+<div class="rule"><b>Объясняйте пустой экран.</b> Вызывайте <code>ui_draw_reason()</code>, чтобы показать "Настройте", "Нет сети" или "Загрузка".</div>
 <div class="rule"><b>Обрабатывайте неизвестное или изменённое время.</b> Обрабатывайте <code>time_now() == 0</code>. Используйте <code>alarm_set()</code> для задержки («через десять минут») и <code>alarm_set_at()</code> для времени по часам («в семь»).</div>
 
 <h2 id="design-user">Взаимодействие и данные</h2>
@@ -1038,7 +1039,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">tools/perinkpheral catalog &lt;folder&gt; --out &lt;dir&gt;</td><td>Собирает папку приложений в каталог</td></tr>
 </table>
 <p>Байты журнала вне печатного ASCII, включая байты UTF-8 и переводы строк, заменяются на «?».</p>
-<p><code>host_log(level, text, length)</code> пишет одну строку до 200 байт в журнал устройства. Заменяет <code>printf</code>.</p>
+<p><code>log_write(level, text, length)</code> пишет одну строку до 200 байт в журнал устройства. Заменяет <code>printf</code>.</p>
 <p><code>press ... --shot</code> дожидается окончания обновления панели и сохраняет кадр. Это позволяет автоматизировать регрессионные тесты экранов приложения.</p>
 
 <h2 id="tools-simulator">Симулятор</h2>
@@ -1081,13 +1082,13 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="tools-problems">Типичные проблемы</h2>
 <table>
   <tr><th style="width:34%">Признак</th><th>Вероятная причина</th></tr>
-  <tr><td>Пустой экран</td><td>Отрисовка вне <code>app_on_draw()</code> либо отсутствие <code>request_redraw()</code> после изменения состояния</td></tr>
-  <tr><td>Состояние теряется после ухода и возврата</td><td>Состояние хранится в глобальных переменных. Сохраняйте его в <code>app_on_terminate()</code>, загружайте в <code>app_init()</code></td></tr>
+  <tr><td>Пустой экран</td><td>Отрисовка вне <code>app_on_draw()</code> либо отсутствие <code>screen_redraw()</code> после изменения состояния</td></tr>
+  <tr><td>Состояние теряется после ухода и возврата</td><td>Состояние хранится в глобальных переменных. Сохраняйте его в <code>app_on_terminate()</code>, загружайте в <code>app_on_load()</code></td></tr>
   <tr><td>"&lt;title&gt; аварийный сбой" с "memory alloca..."</td><td>Исполненный код не помещается в память интерпретатора. См. предупреждение сборки и «Память» в разделе 13</td></tr>
   <tr><td>"&lt;title&gt; не запускается", "Нужно обновить."</td><td>Собрано с другим <code>host_api.h</code>, чем прошивка устройства. Пересоберите и переустановите</td></tr>
   <tr><td>Опрос завершается с HOST_FAILED_NOT_READY (-3)</td><td><code>{{setting}}</code> в его URL или заголовках пуста</td></tr>
   <tr><td>HTTPS завершается с HOST_FAILED_NOT_TRUSTED (-6)</td><td>Самоподписанный или просроченный сертификат сервера либо центр сертификации вне набора браузеров. Принесите корневой сертификат центра в <code>certificates</code> или используйте <code>http</code> в домашней сети</td></tr>
-  <tr><td><code>http_request()</code> возвращает HOST_ERR_NO_SPACE (-4)</td><td>Ждут 16 запросов приложения, или очередь устройства заполнена. Ставьте новые по мере прихода ответов</td></tr>
+  <tr><td><code>http_send()</code> возвращает HOST_ERR_NO_SPACE (-4)</td><td>Ждут 16 запросов приложения, или очередь устройства заполнена. Ставьте новые по мере прихода ответов</td></tr>
   <tr><td>Остаточное изображение предыдущих кадров</td><td>Последовательность перерисовок <code>NO_BLINK</code> без завершающей перерисовки <code>CLEAN</code></td></tr>
   <tr><td>Символы показаны как <code>?</code> или транслитерированы</td><td>Пакет глифов для этой письменности не установлен либо текст обрезан по байтам</td></tr>
   <tr><td>Нажатие не отвечает на вопрос</td><td>Кнопка была нажата до того, как вопрос появился на экране: нажатие отвечает только на показанное. Нажмите ещё раз</td></tr>
@@ -1107,11 +1108,26 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 </ul>
 
 <h1 class="part" id="part-3">Часть III. Справочник</h1>
-<p>Этот раздел кратко описывает вызовы хоста и экспорты для ABI 2. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.</p>
+<p>Этот раздел кратко описывает вызовы хоста и экспорты для ABI 3. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.</p>
 <p><code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.</p>
 <p>Вызовы хоста возвращают ошибки <code>HOST_ERR_*</code> напрямую. Сетевые ошибки приходят позже в обработчик данных как статусы <code>HOST_FAILED_*</code>; см. «Ошибки запросов» в разделе 9.</p>
 <p>Числовые аргументы и возвращаемые значения имеют тип <code>int32_t</code>, если не указано иное. Текстовый аргумент - указатель и длина в байтах; текст в UTF-8.</p>
 <p>Вызов без собственного возвращаемого значения возвращает <code>HOST_OK</code> или отрицательный код <code>HOST_ERR_*</code>.</p>
+
+<p>Команды называют предмет, затем действие (<code>kv_get</code>, <code>gfx_draw_text</code>); запросы называют предмет и то, что требуется узнать (<code>gfx_width</code>, <code>time_now</code>); события, вызываемые хостом, используют <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).</p>
+
+<h2>Совместимость ABI 3</h2>
+<p>ABI 3 готовится к первому выпуску с зафиксированным контрактом. После выпуска существующие имена, типы wasm, привилегии, константы, раскладки и смысл вызовов сохраняются в следующих прошивках. Изменение сигнатуры или смысла требует нового ABI; HOST_SINCE_ отмечает только элементы, добавленные после нижней границы ABI 3, версии 0.1.30. Выпуски прошивки и поколения ABI независимы. Отсутствующие экспорты остаются необязательными.</p>
+<p>Поддерживается множество {3}. ABI манифеста передаётся до загрузки и проверяется до выполнения кода. Страница устройства вместе проверяет принадлежность ABI и минимум прошивки для Install, Update и Update all; /api/status сообщает supported_abis. Окончательное решение принимается по загруженному манифесту. При публикации каталога данные об идентичности и совместимости берутся из упакованного манифеста.</p>
+<p>tools/perinkpheral contract snapshot записывает контракт в sdk/abi/3.txt, а хеши пакетов отдельно в sdk/abi/3/fixtures.txt; contract check проверяет оба файла в тестах хоста и CI. Записанные элементы нельзя менять или удалять; дополнения разрешены. Запись снимка тоже отклоняет изменения. Зафиксированные пакеты в sdk/abi/3/ служат входными данными тестов, которые никогда их не пересобирают: Probe, Hello, Settings с переводами и состояние Hello (presses = 42 в четырёх байтах little-endian). Нижняя граница ABI 3 - 0.1.30, первая прошивка с ABI 3.</p>
+<h2>Бинарное представление и буферы</h2>
+<p>Контракт использует раскладку C для wasm32 little-endian и дополнительный код для знаковых целых. Указатель - беззнаковое 32-битное смещение в памяти; ноль означает NULL. Размер и выравнивание 32-битных целых и указателей равны 4, 64-битных целых - 8, байтов - 1. Структуры сохраняют порядок полей C, естественное выравнивание и конечное заполнение. sdk/abi/3.txt записывает каждый размер, выравнивание, тип и смещение поля. Размер, число строк и смещения таблицы строк - 16-битные слова little-endian. Размеры картинок задаются байтами; строки битовой карты идут старшим битом вперёд и дополняются до целого числа байтов.</p>
+<p>Входные буферы используются или копируются до возврата импорта. Хост сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_answer_info_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.</p>
+<p>kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_fit_text также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. answer_info копирует min(capacity, размер структуры хоста), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.</p>
+<p>Уведомления об установке и обновлении считаются доставленными после загрузки и до обработчика, в том числе при отсутствии обработчика или trap в app_on_load либо обработчике. Ошибка загрузки оставляет уведомление до запуска устройства или перечитывания списка приложений. Обновление означает другой идентификатор пакета из модуля и манифеста, независимо от порядка строк версий.</p>
+<p>Только HOST_DATA_LAST делает потоковый ответ полным. HOST_DATA_FAILED может прийти после предыдущих фрагментов и отменяет их все. Прерванный ответ может закончиться без обоих флагов. Границы фрагментов не определены, даже внутри символа UTF-8 или маркера документа. Сохраняйте предыдущий показанный результат до LAST.</p>
+<p>Отрисовка сохраняет существующие правила: совместные флаги перерисовки выбирают CLEAN раньше NO_BLINK, затем SOON; QUESTION независим. При отключённом дизеринге оттенки gfx_set_color 1..7 становятся бумагой, 8..15 - чернилами. Первые и последние координаты чернил иконки включительны; end_x текста исключителен.</p>
+<p>Системные настройки открывают только явно перечисленные видимые на странице ключи sdk/host/sys.h, где для каждого указаны тип, единицы, включительные диапазоны, специальные значения и необходимость перезапуска. Неизвестные и внутренние ключи, включая refresh_min_button_ms, возвращают HOST_ERR_NOT_FOUND для get, set и range. SSID Wi-Fi здесь доступен только для чтения; пароль нельзя ни читать, ни писать (HOST_ERR_ARGUMENT). Сеть изменяют через страницу или SYS_DO_FORGET_NETWORK.</p>
 
 <h1 id="ref-codes">16. Коды возврата</h1>
 <table>
@@ -1128,7 +1144,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>Экспортируйте обработчики, нужные используемым возможностям. Хост пропускает отсутствующие обработчики; сборка отклоняет возможность без нужного обработчика (раздел 4).</p>
 <table>
   <tr><th style="width:42%">Экспорт</th><th>Когда вызывается</th></tr>
-  <tr><td class="c">void app_init(void)</td><td>Экземпляр загружен, его строки на месте. Один раз на экземпляр</td></tr>
+  <tr><td class="c">void app_on_load(void)</td><td>Экземпляр загружен, его строки на месте. Один раз на экземпляр</td></tr>
   <tr><td class="c">void app_on_focus(void)</td><td>Приложение получает экран. Здесь запускаются таймеры <code>timer_set()</code></td></tr>
   <tr><td class="c">void app_on_blur(void)</td><td>Приложение сейчас потеряет экран</td></tr>
   <tr><td class="c">void app_on_terminate(void)</td><td>Экземпляр готовится к выгрузке: уход с экрана, конец фоновой доставки, перезапуск устройства, удаление. Не вызывается после аварийной остановки. Если приложение было на экране, сначала вызывается <code>app_on_blur()</code></td></tr>
@@ -1138,7 +1154,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void app_on_timer(int32_t id)</td><td>Срабатывает таймер</td></tr>
   <tr><td class="c">void app_on_alarm(int32_t id)</td><td>Срабатывает будильник, на экране или вне его</td></tr>
   <tr><td class="c">void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)</td><td>Пришла часть ответа. <code>request</code> - номер опроса или тег запроса. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>HOST_DATA_LAST</code>, <code>HOST_DATA_FAILED</code></td></tr>
-  <tr><td class="c">void app_on_values(int32_t request, int32_t http_status)</td><td>Приходит ответ на опрос с <code>pick</code>. Значения доступны внутри обработчика</td></tr>
+  <tr><td class="c">void app_on_picked(int32_t request, int32_t http_status)</td><td>Приходит ответ на опрос с <code>pick</code>. Значения доступны внутри обработчика</td></tr>
   <tr><td class="c">void app_on_settings(void)</td><td>Пользователь сохраняет настройки приложения на веб-странице</td></tr>
   <tr><td class="c">void app_on_intent(int32_t intent)</td><td>Произошло объявленное событие устройства: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>HOST_INTENT_NETWORK_UP</code> (2), <code>HOST_INTENT_STARTED</code> (3)</td></tr>
   <tr><td class="c">void app_on_installed(void)</td><td>Один раз после установки приложения: оно ещё не запускалось на этом устройстве или было удалено и установлено снова</td></tr>
@@ -1155,48 +1171,48 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
   <tr><td class="c">gfx_width(void), gfx_height(void)</td><td>Размер поверхности: 400 x 260 под заголовком, 400 x 300 на весь экран</td></tr>
-  <tr><td class="c">gfx_color(color)</td><td>Задаёт цвет отрисовки: от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16)</td></tr>
-  <tr><td class="c">gfx_text(x, y, font, text, length)</td><td>Рисует текст; <code>y</code> - верх строки. Возвращает ширину. До 127 байт</td></tr>
+  <tr><td class="c">gfx_set_color(color)</td><td>Задаёт цвет отрисовки: от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16)</td></tr>
+  <tr><td class="c">gfx_draw_text(x, y, font, text, length)</td><td>Рисует текст; <code>y</code> - верх строки. Возвращает ширину. До 127 байт</td></tr>
   <tr><td class="c">gfx_text_width(font, text, length)</td><td>Возвращает ширину текста</td></tr>
   <tr><td class="c">gfx_text_ink(font, text, length, ink)</td><td>Где начинаются и кончаются видимые пиксели текста, в <code>host_text_ink_t</code> (first_x, end_x). Чтобы центрировать видимое</td></tr>
-  <tr><td class="c">gfx_text_fit(font, text, length, max_width, fitted, capacity)</td><td>Сокращает текст с "..." до заданной ширины. Возвращает новую длину</td></tr>
+  <tr><td class="c">gfx_fit_text(font, text, length, max_width, fitted, capacity)</td><td>Сокращает текст с "..." до заданной ширины. Возвращает новую длину</td></tr>
   <tr><td class="c">gfx_font_height(font), gfx_font_ascent(font), gfx_font_cap_height(font)</td><td>Высота строки; расстояние от верха строки до базовой линии; высота прописных и цифр</td></tr>
-  <tr><td class="c">gfx_rect(x, y, w, h, fill)</td><td>Прямоугольник: <code>HOST_RECT_OUTLINE</code> или <code>HOST_RECT_FILLED</code></td></tr>
-  <tr><td class="c">gfx_line(x0, y0, x1, y1)</td><td>Линия шириной 1 пиксель, включая концы</td></tr>
-  <tr><td class="c">gfx_picture(x, y, picture, cell)</td><td>Картинка, созданная сборкой из <code>pictures/</code>: байт ширины, байт высоты, по биту на клетку. Клетка 1 - 16 px</td></tr>
-  <tr><td class="c">gfx_icon(x, y, icon, cell)</td><td>Встроенная иконка <code>HOST_ICON_*</code>, 11 x 11 клеток. Размер клетки 1 - 16 пикселей</td></tr>
+  <tr><td class="c">gfx_draw_rect(x, y, w, h, fill)</td><td>Прямоугольник: <code>HOST_RECT_OUTLINE</code> или <code>HOST_RECT_FILLED</code></td></tr>
+  <tr><td class="c">gfx_draw_line(x0, y0, x1, y1)</td><td>Линия шириной 1 пиксель, включая концы</td></tr>
+  <tr><td class="c">gfx_draw_picture(x, y, picture, cell)</td><td>Картинка, созданная сборкой из <code>pictures/</code>: байт ширины, байт высоты, по биту на клетку. Клетка 1 - 16 px</td></tr>
+  <tr><td class="c">gfx_draw_icon(x, y, icon, cell)</td><td>Встроенная иконка <code>HOST_ICON_*</code>, 11 x 11 клеток. Размер клетки 1 - 16 пикселей</td></tr>
   <tr><td class="c">gfx_icon_ink(icon, cell, ink)</td><td>Пиксели, которые занимает иконка при клетке <code>cell</code>, в <code>host_icon_ink_t</code> (first_x, last_x, first_y, last_y)</td></tr>
-  <tr><td class="c">gfx_bitmap(x, y, w, h, bits)</td><td>Битовая карта, один бит на пиксель. Установленные биты рисуются текущим цветом; сброшенные прозрачны</td></tr>
-  <tr><td class="c">gfx_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Битовая карта, читаемая хостом из файла приложения, начиная с <code>offset</code></td></tr>
-  <tr><td class="c">gfx_qr(x, y, cell, text, length)</td><td>QR-код до 200 байт. Возвращает число модулей на сторону. Клетка 0: только измерение</td></tr>
-  <tr><td class="c">void request_redraw(flags)</td><td>Запрашивает перерисовку. Флаги: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION пропускает OK только от нажатия, начавшегося после появления вопроса на панели</td></tr>
-  <tr><td class="c">header_text(side, text, length)</td><td>Задаёт текст приложения в заголовке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>HOST_HEADER_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Можно вызвать из любого обработчика; вне экрана не действует</td></tr>
+  <tr><td class="c">gfx_draw_bitmap(x, y, w, h, bits)</td><td>Битовая карта, один бит на пиксель. Установленные биты рисуются текущим цветом; сброшенные прозрачны</td></tr>
+  <tr><td class="c">gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Битовая карта, читаемая хостом из файла приложения, начиная с <code>offset</code></td></tr>
+  <tr><td class="c">gfx_draw_qr(x, y, cell, text, length)</td><td>QR-код до 200 байт. Возвращает число модулей на сторону. Клетка 0: только измерение</td></tr>
+  <tr><td class="c">void screen_redraw(flags)</td><td>Запрашивает перерисовку. Флаги: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION пропускает OK только от нажатия, начавшегося после появления вопроса на панели</td></tr>
+  <tr><td class="c">header_set_text(side, text, length)</td><td>Задаёт текст приложения в заголовке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>HOST_HEADER_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Можно вызвать из любого обработчика; вне экрана не действует</td></tr>
 </table>
 
 <p>Координаты рисования ограничены диапазоном от -4096 до 4096. Оба вызова растров требуют положительных размеров не больше текущей поверхности, даже если обрезка скрыла бы лишнее. Размер клетки QR - 0 - 16.</p>
 <h1 id="ref-kit">19. Kit</h1>
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
-  <tr><td class="c">ui_text(x, y, style, text, length, max_width)</td><td>Текст в стиле <code>HOST_UI_TEXT</code>, <code>HOST_UI_TITLE</code>, <code>HOST_UI_CAPTION</code>, <code>HOST_UI_VALUE</code>; сокращается до <code>max_width</code> (0: без ограничения). Возвращает ширину</td></tr>
-  <tr><td class="c">ui_text_lines(x, y, style, text, length, width, max_lines)</td><td>Текст с переносом по пробелам до <code>width</code>, не более <code>max_lines</code> строк (1 - 8); последняя строка сокращается с "...". Возвращает число строк</td></tr>
+  <tr><td class="c">ui_draw_text(x, y, style, text, length, max_width)</td><td>Текст в стиле <code>HOST_UI_TEXT</code>, <code>HOST_UI_TITLE</code>, <code>HOST_UI_CAPTION</code>, <code>HOST_UI_VALUE</code>; сокращается до <code>max_width</code> (0: без ограничения). Возвращает ширину</td></tr>
+  <tr><td class="c">ui_draw_text_lines(x, y, style, text, length, width, max_lines)</td><td>Текст с переносом по пробелам до <code>width</code>, не более <code>max_lines</code> строк (1 - 8); последняя строка сокращается с "...". Возвращает число строк</td></tr>
   <tr><td class="c">ui_text_width(style, text, length), ui_text_height(style)</td><td>Ширина текста и высота строки стиля</td></tr>
-  <tr><td class="c">ui_title(text, length)</td><td>Заголовок страницы с линейкой. Возвращает <code>y</code> области содержимого</td></tr>
-  <tr><td class="c">ui_icon(x, y, icon, size)</td><td>Встроенная иконка размера <code>HOST_UI_ICON_SMALL</code> (22 пикселя), <code>HOST_UI_ICON_MEDIUM</code> (44), <code>HOST_UI_ICON_LARGE</code> (99)</td></tr>
-  <tr><td class="c">ui_actions(ok, ok_length, back, back_length)</td><td>Строка кнопок внизу, 44 пикселя (<code>HOST_UI_ACTIONS_HEIGHT</code>). Длина 0 убирает кнопку; единственная кнопка центрируется</td></tr>
-  <tr><td class="c">ui_button(x, y, name, name_length, action, action_length, mirrored)</td><td>Одна кнопка: название на плашке и подпись действия рядом. Возвращает ширину</td></tr>
+  <tr><td class="c">ui_draw_title(text, length)</td><td>Заголовок страницы с линейкой. Возвращает <code>y</code> области содержимого</td></tr>
+  <tr><td class="c">ui_draw_icon(x, y, icon, size)</td><td>Встроенная иконка размера <code>HOST_UI_ICON_SMALL</code> (22 пикселя), <code>HOST_UI_ICON_MEDIUM</code> (44), <code>HOST_UI_ICON_LARGE</code> (99)</td></tr>
+  <tr><td class="c">ui_draw_actions(ok, ok_length, back, back_length)</td><td>Строка кнопок внизу, 44 пикселя (<code>HOST_UI_ACTIONS_HEIGHT</code>). Длина 0 убирает кнопку; единственная кнопка центрируется</td></tr>
+  <tr><td class="c">ui_draw_button(x, y, name, name_length, action, action_length, mirrored)</td><td>Одна кнопка: название на плашке и подпись действия рядом. Возвращает ширину</td></tr>
   <tr><td class="c">ui_list_visible(list), ui_list_first(list)</td><td>Для <code>host_list_t</code> (count, selected или -1, top, height или 0 для оставшейся высоты, first): число видимых строк; индекс первой видимой строки</td></tr>
-  <tr><td class="c">ui_list_row(list, index, label, label_length, value, value_length, icon)</td><td>Одна строка. Строки вне видимого диапазона пропускаются. Значение шириной до половины строки остаётся целым; подпись сокращается с "..."</td></tr>
-  <tr><td class="c">ui_notice(notice)</td><td>Сообщение на всю поверхность по <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. <code>first</code> обязательно; остальные пустые поля не выводятся</td></tr>
-  <tr><td class="c">ui_reason(status)</td><td>Стандартное сообщение для статуса запроса. Возвращает 1, если нарисовано, 0 для статуса 2xx</td></tr>
-  <tr><td class="c">ui_value(x, y, font, value, value_length, unit, unit_length)</td><td>Значение с единицей на базовой линии. Возвращает общую ширину</td></tr>
+  <tr><td class="c">ui_draw_list_row(list, index, label, label_length, value, value_length, icon)</td><td>Одна строка. Строки вне видимого диапазона пропускаются. Значение шириной до половины строки остаётся целым; подпись сокращается с "..."</td></tr>
+  <tr><td class="c">ui_draw_notice(notice)</td><td>Сообщение на всю поверхность по <code>host_notice_t</code>: first[64], second[64], detail[96], ok[32], back[32], icon, is_working. <code>first</code> обязательно; остальные пустые поля не выводятся</td></tr>
+  <tr><td class="c">ui_draw_reason(status)</td><td>Стандартное сообщение для статуса запроса. Возвращает 1, если нарисовано, 0 для статуса 2xx</td></tr>
+  <tr><td class="c">ui_draw_value(x, y, font, value, value_length, unit, unit_length)</td><td>Значение с единицей на базовой линии. Возвращает общую ширину</td></tr>
   <tr><td class="c">ui_value_width(font, value, value_length, unit, unit_length)</td><td>Ширина значения с единицей</td></tr>
-  <tr><td class="c">ui_cell(cell, picture, icon)</td><td>Ячейка из <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) с необязательной картинкой (0: нет) или встроенной иконкой (<code>HOST_ICON_NONE</code>: нет). Размер картинки: 88 пикселей в ячейке на всю поверхность приложения, 44 пикселя в остальных</td></tr>
+  <tr><td class="c">ui_draw_cell(cell, picture, icon)</td><td>Ячейка из <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) с необязательной картинкой (0: нет) или встроенной иконкой (<code>HOST_ICON_NONE</code>: нет). Размер картинки: 88 пикселей в ячейке на всю поверхность приложения, 44 пикселя в остальных</td></tr>
   <tr><td class="c">ui_cell_fit(cell, picture, icon)</td><td>Возвращает класс размера, подходящий ячейке; 1 - наибольший. Для всех ячеек экрана используйте наибольшее из возвращённых чисел</td></tr>
-  <tr><td class="c">ui_bar(x, y, width, value, maximum)</td><td>Полоса высотой 14 пикселей: <code>value</code> из <code>maximum</code></td></tr>
-  <tr><td class="c">ui_chart(chart, values)</td><td>Рисует ряд целых чисел по host_chart_t; пропуски задаются HOST_CHART_NO_VALUE</td></tr>
-  <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Рамка с необязательными стрелками: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
-  <tr><td class="c">ui_picker(picker)</td><td>Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок; пустой <code>ok</code> или <code>back</code> - слово хоста на языке устройства: Сохранить, Отмена</td></tr>
-  <tr><td class="c">ui_date(date)</td><td>Редактор даты и времени из <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code> или <code>HOST_DATE_NONE</code>); ok[32], back[32]. Пустые <code>ok</code> и <code>back</code> заменяются словами хоста: «Далее» или «Сохранить», «Назад» или «Отмена»</td></tr>
+  <tr><td class="c">ui_draw_bar(x, y, width, value, maximum)</td><td>Полоса высотой 14 пикселей: <code>value</code> из <code>maximum</code></td></tr>
+  <tr><td class="c">ui_draw_chart(chart, values)</td><td>Рисует ряд целых чисел по host_chart_t; пропуски задаются HOST_CHART_NO_VALUE</td></tr>
+  <tr><td class="c">ui_draw_frame(x, y, width, height, arrows)</td><td>Рамка с необязательными стрелками: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
+  <tr><td class="c">ui_draw_picker(picker)</td><td>Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок; пустой <code>ok</code> или <code>back</code> - слово хоста на языке устройства: Сохранить, Отмена</td></tr>
+  <tr><td class="c">ui_draw_date(date)</td><td>Редактор даты и времени из <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code> или <code>HOST_DATE_NONE</code>); ok[32], back[32]. Пустые <code>ok</code> и <code>back</code> заменяются словами хоста: «Далее» или «Сохранить», «Назад» или «Отмена»</td></tr>
 </table>
 
 <h2 id="ref-chart">Поля и флаги графика</h2>
@@ -1220,8 +1236,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-navigation">Навигация и сессия</h2>
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
-  <tr><td class="c">void request_exit(void)</td><td>Закрывает приложение: один шаг вниз по стеку. Допустим в обработчиках кнопок, BACK и таймера</td></tr>
-  <tr><td class="c">void request_focus(void)</td><td>Запрашивает экран из фонового обработчика; решение принимается после завершения доставки. Отклоняется в течение 30 с после нажатия, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешения. Отклонённый запрос отбрасывается без повтора</td></tr>
+  <tr><td class="c">void screen_leave(void)</td><td>Закрывает приложение: один шаг вниз по стеку. Допустим в обработчиках кнопок, BACK и таймера</td></tr>
+  <tr><td class="c">void screen_request(void)</td><td>Запрашивает экран из фонового обработчика; решение принимается после завершения доставки. Отклоняется в течение 30 с после нажатия, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешения. Отклонённый запрос отбрасывается без повтора</td></tr>
   <tr><td class="c">int32_t session_set(data, length)</td><td>Хранит до <code>HOST_SESSION_MAX</code> (128) байт, пока приложение в стеке. Длина 0 очищает. <code>HOST_ERR_ARGUMENT</code> для экземпляра, загруженного вне экрана</td></tr>
   <tr><td class="c">int32_t session_get(buffer, capacity)</td><td>Копирует сохранённое. Возвращает длину; 0, если ничего нет; <code>HOST_ERR_NO_SPACE</code>, если буфер меньше</td></tr>
 </table>
@@ -1229,8 +1245,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-notifications">Уведомления и статус в заголовке</h2>
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
-  <tr><td class="c">notify(notice)</td><td>Ставит в очередь уведомление по <code>host_notice_t</code>: first (обязательно), second, detail, icon. <code>HOST_ERR_NO_SPACE</code>, если в очереди уже четыре</td></tr>
-  <tr><td class="c">header_status(side, icon, text, length)</td><td>Задаёт иконку и до 31 байта текста над экранами с заголовком, включая экран владельца. Собственный левый текст экрана важнее сохранённого левого статуса; сохранённый правый статус важнее текста экрана. Пустая иконка и текст освобождают сторону. Сбрасывается при перезапуске, удалении и обновлении со сменой идентификатора приложения</td></tr>
+  <tr><td class="c">notification_post(notice)</td><td>Ставит в очередь уведомление по <code>host_notice_t</code>: first (обязательно), second, detail, icon. <code>HOST_ERR_NO_SPACE</code>, если в очереди уже четыре</td></tr>
+  <tr><td class="c">header_set_status(side, icon, text, length)</td><td>Задаёт иконку и до 31 байта текста над экранами с заголовком, включая экран владельца. Собственный левый текст экрана важнее сохранённого левого статуса; сохранённый правый статус важнее текста экрана. Пустая иконка и текст освобождают сторону. Сбрасывается при перезапуске, удалении и обновлении со сменой идентификатора приложения</td></tr>
 </table>
 
 <h2 id="ref-store">Хранилище и файлы</h2>
@@ -1246,21 +1262,21 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <h2 id="ref-network">Сеть</h2>
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
-  <tr><td class="c">poll_now(poll)</td><td>Ставит опрос манифеста в очередь; повторные ожидающие запросы объединяются. Ответа не ждёт</td></tr>
+  <tr><td class="c">poll_run(poll)</td><td>Ставит опрос манифеста в очередь; повторные ожидающие запросы объединяются. Ответа не ждёт</td></tr>
   <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Задаёт сохраняемый интервал из кода от 10 до 86400 с; другое ненулевое значение или неизвестный опрос дают HOST_ERR_ARGUMENT. 0 удаляет этот интервал и возвращает интервал манифеста или его настройки. Интервал из кода имеет приоритет над настройкой. Изменение действующего интервала отсчитывает срок заново от текущего момента; прежний интервал срок не меняет. HOST_ERR_FAILED означает, что интервал не удалось сохранить или удалить</td></tr>
-  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Ставит запрос в очередь; до 16 ожидающих на приложение. Методы: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Заголовки - строки «Name: value»</td></tr>
-  <tr><td class="c">data_value(index, text, capacity)</td><td>Внутри <code>app_on_values()</code>: копирует значение пути <code>index</code> текстом без завершающего нуля. Возвращает его длину. У пути списка значения нет</td></tr>
-  <tr><td class="c">data_count(index)</td><td>Внутри <code>app_on_values()</code>: число элементов пути списка <code>index</code>; 1 или 0 для любого другого пути</td></tr>
-  <tr><td class="c">data_element(index, element, text, capacity)</td><td>Внутри <code>app_on_values()</code>: копирует элемент <code>element</code> пути <code>index</code>, как <code>data_value()</code></td></tr>
-  <tr><td class="c">data_item(void)</td><td>Внутри <code>app_on_data()</code> и <code>app_on_values()</code>: пункт списка, для которого опрос с <code>each</code> сделал этот запрос, от 0; -1 для любого другого ответа</td></tr>
-  <tr><td class="c">data_response(response, capacity)</td><td>В обработчике данных копирует первые min(capacity, sizeof(host_response_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
+  <tr><td class="c">http_send(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Ставит запрос в очередь; до 16 ожидающих на приложение. Методы: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Заголовки - строки «Name: value»</td></tr>
+  <tr><td class="c">answer_value(index, text, capacity)</td><td>Внутри <code>app_on_picked()</code>: копирует значение пути <code>index</code> текстом без завершающего нуля. Возвращает его длину. У пути списка значения нет</td></tr>
+  <tr><td class="c">answer_count(index)</td><td>Внутри <code>app_on_picked()</code>: число элементов пути списка <code>index</code>; 1 или 0 для любого другого пути</td></tr>
+  <tr><td class="c">answer_element(index, element, text, capacity)</td><td>Внутри <code>app_on_picked()</code>: копирует элемент <code>element</code> пути <code>index</code>, как <code>answer_value()</code></td></tr>
+  <tr><td class="c">answer_item(void)</td><td>Внутри <code>app_on_data()</code> и <code>app_on_picked()</code>: пункт списка, для которого опрос с <code>each</code> сделал этот запрос, от 0; -1 для любого другого ответа</td></tr>
+  <tr><td class="c">answer_info(response, capacity)</td><td>В обработчике данных копирует первые min(capacity, sizeof(host_answer_info_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
 </table>
 
 <h2 id="ref-text">Текст и журнал</h2>
 <table>
   <tr><th style="width:44%">Вызов</th><th>Описание</th></tr>
   <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Заменяет <code>{0}</code> .. <code>{3}</code> значениями <code>host_text_argument_t</code>. Шаблон, текстовые аргументы и результат ограничены каждый HOST_TEXT_MAX байтами. Результат обрезается до capacity без завершающего нуля; возвращается длина в байтах</td></tr>
-  <tr><td class="c">void host_log(level, text, length)</td><td>Пишет одну строку журнала до 200 байт. Уровни: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
+  <tr><td class="c">void log_write(level, text, length)</td><td>Пишет одну строку журнала до 200 байт. Уровни: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
 </table>
 <p>Аргументы времени в <code>time_local_at()</code>, <code>time_text()</code> и <code>alarm_set_at()</code> принимают секунды Unix от 1767225600 до 4102444800: с 2026-01-01 до 2100-01-01 UTC включительно (от <code>HOST_TIME_MIN</code> до <code>HOST_TIME_MAX</code>). За пределами этого диапазона вызовы возвращают <code>HOST_ERR_ARGUMENT</code> и не изменяют выходные данные. <code>time_from_local()</code> проверяет тот же диапазон для момента Unix после нормализации полей местного времени; результат за пределами диапазона не изменяет выходное значение.</p>
 <h1 id="ref-time">21. Время</h1>
@@ -1289,9 +1305,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>Значение числовой настройки и её диапазон</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Устанавливает часы на секунды Unix 1767225600 - 4102444800 (с 2026-01-01 до 2100-01-01 UTC включительно). HOST_ERR_ARGUMENT за пределами диапазона; HOST_ERR_FAILED при сетевом источнике времени. При ошибке часы не изменяются</td></tr>
   <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Установленные приложения по id, в порядке названий: список, название, отложенное удаление. HOST_OK означает, что удаление поставлено в очередь до возврата из обработчика, а не завершено. Второе удаление в том же обработчике даёт HOST_ERR_NO_SPACE и сохраняет первый запрос. Приложение не может удалить само себя</td></tr>
-  <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>id приложения по умолчанию; 0: нет</td></tr>
-  <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>Словесный знак perINKpheraL квадратным шрифтом, масштаб 1 - 5: отрисовка, ширина, высота</td></tr>
-  <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Хост его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения</td></tr>
+  <tr><td class="c">sys_app_get_default(void), sys_app_set_default(id)</td><td>id приложения по умолчанию; 0: нет</td></tr>
+  <tr><td class="c">sys_draw_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>Словесный знак perINKpheraL квадратным шрифтом, масштаб 1 - 5: отрисовка, ширина, высота</td></tr>
+  <tr><td class="c">sys_run(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Хост его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения</td></tr>
 </table>
 
 <h1 id="ref-library">23. Библиотека SDK</h1>
@@ -1377,8 +1393,8 @@ int32_t app_value_count(int32_t index);
 bool    app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size);
 bool    app_value_element_fixed(int32_t index, int32_t element, int32_t decimals, int64_t *number);
 int32_t app_value_series(int32_t index, int32_t decimals, int32_t *values, int32_t capacity);
-                         /* числа для ui_chart(): HOST_CHART_NO_VALUE для "null"; равномерно прорежены, чтобы поместиться */</pre>
-<p>Эти функции работают только внутри <code>app_on_values()</code>, кроме <code>app_parse_number()</code>, которая работает везде. <code>index</code> - позиция пути в списке <code>pick</code> манифеста. Числа с экспонентой читаются: <code>"1.2e-05"</code>.</p>
+                         /* числа для ui_draw_chart(): HOST_CHART_NO_VALUE для "null"; равномерно прорежены, чтобы поместиться */</pre>
+<p>Эти функции работают только внутри <code>app_on_picked()</code>, кроме <code>app_parse_number()</code>, которая работает везде. <code>index</code> - позиция пути в списке <code>pick</code> манифеста. Числа с экспонентой читаются: <code>"1.2e-05"</code>.</p>
 <p>Числовые функции принимают от -INT32_MAX до INT32_MAX для 32 бит и от -INT64_MAX до INT64_MAX для 64 бит.</p>
 <h2 id="lib-fixed">app_fixed.h: числа с фиксированной точкой</h2>
 <pre>/* "356.27", 2 -> 35627; с экспонентой тоже */
@@ -1459,7 +1475,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);
 <h1 id="ref-limits">24. Лимиты</h1>
 <table>
   <tr><th style="width:44%">Константа</th><th style="width:22%">Значение</th><th>К чему относится</th></tr>
-  <tr><td class="c">HOST_API_VERSION</td><td>2</td><td><code>abi</code> в манифесте</td></tr>
+  <tr><td class="c">HOST_API_VERSION</td><td>3</td><td><code>abi</code> в манифесте</td></tr>
   <tr><td class="c">MANIFEST_MODULE_MAX_BYTES</td><td>48 КБ</td><td><code>app.wasm</code></td></tr>
   <tr><td class="c">MANIFEST_NAME_MAX</td><td>13 символов</td><td>Имя приложения</td></tr>
   <tr><td class="c">MANIFEST_TITLE_MAX</td><td>23 символа</td><td>Название приложения</td></tr>

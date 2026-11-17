@@ -14,7 +14,7 @@
 /* Surface size: 400 x 300 for a full-screen application, 400 x 260 below
  * the host header otherwise. The origin is the top left corner. The
  * default colour is black. Drawing is clipped to the surface. Drawing
- * coordinates are bounded to -4096..4096. gfx_bitmap() and gfx_bitmap_file()
+ * coordinates are bounded to -4096..4096. gfx_draw_bitmap() and gfx_draw_bitmap_file()
  * require positive dimensions no larger than the surface, even when
  * clipping would hide the excess. QR cell size is 0..16. */
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
@@ -29,7 +29,7 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
  *   2. an ASCII transliteration ("Moskva", "Strasse");
  *   3. '?'.
  * The degree sign ("\xC2\xB0") is built into every size.
- * Pass text unchanged, measure it, and cut it with gfx_text_fit(), not by
+ * Pass text unchanged, measure it, and cut it with gfx_fit_text(), not by
  * bytes.
  *
  * A font constant selects a size. The typeface is a user setting:
@@ -54,7 +54,7 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 /* Tabular digits: every digit has the width of the widest one. Use for
  * numbers that change in place, such as a clock or a countdown:
  *
- *     gfx_text(x, y, HOST_FONT_HUGE | HOST_FONT_TABULAR, "12:07", 5);
+ *     gfx_draw_text(x, y, HOST_FONT_HUGE | HOST_FONT_TABULAR, "12:07", 5);
  *
  * Every call that takes a font accepts the flag. Pass the same flag when
  * measuring. Characters other than digits keep their own width. */
@@ -63,13 +63,13 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 /* Draws text. `y` is the top of the line, not the baseline. Text longer
  * than HOST_TEXT_MAX bytes is cut. Returns the width drawn. */
 #define HOST_TEXT_MAX 127
-HOST_IMPORT(gfx_text, int32_t gfx_text(int32_t x, int32_t y, int32_t font, const char *text,
+HOST_IMPORT(gfx_draw_text, int32_t gfx_draw_text(int32_t x, int32_t y, int32_t font, const char *text,
                                        int32_t length));
 HOST_IMPORT(gfx_text_width, int32_t gfx_text_width(int32_t font, const char *text,
                                                    int32_t length));
 
 /* Where the ink of a text begins and ends, in pixels from its left edge as
- * gfx_text() draws it: to centre or align a text by what is seen rather
+ * gfx_draw_text() draws it: to centre or align a text by what is seen rather
  * than by its glyphs' room, which in some typefaces is more on one side. */
 typedef struct host_text_ink {
     int32_t first_x, end_x; /* end_x: the first column after the ink; both 0 for none */
@@ -83,7 +83,7 @@ HOST_IMPORT(gfx_text_ink, int32_t gfx_text_ink(int32_t font, const char *text, i
  * without a terminator. Returns its length; 0 if "..." alone does not fit.
  * HOST_ERR_NO_SPACE if capacity cannot hold the entire fitted result; no
  * bytes are copied on error. Capacity 0 succeeds only for an empty result. */
-HOST_IMPORT(gfx_text_fit, int32_t gfx_text_fit(int32_t font, const char *text, int32_t length,
+HOST_IMPORT(gfx_fit_text, int32_t gfx_fit_text(int32_t font, const char *text, int32_t length,
                                                int32_t max_width, char *fitted,
                                                int32_t capacity));
 
@@ -105,18 +105,18 @@ HOST_IMPORT(gfx_font_cap_height, int32_t gfx_font_cap_height(int32_t font));
  * only; thin lines and small text become unreadable. */
 #define HOST_PAPER 0
 #define HOST_INK   16
-HOST_IMPORT(gfx_color, int32_t gfx_color(int32_t color));
+HOST_IMPORT(gfx_set_color, int32_t gfx_set_color(int32_t color));
 
 #define HOST_RECT_OUTLINE 0
 #define HOST_RECT_FILLED  1
-HOST_IMPORT(gfx_rect, int32_t gfx_rect(int32_t x, int32_t y, int32_t width, int32_t height,
+HOST_IMPORT(gfx_draw_rect, int32_t gfx_draw_rect(int32_t x, int32_t y, int32_t width, int32_t height,
                                        int32_t fill));
-HOST_IMPORT(gfx_line, int32_t gfx_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1));
+HOST_IMPORT(gfx_draw_line, int32_t gfx_draw_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1));
 
 /* Draws a bitmap. `bits`: rows from top to bottom, the most significant
  * bit is the left pixel, each row padded to a whole byte. Set bits are
  * drawn in the current colour; clear bits are transparent. */
-HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, int32_t height,
+HOST_IMPORT(gfx_draw_bitmap, int32_t gfx_draw_bitmap(int32_t x, int32_t y, int32_t width, int32_t height,
                                            const uint8_t *bits));
 
 /* Draws a QR code of `text`. (x, y) is the top left corner; `cell` is the
@@ -127,16 +127,16 @@ HOST_IMPORT(gfx_bitmap, int32_t gfx_bitmap(int32_t x, int32_t y, int32_t width, 
  * Returns HOST_ERR_NO_SPACE if the text does not fit the largest code
  * (57 modules per side). */
 #define HOST_QR_TEXT_MAX 200
-HOST_IMPORT(gfx_qr, int32_t gfx_qr(int32_t x, int32_t y, int32_t cell, const char *text,
+HOST_IMPORT(gfx_draw_qr, int32_t gfx_draw_qr(int32_t x, int32_t y, int32_t cell, const char *text,
                                    int32_t length));
 
 /* Draws a bitmap that the host reads from an application file, starting
- * at `offset`. The format is that of gfx_bitmap(). A file can hold
+ * at `offset`. The format is that of gfx_draw_bitmap(). A file can hold
  * several bitmaps. The bitmap does not use application memory.
  * Returns HOST_ERR_NOT_FOUND if the file does not exist or ends before
  * the bitmap does. */
-HOST_IMPORT(gfx_bitmap_file,
-            int32_t gfx_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height,
+HOST_IMPORT(gfx_draw_bitmap_file,
+            int32_t gfx_draw_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height,
                                     const char *name, int32_t name_length, int32_t offset));
 
 /* Draws a built-in icon in the current colour. An icon is 11 x 11 cells;
@@ -192,8 +192,7 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_COUNT          43
 #define HOST_ICON_CELLS          11
 #define HOST_ICON_CELL_MAX       16
-#define HOST_SINCE_gfx_icon "0.1.23"
-HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t x, int32_t y, int32_t icon, int32_t cell));
+HOST_IMPORT(gfx_draw_icon, int32_t gfx_draw_icon(int32_t x, int32_t y, int32_t icon, int32_t cell));
 
 /* Where an icon drawn at `cell` has ink, in pixels from its top left
  * corner: an icon does not fill its square, and one that stands beside
@@ -215,5 +214,5 @@ HOST_IMPORT(gfx_icon_ink, int32_t gfx_icon_ink(int32_t icon, int32_t cell, host_
  * `cell` is the cell size in pixels, 1 to HOST_ICON_CELL_MAX.
  * tools/perinkpheral generates pictures.h from the `pictures` folder of an
  * application. */
-HOST_IMPORT(gfx_picture,
-            int32_t gfx_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t cell));
+HOST_IMPORT(gfx_draw_picture,
+            int32_t gfx_draw_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t cell));

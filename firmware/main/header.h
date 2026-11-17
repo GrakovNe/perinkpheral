@@ -21,7 +21,7 @@ extern "C" {
  * caller hands in what they are now.
  *
  * Each side is, in this order: what an application keeps there
- * (header_status), what the scene on the screen gave (header_text), the
+ * (header_set_status), what the scene on the screen gave (header_set_text), the
  * host's own - the network's icon on the left, the date or the time on the
  * right. */
 

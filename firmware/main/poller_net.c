@@ -66,7 +66,7 @@ static void note_network_use(bool worked)
 static int s_item = -1;
 
 static void hand_over_values(const char *app_name, int request, int http_status,
-                             const host_response_t *response, json_pick_t *picked)
+                             const host_answer_info_t *response, json_pick_t *picked)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = request,
                                 .http_status = http_status, .response = response,
@@ -75,7 +75,7 @@ static void hand_over_values(const char *app_name, int request, int http_status,
 }
 
 static void hand_over_piece(const char *app_name, int request, int http_status,
-                            const host_response_t *response, const uint8_t *data, size_t length,
+                            const host_answer_info_t *response, const uint8_t *data, size_t length,
                             int flags)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = request,
@@ -102,7 +102,7 @@ bool poller_net_setting_of(void *context, const char *key, char *value, size_t v
 typedef struct {
     app_poll_t poll;
     char       url[APP_URL_MAX + 1];
-    host_response_t response; /* what the headers of the answer said */
+    host_answer_info_t response; /* what the headers of the answer said */
     const char *paths[JSON_PICK_PATHS_MAX];
     json_pick_t pick;
     uint8_t     piece[HOST_DATA_CHUNK_MAX];
@@ -146,7 +146,7 @@ static const esp_http_client_method_t METHODS[] = {
 };
 
 /* The headers an application may ask about, and where each goes. */
-static void note_header(host_response_t *response, const char *name, const char *value)
+static void note_header(host_answer_info_t *response, const char *name, const char *value)
 {
     const struct {
         const char *name;
@@ -174,7 +174,7 @@ static void note_header(host_response_t *response, const char *name, const char 
 
 static esp_err_t on_http_event(esp_http_client_event_t *event)
 {
-    host_response_t *response = event->user_data;
+    host_answer_info_t *response = event->user_data;
     if (event->event_id == HTTP_EVENT_ON_CONNECTED) {
         /* A new answer begins: of the one that sent us here nothing is kept. */
         memset(response, 0, sizeof *response);

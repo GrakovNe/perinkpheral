@@ -20,7 +20,7 @@ extern "C" {
  * functions are supplied as app_services_t. The same code runs in the host
  * tests with the real interpreter. */
 
-/* Arguments of http_request() (host_api.h). `body` points into the
+/* Arguments of http_send() (host_api.h). `body` points into the
  * application memory; a receiver that keeps the request copies it. */
 typedef struct {
     int            tag;    /* request number of the answer; chosen by the application */
@@ -39,7 +39,7 @@ typedef struct {
     int32_t (*time_zone_offset_at)(int64_t unix_time); /* the offset at `unix_time` */
     int64_t (*uptime_ms)(void);
     uint32_t (*boot_id)(void); /* differs after every restart; never 0 */
-    void (*log)(int level, const char *text, int length);
+    void (*log_write)(int level, const char *text, int length);
     /* One-shot timer of the current application. 0 ms: cancel. */
     void (*timer_set)(int id, int32_t milliseconds);
     /* Store of the application. Results as kv_get() and kv_set() of
@@ -52,9 +52,9 @@ typedef struct {
      * black and white. */
     bool (*dithers)(void);
     /* Fetches poll `poll` now. False: no such poll. */
-    bool (*poll_now)(const char *app_name, int poll);
+    bool (*poll_run)(const char *app_name, int poll);
     /* Queues the request. Returns HOST_OK or HOST_ERR_*. */
-    int32_t (*http_request)(const char *app_name, const app_request_t *request);
+    int32_t (*http_send)(const char *app_name, const app_request_t *request);
     /* Sets or clears (0) the code override. Returns HOST_OK or HOST_ERR_*. */
     int32_t (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
     /* Sets alarm `alarm`. `when`: seconds from now (0: cancel), or unix
@@ -65,7 +65,7 @@ typedef struct {
     bool (*alarm_set_every)(const char *app_name, int alarm, int32_t every_s, int32_t first_in_s);
     /* Persistent header status of a side: a host icon (-1: none) and a
      * text. Both empty: release the side. */
-    void (*header_status)(const char *app_name, int side, int icon, const char *text);
+    void (*header_set_status)(const char *app_name, int side, int icon, const char *text);
     /* Language code of the device: "en", "ru". May be NULL: English. */
     const char *(*language)(void);
     /* The firmware's version, "0.1.8" or a build's "0.1.8-0adbfb4": an
@@ -73,7 +73,7 @@ typedef struct {
     const char *(*firmware_version)(void);
     /* Queues a notification; the host shows it until dismissed. An empty
      * text is passed as NULL. False: the queue is full. May be NULL. */
-    bool (*notify)(const char *first, const char *second, const char *detail, int icon);
+    bool (*notification_post)(const char *first, const char *second, const char *detail, int icon);
     /* Files of the application. Results as file_size() and file_read() of
      * host_api.h. `file` is validated and terminated. */
     int32_t (*file_size)(const char *app_name, const char *file);
@@ -114,7 +114,7 @@ typedef enum {
 #define APP_GRANT_SYSTEM 1u /* "system": the sys_* calls */
 #define APP_GRANT_FILES  2u /* "writes_files": file_write() */
 
-/* Loads a module and calls app_init(). `wasm` and `name` must remain
+/* Loads a module and calls app_on_load(). `wasm` and `name` must remain
  * valid until app_unload(). `name` selects the store of kv_*. `grants`:
  * APP_GRANT_* of what may be imported beside the host API; a module that
  * imports more is refused. On failure *loaded is NULL. */
@@ -155,21 +155,21 @@ void app_draw(app_t *app, gfx_t *surface);
 /* Calls app_on_data() (host_api.h) with one chunk of an answer: at most
  * HOST_DATA_CHUNK_MAX bytes, copied into the buffer of the application.
  * Skipped when the handler is not exported. */
-struct host_response; /* host_response_t of host_api.h */
+struct host_answer_info; /* host_answer_info_t of host_api.h */
 
 /* Bracket the handler calls of one answer and define the result of
- * data_response() and data_item() between them. `response` NULL: no answer
+ * answer_info() and answer_item() between them. `response` NULL: no answer
  * was received; only `http_status` is known. `item`: the item of the list a
  * poll with "each" went over, or -1. */
-void app_answer_begins(app_t *app, const struct host_response *response, int http_status,
+void app_answer_begins(app_t *app, const struct host_answer_info *response, int http_status,
                        int item);
 void app_answer_ends(app_t *app);
 
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,
               int http_status);
 
-/* Calls app_on_values() (host_api.h) with the values picked from a JSON
- * answer, which data_value(), data_count() and data_element() read; NULL
+/* Calls app_on_picked() (host_api.h) with the values picked from a JSON
+ * answer, which answer_value(), answer_count() and answer_element() read; NULL
  * when there are none. http_status < 0: the request failed, the value is
  * HOST_FAILED_*. The values are valid only during the call. */
 void app_values(app_t *app, int request, int http_status, json_pick_t *picked);
@@ -187,21 +187,21 @@ void app_intent(app_t *app, int intent);
 void app_installed(app_t *app);
 void app_updated(app_t *app);
 
-/* True once after a request_focus() call. */
+/* True once after a screen_request() call. */
 bool app_take_focus_request(app_t *app);
 
 /* Header text of the application for `side` (HOST_HEADER_*). Empty: the
  * side shows the host's content. */
 const char *app_header_text(const app_t *app, int side);
 
-/* True once after a request_redraw() call. */
+/* True once after a screen_redraw() call. */
 bool app_take_redraw_request(app_t *app);
 
-/* Union of the HOST_REDRAW_* flags of the request_redraw() calls since
+/* Union of the HOST_REDRAW_* flags of the screen_redraw() calls since
  * the previous call of this function. */
 int app_take_redraw_flags(app_t *app);
 
-/* True once after a request_exit() call in a button or timer handler.
+/* True once after a screen_leave() call in a button or timer handler.
  * Calls from other handlers are ignored. */
 bool app_take_exit_request(app_t *app);
 

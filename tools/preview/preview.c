@@ -350,8 +350,8 @@ int main(int argc, char **argv)
             int at = icon - SHEETS[sheet].first;
             int left = ICON_SHEET_MARGIN + at % ICONS_IN_A_ROW * ICON_SHEET_STEP_X;
             int top = ICON_SHEET_MARGIN + at / ICONS_IN_A_ROW * ICON_SHEET_STEP_Y;
-            gfx_icon(&content, (gfx_icon_id_t)icon, left, top + GFX_ICON_CELLS, 2, true);
-            gfx_icon(&content, (gfx_icon_id_t)icon, left + ICON_SHEET_PAIR_GAP, top, 4, true);
+            gfx_draw_icon(&content, (gfx_icon_id_t)icon, left, top + GFX_ICON_CELLS, 2, true);
+            gfx_draw_icon(&content, (gfx_icon_id_t)icon, left + ICON_SHEET_PAIR_GAP, top, 4, true);
         }
         if (save(dir, SHEETS[sheet].name)) {
             return 1;

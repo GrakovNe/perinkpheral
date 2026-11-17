@@ -31,7 +31,7 @@ int kit_text(gfx_t *g, int left, int top, kit_style_t style, const char *text, i
     const gfx_font_t *font = kit_font(style);
     char fitted[TEXT_BUFFER];
     if (max_width > 0) {
-        gfx_text_fit(font, text, max_width, fitted, sizeof fitted);
+        gfx_fit_text(font, text, max_width, fitted, sizeof fitted);
         text = fitted;
     }
     return gfx_text_font(g, left, top + gfx_font_ascent(font), font, text, true);
@@ -122,7 +122,7 @@ static int icon_cell(kit_icon_size_t size)
 
 void kit_icon(gfx_t *g, int left, int top, int icon, kit_icon_size_t size)
 {
-    gfx_icon(g, (gfx_icon_id_t)icon, left, top, icon_cell(size), true);
+    gfx_draw_icon(g, (gfx_icon_id_t)icon, left, top, icon_cell(size), true);
 }
 
 #define KEY_PAD_X      6 /* around a button's name, inside its black */
@@ -385,8 +385,8 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
                     chart_column(g, x, previous_row, row + CHART_LINE_WIDTH - 1, CHART_LINE_WIDTH);
                 } else if (has_previous) {
                     for (int thick = 0; thick < CHART_LINE_WIDTH; thick++) {
-                        gfx_line(g, previous_x, previous_row + thick, x, row + thick, true);
-                        gfx_line(g, previous_x + thick, previous_row, x + thick, row, true);
+                        gfx_draw_line(g, previous_x, previous_row + thick, x, row + thick, true);
+                        gfx_draw_line(g, previous_x + thick, previous_row, x + thick, row, true);
                     }
                 }
                 if (pass == 1 && i == last_index && (chart->flags & KIT_CHART_MARK_LAST)) {
@@ -415,7 +415,7 @@ void kit_chart(gfx_t *g, const kit_chart_t *chart)
 
 static void draw_arrow(gfx_t *g, gfx_icon_id_t arrow, int left, int top)
 {
-    gfx_icon(g, arrow, left - ARROW_FIRST_COLUMN * ARROW_CELL, top - ARROW_FIRST_ROW * ARROW_CELL,
+    gfx_draw_icon(g, arrow, left - ARROW_FIRST_COLUMN * ARROW_CELL, top - ARROW_FIRST_ROW * ARROW_CELL,
              ARROW_CELL, true);
 }
 
@@ -447,7 +447,7 @@ void kit_picker(gfx_t *g, const kit_picker_t *picker)
 
     const gfx_font_t *chosen_font = kit_font(KIT_TITLE);
     char fitted[TEXT_BUFFER];
-    gfx_text_fit(chosen_font, picker->chosen, g->w - 2 * PICKER_FRAME_INSET - 2 * KIT_MARGIN, fitted,
+    gfx_fit_text(chosen_font, picker->chosen, g->w - 2 * PICKER_FRAME_INSET - 2 * KIT_MARGIN, fitted,
                  sizeof fitted);
     gfx_text_font(g, (g->w - gfx_text_font_width(chosen_font, fitted)) / 2,
                   frame_top + (PICKER_FRAME_HEIGHT + gfx_font_cap_height(chosen_font)) / 2,
@@ -457,14 +457,14 @@ void kit_picker(gfx_t *g, const kit_picker_t *picker)
     int arrow_reach = ARROW_GAP + ARROW_HEIGHT;
     if (has_above) {
         int baseline = frame_top - arrow_reach - PICKER_NEIGHBOUR / 2;
-        gfx_text_fit(font, picker->above, g->w - 2 * KIT_MARGIN, fitted, sizeof fitted);
+        gfx_fit_text(font, picker->above, g->w - 2 * KIT_MARGIN, fitted, sizeof fitted);
         gfx_text_font(g, (g->w - gfx_text_font_width(font, fitted)) / 2, baseline, font, fitted,
                       true);
     }
     if (has_below) {
         int baseline = frame_top + PICKER_FRAME_HEIGHT + arrow_reach + PICKER_NEIGHBOUR / 2 +
                        gfx_font_cap_height(font);
-        gfx_text_fit(font, picker->below, g->w - 2 * KIT_MARGIN, fitted, sizeof fitted);
+        gfx_fit_text(font, picker->below, g->w - 2 * KIT_MARGIN, fitted, sizeof fitted);
         gfx_text_font(g, (g->w - gfx_text_font_width(font, fitted)) / 2, baseline, font, fitted,
                       true);
     }
@@ -592,7 +592,7 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
     if (has_text(cell->name)) {
         const gfx_font_t *name_font = kit_font(name_style);
         char              fitted[TEXT_BUFFER];
-        gfx_text_fit(name_font, cell->name, cell->width - 2 * CELL_PADDING, fitted, sizeof fitted);
+        gfx_fit_text(name_font, cell->name, cell->width - 2 * CELL_PADDING, fitted, sizeof fitted);
         kit_text(g, cell->left + (cell->width - gfx_text_font_width(name_font, fitted)) / 2,
                  cell->top + CELL_PADDING, name_style, fitted, 0);
         name_height = gfx_font_height(name_font) + CELL_PADDING / 2;
@@ -600,7 +600,7 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
 
     int side = cell_picture_side(g, cell);
     char value[TEXT_BUFFER];
-    gfx_text_fit(font, cell->value,
+    gfx_fit_text(font, cell->value,
                  cell->width - 2 * CELL_PADDING - (side > 0 ? side + CELL_PICTURE_GAP : 0), value,
                  sizeof value);
     int row_width = gfx_text_tabular_width(font, value) + (side > 0 ? side + CELL_PICTURE_GAP : 0);
@@ -609,7 +609,7 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
                  (cell->height - 2 * CELL_PADDING - name_height) / 2;
     if (side > 0 && cell_has_icon(cell)) {
         /* An icon fills the square: 44 or 88 pixels, its finest drawing. */
-        gfx_icon(g, (gfx_icon_id_t)cell->icon, row_left, middle - side / 2,
+        gfx_draw_icon(g, (gfx_icon_id_t)cell->icon, row_left, middle - side / 2,
                  side / GFX_ICON_CELLS, true);
         row_left += side + CELL_PICTURE_GAP;
     } else if (side > 0) {
@@ -618,7 +618,7 @@ void kit_cell(gfx_t *g, const kit_cell_t *cell)
         int width = gfx_picture_width(cell->picture), height = gfx_picture_height(cell->picture);
         int longest = width > height ? width : height;
         int pixels = longest > 0 && side / longest > 0 ? side / longest : 1;
-        gfx_picture(g, row_left + (side - width * pixels) / 2, middle - height * pixels / 2,
+        gfx_draw_picture(g, row_left + (side - width * pixels) / 2, middle - height * pixels / 2,
                     cell->picture, pixels, true);
         row_left += side + CELL_PICTURE_GAP;
     }

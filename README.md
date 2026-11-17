@@ -219,13 +219,13 @@ void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
         presses++;
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
     }
 }
 
 void app_on_draw(void)
 {
-    gfx_text(16, 16, HOST_FONT_TEXT, "Hello from wasm", 15);
+    gfx_draw_text(16, 16, HOST_FONT_TEXT, "Hello from wasm", 15);
 }
 ```
 
@@ -240,7 +240,10 @@ back with `kv_get`.
 
 An application is a folder with `app.wasm` and `manifest.json`. The
 contract is not frozen yet: it changes while the first applications are
-written.
+written. ABI remains 3, with firmware 0.1.30 as its minimum. Commands
+name the subject then the verb (`kv_get`, `gfx_draw_text`), queries name
+what is asked (`gfx_width`, `time_now`), and handlers are
+`app_on_<what happened>` (`app_on_load`, `app_on_picked`).
 
 The host's own pages are written the same way, with a part of the
 contract that reaches into the device: its settings, its clock, its

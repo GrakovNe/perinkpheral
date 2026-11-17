@@ -74,10 +74,10 @@ static int32_t no_file_read(const char *app, const char *file, int32_t offset, v
 }
 static bool always_dithers(void) { return true; }
 static const app_services_t SERVICES = {
-    .unix_time = no_time, .time_zone_offset = no_offset, .time_zone_offset_at = no_offset_at, .uptime_ms = no_time, .log = no_log,
+    .unix_time = no_time, .time_zone_offset = no_offset, .time_zone_offset_at = no_offset_at, .uptime_ms = no_time, .log_write = no_log,
     .timer_set = no_timer, .kv_get = no_kv_get, .kv_set = no_kv_set,
-    .dithers = always_dithers, .poll_now = no_poll_now, .poll_set_interval = no_interval,
-    .alarm_set = no_alarm, .http_request = no_request, .file_write = no_file_write,
+    .dithers = always_dithers, .poll_run = no_poll_now, .poll_set_interval = no_interval,
+    .alarm_set = no_alarm, .http_send = no_request, .file_write = no_file_write,
     .file_size = no_file_size, .file_read = no_file_read,
 };
 
@@ -401,7 +401,7 @@ static void test_notification_consumption(void)
     CHECK(app_scene_app(probe) == NULL || app_has_stopped(app_scene_app(probe)));
     probe->ops->leave(probe);
     /* A stopped on-screen instance is loaded too. In particular, a trap
-     * in app_init must not leave the notification pending forever. */
+     * in app_on_load must not leave the notification pending forever. */
     start_on(probe);
     app_t *app = app_scene_app(probe);
     CHECK(app != NULL);

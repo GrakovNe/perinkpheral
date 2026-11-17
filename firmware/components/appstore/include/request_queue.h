@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-/* The requests applications make themselves (http_request), waiting for
+/* The requests applications make themselves (http_send), waiting for
  * the network, which takes one at a time. Each application has
  * HOST_HTTP_PENDING_MAX waiting at most; a request is a block of its own
  * size, and all of them together no more than REQUEST_QUEUE_BYTES_MAX - a

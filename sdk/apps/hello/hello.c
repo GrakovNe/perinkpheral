@@ -22,10 +22,10 @@ static int32_t presses;
 static void draw_line(int32_t line, const char *text)
 {
     int32_t line_height = gfx_font_height(HOST_FONT_TEXT);
-    gfx_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
+    gfx_draw_text(MARGIN, MARGIN + line * line_height, HOST_FONT_TEXT, text, app_text_length(text));
 }
 
-void app_init(void)
+void app_on_load(void)
 {
     /* Nothing stored yet leaves the count at zero. */
     kv_get(PRESSES_KEY, PRESSES_KEY_LENGTH, &presses, sizeof presses);
@@ -43,7 +43,7 @@ void app_on_button(int32_t event)
     case BTN_OK_PRESSED:
     case BTN_DOWN_PRESSED:
         presses++;
-        request_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(HOST_REDRAW_NORMAL);
         break;
     }
 }

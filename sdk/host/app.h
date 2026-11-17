@@ -14,7 +14,7 @@
 /* Called once, immediately after the module is loaded.
  * The host unloads an application every time it leaves the screen. State
  * that must persist is kept with kv_* calls, not in global variables. */
-APP_EXPORT(app_init, void app_init(void));
+APP_EXPORT(app_on_load, void app_on_load(void));
 
 /* app_on_focus: the application has received the screen.
  * app_on_blur: the application is about to lose the screen. */
@@ -34,13 +34,13 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
  * app_on_updated: another package replaced the one that ran before.
  * Package identity is the id derived from both module and manifest, not
  * version-string ordering: changing either makes another package.
- * Called once, on or off the screen, after app_init(); off the screen the
+ * Called once, on or off the screen, after app_on_load(); off the screen the
  * application is loaded for the call. A new version does not inherit the
  * alarms set by the old one: set them again here. The store, the files
  * and poll intervals set from code are kept across an update. A load
  * failure leaves the notification pending for the next startup/reload.
  * Once loaded it is consumed before the callback (or a missing callback),
- * even if app_init() or the callback traps: it is not retried endlessly. */
+ * even if app_on_load() or the callback traps: it is not retried endlessly. */
 APP_EXPORT(app_on_installed, void app_on_installed(void));
 APP_EXPORT(app_on_updated, void app_on_updated(void));
 
@@ -66,7 +66,7 @@ APP_EXPORT(app_on_updated, void app_on_updated(void));
  * Without this export, a short press of BACK closes the application and
  * returns the user to the previous screen.
  * With this export, the press is delivered here. Typical handling: go one
- * page back; on the first page call request_exit().
+ * page back; on the first page call screen_leave().
  * BTN_BACK_PRESSED is never delivered to app_on_button(). BTN_BACK_KEYDOWN
  * and BTN_BACK_KEYUP are. A long press of BACK always opens the host menu. */
 APP_EXPORT(app_on_back, void app_on_back(void));
@@ -164,7 +164,7 @@ APP_EXPORT(app_on_settings, void app_on_settings(void));
 
 /* Draws the complete frame from the application state. The surface is
  * white on entry. Drawing calls work only inside this handler.
- * Called after request_redraw() and whenever the host rebuilds the frame.
+ * Called after screen_redraw() and whenever the host rebuilds the frame.
  * The host compares frames and decides whether and how to refresh the
  * panel. */
 APP_EXPORT(app_on_draw, void app_on_draw(void));
@@ -225,7 +225,7 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 #define HOST_REDRAW_CLEAN    2
 #define HOST_REDRAW_NO_BLINK 4
 #define HOST_REDRAW_QUESTION 8
-HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
+HOST_IMPORT(screen_redraw, void screen_redraw(int32_t flags));
 
 /* Sets application text in the host header. The header is shown above an
  * application that is not full-screen. Host defaults: left side empty
@@ -241,7 +241,7 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 #define HOST_HEADER_LEFT     0
 #define HOST_HEADER_RIGHT    1
 #define HOST_HEADER_TEXT_MAX 63
-HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
+HOST_IMPORT(header_set_text, int32_t header_set_text(int32_t side, const char *text, int32_t length));
 
 /* Sets a status in the host header: an icon and a short text shown above
  * screens with a header, including the owning application's screen.
@@ -258,7 +258,7 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
  * Callable from any handler, on and off the screen. A change is shown as
  * a data-driven redraw. */
 #define HOST_STATUS_TEXT_MAX 31
-HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, const char *text,
+HOST_IMPORT(header_set_status, int32_t header_set_status(int32_t side, int32_t icon, const char *text,
                                                  int32_t length));
 
 /* ---- Navigation ----
@@ -269,12 +269,12 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
  * opens the menu.
  *   - An application covered by another entry is unloaded and loaded
  *     again when it returns: app_on_blur() and app_on_terminate() before,
- *     app_init() and app_on_focus() after. Keep persistent data in the
+ *     app_on_load() and app_on_focus() after. Keep persistent data in the
  *     store; save navigation and unfinished edits to the session in
  *     app_on_blur(), and restore them in app_on_focus().
- *   - request_exit() goes one step down the stack: to the entry the
+ *   - screen_leave() goes one step down the stack: to the entry the
  *     application was opened over, or to the menu.
- *   - An application that took the screen with request_focus() is placed
+ *   - An application that took the screen with screen_request() is placed
  *     over the current screen and returns the user to it on exit. */
 
 /* Requests the screen from a background handler (app_on_data(),
@@ -286,13 +286,13 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
  * no retry. A request in app_on_terminate() is too late for that decision.
  * An application relying on these focus rules writes "firmware": "0.1.21"
  * in its manifest. */
-HOST_IMPORT(request_focus, void request_focus(void));
+HOST_IMPORT(screen_request, void screen_request(void));
 
 /* Closes the application: one step down the stack. Takes effect when
  * app_on_button(), app_on_back() or app_on_timer() returns; ignored in
  * other handlers. A long press of BACK closes any application without
  * calling it. */
-HOST_IMPORT(request_exit, void request_exit(void));
+HOST_IMPORT(screen_leave, void screen_leave(void));
 
 /* Where the user is in the application: a page, a selection, a value half
  * set. The application is unloaded whenever another one needs the room - a
@@ -302,7 +302,7 @@ HOST_IMPORT(request_exit, void request_exit(void));
  * session_set() keeps up to HOST_SESSION_MAX bytes for the application while
  * it is in the stack: across its unloads, and while another is on top of it.
  * They are gone when it leaves the stack - BACK from its first page,
- * request_exit(), a long press of BACK, too many above it - when it is
+ * screen_leave(), a long press of BACK, too many above it - when it is
  * opened anew from the menu, and at a restart. Length 0 forgets them.
  * Set them in app_on_blur(); read them in app_on_focus(), which is where an
  * application that comes back is told so. An instance loaded off the screen
@@ -310,13 +310,11 @@ HOST_IMPORT(request_exit, void request_exit(void));
  *
  * session_get() copies them into `buffer` and returns their length; 0 when
  * there are none; HOST_ERR_NO_SPACE, copying nothing, when `capacity` is
- * smaller. The session is attached after app_init() returns: read it in
+ * smaller. The session is attached after app_on_load() returns: read it in
  * app_on_focus() or a background delivery handler. session_set() in
- * app_init() returns HOST_ERR_ARGUMENT. sdk/lib/app_state.h keeps one struct
+ * app_on_load() returns HOST_ERR_ARGUMENT. sdk/lib/app_state.h keeps one struct
  * this way. */
 #define HOST_SESSION_MAX 128
-#define HOST_SINCE_session_set "0.1.21"
-#define HOST_SINCE_session_get "0.1.21"
 HOST_IMPORT(session_set, int32_t session_set(const void *data, int32_t length));
 HOST_IMPORT(session_get, int32_t session_get(void *buffer, int32_t capacity));
 
@@ -337,13 +335,13 @@ HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
  * not loaded is loaded for the call. An application without "intents"
  * receives none.
  *
- * app_init() is called before the handler, as before any handler. The
+ * app_on_load() is called before the handler, as before any handler. The
  * instance is the one on the screen if the application is there;
  * otherwise it is loaded for the call and unloaded after it.
  *
  * HOST_INTENT_STARTED is delivered after the device has started and shown
  * its first screen. An application reopened after the restart can be
- * drawn before the intent arrives; app_init() must not depend on it.
+ * drawn before the intent arrives; app_on_load() must not depend on it.
  * HOST_INTENT_TIME_CHANGED is also delivered when the device obtains the
  * time for the first time. time_now() already returns the new time inside
  * the handler. Corrections of a few seconds are not reported. */

@@ -12,18 +12,14 @@
 
 #define HOST_API_VERSION 3
 
-/* The firmware a call came with, for each call that came after the first
- * firmware: the build stamps an application
- * with the latest firmware among the calls it makes ("firmware" in its
- * manifest), and an older firmware neither installs nor starts it. A call
- * added gets a line, HOST_SINCE_<call>, beside its declaration in
- * the header of its subject, with the version it will be released in. */
-/* The ABI floor and an explicit manifest minimum can raise this further.
- * Earlier firmwares do not read the manifest's "firmware" field. */
-/* First firmware supporting ABI 3. Pinned from VERSION for the freeze;
- * release tags could not be fetched in the editing sandbox. */
+/* Every ABI 3 application requires at least 0.1.30. HOST_SINCE_<call>
+ * records only a call or contract entry added after that ABI floor, beside
+ * its declaration, with the firmware version it will be released in.
+ * The build stamps the manifest's "firmware" with the maximum of the ABI
+ * floor, the used entries' introduction stamps and an explicit manifest
+ * minimum. Older firmware neither installs nor starts the application. */
 #define HOST_ABI_3_FIRMWARE_FIRST "0.1.30"
-#define HOST_FIRMWARE_FIRST     "0.1.8" /* every call without a line of its own */
+#define HOST_FIRMWARE_FIRST     "0.1.30" /* entries without an introduction stamp */
 
 /* The host firmware includes this header for its constants. Outside a
  * wasm build the declarations expand to nothing, because the host defines
@@ -68,7 +64,7 @@
  * lengths/capacities and out-of-memory ranges return HOST_ERR_ARGUMENT.
  * Zero capacity is accepted for buffer reads except time_text(); the
  * destination must still be a valid memory offset. Successful text reads
- * never append NUL, except the fixed string fields of host_response_t.
+ * never append NUL, except the fixed string fields of host_answer_info_t.
  * Unless a call says it truncates, insufficient capacity returns
  * HOST_ERR_NO_SPACE and copies nothing. Read/format/measurement errors
  * leave outputs untouched, except file_read(): a storage error can follow
@@ -102,4 +98,4 @@
 /* Writes one line to the device log. A longer text is cut. Characters
  * other than printable ASCII, including line breaks, are logged as "?". */
 #define HOST_LOG_TEXT_MAX 200
-HOST_IMPORT(log, void host_log(int32_t level, const char *text, int32_t length));
+HOST_IMPORT(log_write, void log_write(int32_t level, const char *text, int32_t length));

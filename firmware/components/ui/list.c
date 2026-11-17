@@ -111,7 +111,7 @@ void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *ro
     int value_right = right - MARGIN;
     if (row->icon != LIST_NO_ICON) {
         int icon_left = value_right - GFX_ICON_CELLS * CELL;
-        gfx_icon(g, (gfx_icon_id_t)row->icon, icon_left, baseline - (GFX_ICON_CELLS - 1) * CELL,
+        gfx_draw_icon(g, (gfx_icon_id_t)row->icon, icon_left, baseline - (GFX_ICON_CELLS - 1) * CELL,
                  CELL, !is_selected);
         value_right = icon_left - VALUE_GAP;
     }
@@ -133,11 +133,11 @@ void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *ro
         }
     }
     char label[LABEL_MAX + 1];
-    gfx_text_fit(font, row->label, room - value_room, label, sizeof label);
+    gfx_fit_text(font, row->label, room - value_room, label, sizeof label);
     gfx_text_font(g, label_left, baseline, font, label, !is_selected);
     if (has_value) {
         char fitted[VALUE_MAX + 1];
-        gfx_text_fit(font, row->value, value_room, fitted, sizeof fitted);
+        gfx_fit_text(font, row->value, value_room, fitted, sizeof fitted);
         gfx_text_font(g, value_right - gfx_text_font_width(font, fitted), baseline, font, fitted,
                       !is_selected);
     }

@@ -168,7 +168,7 @@ HOST_FUNCTION(sys_app_remove)
     m3ApiReturn(app->services->system_app_remove(app->name, app_id));
 }
 
-HOST_FUNCTION(sys_app_default)
+HOST_FUNCTION(sys_app_get_default)
 {
     m3ApiReturnType(uint32_t);
     app_t *app = APP_OF(runtime);
@@ -187,7 +187,7 @@ HOST_FUNCTION(sys_app_set_default)
     m3ApiReturn(app->services->system_app_set_default(id));
 }
 
-HOST_FUNCTION(sys_do)
+HOST_FUNCTION(sys_run)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, action);
@@ -198,7 +198,7 @@ HOST_FUNCTION(sys_do)
     m3ApiReturn(app->services->system_do(action));
 }
 
-HOST_FUNCTION(sys_logo)
+HOST_FUNCTION(sys_draw_logo)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);

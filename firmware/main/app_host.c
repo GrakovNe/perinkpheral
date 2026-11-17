@@ -247,7 +247,7 @@ void app_host_keep_recurring_of(const uint32_t *app_ids, int count)
     }
 }
 
-static void header_status(const char *app_name, int side, int icon, const char *text)
+static void header_set_status(const char *app_name, int side, int icon, const char *text)
 {
     uint32_t app_id = id_of(app_name);
     if (app_id != 0) {
@@ -322,18 +322,18 @@ const app_services_t *app_host_services(void)
         .time_zone_offset_at = net_time_zone_offset_at,
         .uptime_ms = uptime_ms,
         .boot_id = boot_id,
-        .log = log_from_app,
+        .log_write = log_from_app,
         .timer_set = timers_set,
         .kv_get = app_kv_get_or_default,
         .kv_set = kv_set,
         .dithers = dithers,
-        .poll_now = poller_poll_now,
-        .http_request = poller_request,
+        .poll_run = poller_poll_now,
+        .http_send = poller_request,
         .poll_set_interval = poller_set_interval,
         .alarm_set = alarm_set,
         .alarm_set_every = alarm_set_every,
-        .header_status = header_status,
-        .notify = host_notify,
+        .header_set_status = header_set_status,
+        .notification_post = host_notify,
         .language = language,
         .file_size = file_size,
         .file_read = file_read,

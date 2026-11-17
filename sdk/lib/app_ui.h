@@ -9,9 +9,9 @@
  *     void app_on_button(int32_t event)
  *     {
  *         switch (app_date_button(&when, event)) {
- *         case APP_UI_DONE:      save(&when); request_exit(); break;
- *         case APP_UI_CANCELLED: request_exit();              break;
- *         case APP_UI_CHANGED:   request_redraw(HOST_REDRAW_NO_BLINK); break;
+ *         case APP_UI_DONE:      save(&when); screen_leave(); break;
+ *         case APP_UI_CANCELLED: screen_leave();              break;
+ *         case APP_UI_CHANGED:   screen_redraw(HOST_REDRAW_NO_BLINK); break;
  *         default:               break;
  *         }
  *     }

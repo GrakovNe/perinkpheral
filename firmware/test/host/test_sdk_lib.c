@@ -91,11 +91,11 @@ int32_t gfx_text_ink(int32_t font, const char *text, int32_t length, host_text_i
     ink->end_x = 10 * length - 4;
     return HOST_OK;
 }
-int32_t gfx_text(int32_t x, int32_t y, int32_t font, const char *text, int32_t length)
+int32_t gfx_draw_text(int32_t x, int32_t y, int32_t font, const char *text, int32_t length)
 {
     (void)x; (void)y; (void)font; (void)text; return 10 * length;
 }
-int32_t ui_actions(const char *ok, int32_t ok_length, const char *back, int32_t back_length)
+int32_t ui_draw_actions(const char *ok, int32_t ok_length, const char *back, int32_t back_length)
 {
     (void)ok; (void)ok_length; (void)back; (void)back_length; return HOST_OK;
 }
@@ -107,7 +107,7 @@ int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture, int32_t ico
     (void)picture; (void)icon;
     return 1 + (int32_t)strlen(cell->value) / 4;
 }
-int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
+int32_t ui_draw_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
 {
     (void)picture; (void)icon;
     if (drawn_cells < 4) {
@@ -115,9 +115,9 @@ int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
     }
     return HOST_OK;
 }
-int32_t data_value(int32_t index, char *text, int32_t capacity) { (void)index; (void)text; (void)capacity; return -1; }
-int32_t data_count(int32_t index) { (void)index; return -1; }
-int32_t data_element(int32_t index, int32_t element, char *text, int32_t capacity)
+int32_t answer_value(int32_t index, char *text, int32_t capacity) { (void)index; (void)text; (void)capacity; return -1; }
+int32_t answer_count(int32_t index) { (void)index; return -1; }
+int32_t answer_element(int32_t index, int32_t element, char *text, int32_t capacity)
 {
     (void)index; (void)element; (void)text; (void)capacity; return -1;
 }

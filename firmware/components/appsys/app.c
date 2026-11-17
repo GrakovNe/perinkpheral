@@ -298,14 +298,14 @@ static void note_result(app_t *app, M3Result result)
  * sees it beside the application's own lines. */
 static void note_duration(app_t *app, const char *handler, int64_t took_ms)
 {
-    if (took_ms < HANDLER_SLOW_MS || app->slow_logged || app->services->log == NULL) {
+    if (took_ms < HANDLER_SLOW_MS || app->slow_logged || app->services->log_write == NULL) {
         return;
     }
     app->slow_logged = true;
     char told[HOST_LOG_TEXT_MAX + 1];
     int  length = snprintf(told, sizeof told, "slow handler: %s took %d ms; the device waits for it",
                            handler, (int)took_ms);
-    app->services->log(HOST_LOG_WARN, told, length < (int)sizeof told ? length : (int)sizeof told - 1);
+    app->services->log_write(HOST_LOG_WARN, told, length < (int)sizeof told ? length : (int)sizeof told - 1);
 }
 
 /* Calls the export `name` - app_on_draw - if the application has it; the
@@ -461,10 +461,10 @@ app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, 
     if (s_loaded != NULL) {
         /* The host's mistake, not the application's: said so, since the
          * screen can only say there is no room. */
-        if (services->log != NULL) {
+        if (services->log_write != NULL) {
             char told[HOST_LOG_TEXT_MAX + 1];
             int  length = snprintf(told, sizeof told, "%s: not loaded, %s is", name, s_loaded->name);
-            services->log(HOST_LOG_ERROR, told,
+            services->log_write(HOST_LOG_ERROR, told,
                           length < (int)sizeof told ? length : (int)sizeof told - 1);
         }
         return APP_ERR_NO_MEMORY;
@@ -497,7 +497,7 @@ app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, 
         app_unload(app);
         return APP_ERR_BAD_MODULE;
     }
-    CALL_HANDLER(app, app_init);
+    CALL_HANDLER(app, app_on_load);
     app->exit_requested = false;
 
     *loaded = app;
@@ -579,7 +579,7 @@ void app_draw(app_t *app, gfx_t *surface)
     app->exit_requested = false;
 }
 
-void app_answer_begins(app_t *app, const host_response_t *response, int http_status, int item)
+void app_answer_begins(app_t *app, const host_answer_info_t *response, int http_status, int item)
 {
     app->is_in_answer = true;
     app->response = response;
@@ -614,7 +614,7 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
 void app_values(app_t *app, int request, int http_status, json_pick_t *picked)
 {
     app->picked = picked;
-    CALL_HANDLER(app, app_on_values, (int32_t)request, (int32_t)http_status);
+    CALL_HANDLER(app, app_on_picked, (int32_t)request, (int32_t)http_status);
     app->picked = NULL;
 }
 
@@ -726,10 +726,10 @@ bool app_text_copy(IM3Runtime runtime, void *memory, uint32_t offset, int32_t le
 int32_t app_not_drawing(app_t *app)
 {
     static const char TOLD[] = "a drawing call outside app_on_draw() draws nothing: "
-                               "change the state and call request_redraw()";
-    if (!app->not_drawing_logged && app->services != NULL && app->services->log != NULL) {
+                               "change the state and call screen_redraw()";
+    if (!app->not_drawing_logged && app->services != NULL && app->services->log_write != NULL) {
         app->not_drawing_logged = true;
-        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
+        app->services->log_write(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
     }
     return HOST_ERR_NOT_DRAWING;
 }

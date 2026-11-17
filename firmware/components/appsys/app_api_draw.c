@@ -20,7 +20,7 @@ HOST_FUNCTION(gfx_height)
     m3ApiReturn(app->surface != NULL ? app->surface->h : HOST_ERR_NOT_DRAWING);
 }
 
-HOST_FUNCTION(gfx_text)
+HOST_FUNCTION(gfx_draw_text)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -87,7 +87,7 @@ HOST_FUNCTION(gfx_text_ink)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_text_fit)
+HOST_FUNCTION(gfx_fit_text)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, font_id);
@@ -105,7 +105,7 @@ HOST_FUNCTION(gfx_text_fit)
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     char cut[HOST_TEXT_MAX + 1];
-    gfx_text_fit(font, terminated, max_width, cut, sizeof cut);
+    gfx_fit_text(font, terminated, max_width, cut, sizeof cut);
     /* Digits of equal width take more room than the font's own: the text
      * is fitted again, narrower by what it runs over, until it fits as it
      * will be drawn. */
@@ -118,7 +118,7 @@ HOST_FUNCTION(gfx_text_fit)
                 break;
             }
             room = room > over ? room - over : 0;
-            gfx_text_fit(font, terminated, room, cut, sizeof cut);
+            gfx_fit_text(font, terminated, room, cut, sizeof cut);
         }
     }
     int32_t cut_length = (int32_t)strlen(cut);
@@ -153,7 +153,7 @@ HOST_FUNCTION(gfx_font_cap_height)
     m3ApiReturn(font != NULL ? gfx_font_cap_height(font) : HOST_ERR_ARGUMENT);
 }
 
-HOST_FUNCTION(gfx_rect)
+HOST_FUNCTION(gfx_draw_rect)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -177,7 +177,7 @@ HOST_FUNCTION(gfx_rect)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_line)
+HOST_FUNCTION(gfx_draw_line)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x0);
@@ -192,11 +192,11 @@ HOST_FUNCTION(gfx_line)
     if (!is_drawable(x0) || !is_drawable(y0) || !is_drawable(x1) || !is_drawable(y1)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    gfx_line(app->surface, x0, y0, x1, y1, true);
+    gfx_draw_line(app->surface, x0, y0, x1, y1, true);
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_bitmap)
+HOST_FUNCTION(gfx_draw_bitmap)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -230,7 +230,7 @@ HOST_FUNCTION(gfx_bitmap)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_icon)
+HOST_FUNCTION(gfx_draw_icon)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -243,7 +243,7 @@ HOST_FUNCTION(gfx_icon)
         m3ApiReturn(app_not_drawing(APP_OF(runtime)));
     }
     if (!is_drawable(x) || !is_drawable(y) || cell < 1 || cell > HOST_ICON_CELL_MAX ||
-        !gfx_icon(app->surface, (gfx_icon_id_t)icon, x, y, cell, true)) {
+        !gfx_draw_icon(app->surface, (gfx_icon_id_t)icon, x, y, cell, true)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(HOST_OK);
@@ -268,7 +268,7 @@ HOST_FUNCTION(gfx_icon_ink)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_picture)
+HOST_FUNCTION(gfx_draw_picture)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -285,11 +285,11 @@ HOST_FUNCTION(gfx_picture)
         cell > HOST_ICON_CELL_MAX) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    gfx_picture(app->surface, x, y, picture, cell, true);
+    gfx_draw_picture(app->surface, x, y, picture, cell, true);
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(gfx_color)
+HOST_FUNCTION(gfx_set_color)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, color);
@@ -313,7 +313,7 @@ HOST_FUNCTION(gfx_color)
 #define QR_VERSION_MAX 10
 #define QR_CELL_MAX    16
 
-HOST_FUNCTION(gfx_qr)
+HOST_FUNCTION(gfx_draw_qr)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -362,7 +362,7 @@ HOST_FUNCTION(gfx_qr)
  * not fit the application's hands, and the host has no use for a copy. */
 #define PICTURE_CHUNK_BYTES 512
 
-HOST_FUNCTION(gfx_bitmap_file)
+HOST_FUNCTION(gfx_draw_bitmap_file)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);

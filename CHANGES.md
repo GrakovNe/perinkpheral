@@ -23,11 +23,29 @@ the device's page - without one, the notes are the commits since the release bef
   and rendering precedence. Calendar accepts its opening marker across arbitrary pieces.
 - Tools check actual Wasm function types and an append-only recorded contract, and host
   tests run frozen Probe, Hello and Settings packages, translations and saved Hello state.
-  The ABI 3 firmware floor is pinned to `VERSION` (0.1.23); release tags were unavailable
-  in the editing sandbox. The build takes the maximum of this floor, introduction stamps
-  and the manifest's explicit minimum.
+  The ABI 3 firmware floor is 0.1.30. The build takes the maximum of this floor,
+  later introduction stamps and the manifest's explicit minimum. Fixture hashes are
+  checked separately in `sdk/abi/3/fixtures.txt`; `sdk/abi/3.txt` records only the contract.
 - Status exposes `supported_abis`. Install, Update and Update all use the same ABI and
   firmware compatibility check; catalog metadata comes from the packaged manifest.
+
+- Before the freeze, calls follow subject then verb, queries name what is asked, and
+  host-called events use `app_on_<what happened>`. ABI stays 3; rebuild applications.
+  `HOST_SINCE_` records only additions after the ABI 3 firmware floor, 0.1.30.
+
+| Previous name | ABI 3 name |
+|---|---|
+| `app_init`, `app_on_values` | `app_on_load`, `app_on_picked` |
+| `data_{value,count,element,item}` | `answer_{value,count,element,item}` |
+| `data_response`, `host_response_t` | `answer_info`, `host_answer_info_t` |
+| `gfx_{text,rect,line,bitmap,bitmap_file,picture,icon,qr}` | `gfx_draw_{text,rect,line,bitmap,bitmap_file,picture,icon,qr}` |
+| `ui_{text,text_lines,title,value,icon,button,actions,bar,frame,cell,chart,list_row,notice,picker,date,reason}` | `ui_draw_{text,text_lines,title,value,icon,button,actions,bar,frame,cell,chart,list_row,notice,picker,date,reason}` |
+| `sys_logo`, `gfx_color`, `gfx_text_fit` | `sys_draw_logo`, `gfx_set_color`, `gfx_fit_text` |
+| `header_{text,status}` | `header_set_{text,status}` |
+| `request_redraw`, `request_focus`, `request_exit` | `screen_redraw`, `screen_request`, `screen_leave` |
+| `notify`, `poll_now`, `http_request` | `notification_post`, `poll_run`, `http_send` |
+| `log` (C: `host_log`) | `log_write` in Wasm and C |
+| `sys_app_default`, `sys_do` | `sys_app_get_default`, `sys_run` |
 
 ## 0.1.26
 

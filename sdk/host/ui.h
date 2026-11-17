@@ -24,7 +24,7 @@
  * application: the rows move only when the selected one would leave the
  * screen, and then only as far as it needs. ui_list_first() says where
  * the top row is now; keep it in `first` (app_list_first() does).
- * The application keeps the list state and calls ui_list_row() for the
+ * The application keeps the list state and calls ui_draw_list_row() for the
  * visible rows:
  *
  *     static host_list_t list = { .count = 12 };
@@ -32,12 +32,12 @@
  *     list.first = ui_list_first(&list);
  *     int32_t first = list.first;
  *     for (int32_t i = first; i < first + ui_list_visible(&list) && i < list.count; i++) {
- *         ui_list_row(&list, i, label, label_length, value, value_length, HOST_ICON_NONE);
+ *         ui_draw_list_row(&list, i, label, label_length, value, value_length, HOST_ICON_NONE);
  *     }
  *
  * A list takes the full width of the surface, and `height` pixels from
- * `top` (0: to the bottom). ui_title() returns a suitable `top`. For a
- * ui_actions() row below the list, reduce the height by
+ * `top` (0: to the bottom). ui_draw_title() returns a suitable `top`. For a
+ * ui_draw_actions() row below the list, reduce the height by
  * HOST_UI_ACTIONS_HEIGHT.
  *
  * selected = -1: a list without a selection. UP and DOWN scroll it.
@@ -64,8 +64,8 @@ typedef struct host_list {
 HOST_LAYOUT(host_list_t, 20);
 HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(const host_list_t *list));
 HOST_IMPORT(ui_list_first, int32_t ui_list_first(const host_list_t *list));
-HOST_IMPORT(ui_list_row,
-            int32_t ui_list_row(const host_list_t *list, int32_t index, const char *label,
+HOST_IMPORT(ui_draw_list_row,
+            int32_t ui_draw_list_row(const host_list_t *list, int32_t index, const char *label,
                                 int32_t label_length, const char *value, int32_t value_length,
                                 int32_t icon));
 
@@ -89,7 +89,7 @@ typedef struct host_notice {
     int32_t is_working;
 } host_notice_t;
 HOST_LAYOUT(host_notice_t, 296);
-HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
+HOST_IMPORT(ui_draw_notice, int32_t ui_draw_notice(const host_notice_t *notice));
 
 /* Queues a notification. The host shows the notice below its header,
  * over the current screen, until the user presses OK or BACK, and then
@@ -101,7 +101,7 @@ HOST_IMPORT(ui_notice, int32_t ui_notice(const host_notice_t *notice));
  * Several notifications queue. A restart clears the queue.
  * Returns HOST_OK, HOST_ERR_ARGUMENT, or HOST_ERR_NO_SPACE if the queue
  * is full. */
-HOST_IMPORT(notify, int32_t notify(const host_notice_t *notice));
+HOST_IMPORT(notification_post, int32_t notification_post(const host_notice_t *notice));
 
 /* Text in a host style. `y` is the top of the line. The text is cut with
  * "..." at `max_width` pixels (0: no limit). Returns the width drawn.
@@ -112,10 +112,10 @@ HOST_IMPORT(notify, int32_t notify(const host_notice_t *notice));
 #define HOST_UI_TITLE   1 /* page title */
 #define HOST_UI_CAPTION 2 /* caption next to a larger element */
 #define HOST_UI_VALUE   3 /* the main value of a screen */
-HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const char *text,
+HOST_IMPORT(ui_draw_text, int32_t ui_draw_text(int32_t x, int32_t y, int32_t style, const char *text,
                                      int32_t length, int32_t max_width));
 
-/* ui_text_lines: text wrapped at spaces to `width`, at most `max_lines`
+/* ui_draw_text_lines: text wrapped at spaces to `width`, at most `max_lines`
  * lines (1..HOST_UI_LINES_MAX). The last line is cut with "..." if text
  * remains. Line height is ui_text_height() of the style. Returns the
  * number of lines drawn.
@@ -125,7 +125,7 @@ HOST_IMPORT(ui_text, int32_t ui_text(int32_t x, int32_t y, int32_t style, const 
  * HOST_FONT_MEDIUM, HOST_UI_CAPTION = HOST_FONT_SMALL, HOST_UI_VALUE =
  * HOST_FONT_DISPLAY. The gfx_font_*() metrics of the font apply. */
 #define HOST_UI_LINES_MAX 8
-HOST_IMPORT(ui_text_lines, int32_t ui_text_lines(int32_t x, int32_t y, int32_t style,
+HOST_IMPORT(ui_draw_text_lines, int32_t ui_draw_text_lines(int32_t x, int32_t y, int32_t style,
                                                  const char *text, int32_t length, int32_t width,
                                                  int32_t max_lines));
 HOST_IMPORT(ui_text_width, int32_t ui_text_width(int32_t style, const char *text,
@@ -137,20 +137,20 @@ HOST_IMPORT(ui_text_height, int32_t ui_text_height(int32_t style));
 
 /* Page title at the standard position, with a rule below it. Returns the
  * y of the content area. */
-HOST_IMPORT(ui_title, int32_t ui_title(const char *text, int32_t length));
+HOST_IMPORT(ui_draw_title, int32_t ui_draw_title(const char *text, int32_t length));
 
 /* Built-in icon at a standard size. */
 #define HOST_UI_ICON_SMALL  0 /* 22 px: next to text */
 #define HOST_UI_ICON_MEDIUM 1 /* 44 px */
 #define HOST_UI_ICON_LARGE  2 /* 99 px: notice icon */
-HOST_IMPORT(ui_icon, int32_t ui_icon(int32_t x, int32_t y, int32_t icon, int32_t size));
+HOST_IMPORT(ui_draw_icon, int32_t ui_draw_icon(int32_t x, int32_t y, int32_t icon, int32_t size));
 
 /* One button label: the button name ("UP") white on black, and the action
  * text after it, or before it if `mirrored`. `x` is the left edge of the
  * whole label; `y` is the top of the text line. Returns the width. The
- * width cannot be measured without drawing; use ui_actions() for
+ * width cannot be measured without drawing; use ui_draw_actions() for
  * right-aligned labels. */
-HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
+HOST_IMPORT(ui_draw_button, int32_t ui_draw_button(int32_t x, int32_t y, const char *name,
                                          int32_t name_length, const char *action,
                                          int32_t action_length, int32_t mirrored));
 
@@ -158,11 +158,11 @@ HOST_IMPORT(ui_button, int32_t ui_button(int32_t x, int32_t y, const char *name,
  * high: the OK action at the left, the BACK action at the right. Length 0
  * omits a button. A single button is centred. */
 #define HOST_UI_ACTIONS_HEIGHT 44
-HOST_IMPORT(ui_actions, int32_t ui_actions(const char *ok, int32_t ok_length, const char *back,
+HOST_IMPORT(ui_draw_actions, int32_t ui_draw_actions(const char *ok, int32_t ok_length, const char *back,
                                            int32_t back_length));
 
 /* Bar: a frame filled from the left in proportion `value` / `maximum`. */
-HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t value,
+HOST_IMPORT(ui_draw_bar, int32_t ui_draw_bar(int32_t x, int32_t y, int32_t width, int32_t value,
                                    int32_t maximum));
 
 /* A value followed by its unit on the same baseline: "18 km/h",
@@ -170,7 +170,7 @@ HOST_IMPORT(ui_bar, int32_t ui_bar(int32_t x, int32_t y, int32_t width, int32_t 
  * `y` is the top of the value line. `font` is a HOST_FONT_*, optionally
  * with HOST_FONT_TABULAR. Unit length 0 omits the unit.
  * Both calls return the total width. */
-HOST_IMPORT(ui_value, int32_t ui_value(int32_t x, int32_t y, int32_t font, const char *value,
+HOST_IMPORT(ui_draw_value, int32_t ui_draw_value(int32_t x, int32_t y, int32_t font, const char *value,
                                        int32_t value_length, const char *unit,
                                        int32_t unit_length));
 HOST_IMPORT(ui_value_width, int32_t ui_value_width(int32_t font, const char *value,
@@ -187,13 +187,13 @@ HOST_IMPORT(ui_value_width, int32_t ui_value_width(int32_t font, const char *val
  *          the code.
  * Returns 1 if a notice was drawn. Returns 0 and draws nothing for a 2xx
  * status; the application reports missing data itself. */
-HOST_IMPORT(ui_reason, int32_t ui_reason(int32_t status));
+HOST_IMPORT(ui_draw_reason, int32_t ui_draw_reason(int32_t status));
 
 /* Frame around the value that UP and DOWN change, with an arrow above
  * and below for each available direction. */
 #define HOST_UI_ARROW_UP   1
 #define HOST_UI_ARROW_DOWN 2
-HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int32_t height,
+HOST_IMPORT(ui_draw_frame, int32_t ui_draw_frame(int32_t x, int32_t y, int32_t width, int32_t height,
                                        int32_t arrows));
 
 /* Cell: a name at the top, and below it a picture and a value side by
@@ -201,7 +201,7 @@ HOST_IMPORT(ui_frame, int32_t ui_frame(int32_t x, int32_t y, int32_t width, int3
  * that fits.
  * Picture size: HOST_UI_CELL_PICTURE_LARGE pixels in a cell that covers
  * the whole surface, HOST_UI_CELL_PICTURE_SMALL otherwise.
- * `picture` is a picture in gfx_picture() format, or 0; `icon` is one of
+ * `picture` is a picture in gfx_draw_picture() format, or 0; `icon` is one of
  * the host's icons (HOST_ICON_*) drawn in its place, or HOST_ICON_NONE.
  * Cells shown together should use one size: ui_cell_fit() returns the
  * size class that fits a cell (1 is the largest); set `size` of every
@@ -218,7 +218,7 @@ typedef struct host_cell {
 HOST_LAYOUT(host_cell_t, 116);
 HOST_IMPORT(ui_cell_fit, int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture,
                                              int32_t icon));
-HOST_IMPORT(ui_cell, int32_t ui_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon));
+HOST_IMPORT(ui_draw_cell, int32_t ui_draw_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon));
 
 /* Chart of a series of integers in a box. The vertical scale spans the
  * least and the greatest value of the series.
@@ -253,7 +253,7 @@ typedef struct host_chart {
     int32_t count;
 } host_chart_t;
 HOST_LAYOUT(host_chart_t, 32);
-HOST_IMPORT(ui_chart, int32_t ui_chart(const host_chart_t *chart, const int32_t *values));
+HOST_IMPORT(ui_draw_chart, int32_t ui_draw_chart(const host_chart_t *chart, const int32_t *values));
 
 /* Picker: one value of a sequence, on the whole surface. The selected
  * value is framed in the middle; the previous value is above it, the next
@@ -268,7 +268,7 @@ typedef struct host_picker {
     char back[32];
 } host_picker_t;
 HOST_LAYOUT(host_picker_t, 256);
-HOST_IMPORT(ui_picker, int32_t ui_picker(const host_picker_t *picker));
+HOST_IMPORT(ui_draw_picker, int32_t ui_draw_picker(const host_picker_t *picker));
 
 /* Date and time editor on the whole surface. The part being set is
  * framed. An empty `ok` or `back` is the host's own word, in the device's
@@ -291,4 +291,4 @@ typedef struct host_date {
     char    back[32];
 } host_date_t;
 HOST_LAYOUT(host_date_t, 92);
-HOST_IMPORT(ui_date, int32_t ui_date(const host_date_t *date));
+HOST_IMPORT(ui_draw_date, int32_t ui_draw_date(const host_date_t *date));

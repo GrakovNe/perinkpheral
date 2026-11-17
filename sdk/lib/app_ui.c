@@ -159,7 +159,7 @@ void app_picker_draw_texts(const app_picker_t *picker, const char *above, const 
     /* the buttons' words are the host's, in the device's language */
     shown.ok[0] = '\0';
     shown.back[0] = '\0';
-    ui_picker(&shown);
+    ui_draw_picker(&shown);
 }
 
 void app_picker_draw(const app_picker_t *picker, const char *const *labels)
@@ -286,7 +286,7 @@ void app_date_draw(const app_date_t *date)
     /* the buttons' words are the host's: Next or Save, Back or Cancel */
     shown.ok[0] = '\0';
     shown.back[0] = '\0';
-    ui_date(&shown);
+    ui_draw_date(&shown);
 }
 
 int64_t app_date_seconds(const app_date_t *date)

@@ -436,8 +436,8 @@ Screen takeover
 max. 1 per 30 s
 не чаще 1 раза в 30 с
 
-<code>request_focus()</code>; granted by the host
-<code>request_focus()</code>; разрешается хостом
+<code>screen_request()</code>; granted by the host
+<code>screen_request()</code>; разрешается хостом
 
 Clock
 Часы
@@ -529,11 +529,11 @@ Same instance
 The same while off the screen
 То же, пока приложение не на экране
 
-app_init, the handler, app_on_terminate
-app_init, обработчик, app_on_terminate
+app_on_load, the handler, app_on_terminate
+app_on_load, обработчик, app_on_terminate
 
-<code>request_focus()</code> granted by the host
-<code>request_focus()</code> разрешён хостом
+<code>screen_request()</code> granted by the host
+<code>screen_request()</code> разрешён хостом
 
 Unloaded, then opened on top of the stack
 Выгружается, затем открывается на вершине стека
@@ -556,8 +556,8 @@ A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (f
 Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.
 Обработчики возвращают <code>void</code>. Перерисовка, экран или выход получаются запросом. Запросы применяются после возврата из обработчика.
 
-<code>app_init()</code> is called before any other handler of an instance.
-<code>app_init()</code> вызывается раньше любого другого обработчика экземпляра.
+<code>app_on_load()</code> is called before any other handler of an instance.
+<code>app_on_load()</code> вызывается раньше любого другого обработчика экземпляра.
 
 Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one response are delivered in order; a settings change or an alarm may be delivered between two of them.
 События кнопок доставляются по порядку; ждать могут 16, следующее теряется. Ожидающие таймеры с одним номером объединяются. Фрагменты одного ответа доставляются по порядку; между двумя из них может прийти изменение настроек или будильник.
@@ -565,8 +565,8 @@ Button events are delivered in order; 16 can wait, and one more is lost. Pending
 State
 Состояние
 
-State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.
-Состояние загружается в <code>app_init()</code> и сохраняется в <code>app_on_terminate()</code> - последнем вызове каждого экземпляра, не остановленного из-за сбоя. Значение, которое должно пережить отключение питания, сохраняется сразу после изменения.
+State is loaded in <code>app_on_load()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.
+Состояние загружается в <code>app_on_load()</code> и сохраняется в <code>app_on_terminate()</code> - последнем вызове каждого экземпляра, не остановленного из-за сбоя. Значение, которое должно пережить отключение питания, сохраняется сразу после изменения.
 
 Navigation and refresh
 Навигация и обновление экрана
@@ -775,8 +775,8 @@ The origin is the top left corner of the surface. <code>gfx_width()</code> and <
 Drawing calls work inside <code>app_on_draw()</code>. The surface is white at the start of each call. In any other handler, the drawing calls of <code>gfx_*</code> and <code>ui_*</code> return <code>HOST_ERR_NOT_DRAWING</code>; measuring text and fonts works anywhere. Drawing is clipped to the surface.
 Вызовы отрисовки работают внутри <code>app_on_draw()</code>. В начале каждого вызова поверхность белая. В любом другом обработчике вызовы отрисовки <code>gfx_*</code> и <code>ui_*</code> возвращают <code>HOST_ERR_NOT_DRAWING</code>; измерение текста и шрифтов работает везде. Отрисовка обрезается по границам поверхности.
 
-<code>gfx_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.
-<code>gfx_color()</code> задаёт цвет для последующих вызовов, от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16). В начале каждого <code>app_on_draw()</code> цвет равен <code>HOST_INK</code>. Промежуточные значения - оттенки серого, получаемые дизерингом. Используйте серый только для заливок: тонкие линии и мелкий текст становятся нечитаемыми.
+<code>gfx_set_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.
+<code>gfx_set_color()</code> задаёт цвет для последующих вызовов, от <code>HOST_PAPER</code> (0) до <code>HOST_INK</code> (16). В начале каждого <code>app_on_draw()</code> цвет равен <code>HOST_INK</code>. Промежуточные значения - оттенки серого, получаемые дизерингом. Используйте серый только для заливок: тонкие линии и мелкий текст становятся нечитаемыми.
 
 The standard margin is <code>HOST_UI_MARGIN</code> (16 px). Use it at the left and right edges.
 Стандартное поле - <code>HOST_UI_MARGIN</code> (16 пикселей). Используйте его у левого и правого краёв.
@@ -826,14 +826,14 @@ Clock: five digits fill the width
 Each cell gives the value for Departure Mono, then for Jersey.
 В каждой ячейке значение для Departure Mono, затем для Jersey.
 
-The <code>y</code> argument of <code>gfx_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.
-Аргумент <code>y</code> вызова <code>gfx_text()</code> - верх строки. Базовая линия находится на <code>y + ascent</code>; верх прописных - на <code>y + ascent - cap_height</code>.
+The <code>y</code> argument of <code>gfx_draw_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.
+Аргумент <code>y</code> вызова <code>gfx_draw_text()</code> - верх строки. Базовая линия находится на <code>y + ascent</code>; верх прописных - на <code>y + ascent - cap_height</code>.
 
 Add <code>HOST_FONT_TABULAR</code> to the font for numbers that change in place, such as a clock or a countdown. All digits then have the same width. Every call that takes a font accepts the flag. Pass the same flag when measuring.
 Добавляйте <code>HOST_FONT_TABULAR</code> к шрифту для чисел, меняющихся на месте, например часов или обратного отсчёта. Все цифры получают одинаковую ширину. Флаг принимает любой вызов с аргументом шрифта. При измерении передавайте тот же флаг.
 
-<code>gfx_text_fit()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.
-<code>gfx_text_fit()</code> сокращает текст до заданной ширины и добавляет "...". Обрезка идёт по границе символа, поэтому результат остаётся корректным UTF-8.
+<code>gfx_fit_text()</code> shortens a text to a given width and appends "...". It cuts between characters, so the result is valid UTF-8.
+<code>gfx_fit_text()</code> сокращает текст до заданной ширины и добавляет "...". Обрезка идёт по границе символа, поэтому результат остаётся корректным UTF-8.
 
 Text beyond ASCII
 Текст за пределами ASCII
@@ -883,14 +883,14 @@ A picture is at most 255 cells wide and 255 cells high.
 The constant is <code>PICTURE_</code> followed by the picture name in upper case. Characters other than letters and digits are replaced with <code>_</code>. Example: <code>half-moon</code> becomes <code>PICTURE_HALF_MOON</code>.
 Константа - <code>PICTURE_</code> и имя картинки в верхнем регистре. Символы, кроме букв и цифр, заменяются на <code>_</code>. Пример: <code>half-moon</code> превращается в <code>PICTURE_HALF_MOON</code>.
 
-A picture is stored as one bit per cell. <code>gfx_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.
-Картинка хранится по одному биту на клетку. <code>gfx_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.
+A picture is stored as one bit per cell. <code>gfx_draw_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.
+Картинка хранится по одному биту на клетку. <code>gfx_draw_picture()</code> рисует её с размером клетки от 1 до 16 пикселей, поэтому одну картинку можно использовать в нескольких размерах.
 
 Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more detail. Pictures then match the icons in weight.
 Используйте те же сетки, что у встроенных иконок: 11 клеток либо 22 и 44 клетки для большей детализации. Тогда картинки совпадают с иконками по насыщенности.
 
-Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.
-Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.
+Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.
+Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_draw_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.
 
 Kit
 Kit
@@ -973,23 +973,23 @@ Page title with a rule; text in four styles, on one line or wrapped; icons at th
 Basic page elements
 Базовые элементы страницы
 
-ui_list_row: a list of rows with values
-ui_list_row: список строк со значениями
+ui_draw_list_row: a list of rows with values
+ui_draw_list_row: список строк со значениями
 
-ui_picker: selecting one value
-ui_picker: выбор одного значения
+ui_draw_picker: selecting one value
+ui_draw_picker: выбор одного значения
 
-ui_date: setting a date or a time
-ui_date: установка даты или времени
+ui_draw_date: setting a date or a time
+ui_draw_date: установка даты или времени
 
-ui_notice: a question
-ui_notice: вопрос
+ui_draw_notice: a question
+ui_draw_notice: вопрос
 
-ui_notice: a message with a reason
-ui_notice: сообщение с причиной
+ui_draw_notice: a message with a reason
+ui_draw_notice: сообщение с причиной
 
-ui_notice with is_working: work in progress
-ui_notice с is_working: выполняется работа
+ui_draw_notice with is_working: work in progress
+ui_draw_notice с is_working: выполняется работа
 
 Button handling for lists, pickers and dates is implemented in the SDK library (<code>app_ui.h</code>). The application calls it from <code>app_on_button()</code> and acts on the result. See section 7.
 Обработка кнопок для списков, выбора значения и дат реализована в библиотеке SDK (<code>app_ui.h</code>). Приложение вызывает её из <code>app_on_button()</code> и действует по результату. См. раздел 7.
@@ -1039,8 +1039,8 @@ Most applications handle only <code>PRESSED</code> and <code>LONG_PRESSED</code>
 The event value combines the button and the action. Each combination has a constant:
 Значение события объединяет кнопку и действие. У каждой комбинации есть константа:
 
-<code>request_exit()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>request_focus()</code>.
-<code>request_exit()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>request_focus()</code>.
+<code>screen_leave()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>screen_request()</code>.
+<code>screen_leave()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>screen_request()</code>.
 
 Lists, pickers, dates
 Списки, выбор значения, даты
@@ -1087,8 +1087,8 @@ Poll with <code>pick</code>
 Schedule
 Расписание
 
-<code>app_on_values()</code>, once, with the extracted values
-<code>app_on_values()</code>, один раз, с извлечёнными значениями
+<code>app_on_picked()</code>, once, with the extracted values
+<code>app_on_picked()</code>, один раз, с извлечёнными значениями
 
 Poll without <code>pick</code>
 Опрос без <code>pick</code>
@@ -1108,8 +1108,8 @@ Values extracted by the host
 order of "pick" in the manifest
 порядок "pick" в манифесте
 
-for ui_reason() when there is no data
-для ui_reason(), когда данных нет
+for ui_draw_reason() when there is no data
+для ui_draw_reason(), когда данных нет
 
 save to the store
 сохранить в хранилище
@@ -1213,8 +1213,8 @@ the application is loaded for this call
 The notification is managed entirely by the host. The application stays unloaded while it is displayed.
 Уведомлением полностью управляет хост. Пока оно показано, приложение остаётся выгруженным.
 
-Use <code>notify()</code> instead of <code>request_focus()</code> when the message fits in two lines.
-Используйте <code>notify()</code> вместо <code>request_focus()</code>, когда сообщение помещается в две строки.
+Use <code>notification_post()</code> instead of <code>screen_request()</code> when the message fits in two lines.
+Используйте <code>notification_post()</code> вместо <code>screen_request()</code>, когда сообщение помещается в две строки.
 
 Alarms, timers
 Будильники, таймеры
@@ -1369,14 +1369,14 @@ Probable cause
 Blank screen
 Пустой экран
 
-Drawing outside <code>app_on_draw()</code>, or a missing <code>request_redraw()</code> after a state change
-Отрисовка вне <code>app_on_draw()</code> либо отсутствие <code>request_redraw()</code> после изменения состояния
+Drawing outside <code>app_on_draw()</code>, or a missing <code>screen_redraw()</code> after a state change
+Отрисовка вне <code>app_on_draw()</code> либо отсутствие <code>screen_redraw()</code> после изменения состояния
 
 State lost after leaving and returning
 Состояние теряется после ухода и возврата
 
-State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_init()</code>
-Состояние хранится в глобальных переменных. Сохраняйте его в <code>app_on_terminate()</code>, загружайте в <code>app_init()</code>
+State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_on_load()</code>
+Состояние хранится в глобальных переменных. Сохраняйте его в <code>app_on_terminate()</code>, загружайте в <code>app_on_load()</code>
 
 "&lt;title&gt; crashed" with "memory alloca..."
 "&lt;title&gt; аварийный сбой" с "memory alloca..."
@@ -1816,8 +1816,8 @@ up to 4
 up to 4, each up to 63 bytes
 до 4, каждый до 63 байт
 
-Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt
-Адреса, разрешённые для <code>http_request()</code>: имя, имя с портом либо <code>{{key}}</code> настройки типа <code>url</code> или <code>link</code>. Требуется только для запросов из кода; на опросы не распространяется
+Destinations allowed for <code>http_send()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt
+Адреса, разрешённые для <code>http_send()</code>: имя, имя с портом либо <code>{{key}}</code> настройки типа <code>url</code> или <code>link</code>. Требуется только для запросов из кода; на опросы не распространяется
 
 up to 8
 до 8
@@ -1852,8 +1852,8 @@ Closes the application (one step down the stack)
 With <code>app_on_back()</code>
 С <code>app_on_back()</code>
 
-Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>request_exit()</code>
-Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>request_exit()</code>
+Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>screen_leave()</code>
+Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>screen_leave()</code>
 
 Put a version field in every stored struct and check it on load. A newer version of the application will read data written by an older one.
 Добавляйте поле версии в каждую сохраняемую структуру и проверяйте его при загрузке. Новая версия приложения будет читать данные, записанные старой.
@@ -1915,11 +1915,11 @@ Response larger than 256 KB (extracted values) or 4 MB (streamed)
 Insufficient device memory for the request
 Недостаточно памяти устройства для запроса
 
-Save the last status in the store. When there is no data to display, pass the status to <code>ui_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:
-Сохраняйте последний статус в хранилище. Когда данных для отображения нет, передавайте статус в <code>ui_reason()</code>. Вызов рисует стандартное сообщение для статуса и возвращает, было ли что-то нарисовано:
+Save the last status in the store. When there is no data to display, pass the status to <code>ui_draw_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:
+Сохраняйте последний статус в хранилище. Когда данных для отображения нет, передавайте статус в <code>ui_draw_reason()</code>. Вызов рисует стандартное сообщение для статуса и возвращает, было ли что-то нарисовано:
 
-After <code>notify()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
-После возврата из <code>notify()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
+After <code>notification_post()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
+После возврата из <code>notification_post()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
 
 When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.
 При загрузке приложения хост копирует таблицу строк на языке устройства в память приложения поверх английской. После этого <code>app_string()</code> возвращает переведённый текст без дополнительного вызова.
@@ -1966,8 +1966,8 @@ Put pictures in <code>pictures/</code>. Put large pictures in <code>files/</code
 After a failed or interrupted request, keep the previous data on the screen.
 После неудавшегося или прерванного запроса оставляйте на экране прежние данные.
 
-Call <code>ui_reason()</code> to show "Not set up", "No network" or "Loading".
-Вызывайте <code>ui_reason()</code>, чтобы показать "Настройте", "Нет сети" или "Загрузка".
+Call <code>ui_draw_reason()</code> to show "Not set up", "No network" or "Loading".
+Вызывайте <code>ui_draw_reason()</code>, чтобы показать "Настройте", "Нет сети" или "Загрузка".
 
 Handle <code>time_now() == 0</code>. Use <code>alarm_set()</code> for a delay ("in ten minutes") and <code>alarm_set_at()</code> for a clock time ("at seven").
 Обрабатывайте <code>time_now() == 0</code>. Используйте <code>alarm_set()</code> для задержки («через десять минут») и <code>alarm_set_at()</code> для времени по часам («в семь»).
@@ -2032,11 +2032,11 @@ History of one value. Changes with the data
 a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;
 функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у хоста нет;
 
-the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_request()</code> and lacks the handler that receives the result;
-код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_request()</code> и не содержит обработчика, который получает результат;
+the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_send()</code> and lacks the handler that receives the result;
+код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_send()</code> и не содержит обработчика, который получает результат;
 
-the manifest declares a poll or intents and the code lacks <code>app_on_values()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;
-манифест объявляет опрос или интенты, а в коде нет <code>app_on_values()</code>, <code>app_on_data()</code> или <code>app_on_intent()</code>;
+the manifest declares a poll or intents and the code lacks <code>app_on_picked()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;
+манифест объявляет опрос или интенты, а в коде нет <code>app_on_picked()</code>, <code>app_on_data()</code> или <code>app_on_intent()</code>;
 
 the code draws and lacks <code>app_on_draw()</code>;
 код рисует и не содержит <code>app_on_draw()</code>;
@@ -2167,8 +2167,8 @@ JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]
 key of a <code>list</code> setting
 ключ настройки <code>list</code>
 
-One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item a response is for
-По запросу на каждый пункт списка, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>data_item()</code> сообщает, к какому пункту относится ответ
+One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>answer_item()</code> gives the item a response is for
+По запросу на каждый пункт списка, один за другим. В этом опросе <code>{{key}}</code> списка - это пункт. <code>answer_item()</code> сообщает, к какому пункту относится ответ
 
 A line per item; items are added and removed
 Строка на пункт; пункты добавляются и удаляются
@@ -2188,14 +2188,14 @@ Poll with <code>each</code>
 Schedule; one request per item of a list setting
 Расписание; по запросу на пункт настройки-списка
 
-As above, once per item. <code>data_item()</code> gives the item
-Как выше, по разу на пункт. <code>data_item()</code> сообщает пункт
+As above, once per item. <code>answer_item()</code> gives the item
+Как выше, по разу на пункт. <code>answer_item()</code> сообщает пункт
 
 Lists
 Списки
 
-A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:
-Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_chart()</code>:
+A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_draw_chart()</code>:
+Путь с <code>[*]</code> вместо одного индекса - путь списка: все элементы этого массива по порядку. <code>app_value_count()</code> возвращает число элементов. <code>app_value_series()</code> превращает их в числа для <code>ui_draw_chart()</code>:
 
 which ticker of the list
 какой тикер из списка
@@ -2275,17 +2275,17 @@ Delivers an intent: <code>started</code>, <code>time_changed</code>, <code>netwo
 Once after the application is installed: it has not run on this device before, or was removed and installed again
 Один раз после установки приложения: оно ещё не запускалось на этом устройстве или было удалено и установлено снова
 
-Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value
-Внутри <code>app_on_values()</code>: копирует значение пути <code>index</code> текстом без завершающего нуля. Возвращает его длину. У пути списка значения нет
+Inside <code>app_on_picked()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value
+Внутри <code>app_on_picked()</code>: копирует значение пути <code>index</code> текстом без завершающего нуля. Возвращает его длину. У пути списка значения нет
 
-Inside <code>app_on_values()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path
-Внутри <code>app_on_values()</code>: число элементов пути списка <code>index</code>; 1 или 0 для любого другого пути
+Inside <code>app_on_picked()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path
+Внутри <code>app_on_picked()</code>: число элементов пути списка <code>index</code>; 1 или 0 для любого другого пути
 
-Inside <code>app_on_values()</code>: copies element <code>element</code> of path <code>index</code>, as <code>data_value()</code> does
-Внутри <code>app_on_values()</code>: копирует элемент <code>element</code> пути <code>index</code>, как <code>data_value()</code>
+Inside <code>app_on_picked()</code>: copies element <code>element</code> of path <code>index</code>, as <code>answer_value()</code> does
+Внутри <code>app_on_picked()</code>: копирует элемент <code>element</code> пути <code>index</code>, как <code>answer_value()</code>
 
-Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response
-Внутри <code>app_on_data()</code> и <code>app_on_values()</code>: пункт списка, для которого опрос с <code>each</code> сделал этот запрос, от 0; -1 для любого другого ответа
+Inside <code>app_on_data()</code> and <code>app_on_picked()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response
+Внутри <code>app_on_data()</code> и <code>app_on_picked()</code>: пункт списка, для которого опрос с <code>each</code> сделал этот запрос, от 0; -1 для любого другого ответа
 
 length; 0: not set or too long
 длина; 0 - не задана или слишком длинная
@@ -2308,11 +2308,11 @@ the same in 64 bits
 elements of a list path; 1 or 0 for others
 элементы пути списка; 1 или 0 для остальных
 
-numbers for ui_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit
-числа для ui_chart(): HOST_CHART_NO_VALUE для "null"; равномерно прорежены, чтобы поместиться
+numbers for ui_draw_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit
+числа для ui_draw_chart(): HOST_CHART_NO_VALUE для "null"; равномерно прорежены, чтобы поместиться
 
-These functions work only inside <code>app_on_values()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.
-Эти функции работают только внутри <code>app_on_values()</code>, кроме <code>app_parse_number()</code>, которая работает везде. <code>index</code> - позиция пути в списке <code>pick</code> манифеста. Числа с экспонентой читаются: <code>"1.2e-05"</code>.
+These functions work only inside <code>app_on_picked()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.
+Эти функции работают только внутри <code>app_on_picked()</code>, кроме <code>app_parse_number()</code>, которая работает везде. <code>index</code> - позиция пути в списке <code>pick</code> манифеста. Числа с экспонентой читаются: <code>"1.2e-05"</code>.
 
 "356.27", 2 -> 35627; exponents too
 "356.27", 2 -> 35627; с экспонентой тоже
@@ -2467,8 +2467,8 @@ Self-signed or expired server certificate, or an authority outside the browser r
 revision 9, 2026-11-15 / host API of sdk/host_api.h, abi 2 / preliminary: the host API is not frozen before the first release<br>github.com/GrakovNe/perinkpheral / MIT
 редакция 9, 2026-11-15 / API хоста по sdk/host_api.h, abi 2 / предварительная версия: до первого релиза API хоста не зафиксирован<br>github.com/GrakovNe/perinkpheral / MIT
 
-The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list
-Опрос берёт только пункты, которые начинаются с него; <code>{{key}}</code> - пункт без него. Опрос того же списка без префикса берёт пункты, на которые не претендует ни один другой. Так один список обслуживает несколько источников: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> - позиция во всём списке
+The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>answer_item()</code> is the position in the whole list
+Опрос берёт только пункты, которые начинаются с него; <code>{{key}}</code> - пункт без него. Опрос того же списка без префикса берёт пункты, на которые не претендует ни один другой. Так один список обслуживает несколько источников: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>answer_item()</code> - позиция во всём списке
 
 Files of an application that writes
 Файлы приложения с записью
@@ -2485,8 +2485,8 @@ writes_files
 The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.
 Хост предоставляет 43 встроенные иконки: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.
 
-<code>gfx_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.
-<code>gfx_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.
+<code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.
+<code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.
 
 The pixels an icon drawn at <code>cell</code> covers, into a <code>host_icon_ink_t</code> (first_x, last_x, first_y, last_y)
 Пиксели, которые занимает иконка при клетке <code>cell</code>, в <code>host_icon_ink_t</code> (first_x, last_x, first_y, last_y)
@@ -2509,8 +2509,8 @@ Where the visible pixels of the text begin and end, into a <code>host_text_ink_t
 The oldest firmware the application runs on, and the host call that asks for it
 Самая старая прошивка, на которой приложение работает, и вызов хоста, который её требует
 
-... app_on_terminate; app_init, app_on_focus, app_on_draw
-... app_on_terminate; app_init, app_on_focus, app_on_draw
+... app_on_terminate; app_on_load, app_on_focus, app_on_draw
+... app_on_terminate; app_on_load, app_on_focus, app_on_draw
 
 description
 description
@@ -2758,8 +2758,8 @@ Use session memory for temporary UI state: the current page, selected row or unf
 Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.
 Для меток времени, сохраняемых между перезапусками, используйте <code>time_now()</code>. Вместе со временем работы сохраняйте <code>time_boot_id()</code>, чтобы обнаружить предыдущий запуск и отбросить старое значение. Идентификатор запуска - случайное ненулевое 32-битное число; совпадение не гарантирует отсутствия перезапуска.
 
-The session is attached after app_init() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_init() returns HOST_ERR_ARGUMENT.
-Сессия подключается после возврата из app_init(). Читайте её в app_on_focus() или обработчике фоновой доставки; session_set() в app_init() возвращает HOST_ERR_ARGUMENT.
+The session is attached after app_on_load() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_on_load() returns HOST_ERR_ARGUMENT.
+Сессия подключается после возврата из app_on_load(). Читайте её в app_on_focus() или обработчике фоновой доставки; session_set() в app_on_load() возвращает HOST_ERR_ARGUMENT.
 
 Run these commands from the repository root.
 Выполняйте эти команды из корня репозитория.
@@ -2803,8 +2803,8 @@ Setting placeholders
 <code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.
 <code>{{key}}</code> любой настройки заменяется её значением с процентным кодированием: всё, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны две настройки, <code>/repos/{{owner}}/{{name}}</code>. Начальная настройка <code>url</code> и настройка <code>link</code> вставляются без изменения. Настройка <code>list</code> вставляется как закодированные элементы через запятую: <code>symbols={{tickers}}</code> становится <code>symbols=AAPL,MSFT</code>. Опрос с пустой настройкой в URL или заголовках завершается с <code>HOST_FAILED_NOT_READY</code>; токен в заголовке поэтому обязателен.
 
-A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>data_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.
-Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке хост пытается выполнить один опрос с <code>data_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.
+A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.
+Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке хост пытается выполнить один опрос с <code>answer_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.
 
 Settings form values must be printable ASCII; list values also allow line breaks between items.
 Значения формы настроек должны быть печатным ASCII; для списков также разрешён перевод строки между элементами.
@@ -2905,14 +2905,14 @@ Writing needs <code>"writes_files": true</code> in the manifest. The total file 
 All network access goes through the host. The application describes a request; the host performs it and delivers the response. The host performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.
 Весь доступ к сети идёт через хост. Приложение описывает запрос; хост выполняет его и доставляет ответ. На всём устройстве одновременно выполняется один запрос. Ответы обычно доставляются и на экране, и вне его. Отказ в опросе до начала запроса из-за отсутствия сети или памяти сессии сообщается только приложению на экране.
 
-Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: data_response() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.
-Успешные части ответа имеют общие метаданные. Завершающий вызов с HOST_DATA_FAILED может не иметь метаданных: data_response() возвращает код ошибки как status, length -1 и пустые строки заголовков. Неверный или незавершённый JSON с извлечением значений даёт HOST_FAILED_NO_ANSWER, даже если HTTP-ответ получен.
+Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: answer_info() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.
+Успешные части ответа имеют общие метаданные. Завершающий вызов с HOST_DATA_FAILED может не иметь метаданных: answer_info() возвращает код ошибки как status, length -1 и пустые строки заголовков. Неверный или незавершённый JSON с извлечением значений даёт HOST_FAILED_NO_ANSWER, даже если HTTP-ответ получен.
 
-<code>poll_now(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.
-<code>poll_now(n)</code> запрашивает опрос <code>n</code> через общую очередь без ожидания ответа; повторные ожидающие запросы объединяются, например при нажатии кнопки обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например по заголовку Retry-After.
+<code>poll_run(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.
+<code>poll_run(n)</code> запрашивает опрос <code>n</code> через общую очередь без ожидания ответа; повторные ожидающие запросы объединяются, например при нажатии кнопки обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например по заголовку Retry-After.
 
-For http_request(), URL substitution and the initial host check happen before queuing. An unset URL setting returns HOST_ERR_ARGUMENT with no callback. Header substitution happens later and may fail with HOST_FAILED_NOT_READY. Expanded URLs fit in 511 bytes; expanded header values fit in 255 bytes. Expansion failure also gives HOST_FAILED_NOT_READY, except for the initial URL check.
-Для http_request() подстановка URL и первая проверка хоста выполняются до постановки в очередь. Пустая настройка URL возвращает HOST_ERR_ARGUMENT без вызова обработчика. Подстановка заголовков выполняется позже и может дать HOST_FAILED_NOT_READY. URL после подстановки занимает до 511 байт, значение заголовка - до 255 байт. Ошибка подстановки также даёт HOST_FAILED_NOT_READY, кроме первой проверки URL.
+For http_send(), URL substitution and the initial host check happen before queuing. An unset URL setting returns HOST_ERR_ARGUMENT with no callback. Header substitution happens later and may fail with HOST_FAILED_NOT_READY. Expanded URLs fit in 511 bytes; expanded header values fit in 255 bytes. Expansion failure also gives HOST_FAILED_NOT_READY, except for the initial URL check.
+Для http_send() подстановка URL и первая проверка хоста выполняются до постановки в очередь. Пустая настройка URL возвращает HOST_ERR_ARGUMENT без вызова обработчика. Подстановка заголовков выполняется позже и может дать HOST_FAILED_NOT_READY. URL после подстановки занимает до 511 байт, значение заголовка - до 255 байт. Ошибка подстановки также даёт HOST_FAILED_NOT_READY, кроме первой проверки URL.
 
 The 16-request ceiling is per application, with no reserved slots. All queued requests share a 16 KB budget for queue records, URLs, headers and bodies. HOST_ERR_NO_SPACE may occur before sixteen requests are waiting. A raw header name is at most 31 bytes; its value is at most 255 bytes.
 Лимит 16 ожидающих запросов задан на приложение без резервирования мест. Все запросы делят 16 KB на записи очереди, URL, заголовки и тела. HOST_ERR_NO_SPACE возможен и при меньшем числе запросов. Имя исходного заголовка - до 31 байта, значение - до 255 байт.
@@ -2938,8 +2938,8 @@ Keep persistent data in the store. Save navigation and unfinished editing state 
 Log bytes outside printable ASCII, including UTF-8 bytes and line breaks, are replaced with "?".
 Байты журнала вне печатного ASCII, включая байты UTF-8 и переводы строк, заменяются на «?».
 
-<code>host_log(level, text, length)</code> writes one line of up to 200 bytes to the device log. It replaces <code>printf</code>.
-<code>host_log(level, text, length)</code> пишет одну строку до 200 байт в журнал устройства. Заменяет <code>printf</code>.
+<code>log_write(level, text, length)</code> writes one line of up to 200 bytes to the device log. It replaces <code>printf</code>.
+<code>log_write(level, text, length)</code> пишет одну строку до 200 байт в журнал устройства. Заменяет <code>printf</code>.
 
 Poll fails with HOST_FAILED_NOT_READY (-3)
 Опрос завершается с HOST_FAILED_NOT_READY (-3)
@@ -2947,8 +2947,8 @@ Poll fails with HOST_FAILED_NOT_READY (-3)
 HTTPS fails with HOST_FAILED_NOT_TRUSTED (-6)
 HTTPS завершается с HOST_FAILED_NOT_TRUSTED (-6)
 
-<code>http_request()</code> returns HOST_ERR_NO_SPACE (-4)
-<code>http_request()</code> возвращает HOST_ERR_NO_SPACE (-4)
+<code>http_send()</code> returns HOST_ERR_NO_SPACE (-4)
+<code>http_send()</code> возвращает HOST_ERR_NO_SPACE (-4)
 
 This part summarizes the host calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.
 Этот раздел кратко описывает вызовы хоста и экспорты для ABI 3. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.
@@ -3280,8 +3280,8 @@ A response chunk arrives. <code>request</code> is the poll number or request tag
 Sets a persistent code override of 10 - 86400 s; other nonzero values or an unknown poll give HOST_ERR_ARGUMENT. 0 forgets the override and resumes the manifest or interval setting. The code override takes precedence over that setting. A changed effective interval resets the deadline from now; the same interval does not. HOST_ERR_FAILED means the override could not be kept or forgotten
 Задаёт сохраняемый интервал из кода от 10 до 86400 с; другое ненулевое значение или неизвестный опрос дают HOST_ERR_ARGUMENT. 0 удаляет этот интервал и возвращает интервал манифеста или его настройки. Интервал из кода имеет приоритет над настройкой. Изменение действующего интервала отсчитывает срок заново от текущего момента; прежний интервал срок не меняет. HOST_ERR_FAILED означает, что интервал не удалось сохранить или удалить
 
-Inside a data handler: copies the first min(capacity, sizeof(host_response_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
-В обработчике данных копирует первые min(capacity, sizeof(host_response_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+В обработчике данных копирует первые min(capacity, sizeof(host_answer_info_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 
 Returns HOST_OK and writes Unix seconds to int64_t *unix_time. An invalid pointer or a normalized moment outside HOST_TIME_MIN - HOST_TIME_MAX gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence
 Возвращает HOST_OK и записывает секунды Unix в int64_t *unix_time. Недопустимый указатель или нормализованный момент за пределами HOST_TIME_MIN - HOST_TIME_MAX дают HOST_ERR_ARGUMENT и не изменяют выходное значение. Значения полей за пределами обычных границ переносятся в следующие единицы. Пропущенное местное время сдвигается вперёд на величину перевода часов (02:30 становится 03:30 при часовом скачке); для повторяющегося времени используется более раннее вхождение
@@ -3289,8 +3289,8 @@ Returns HOST_OK and writes Unix seconds to int64_t *unix_time. An invalid pointe
 Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself
 Установленные приложения по id, в порядке названий: список, название, отложенное удаление. HOST_OK означает, что удаление поставлено в очередь до возврата из обработчика, а не завершено. Второе удаление в том же обработчике даёт HOST_ERR_NO_SPACE и сохраняет первый запрос. Приложение не может удалить само себя
 
-request_focus() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.
-request_focus() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.
+screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.
+screen_request() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.
 
 Requests the screen from a background handler; decided after delivery ends. Refused within 30 s of a press, over a question waiting for its answer, or within 30 s of the last grant. A refusal is discarded, with no retry
 Запрашивает экран из фонового обработчика; решение принимается после завершения доставки. Отклоняется в течение 30 с после нажатия, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешения. Отклонённый запрос отбрасывается без повтора
@@ -3304,8 +3304,8 @@ Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> sec
 app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. The host applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.
 app_date_seconds() возвращает календарные секунды, считая выбранные поля временем UTC. Для настоящего времени Unix передайте поля в host_local_time_t в time_from_local(&amp;parts, &amp;unix_time) и проверьте HOST_OK. Хост учитывает местный часовой пояс, сдвигает пропущенное время вперёд на величину перевода часов и выбирает первое вхождение повторяющегося времени.
 
-Inside the handler, <code>data_response(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.
-В обработчике <code>data_response(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.
+Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.
+В обработчике <code>answer_info(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.
 
 Repeating alarm slots shared by all applications; one application may take several
 Общие для всех приложений места повторяющихся будильников; одно приложение может занять несколько
@@ -3322,10 +3322,10 @@ HTTP, HTTPS
 UTF-8
 =
 
-app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate
+app_on_load, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate
 =
 
-app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings
+app_on_data / app_on_picked / app_on_alarm / app_on_intent / app_on_settings
 =
 
 app_on_installed / app_on_updated
@@ -3577,40 +3577,40 @@ HOST_ICON_SUNSET
 pictures/things.txt
 =
 
-ui_list_row, ui_list_first, ui_list_visible
+ui_draw_list_row, ui_list_first, ui_list_visible
 =
 
-ui_cell, ui_cell_fit
+ui_draw_cell, ui_cell_fit
 =
 
-ui_value
+ui_draw_value
 =
 
-ui_notice
+ui_draw_notice
 =
 
-ui_reason
+ui_draw_reason
 =
 
-ui_actions, ui_button
+ui_draw_actions, ui_draw_button
 =
 
-ui_picker
+ui_draw_picker
 =
 
-ui_date
+ui_draw_date
 =
 
-ui_frame
+ui_draw_frame
 =
 
-ui_bar
+ui_draw_bar
 =
 
-ui_chart
+ui_draw_chart
 =
 
-ui_title, ui_text, ui_text_lines, ui_icon
+ui_draw_title, ui_draw_text, ui_draw_text_lines, ui_draw_icon
 =
 
 HOST_REDRAW_NORMAL
@@ -3670,13 +3670,13 @@ HOST_FAILED_*
 alarm_set, alarm_set_at, alarm_set_every
 =
 
-notify
+notification_post
 =
 
-request_focus
+screen_request
 =
 
-header_status
+header_set_status
 =
 
 app_on_installed, app_on_updated
@@ -3802,7 +3802,7 @@ HOST_ERR_NO_SPACE (-4)
 HOST_ERR_FAILED (-5)
 =
 
-void app_init(void)
+void app_on_load(void)
 =
 
 void app_on_focus(void)
@@ -3832,7 +3832,7 @@ void app_on_alarm(int32_t id)
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
 =
 
-void app_on_values(int32_t request, int32_t http_status)
+void app_on_picked(int32_t request, int32_t http_status)
 =
 
 void app_on_settings(void)
@@ -3856,10 +3856,10 @@ uint8_t *app_strings_buffer(void)
 gfx_width(void), gfx_height(void)
 =
 
-gfx_color(color)
+gfx_set_color(color)
 =
 
-gfx_text(x, y, font, text, length)
+gfx_draw_text(x, y, font, text, length)
 =
 
 gfx_text_width(font, text, length)
@@ -3868,100 +3868,100 @@ gfx_text_width(font, text, length)
 gfx_text_ink(font, text, length, ink)
 =
 
-gfx_text_fit(font, text, length, max_width, fitted, capacity)
+gfx_fit_text(font, text, length, max_width, fitted, capacity)
 =
 
 gfx_font_height(font), gfx_font_ascent(font), gfx_font_cap_height(font)
 =
 
-gfx_rect(x, y, w, h, fill)
+gfx_draw_rect(x, y, w, h, fill)
 =
 
-gfx_line(x0, y0, x1, y1)
+gfx_draw_line(x0, y0, x1, y1)
 =
 
-gfx_picture(x, y, picture, cell)
+gfx_draw_picture(x, y, picture, cell)
 =
 
-gfx_icon(x, y, icon, cell)
+gfx_draw_icon(x, y, icon, cell)
 =
 
 gfx_icon_ink(icon, cell, ink)
 =
 
-gfx_bitmap(x, y, w, h, bits)
+gfx_draw_bitmap(x, y, w, h, bits)
 =
 
-gfx_bitmap_file(x, y, w, h, name, name_length, offset)
+gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)
 =
 
-gfx_qr(x, y, cell, text, length)
+gfx_draw_qr(x, y, cell, text, length)
 =
 
-void request_redraw(flags)
+void screen_redraw(flags)
 =
 
-header_text(side, text, length)
+header_set_text(side, text, length)
 =
 
-ui_text(x, y, style, text, length, max_width)
+ui_draw_text(x, y, style, text, length, max_width)
 =
 
-ui_text_lines(x, y, style, text, length, width, max_lines)
+ui_draw_text_lines(x, y, style, text, length, width, max_lines)
 =
 
 ui_text_width(style, text, length), ui_text_height(style)
 =
 
-ui_title(text, length)
+ui_draw_title(text, length)
 =
 
-ui_icon(x, y, icon, size)
+ui_draw_icon(x, y, icon, size)
 =
 
-ui_actions(ok, ok_length, back, back_length)
+ui_draw_actions(ok, ok_length, back, back_length)
 =
 
-ui_button(x, y, name, name_length, action, action_length, mirrored)
+ui_draw_button(x, y, name, name_length, action, action_length, mirrored)
 =
 
 ui_list_visible(list), ui_list_first(list)
 =
 
-ui_list_row(list, index, label, label_length, value, value_length, icon)
+ui_draw_list_row(list, index, label, label_length, value, value_length, icon)
 =
 
-ui_notice(notice)
+ui_draw_notice(notice)
 =
 
-ui_reason(status)
+ui_draw_reason(status)
 =
 
-ui_value(x, y, font, value, value_length, unit, unit_length)
+ui_draw_value(x, y, font, value, value_length, unit, unit_length)
 =
 
 ui_value_width(font, value, value_length, unit, unit_length)
 =
 
-ui_cell(cell, picture, icon)
+ui_draw_cell(cell, picture, icon)
 =
 
 ui_cell_fit(cell, picture, icon)
 =
 
-ui_bar(x, y, width, value, maximum)
+ui_draw_bar(x, y, width, value, maximum)
 =
 
-ui_chart(chart, values)
+ui_draw_chart(chart, values)
 =
 
-ui_frame(x, y, width, height, arrows)
+ui_draw_frame(x, y, width, height, arrows)
 =
 
-ui_picker(picker)
+ui_draw_picker(picker)
 =
 
-ui_date(date)
+ui_draw_date(date)
 =
 
 x, y, width, height
@@ -3994,10 +3994,10 @@ HOST_CHART_RANGE_RIGHT
 HOST_CHART_MARK_LAST
 =
 
-void request_exit(void)
+void screen_leave(void)
 =
 
-void request_focus(void)
+void screen_request(void)
 =
 
 int32_t session_set(data, length)
@@ -4006,10 +4006,10 @@ int32_t session_set(data, length)
 int32_t session_get(buffer, capacity)
 =
 
-notify(notice)
+notification_post(notice)
 =
 
-header_status(side, icon, text, length)
+header_set_status(side, icon, text, length)
 =
 
 kv_get(key, key_length, value, capacity)
@@ -4027,34 +4027,34 @@ file_read(name, name_length, offset, bytes, capacity)
 file_write(name, name_length, offset, bytes, length)
 =
 
-poll_now(poll)
+poll_run(poll)
 =
 
 poll_set_interval(poll, seconds)
 =
 
-http_request(tag, method, url, url_length, headers, headers_length, body, body_length)
+http_send(tag, method, url, url_length, headers, headers_length, body, body_length)
 =
 
-data_value(index, text, capacity)
+answer_value(index, text, capacity)
 =
 
-data_count(index)
+answer_count(index)
 =
 
-data_element(index, element, text, capacity)
+answer_element(index, element, text, capacity)
 =
 
-data_item(void)
+answer_item(void)
 =
 
-data_response(response, capacity)
+answer_info(response, capacity)
 =
 
 text_fill(pattern, pattern_length, arguments, count, text, capacity)
 =
 
-void host_log(level, text, length)
+void log_write(level, text, length)
 =
 
 int64_t time_now(void)
@@ -4096,13 +4096,13 @@ sys_time_set(int64_t unix_seconds)
 sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)
 =
 
-sys_app_default(void), sys_app_set_default(id)
+sys_app_get_default(void), sys_app_set_default(id)
 =
 
-sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)
+sys_draw_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)
 =
 
-sys_do(action)
+sys_run(action)
 =
 
 HOST_API_VERSION
@@ -4255,8 +4255,8 @@ The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.
 failure without data; discard all preceding pieces: http_status is a HOST_FAILED_* code
 ошибка без данных; отбросить все предыдущие фрагменты: http_status содержит код HOST_FAILED_*
 
-For http_request(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.
-Для http_request() URL подставляется и впервые проверяется до постановки в очередь. Неустановленное значение URL даёт HOST_ERR_ARGUMENT без обработчика ответа. В очереди остаётся раскрытый адрес. Перед отправкой адрес проверяется заново, а заголовки заполняются из того же текущего снимка KV. Если изменение настроек запретило прежний адрес, приходит HOST_FAILED_NOT_ALLOWED; запрос никогда молча не перенаправляется на новый сервер. Отсутствующие или недопустимые значения заголовков дают HOST_FAILED_NOT_READY. Подготовленный запрос сохраняет свой снимок при передаче. URL вмещает 511 байт, значение заголовка - 255 байт; тело копируется при постановке в очередь.
+For http_send(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.
+Для http_send() URL подставляется и впервые проверяется до постановки в очередь. Неустановленное значение URL даёт HOST_ERR_ARGUMENT без обработчика ответа. В очереди остаётся раскрытый адрес. Перед отправкой адрес проверяется заново, а заголовки заполняются из того же текущего снимка KV. Если изменение настроек запретило прежний адрес, приходит HOST_FAILED_NOT_ALLOWED; запрос никогда молча не перенаправляется на новый сервер. Отсутствующие или недопустимые значения заголовков дают HOST_FAILED_NOT_READY. Подготовленный запрос сохраняет свой снимок при передаче. URL вмещает 511 байт, значение заголовка - 255 байт; тело копируется при постановке в очередь.
 
 ABI 3 compatibility
 Совместимость ABI 3
@@ -4276,23 +4276,32 @@ Binary representation and buffers
 The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.
 Контракт использует раскладку C для wasm32 little-endian и дополнительный код для знаковых целых. Указатель - беззнаковое 32-битное смещение в памяти; ноль означает NULL. Размер и выравнивание 32-битных целых и указателей равны 4, 64-битных целых - 8, байтов - 1. Структуры сохраняют порядок полей C, естественное выравнивание и конечное заполнение. sdk/abi/3.txt записывает каждый размер, выравнивание, тип и смещение поля. Размер, число строк и смещения таблицы строк - 16-битные слова little-endian. Размеры картинок задаются байтами; строки битовой карты идут старшим битом вперёд и дополняются до целого числа байтов.
 
-Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_response_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.
-Входные буферы используются или копируются до возврата импорта. Хост сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_response_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.
+Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.
+Входные буферы используются или копируются до возврата импорта. Хост сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_answer_info_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.
 
-kv_get, data_value, data_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_text_fit also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. data_response copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.
-kv_get, data_value, data_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_text_fit также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. data_response копирует min(capacity, размер структуры хоста), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.
+kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.
+kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_fit_text также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. answer_info копирует min(capacity, размер структуры хоста), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.
 
-Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_init or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.
-Уведомления об установке и обновлении считаются доставленными после загрузки и до обработчика, в том числе при отсутствии обработчика или trap в app_init либо обработчике. Ошибка загрузки оставляет уведомление до запуска устройства или перечитывания списка приложений. Обновление означает другой идентификатор пакета из модуля и манифеста, независимо от порядка строк версий.
+Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_on_load or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.
+Уведомления об установке и обновлении считаются доставленными после загрузки и до обработчика, в том числе при отсутствии обработчика или trap в app_on_load либо обработчике. Ошибка загрузки оставляет уведомление до запуска устройства или перечитывания списка приложений. Обновление означает другой идентификатор пакета из модуля и манифеста, независимо от порядка строк версий.
 
 Only HOST_DATA_LAST makes a streamed answer whole. HOST_DATA_FAILED may follow earlier pieces and invalidates them all. An interrupted answer may end with neither flag. Piece boundaries are unspecified, even inside a UTF-8 character or a document marker. Keep the previous displayed result until LAST.
 Только HOST_DATA_LAST делает потоковый ответ полным. HOST_DATA_FAILED может прийти после предыдущих фрагментов и отменяет их все. Прерванный ответ может закончиться без обоих флагов. Границы фрагментов не определены, даже внутри символа UTF-8 или маркера документа. Сохраняйте предыдущий показанный результат до LAST.
 
-Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.
-Отрисовка сохраняет существующие правила: совместные флаги перерисовки выбирают CLEAN раньше NO_BLINK, затем SOON; QUESTION независим. При отключённом дизеринге оттенки gfx_color 1..7 становятся бумагой, 8..15 - чернилами. Первые и последние координаты чернил иконки включительны; end_x текста исключителен.
+Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_set_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.
+Отрисовка сохраняет существующие правила: совместные флаги перерисовки выбирают CLEAN раньше NO_BLINK, затем SOON; QUESTION независим. При отключённом дизеринге оттенки gfx_set_color 1..7 становятся бумагой, 8..15 - чернилами. Первые и последние координаты чернил иконки включительны; end_x текста исключителен.
 
 System settings expose only the explicit page-visible keys listed in sdk/host/sys.h, which specifies types, units, inclusive ranges, special values and restart behaviour for each. Unknown and internal keys, including refresh_min_button_ms, return HOST_ERR_NOT_FOUND for get, set and range. The Wi-Fi SSID is read-only here; the password cannot be read or written here (HOST_ERR_ARGUMENT). Network changes use the page or SYS_DO_FORGET_NETWORK.
 Системные настройки открывают только явно перечисленные видимые на странице ключи sdk/host/sys.h, где для каждого указаны тип, единицы, включительные диапазоны, специальные значения и необходимость перезапуска. Неизвестные и внутренние ключи, включая refresh_min_button_ms, возвращают HOST_ERR_NOT_FOUND для get, set и range. SSID Wi-Fi здесь доступен только для чтения; пароль нельзя ни читать, ни писать (HOST_ERR_ARGUMENT). Сеть изменяют через страницу или SYS_DO_FORGET_NETWORK.
 
 <code>{{key}}</code> reads the application KV store, including undeclared keys; an absent declared setting uses its manifest default. The value is substituted, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.
 <code>{{key}}</code> читает KV-хранилище приложения, включая необъявленные ключи; отсутствующая объявленная настройка берётся из значения по умолчанию в манифесте. Значение подставляется с процентным кодированием: каждый символ, кроме букв, цифр и <code>- . _ ~</code>, становится <code>%XX</code>, <b>включая <code>/</code></b>. Одна настройка - один сегмент пути: для <code>owner/name</code> нужны два ключа, <code>/repos/{{owner}}/{{name}}</code>. Начальная настройка <code>url</code> и настройка <code>link</code> вставляются без изменений. Настройка <code>list</code> вставляется поэлементно с кодированием и запятыми между элементами: <code>symbols={{tickers}}</code> превращается в <code>symbols=AAPL,MSFT</code>. Пустая настройка в URL или заголовке опроса даёт <code>HOST_FAILED_NOT_READY</code>; поэтому токен в заголовке обязателен.
+
+ABI 3 is being prepared for its first frozen release. After release, existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; HOST_SINCE_ stamps only entries added after the ABI 3 floor, 0.1.30. Firmware releases and ABI generations are independent. Missing exports remain optional.
+ABI 3 готовится к первому выпуску с зафиксированным контрактом. После выпуска существующие имена, типы wasm, привилегии, константы, раскладки и смысл вызовов сохраняются в следующих прошивках. Изменение сигнатуры или смысла требует нового ABI; HOST_SINCE_ отмечает только элементы, добавленные после нижней границы ABI 3, версии 0.1.30. Выпуски прошивки и поколения ABI независимы. Отсутствующие экспорты остаются необязательными.
+
+tools/perinkpheral contract snapshot records the contract in sdk/abi/3.txt and package hashes separately in sdk/abi/3/fixtures.txt; contract check verifies both in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.
+tools/perinkpheral contract snapshot записывает контракт в sdk/abi/3.txt, а хеши пакетов отдельно в sdk/abi/3/fixtures.txt; contract check проверяет оба файла в тестах хоста и CI. Записанные элементы нельзя менять или удалять; дополнения разрешены. Запись снимка тоже отклоняет изменения. Зафиксированные пакеты в sdk/abi/3/ служат входными данными тестов, которые никогда их не пересобирают: Probe, Hello, Settings с переводами и состояние Hello (presses = 42 в четырёх байтах little-endian). Нижняя граница ABI 3 - 0.1.30, первая прошивка с ABI 3.
+
+Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
+Команды называют предмет, затем действие (<code>kv_get</code>, <code>gfx_draw_text</code>); запросы называют предмет и то, что требуется узнать (<code>gfx_width</code>, <code>time_now</code>); события, вызываемые хостом, используют <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).

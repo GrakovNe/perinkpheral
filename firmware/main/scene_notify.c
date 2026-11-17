@@ -24,22 +24,22 @@ typedef struct {
 
 static scene_reaction_t notify_button(scene_t *scene, scene_button_t button, scene_press_t press)
 {
-    const notify_scene_t *notify = (const notify_scene_t *)scene;
+    const notify_scene_t *notification = (const notify_scene_t *)scene;
     scene_reaction_t reaction = { SCENE_IGNORED, NULL };
     if (press == SCENE_PRESS_SHORT && (button == SCENE_BUTTON_OK || button == SCENE_BUTTON_BACK)) {
-        notify->seen();
+        notification->seen();
     }
     return reaction;
 }
 
 static void notify_draw(scene_t *scene, gfx_t *surface)
 {
-    const notify_scene_t *notify = (const notify_scene_t *)scene;
+    const notify_scene_t *notification = (const notify_scene_t *)scene;
     const notice_t notice = {
-        .first = notify->first,
-        .second = notify->second,
-        .detail = notify->detail,
-        .icon = notify->icon,
+        .first = notification->first,
+        .second = notification->second,
+        .detail = notification->detail,
+        .icon = notification->icon,
         .ok = word(WORD_DISMISS),
     };
     notice_draw(surface, &notice);
@@ -53,13 +53,13 @@ static const scene_ops_t NOTIFY_OPS = {
 scene_t *scene_notify(const char *first, const char *second, const char *detail, int icon,
                       scenes_action_fn seen)
 {
-    static notify_scene_t notify = {
+    static notify_scene_t notification = {
         .scene = { .ops = &NOTIFY_OPS, .asks_once = true },
     };
-    notify.first = first;
-    notify.second = second;
-    notify.detail = detail;
-    notify.icon = icon;
-    notify.seen = seen;
-    return &notify.scene;
+    notification.first = first;
+    notification.second = second;
+    notification.detail = detail;
+    notification.icon = icon;
+    notification.seen = seen;
+    return &notification.scene;
 }

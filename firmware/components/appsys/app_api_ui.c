@@ -66,7 +66,7 @@ HOST_FUNCTION(ui_list_first)
     m3ApiReturn(list_first_row(app->surface, &list));
 }
 
-HOST_FUNCTION(ui_list_row)
+HOST_FUNCTION(ui_draw_list_row)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, list_offset);
@@ -113,7 +113,7 @@ static const char *notice_text(char *text, size_t size)
     return text[0] != '\0' ? text : NULL;
 }
 
-HOST_FUNCTION(ui_notice)
+HOST_FUNCTION(ui_draw_notice)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, notice_offset);
@@ -144,7 +144,7 @@ HOST_FUNCTION(ui_notice)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(ui_text_lines)
+HOST_FUNCTION(ui_draw_text_lines)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -168,7 +168,7 @@ HOST_FUNCTION(ui_text_lines)
     m3ApiReturn(kit_text_lines(app->surface, x, y, (kit_style_t)style, text, width, max_lines));
 }
 
-HOST_FUNCTION(ui_text)
+HOST_FUNCTION(ui_draw_text)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -216,7 +216,7 @@ HOST_FUNCTION(ui_text_height)
     m3ApiReturn(gfx_font_height(kit_font((kit_style_t)style)));
 }
 
-HOST_FUNCTION(ui_title)
+HOST_FUNCTION(ui_draw_title)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, text_offset);
@@ -233,7 +233,7 @@ HOST_FUNCTION(ui_title)
     m3ApiReturn(kit_title(app->surface, text));
 }
 
-HOST_FUNCTION(ui_icon)
+HOST_FUNCTION(ui_draw_icon)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -256,7 +256,7 @@ HOST_FUNCTION(ui_icon)
 /* The name of a button is a word: "BACK" is the longest there is. */
 #define BUTTON_NAME_MAX 8
 
-HOST_FUNCTION(ui_button)
+HOST_FUNCTION(ui_draw_button)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -282,7 +282,7 @@ HOST_FUNCTION(ui_button)
     m3ApiReturn(kit_button(app->surface, x, baseline, name, action, mirrored != 0));
 }
 
-HOST_FUNCTION(ui_actions)
+HOST_FUNCTION(ui_draw_actions)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, ok_offset);
@@ -304,7 +304,7 @@ HOST_FUNCTION(ui_actions)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(ui_bar)
+HOST_FUNCTION(ui_draw_bar)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -324,7 +324,7 @@ HOST_FUNCTION(ui_bar)
     m3ApiReturn(HOST_OK);
 }
 
-/* ui_value() and ui_value_width(): the same arguments, drawn or measured. */
+/* ui_draw_value() and ui_value_width(): the same arguments, drawn or measured. */
 static int32_t value_with_unit(IM3Runtime runtime, void *memory, gfx_t *surface, int32_t x,
                                int32_t y, int32_t font_id, uint32_t value_offset,
                                int32_t value_length, uint32_t unit_offset, int32_t unit_length)
@@ -339,7 +339,7 @@ static int32_t value_with_unit(IM3Runtime runtime, void *memory, gfx_t *surface,
     return kit_value(surface, x, y, font, is_tabular(font_id), value, unit);
 }
 
-HOST_FUNCTION(ui_value)
+HOST_FUNCTION(ui_draw_value)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -371,7 +371,7 @@ HOST_FUNCTION(ui_value_width)
 
 /* Why an application has nothing to show, said the same way by all of
  * them: what the last answer from the network came to. */
-HOST_FUNCTION(ui_reason)
+HOST_FUNCTION(ui_draw_reason)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, status);
@@ -415,7 +415,7 @@ HOST_FUNCTION(ui_reason)
     m3ApiReturn(1);
 }
 
-HOST_FUNCTION(ui_frame)
+HOST_FUNCTION(ui_draw_frame)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, x);
@@ -437,7 +437,7 @@ HOST_FUNCTION(ui_frame)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(ui_picker)
+HOST_FUNCTION(ui_draw_picker)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, picker_offset);
@@ -523,7 +523,7 @@ HOST_FUNCTION(ui_cell_fit)
     m3ApiReturn(kit_cell_fit(app->surface, &cell));
 }
 
-HOST_FUNCTION(ui_cell)
+HOST_FUNCTION(ui_draw_cell)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, cell_offset);
@@ -553,7 +553,7 @@ _Static_assert(HOST_CHART_LINE == KIT_CHART_LINE && HOST_CHART_AREA == KIT_CHART
 
 #define CHART_FILL_SHADE 4 /* the grey of the area under a line */
 
-HOST_FUNCTION(ui_chart)
+HOST_FUNCTION(ui_draw_chart)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, chart_offset);
@@ -595,7 +595,7 @@ HOST_FUNCTION(ui_chart)
 
 #define DATE_YEAR_MAX 9999
 
-HOST_FUNCTION(ui_date)
+HOST_FUNCTION(ui_draw_date)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, date_offset);
@@ -642,7 +642,7 @@ HOST_FUNCTION(ui_date)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(request_redraw)
+HOST_FUNCTION(screen_redraw)
 {
     m3ApiGetArg(int32_t, flags);
     app_t *app = APP_OF(runtime);
@@ -653,7 +653,7 @@ HOST_FUNCTION(request_redraw)
     m3ApiSuccess();
 }
 
-HOST_FUNCTION(header_text)
+HOST_FUNCTION(header_set_text)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, side);
@@ -670,7 +670,7 @@ HOST_FUNCTION(header_text)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(header_status)
+HOST_FUNCTION(header_set_status)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, side);
@@ -685,13 +685,13 @@ HOST_FUNCTION(header_status)
         !app_text_copy(runtime, _mem, text_offset, length, text)) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    if (app->services->header_status != NULL) {
-        app->services->header_status(app->name, side, icon, text);
+    if (app->services->header_set_status != NULL) {
+        app->services->header_set_status(app->name, side, icon, text);
     }
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(notify)
+HOST_FUNCTION(notification_post)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, notice_offset);
@@ -708,8 +708,8 @@ HOST_FUNCTION(notify)
     if (!is_valid_icon || first == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    if (app->services->notify == NULL ||
-        !app->services->notify(first, notice_text(asked.second, sizeof asked.second),
+    if (app->services->notification_post == NULL ||
+        !app->services->notification_post(first, notice_text(asked.second, sizeof asked.second),
                                notice_text(asked.detail, sizeof asked.detail),
                                asked.icon == HOST_ICON_NONE ? NOTICE_NO_ICON : asked.icon)) {
         m3ApiReturn(HOST_ERR_NO_SPACE);
@@ -717,7 +717,7 @@ HOST_FUNCTION(notify)
     m3ApiReturn(HOST_OK);
 }
 
-HOST_FUNCTION(request_focus)
+HOST_FUNCTION(screen_request)
 {
     APP_OF(runtime)->focus_requested = true;
     m3ApiSuccess();
@@ -761,7 +761,7 @@ HOST_FUNCTION(session_get)
     m3ApiReturn(length);
 }
 
-HOST_FUNCTION(request_exit)
+HOST_FUNCTION(screen_leave)
 {
     APP_OF(runtime)->exit_requested = true;
     m3ApiSuccess();

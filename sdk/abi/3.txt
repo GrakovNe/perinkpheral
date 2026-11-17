@@ -71,7 +71,7 @@ constant HOST_FAILED_TOO_LARGE	-7
 constant HOST_FILES_MAX	65536
 constant HOST_FILES_WRITER_MAX	32768
 constant HOST_FILE_NAME_MAX	23
-constant HOST_FIRMWARE_FIRST	"0.1.8"
+constant HOST_FIRMWARE_FIRST	"0.1.30"
 constant HOST_FONT_DISPLAY	3
 constant HOST_FONT_HUGE	4
 constant HOST_FONT_LARGE	2
@@ -167,16 +167,6 @@ constant HOST_REDRAW_SOON	1
 constant HOST_REQUEST_FIRST	16
 constant HOST_REQUEST_LAST	255
 constant HOST_SESSION_MAX	128
-constant HOST_SINCE_data_response	"0.1.23"
-constant HOST_SINCE_gfx_icon	"0.1.23"
-constant HOST_SINCE_poll_set_interval	"0.1.23"
-constant HOST_SINCE_session_get	"0.1.21"
-constant HOST_SINCE_session_set	"0.1.21"
-constant HOST_SINCE_sys_app_remove	"0.1.23"
-constant HOST_SINCE_sys_setting_get	"0.1.13"
-constant HOST_SINCE_sys_setting_range	"0.1.13"
-constant HOST_SINCE_sys_setting_set	"0.1.13"
-constant HOST_SINCE_time_from_local	"0.1.23"
 constant HOST_STATUS_TEXT_MAX	31
 constant HOST_TEXT_ARGUMENTS_MAX	4
 constant HOST_TEXT_MAX	127
@@ -278,7 +268,6 @@ constant SYS_WIFI_CONNECTING	"connecting"
 constant SYS_WIFI_ONLINE	"online"
 constant SYS_WIFI_SETUP	"setup"
 export app_data_buffer	i()
-export app_init	v()
 export app_on_alarm	v(i)
 export app_on_back	v()
 export app_on_blur	v()
@@ -288,12 +277,37 @@ export app_on_draw	v()
 export app_on_focus	v()
 export app_on_installed	v()
 export app_on_intent	v(i)
+export app_on_load	v()
+export app_on_picked	v(ii)
 export app_on_settings	v()
 export app_on_terminate	v()
 export app_on_timer	v(i)
 export app_on_updated	v()
-export app_on_values	v(ii)
 export app_strings_buffer	i()
+field host_answer_info_t.content_type offset	12
+field host_answer_info_t.content_type size	48
+field host_answer_info_t.content_type type	char[48]
+field host_answer_info_t.etag offset	60
+field host_answer_info_t.etag size	64
+field host_answer_info_t.etag type	char[64]
+field host_answer_info_t.last_modified offset	124
+field host_answer_info_t.last_modified size	32
+field host_answer_info_t.last_modified type	char[32]
+field host_answer_info_t.length offset	4
+field host_answer_info_t.length size	4
+field host_answer_info_t.length type	int32_t
+field host_answer_info_t.link offset	284
+field host_answer_info_t.link size	192
+field host_answer_info_t.link type	char[192]
+field host_answer_info_t.location offset	156
+field host_answer_info_t.location size	128
+field host_answer_info_t.location type	char[128]
+field host_answer_info_t.retry_after offset	8
+field host_answer_info_t.retry_after size	4
+field host_answer_info_t.retry_after type	int32_t
+field host_answer_info_t.status offset	0
+field host_answer_info_t.status size	4
+field host_answer_info_t.status type	int32_t
 field host_cell_t.height offset	12
 field host_cell_t.height size	4
 field host_cell_t.height type	int32_t
@@ -450,30 +464,6 @@ field host_picker_t.chosen type	char[64]
 field host_picker_t.ok offset	192
 field host_picker_t.ok size	32
 field host_picker_t.ok type	char[32]
-field host_response_t.content_type offset	12
-field host_response_t.content_type size	48
-field host_response_t.content_type type	char[48]
-field host_response_t.etag offset	60
-field host_response_t.etag size	64
-field host_response_t.etag type	char[64]
-field host_response_t.last_modified offset	124
-field host_response_t.last_modified size	32
-field host_response_t.last_modified type	char[32]
-field host_response_t.length offset	4
-field host_response_t.length size	4
-field host_response_t.length type	int32_t
-field host_response_t.link offset	284
-field host_response_t.link size	192
-field host_response_t.link type	char[192]
-field host_response_t.location offset	156
-field host_response_t.location size	128
-field host_response_t.location type	char[128]
-field host_response_t.retry_after offset	8
-field host_response_t.retry_after size	4
-field host_response_t.retry_after type	int32_t
-field host_response_t.status offset	0
-field host_response_t.status size	4
-field host_response_t.status type	int32_t
 field host_text_argument_t.length offset	8
 field host_text_argument_t.length size	4
 field host_text_argument_t.length type	int32_t
@@ -498,70 +488,59 @@ field sys_number_t.most type	int32_t
 field sys_number_t.value offset	0
 field sys_number_t.value size	4
 field sys_number_t.value type	int32_t
-fixture hello/app.wasm	274560960ecdea04b070d31c718cc62abe6fb54d8dfc1a7b8e65db1b1ca2567b
-fixture hello/manifest.json	60f64bfea4c9bfc6e2f3f8c3629ac8fe18655705a184d902b630c0b6fd1fdde0
-fixture hello/manifest.ru	36f2b3bf5605c4479d3a09be691c595d9742b28413fafa0acadaec1d0204c341
-fixture hello/presses.bin	e8a4b2ee7ede79a3afb332b5b6cc3d952a65fd8cffb897f5d18016577c33d7cc
-fixture hello/strings.ru	fb5e512425fc9449316ec95969ebe71e2d576dbab833d61e2a5b9330fd70ee02
-fixture probe/app.wasm	c91ed8fed504aa34914c08c2780968f81c46c075edad50ea4cde0a7cebcc8220
-fixture probe/manifest.json	7cf2417e6027dc8fa4d6bde3959f201ca31a4cf597254de16b446f0201aab280
-fixture settings/app.wasm	b391bcc3704d822c6888f8b4c5c86622efc75fd6389ba83f2975a37291f98288
-fixture settings/manifest.json	b1750ad52d936963220d4244897aea6dbc7c057f4fa30064ed69d3954e4e92ca
-fixture settings/manifest.ru	4566a62d950f91dbf30478b83f19c4d373abe3288e388abe9124270d40ea78a4
-fixture settings/strings.ru	fe506ad2f9f947ab035158ae4752344dc42ed747db8489fe58410e94e4c867e4
 import alarm_set	i(ii) grant=none
 import alarm_set_at	i(iI) grant=none
 import alarm_set_every	i(iii) grant=none
-import data_count	i(i) grant=none
-import data_element	i(iiii) grant=none
-import data_item	i() grant=none
-import data_response	i(ii) grant=none
-import data_value	i(iii) grant=none
+import answer_count	i(i) grant=none
+import answer_element	i(iiii) grant=none
+import answer_info	i(ii) grant=none
+import answer_item	i() grant=none
+import answer_value	i(iii) grant=none
 import file_read	i(iiiii) grant=none
 import file_size	i(ii) grant=none
 import file_write	i(iiiii) grant=writes_files
-import gfx_bitmap	i(iiiii) grant=none
-import gfx_bitmap_file	i(iiiiiii) grant=none
-import gfx_color	i(i) grant=none
+import gfx_draw_bitmap	i(iiiii) grant=none
+import gfx_draw_bitmap_file	i(iiiiiii) grant=none
+import gfx_draw_icon	i(iiii) grant=none
+import gfx_draw_line	i(iiii) grant=none
+import gfx_draw_picture	i(iiii) grant=none
+import gfx_draw_qr	i(iiiii) grant=none
+import gfx_draw_rect	i(iiiii) grant=none
+import gfx_draw_text	i(iiiii) grant=none
+import gfx_fit_text	i(iiiiii) grant=none
 import gfx_font_ascent	i(i) grant=none
 import gfx_font_cap_height	i(i) grant=none
 import gfx_font_height	i(i) grant=none
 import gfx_height	i() grant=none
-import gfx_icon	i(iiii) grant=none
 import gfx_icon_ink	i(iii) grant=none
-import gfx_line	i(iiii) grant=none
-import gfx_picture	i(iiii) grant=none
-import gfx_qr	i(iiiii) grant=none
-import gfx_rect	i(iiiii) grant=none
-import gfx_text	i(iiiii) grant=none
-import gfx_text_fit	i(iiiiii) grant=none
+import gfx_set_color	i(i) grant=none
 import gfx_text_ink	i(iiii) grant=none
 import gfx_text_width	i(iii) grant=none
 import gfx_width	i() grant=none
-import header_status	i(iiii) grant=none
-import header_text	i(iii) grant=none
-import http_request	i(iiiiiiii) grant=none
+import header_set_status	i(iiii) grant=none
+import header_set_text	i(iii) grant=none
+import http_send	i(iiiiiiii) grant=none
 import kv_get	i(iiii) grant=none
 import kv_set	i(iiii) grant=none
-import log	v(iii) grant=none
-import notify	i(i) grant=none
-import poll_now	i(i) grant=none
+import log_write	v(iii) grant=none
+import notification_post	i(i) grant=none
+import poll_run	i(i) grant=none
 import poll_set_interval	i(ii) grant=none
-import request_exit	v() grant=none
-import request_focus	v() grant=none
-import request_redraw	v(i) grant=none
+import screen_leave	v() grant=none
+import screen_redraw	v(i) grant=none
+import screen_request	v() grant=none
 import session_get	i(ii) grant=none
 import session_set	i(ii) grant=none
-import sys_app_default	i() grant=system
+import sys_app_get_default	i() grant=system
 import sys_app_list	i(ii) grant=system
 import sys_app_remove	i(i) grant=system
 import sys_app_set_default	i(i) grant=system
 import sys_app_title	i(iii) grant=system
-import sys_do	i(i) grant=system
+import sys_draw_logo	i(iii) grant=system
 import sys_info	i(iii) grant=system
-import sys_logo	i(iii) grant=system
 import sys_logo_height	i(i) grant=system
 import sys_logo_width	i(i) grant=system
+import sys_run	i(i) grant=system
 import sys_setting_get	i(iiii) grant=system
 import sys_setting_range	i(iii) grant=system
 import sys_setting_set	i(iiii) grant=system
@@ -576,120 +555,33 @@ import time_text	i(Iiii) grant=none
 import time_uptime_ms	I() grant=none
 import time_zone_offset	i() grant=none
 import timer_set	i(ii) grant=none
-import ui_actions	i(iiii) grant=none
-import ui_bar	i(iiiii) grant=none
-import ui_button	i(iiiiiii) grant=none
-import ui_cell	i(iii) grant=none
 import ui_cell_fit	i(iii) grant=none
-import ui_chart	i(ii) grant=none
-import ui_date	i(i) grant=none
-import ui_frame	i(iiiii) grant=none
-import ui_icon	i(iiii) grant=none
+import ui_draw_actions	i(iiii) grant=none
+import ui_draw_bar	i(iiiii) grant=none
+import ui_draw_button	i(iiiiiii) grant=none
+import ui_draw_cell	i(iii) grant=none
+import ui_draw_chart	i(ii) grant=none
+import ui_draw_date	i(i) grant=none
+import ui_draw_frame	i(iiiii) grant=none
+import ui_draw_icon	i(iiii) grant=none
+import ui_draw_list_row	i(iiiiiii) grant=none
+import ui_draw_notice	i(i) grant=none
+import ui_draw_picker	i(i) grant=none
+import ui_draw_reason	i(i) grant=none
+import ui_draw_text	i(iiiiii) grant=none
+import ui_draw_text_lines	i(iiiiiii) grant=none
+import ui_draw_title	i(ii) grant=none
+import ui_draw_value	i(iiiiiii) grant=none
 import ui_list_first	i(i) grant=none
-import ui_list_row	i(iiiiiii) grant=none
 import ui_list_visible	i(i) grant=none
-import ui_notice	i(i) grant=none
-import ui_picker	i(i) grant=none
-import ui_reason	i(i) grant=none
-import ui_text	i(iiiiii) grant=none
 import ui_text_height	i(i) grant=none
-import ui_text_lines	i(iiiiiii) grant=none
 import ui_text_width	i(iii) grant=none
-import ui_title	i(ii) grant=none
-import ui_value	i(iiiiiii) grant=none
 import ui_value_width	i(iiiii) grant=none
 macro BTN_ACTION_OF	(event) ((event) & 3)
 macro BTN_EVENT	(button, action) ((button) << 2 | (action))
 macro BTN_OF	(event) ((event) >> 2)
-since alarm_set	0.1.8
-since alarm_set_at	0.1.8
-since alarm_set_every	0.1.8
-since data_count	0.1.8
-since data_element	0.1.8
-since data_item	0.1.8
-since data_response	0.1.23
-since data_value	0.1.8
-since file_read	0.1.8
-since file_size	0.1.8
-since file_write	0.1.8
-since gfx_bitmap	0.1.8
-since gfx_bitmap_file	0.1.8
-since gfx_color	0.1.8
-since gfx_font_ascent	0.1.8
-since gfx_font_cap_height	0.1.8
-since gfx_font_height	0.1.8
-since gfx_height	0.1.8
-since gfx_icon	0.1.23
-since gfx_icon_ink	0.1.8
-since gfx_line	0.1.8
-since gfx_picture	0.1.8
-since gfx_qr	0.1.8
-since gfx_rect	0.1.8
-since gfx_text	0.1.8
-since gfx_text_fit	0.1.8
-since gfx_text_ink	0.1.8
-since gfx_text_width	0.1.8
-since gfx_width	0.1.8
-since header_status	0.1.8
-since header_text	0.1.8
-since http_request	0.1.8
-since kv_get	0.1.8
-since kv_set	0.1.8
-since log	0.1.8
-since notify	0.1.8
-since poll_now	0.1.8
-since poll_set_interval	0.1.23
-since request_exit	0.1.8
-since request_focus	0.1.8
-since request_redraw	0.1.8
-since session_get	0.1.21
-since session_set	0.1.21
-since sys_app_default	0.1.8
-since sys_app_list	0.1.8
-since sys_app_remove	0.1.23
-since sys_app_set_default	0.1.8
-since sys_app_title	0.1.8
-since sys_do	0.1.8
-since sys_info	0.1.8
-since sys_logo	0.1.8
-since sys_logo_height	0.1.8
-since sys_logo_width	0.1.8
-since sys_setting_get	0.1.13
-since sys_setting_range	0.1.13
-since sys_setting_set	0.1.13
-since sys_time_set	0.1.8
-since text_fill	0.1.8
-since time_boot_id	0.1.8
-since time_from_local	0.1.23
-since time_local	0.1.8
-since time_local_at	0.1.8
-since time_now	0.1.8
-since time_text	0.1.8
-since time_uptime_ms	0.1.8
-since time_zone_offset	0.1.8
-since timer_set	0.1.8
-since ui_actions	0.1.8
-since ui_bar	0.1.8
-since ui_button	0.1.8
-since ui_cell	0.1.8
-since ui_cell_fit	0.1.8
-since ui_chart	0.1.8
-since ui_date	0.1.8
-since ui_frame	0.1.8
-since ui_icon	0.1.8
-since ui_list_first	0.1.8
-since ui_list_row	0.1.8
-since ui_list_visible	0.1.8
-since ui_notice	0.1.8
-since ui_picker	0.1.8
-since ui_reason	0.1.8
-since ui_text	0.1.8
-since ui_text_height	0.1.8
-since ui_text_lines	0.1.8
-since ui_text_width	0.1.8
-since ui_title	0.1.8
-since ui_value	0.1.8
-since ui_value_width	0.1.8
+struct host_answer_info_t align	4
+struct host_answer_info_t size	476
 struct host_cell_t align	4
 struct host_cell_t size	116
 struct host_chart_t align	4
@@ -706,8 +598,6 @@ struct host_notice_t align	4
 struct host_notice_t size	296
 struct host_picker_t align	1
 struct host_picker_t size	256
-struct host_response_t align	4
-struct host_response_t size	476
 struct host_text_argument_t align	4
 struct host_text_argument_t size	12
 struct host_text_ink_t align	4

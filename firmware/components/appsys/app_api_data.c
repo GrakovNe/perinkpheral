@@ -6,7 +6,7 @@
  */
 #include "app_internal.h"
 
-HOST_FUNCTION(data_value)
+HOST_FUNCTION(answer_value)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, index);
@@ -30,7 +30,7 @@ HOST_FUNCTION(data_value)
     m3ApiReturn((int32_t)length);
 }
 
-HOST_FUNCTION(data_count)
+HOST_FUNCTION(answer_count)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, index);
@@ -39,7 +39,7 @@ HOST_FUNCTION(data_count)
     m3ApiReturn(app->picked != NULL ? (int32_t)json_pick_count(app->picked, index) : 0);
 }
 
-HOST_FUNCTION(data_element)
+HOST_FUNCTION(answer_element)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, index);
@@ -65,7 +65,7 @@ HOST_FUNCTION(data_element)
     m3ApiReturn((int32_t)length);
 }
 
-HOST_FUNCTION(data_item)
+HOST_FUNCTION(answer_item)
 {
     m3ApiReturnType(int32_t);
 
@@ -73,7 +73,7 @@ HOST_FUNCTION(data_item)
     m3ApiReturn(app->is_in_answer ? (int32_t)app->answer_item : -1);
 }
 
-HOST_FUNCTION(data_response)
+HOST_FUNCTION(answer_info)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, response_offset);
@@ -83,8 +83,8 @@ HOST_FUNCTION(data_response)
     if (capacity < 0) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    int32_t length = capacity < (int32_t)sizeof(host_response_t)
-                         ? capacity : (int32_t)sizeof(host_response_t);
+    int32_t length = capacity < (int32_t)sizeof(host_answer_info_t)
+                         ? capacity : (int32_t)sizeof(host_answer_info_t);
     uint8_t *given = app_memory_to_fill(runtime, _mem, response_offset, length);
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
@@ -94,7 +94,7 @@ HOST_FUNCTION(data_response)
     }
     /* Put together here and copied: the application's address need not be
      * one a structure may stand at. */
-    host_response_t response = { .length = -1 };
+    host_answer_info_t response = { .length = -1 };
     if (app->response != NULL) {
         response = *app->response;
     }
@@ -159,11 +159,11 @@ static void note_store_write(app_t *app)
         writes.count = 0;
         writes.is_told = false;
     }
-    if (++writes.count > KV_WRITES_PER_MINUTE && !writes.is_told && app->services->log != NULL) {
+    if (++writes.count > KV_WRITES_PER_MINUTE && !writes.is_told && app->services->log_write != NULL) {
         static const char TOLD[] = "the store is written more than 12 times a minute: every "
                                    "write wears the flash; save in app_on_terminate()";
         writes.is_told = true;
-        app->services->log(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
+        app->services->log_write(HOST_LOG_WARN, TOLD, (int)sizeof TOLD - 1);
     }
 }
 
@@ -217,12 +217,12 @@ HOST_FUNCTION(file_read)
     m3ApiReturn(app->services->file_read(app->name, name, offset, bytes, capacity));
 }
 
-HOST_FUNCTION(poll_now)
+HOST_FUNCTION(poll_run)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, poll);
     app_t *app = APP_OF(runtime);
-    m3ApiReturn(app->services->poll_now(app->name, poll) ? HOST_OK : HOST_ERR_ARGUMENT);
+    m3ApiReturn(app->services->poll_run(app->name, poll) ? HOST_OK : HOST_ERR_ARGUMENT);
 }
 
 /* "Name: value" lines into headers; false when a line is not that or
@@ -274,7 +274,7 @@ static bool is_request_text(const uint8_t *text, int32_t length, bool allow_line
     return true;
 }
 
-HOST_FUNCTION(http_request)
+HOST_FUNCTION(http_send)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, tag);
@@ -309,7 +309,7 @@ HOST_FUNCTION(http_request)
         request->url[url_length] = '\0';
         request->body = body;
         request->body_length = body_length;
-        result = app->services->http_request(app->name, request);
+        result = app->services->http_send(app->name, request);
     }
     free(request);
     m3ApiReturn(result);

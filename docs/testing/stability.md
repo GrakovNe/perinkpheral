@@ -65,7 +65,7 @@ A failure is any of:
 - Logic that needs no hardware is a pure module with host tests; a new component or pure module
   gets its place in the tables of `tools/perinkpheral check-layers`.
 - **The owner's device is not a test bench.** Never call `/api/reset`, `/api/wifi`, `/api/ota*`,
-  never answer "Factory reset" or "Forget network" on the screen, never `sys_do`. Flash a device
+  never answer "Factory reset" or "Forget network" on the screen, never `sys_run`. Flash a device
   over USB only with the owner's agreement. A bench device of its own is planned (phase 4); until
   then, ask before a run that installs and removes applications on the owner's device.
 - Every push to `main` is a release (`CLAUDE.md`, Continuous integration). Work on a branch,
@@ -107,11 +107,11 @@ otherwise than the contract says. Per minute:
   with a check of what was written;
 - a file written, read back and checked (`file_write`, `"writes_files": true`), up to its 32 KB;
 - `session_set` in every `app_on_blur`, `session_get` checked in every `app_on_focus`;
-- `header_status` kept and given back;
-- `notify` now and then;
-- `request_focus` from an alarm (the host refuses it within 30 s of a press: count both);
-- the drawing calls over the whole kit (`ui_list_row`, `ui_cell`, `ui_chart`, `ui_notice`,
-  `gfx_qr`, text in every font).
+- `header_set_status` kept and given back;
+- `notification_post` now and then;
+- `screen_request` from an alarm (the host refuses it within 30 s of a press: count both);
+- the drawing calls over the whole kit (`ui_draw_list_row`, `ui_draw_cell`, `ui_draw_chart`, `ui_draw_notice`,
+  `gfx_draw_qr`, text in every font).
 No network (that is the other plan). It keeps counters - calls made, answers that were wrong -
 and logs a line of them every ten minutes, `soak: ...`, which the tool reads.
 

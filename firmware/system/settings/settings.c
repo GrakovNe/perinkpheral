@@ -315,7 +315,7 @@ static bool app_title_at(int32_t row, char title[TEXT_MAX + 1])
 /* The row of the default application among the installed ones; -1 for none. */
 static int32_t default_app_row(void)
 {
-    uint32_t chosen = sys_app_default();
+    uint32_t chosen = sys_app_get_default();
     int32_t  count = app_count();
     for (int32_t row = 0; chosen != 0 && row < count; row++) {
         if (app_ids[row] == chosen) {
@@ -543,10 +543,10 @@ static bool is_question(page_t page);
 static void show(void)
 {
     const char *title = page_title(HERE.page);
-    header_text(HOST_HEADER_LEFT, title, app_text_length(title));
+    header_set_text(HOST_HEADER_LEFT, title, app_text_length(title));
     /* A question is answered only by an OK pressed once it is on the panel: the host holds
      * back one meant for the row that led here. */
-    request_redraw(REDRAW | (is_question(HERE.page) ? HOST_REDRAW_QUESTION : 0));
+    screen_redraw(REDRAW | (is_question(HERE.page) ? HOST_REDRAW_QUESTION : 0));
 }
 
 static void open(page_t page, int32_t selected)
@@ -563,7 +563,7 @@ static void open(page_t page, int32_t selected)
 static void go_back(void)
 {
     if (depth == 0) {
-        request_exit();
+        screen_leave();
         return;
     }
     depth--;
@@ -720,13 +720,13 @@ static void answer_question(page_t page)
         }
         break;
     case PAGE_FORGET:
-        tell_result(sys_do(SYS_DO_FORGET_NETWORK));
+        tell_result(sys_run(SYS_DO_FORGET_NETWORK));
         break;
     case PAGE_RESTART:
-        tell_result(sys_do(SYS_DO_RESTART));
+        tell_result(sys_run(SYS_DO_RESTART));
         break;
     default:
-        tell_result(sys_do(SYS_DO_FACTORY_RESET));
+        tell_result(sys_run(SYS_DO_FACTORY_RESET));
         break;
     }
 }
@@ -747,7 +747,7 @@ static void press_up_or_down(int32_t by)
     } else {
         return;
     }
-    request_redraw(REDRAW);
+    screen_redraw(REDRAW);
 }
 
 /* A long UP or DOWN on a list: a page of rows, to the ends and no further. */
@@ -763,7 +763,7 @@ static void page_up_or_down(int32_t by)
     if (to != HERE.selected) {
         HERE.first += to - HERE.selected; /* the page moves with it */
         HERE.selected = to;
-        request_redraw(REDRAW);
+        screen_redraw(REDRAW);
     }
 }
 
@@ -856,7 +856,7 @@ void app_on_focus(void)
     show();
 }
 
-void app_init(void)
+void app_on_load(void)
 {
     order_cities();
     depth = 0;
@@ -870,7 +870,7 @@ static void press_on_clock(int32_t event)
 {
     switch (app_date_button(&clock, event)) {
     case APP_UI_CHANGED:
-        request_redraw(REDRAW);
+        screen_redraw(REDRAW);
         break;
     case APP_UI_DONE:
         if (clock_save()) {
@@ -927,7 +927,7 @@ void app_on_back(void)
 
 static void draw_text(int32_t left, int32_t baseline, int32_t font, const char *text)
 {
-    gfx_text(left, baseline - gfx_font_ascent(font), font, text, app_text_length(text));
+    gfx_draw_text(left, baseline - gfx_font_ascent(font), font, text, app_text_length(text));
 }
 
 /* Whether the row is the one that is set now: a check against it. */
@@ -960,7 +960,7 @@ static void draw_list(step_t *step)
         int32_t icon = is_app_row                   ? HOST_ICON_TRASH
                        : is_current_row(page, row) ? HOST_ICON_CHECK
                                                    : HOST_ICON_NONE;
-        ui_list_row(&list, row, label, app_text_length(label), value, app_text_length(value), icon);
+        ui_draw_list_row(&list, row, label, app_text_length(label), value, app_text_length(value), icon);
     }
 }
 
@@ -972,7 +972,7 @@ static void draw_question(const char *first, const char *second, int32_t icon, c
     copy_text(question.second, sizeof question.second, second);
     copy_text(question.ok, sizeof question.ok, action);
     copy_text(question.back, sizeof question.back, app_string(STR_CANCEL));
-    ui_notice(&question);
+    ui_draw_notice(&question);
 }
 
 /* ---- setting a value: what UP and DOWN lead to is on the screen ---- */

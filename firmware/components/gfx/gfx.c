@@ -143,7 +143,7 @@ void gfx_frame(gfx_t *g, int x, int y, int w, int h, int thickness, bool black)
     gfx_fill(g, x + w - thickness, y, thickness, h, black);
 }
 
-void gfx_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black)
+void gfx_draw_line(gfx_t *g, int x0, int y0, int x1, int y1, bool black)
 {
     int delta_x = x1 - x0, delta_y = y1 - y0;
     int steps = imax(delta_x < 0 ? -delta_x : delta_x, delta_y < 0 ? -delta_y : delta_y);
@@ -171,7 +171,7 @@ int gfx_picture_bytes(const uint8_t *picture)
     return GFX_PICTURE_HEADER + gfx_row_bytes(picture[0]) * picture[1];
 }
 
-void gfx_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black)
+void gfx_draw_picture(gfx_t *g, int x, int y, const uint8_t *picture, int cell, bool black)
 {
     int width = picture[0], height = picture[1], stride = gfx_row_bytes(width);
     const uint8_t *bits = picture + GFX_PICTURE_HEADER;
@@ -702,7 +702,7 @@ void gfx_text_copy(char *field, size_t size, const char *text)
     field[length] = '\0';
 }
 
-void gfx_text_fit(const gfx_font_t *font, const char *text, int max_width, char *fitted,
+void gfx_fit_text(const gfx_font_t *font, const char *text, int max_width, char *fitted,
                   size_t capacity)
 {
     static const char ELLIPSIS[] = "...";

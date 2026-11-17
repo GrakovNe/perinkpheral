@@ -45,7 +45,7 @@ static bool is_ink(const gfx_icon_drawing_t *drawing, int row, int column)
     return (byte >> (7 - column % 8)) & 1;
 }
 
-bool gfx_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)
+bool gfx_draw_icon(gfx_t *g, gfx_icon_id_t id, int x, int y, int cell, bool black)
 {
     if ((int)id < 0 || id >= GFX_ICON_COUNT || cell < 1) {
         return false;
