@@ -106,8 +106,8 @@ Notifications: shown by the host over any screen
 Settings: declared in the manifest, edited on the device's web page
 Настройки: объявляются в манифесте, редактируются на веб-странице устройства
 
-Localization: strings per language, loaded by the host; Latin with diacritics, Cyrillic and Greek
-Локализация: строки по языкам, загружаются хостом; латиница с диакритикой, кириллица и греческий
+Localization: strings per language, loaded by the host; Extended Latin, Cyrillic and Greek
+Локализация: строки по языкам, загружаются хостом; расширенная латиница, кириллица и греческий
 
 Tools: build, check and measure an application; control a device over the network
 Инструменты: сборка, проверка и измерение приложения; управление устройством по сети
@@ -484,8 +484,8 @@ printable ASCII, °
 Glyph packs
 Пакеты глифов
 
-Latin with diacritics, Cyrillic, Greek. Installed by the user on the device's web page
-Латиница с диакритикой, кириллица, греческий. Устанавливаются пользователем на веб-странице устройства
+Extended Latin, Cyrillic, Greek. Installed by the user on the device's web page
+Расширенная латиница, кириллица, греческий. Устанавливаются пользователем на веб-странице устройства
 
 Fallback
 Замена
@@ -886,8 +886,8 @@ Text beyond ASCII
 All text is UTF-8. The host draws each character using the first available option:
 Весь текст - в UTF-8. Хост рисует каждый символ первым доступным способом:
 
-The glyph of the character. Printable ASCII is always available. Latin letters with diacritics, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).
-Глиф символа. Печатные символы ASCII доступны всегда. Латиница с диакритикой, кириллица и греческий доступны, если пользователь установил пакет глифов (Settings, Language на веб-странице устройства).
+The glyph of the character. Printable ASCII is always available. Extended Latin, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).
+Глиф символа. Печатные символы ASCII доступны всегда. Расширенная латиница, кириллица и греческий доступны, если пользователь установил пакет глифов (Settings, Language на веб-странице устройства).
 
 An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.
 Транслитерация в ASCII: "Moskva", "Strasse", "Athina". Типографские тире и кавычки заменяются простыми.

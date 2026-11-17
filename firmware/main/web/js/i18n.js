@@ -99,6 +99,9 @@ const RUSSIAN = {
   "Slovak": "Словацкий", "Hungarian": "Венгерский", "Romanian": "Румынский", "Turkish": "Турецкий",
   "Swedish": "Шведский", "Danish": "Датский", "Norwegian": "Норвежский", "Finnish": "Финский",
   "Lithuanian": "Литовский", "Latvian": "Латышский", "Estonian": "Эстонский",
+  "Nordic": "Скандинавские", "Baltic": "Балтийские",
+  /* the glyph packs */
+  "Extended Latin": "Расширенная латиница", "Cyrillic": "Кириллица",
 
   /* credits */
   "The project": "Проект", "Author": "Автор", "License": "Лицензия", "Firmware and SDK": "Прошивка и SDK",

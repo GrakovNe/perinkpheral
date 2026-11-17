@@ -144,7 +144,7 @@
   <li>Design system: lists, notices, pickers, cells and a button row, drawn by the host</li>
   <li>Notifications: shown by the host over any screen</li>
   <li>Settings: declared in the manifest, edited on the device's web page</li>
-  <li>Localization: strings per language, loaded by the host; Latin with diacritics, Cyrillic and Greek</li>
+  <li>Localization: strings per language, loaded by the host; Extended Latin, Cyrillic and Greek</li>
   <li>Tools: build, check and measure an application; control a device over the network</li>
 </ul>
 </div>
@@ -238,7 +238,7 @@
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Encoding</td><td class="n">UTF-8</td><td>All text. Passed as pointer and length</td></tr>
   <tr><td>Built-in glyphs</td><td class="n">printable ASCII, °</td><td></td></tr>
-  <tr><td>Glyph packs</td><td class="n">3</td><td>Latin with diacritics, Cyrillic, Greek. Installed by the user on the device's web page</td></tr>
+  <tr><td>Glyph packs</td><td class="n">3</td><td>Extended Latin, Cyrillic, Greek. Installed by the user on the device's web page</td></tr>
   <tr><td>Fallback</td><td class="n">ASCII transliteration</td><td>"Moskva", "Strasse", "Athina"; otherwise <code>?</code></td></tr>
   <tr><td>Text per drawing call</td><td class="n">127 bytes</td><td>Longer text is cut between characters</td></tr>
   <tr><td>Font sizes</td><td class="n">6</td><td>Capital height 8 to 80 px. Two typefaces, selected by the user</td></tr>
@@ -515,7 +515,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 <h2 id="screen-letters">Text beyond ASCII</h2>
 <p>All text is UTF-8. The host draws each character using the first available option:</p>
 <ol>
-  <li>The glyph of the character. Printable ASCII is always available. Latin letters with diacritics, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).</li>
+  <li>The glyph of the character. Printable ASCII is always available. Extended Latin, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).</li>
   <li>An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.</li>
   <li>A question mark.</li>
 </ol>
