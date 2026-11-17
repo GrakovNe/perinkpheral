@@ -70,9 +70,14 @@ void list_draw_scrollbar(gfx_t *g, const list_t *list)
     if (visible == 0) {
         return;
     }
-    scrollbar_draw(g, list->top + TOP_GAP + ROW_BASELINE - BAR_RISE,
-                   (visible - 1) * ROW_HEIGHT + BAR_HEIGHT, list->count, visible,
-                   list_first_row(g, list));
+    /* As far from the list's bottom as from its top: the rows' own extent, or less where the
+     * last row reaches the edge. */
+    int gap = TOP_GAP + ROW_BASELINE - BAR_RISE;
+    int length = (visible - 1) * ROW_HEIGHT + BAR_HEIGHT;
+    if (length > height_of(g, list) - 2 * gap) {
+        length = height_of(g, list) - 2 * gap;
+    }
+    scrollbar_draw(g, list->top + gap, length, list->count, visible, list_first_row(g, list));
 }
 
 void list_draw_row(gfx_t *g, const list_t *list, int index, const list_row_t *row,
