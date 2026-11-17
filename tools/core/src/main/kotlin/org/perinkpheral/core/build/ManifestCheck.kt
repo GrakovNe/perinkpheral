@@ -13,6 +13,7 @@ class ManifestCheck(private val sdk: Sdk) {
     private val nameMax = sdk.limit("NAME_MAX")
     private val titleMax = sdk.limit("TITLE_MAX")
     private val descriptionMax = sdk.limit("DESCRIPTION_MAX")
+    private val settingValueMax = sdk.limit("SETTING_VALUE_MAX")
     private val versionMax = sdk.limit("VERSION_MAX")
     private val pollsMax = sdk.limit("POLLS_MAX")
     private val everyMin = sdk.limit("POLL_EVERY_MIN_S")
@@ -169,7 +170,8 @@ class ManifestCheck(private val sdk: Sdk) {
                         "seconds to a day: write \"15 min\", \"1 h\", \"30 s\"")
                 }
             }
-        } else if (!isNumber(every) || (every as Number).toDouble() !in everyMin.toDouble()..everyMax.toDouble()) {
+        } else if (every !is Long || every !in everyMin..everyMax) {
+            // An integer, as the device's JSON has only those: 1e2 is no pace to it.
             fail("$where: \"every\" must be $everyMin to $everyMax seconds, or {{key}} of a setting")
         }
         val headers = poll["headers"] ?: emptyMap<String, Any>()
@@ -249,12 +251,22 @@ class ManifestCheck(private val sdk: Sdk) {
                     fail("$path: setting $number: the \"default\" of a list is a list of items of " +
                         "1-$listItemMax printable ASCII characters")
                 }
+                // Stored as one value, the items a line apart: as long as any value may be.
+                if (default.joinToString("\n").length > settingValueMax) {
+                    fail("$path: setting $number: the \"default\" of a list is $settingValueMax bytes at most, " +
+                        "its items a line apart")
+                }
                 return@forEachIndexed
             }
+            // The device's rules for a default (app_manifest.c, has_sound_default): what it would
+            // refuse to load is refused here.
             val fits = default is String && default.isNotEmpty() && kind !in setOf("secret", "place") &&
+                default.toByteArray().size <= settingValueMax &&
                 (kind != "toggle" || default in setOf("0", "1")) &&
                 (kind != "choice" || default in (setting["options"] as List<*>)) &&
-                (kind != "number" || Regex("""-?(\d+\.?\d*|\.\d+)""").matches(default))
+                (kind != "number" || Regex("""-?(\d+\.?\d*|\.\d+)""").matches(default)) &&
+                (kind != "url" || Regex("""https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?""").matches(default)) &&
+                (kind != "link" || Regex("""https?://[!-~]+""").matches(default))
             if (!fits) fail("$path: setting $number: \"default\" must be a value the setting takes")
         }
         val numbers = settings.map { it as Map<*, *> }.filter { it["type"] == "number" }.map { it["key"] }.toSet()

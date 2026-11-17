@@ -63,7 +63,9 @@ function(perinkpheral_app app_dir)
     file(GLOB library CONFIGURE_DEPENDS "${PERINKPHERAL_ROOT}/sdk/lib/*.c")
     file(GLOB made_sources CONFIGURE_DEPENDS "${generated}/*.c")
     add_executable(${name} ${sources} ${library} ${made_sources})
-    set_target_properties(${name} PROPERTIES OUTPUT_NAME app SUFFIX ".wasm" C_STANDARD 11)
+    # Every application's module is app.wasm: each in a folder of its own.
+    set_target_properties(${name} PROPERTIES OUTPUT_NAME app SUFFIX ".wasm" C_STANDARD 11
+                          RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/modules/${name}")
     target_include_directories(${name} PRIVATE "${PERINKPHERAL_ROOT}/sdk" "${PERINKPHERAL_ROOT}/sdk/lib"
                                "${generated}" "${app_dir}")
     target_compile_options(${name} PRIVATE ${PERINKPHERAL_COMPILE_FLAGS})

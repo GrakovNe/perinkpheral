@@ -919,7 +919,8 @@ HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const vo
 
 /* Runs poll number `poll` of the manifest immediately. The answer is
  * delivered as usual. The host performs one request at a time, at most
- * one per second; calls made before the request starts are one. */
+ * one per second: one asked sooner is made when the second is up, and calls
+ * made before the request starts are one. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
 /* Queues a request from code.
@@ -1277,7 +1278,8 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
  *                   the number of installed applications.
  * sys_app_title():  writes the title. Returns its length.
  * sys_app_remove(): removes the files of the application and keeps its
- *                   store.
+ *                   store - once the handler that asks has returned, so
+ *                   sys_app_list() lists it until then.
  * All return HOST_ERR_NOT_FOUND for an id that is not installed;
  * sys_app_remove() returns HOST_ERR_ARGUMENT for the application that calls
  * it - it is removed from another, or from the device's page. */

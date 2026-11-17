@@ -757,7 +757,7 @@ static void hand_over(job_t *job)
         json_pick_init(&pick, paths, job->pick_count);
         json_pick_lists(&pick, list, sizeof list);
         bool is_json = json_pick_feed(&pick, (const char *)job->answer, job->answer_length);
-        json_pick_finish(&pick);
+        is_json = json_pick_finish(&pick) && is_json; /* as the device: a document that ends whole */
         if (json_pick_is_cut(&pick)) {
             say('W', "sim", "%s/%s %d: list elements beyond %d bytes were dropped", s_options.app,
                 kind, job->number, HOST_LIST_BYTES);

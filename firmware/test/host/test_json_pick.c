@@ -172,6 +172,14 @@ static void test_broken_documents(void)
     json_pick_init(&pick, PATHS, 2);
     CHECK(!json_pick_feed(&pick, "{\"a\":\"\\uZZZZ\"}", 14));
 
+    /* a document that never closes is not whole, whatever it held */
+    json_pick_init(&pick, PATHS, 2);
+    json_pick_feed(&pick, "{\"a\":123", 8);
+    CHECK(!json_pick_finish(&pick));
+    json_pick_init(&pick, PATHS, 2);
+    json_pick_feed(&pick, "{\"a\":123}", 9);
+    CHECK(json_pick_finish(&pick));
+
     /* an HTML error page instead of JSON finds nothing and breaks nothing */
     read_in_pieces(PATHS, 2, "<html><body>502 Bad Gateway</body></html>", 6);
     CHECK(json_pick_value(&pick, 0) == NULL && json_pick_value(&pick, 1) == NULL);

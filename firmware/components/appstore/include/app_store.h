@@ -33,6 +33,9 @@ extern "C" {
  * the rest are passed over. Never more than `capacity`. */
 int app_store_list(const char *root, app_manifest_t *manifests, int capacity);
 
+/* Sorts them by their titles again: once the titles are the device's language's. */
+void app_store_sort_by_title(app_manifest_t *manifests, int count);
+
 /* The module of an installed application, in memory the caller frees.
  * NULL when it is missing, empty, too large, or there is no memory. */
 uint8_t *app_store_read_module(const char *root, const char *name, size_t *size);

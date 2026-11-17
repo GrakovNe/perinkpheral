@@ -454,13 +454,15 @@ bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length)
     return !pick->broken;
 }
 
-void json_pick_finish(json_pick_t *pick)
+bool json_pick_finish(json_pick_t *pick)
 {
     if (pick->state == JSON_PICK_IN_LITERAL && !pick->broken) {
         value_ended(pick);
     }
     /* A string cut off by the end of the document was never a value. */
     pick->target = NO_TARGET;
+    bool is_inside = pick->state == JSON_PICK_IN_KEY || pick->state == JSON_PICK_IN_STRING;
+    return !pick->broken && !is_inside && pick->depth == 0;
 }
 
 const char *json_pick_value(const json_pick_t *pick, int index)

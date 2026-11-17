@@ -143,7 +143,7 @@ HOST_FUNCTION(sys_app_list)
 HOST_FUNCTION(sys_app_title)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(uint32_t, index);
+    m3ApiGetArg(uint32_t, app_id);
     m3ApiGetArg(uint32_t, text_offset);
     m3ApiGetArg(int32_t, capacity);
     uint8_t *text = app_memory_to_fill(runtime, _mem, text_offset, capacity);
@@ -151,18 +151,18 @@ HOST_FUNCTION(sys_app_title)
     if (text == NULL || app->services->system_app_title == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(app->services->system_app_title(index, (char *)text, capacity));
+    m3ApiReturn(app->services->system_app_title(app_id, (char *)text, capacity));
 }
 
 HOST_FUNCTION(sys_app_remove)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(uint32_t, index);
+    m3ApiGetArg(uint32_t, app_id);
     app_t *app = APP_OF(runtime);
     if (app->services->system_app_remove == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    m3ApiReturn(app->services->system_app_remove(app->name, index));
+    m3ApiReturn(app->services->system_app_remove(app->name, app_id));
 }
 
 HOST_FUNCTION(sys_app_default)

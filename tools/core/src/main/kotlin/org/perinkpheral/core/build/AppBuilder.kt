@@ -65,7 +65,11 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         val manifest = check.check(appDir)
         outDir.mkdirs()
         val wasm = File(outDir, MODULE)
-        // Whatever an earlier build left: a build that fails must not look done.
+        // Whatever an earlier build left: a build that fails must not look done, and a file the
+        // application no longer has must not travel in its package.
+        if (outDir != appDir) {
+            for (name in packageFiles(outDir)) File(outDir, name).takeIf { it.isFile }?.delete()
+        }
         wasm.delete()
         val strings = Strings(sdk, check)
         val memoryEnd = compile(appDir, wasm, strings, manifest)

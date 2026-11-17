@@ -227,7 +227,7 @@ static uint32_t next_cp(const char **s)
 
 /* ---- the square font: three strokes and two gaps, see font_square.c ---- */
 
-/* The gap is a fifth wider than the stroke: 5 + 6 + 5 + 6 + 5 = 27. */
+/* The gap is a quarter wider than the stroke, rounded: 5 + 6 + 5 + 6 + 5 = 27 at scale 5. */
 static int sq_gap(int scale)
 {
     return (scale * 5 + 2) / 4;

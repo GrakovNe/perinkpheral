@@ -263,9 +263,8 @@ static esp_err_t handle_flash(httpd_req_t *http)
     return web_server_take_firmware(http);
 }
 
-/* The list of applications is read once, at start, so a new one is
- * started by starting over: the device comes back showing what it showed
- * last, and that is made to be this application. */
+/* A new build of an application is started by starting over: the device comes back with
+ * its memory as fresh as a user's and the application on the screen. */
 static void run_app(void *argument)
 {
     /* In the host loop, which keeps the last application too: nothing

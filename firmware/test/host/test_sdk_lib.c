@@ -109,6 +109,17 @@ static void test_text(void)
     CHECK(app_time_text(0, HOST_TIME_DATE, tight, 0) == 0);
 }
 
+static void test_fixed_numbers_at_the_edges(void)
+{
+    int64_t value = 7;
+    CHECK(!app_fixed_parse("1234567890123456789", 0, &value)); /* a 19th digit would be lost */
+    CHECK(!app_fixed_parse("9223372036854775808", 0, &value));
+    CHECK(value == 7);
+    CHECK(app_fixed_parse("123456789012345678", 0, &value) && value == 123456789012345678LL);
+    CHECK(app_fixed_ratio(4000000000000000000LL, 8000000000000000000LL, 1) == 5);
+    CHECK(app_fixed_ratio(1, 3, 2) == 33);
+}
+
 static void test_paces(void)
 {
     CHECK(app_seconds_of("30 s", -1) == 30);
@@ -118,6 +129,8 @@ static void test_paces(void)
     CHECK(app_seconds_of("1 d", -1) == 86400);
     CHECK(app_seconds_of("45", -1) == 45);   /* a number alone is seconds, as the host reads it */
     CHECK(app_seconds_of("Off", -1) == -1);
+    CHECK(app_seconds_of("25 h", -1) == -1);       /* more than a day is no pace, as on the host */
+    CHECK(app_seconds_of("999999 d", -1) == -1);   /* and does not overflow */
     CHECK(app_seconds_of("At start", 0) == 0);
     CHECK(app_seconds_of("", 7) == 7);
     CHECK(app_seconds_of("5 weeks", -1) == -1);
@@ -178,6 +191,7 @@ int main(void)
 {
     test_text();
     test_paces();
+    test_fixed_numbers_at_the_edges();
     test_places();
     test_days();
     test_centring();

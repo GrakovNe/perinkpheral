@@ -217,14 +217,9 @@ int32_t app_system_app_remove(const char *asking, uint32_t id)
     if (strcmp(app->name, asking) == 0) {
         return HOST_ERR_ARGUMENT;
     }
-    host_close_app(app->name);
-    if (!launcher_remove(app->name, false)) {
-        return HOST_ERR_FAILED;
-    }
-    ESP_LOGI(TAG, "\"%s\" removed", app->name);
-    /* Not from inside the handler that asked: the list is read anew once
-     * the application that asked has returned. */
-    host_reload_apps_later();
+    /* Not from inside the handler that asked: closing the scene removed may enter another and
+     * unload the application asking, still in its handler. Removed once it has returned. */
+    host_remove_app_later(app->name);
     return HOST_OK;
 }
 

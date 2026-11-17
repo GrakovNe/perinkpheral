@@ -395,14 +395,16 @@ static bool has_sound_default(const json_t *setting, int type)
             return false;
         }
         const json_t *item;
+        size_t        stored = 0; /* the items a line apart, as the store keeps them */
         json_for_each(item, value)
         {
             if (!json_is_string(item) || !is_list_value(item->text) ||
                 strchr(item->text, '\n') != NULL) {
                 return false;
             }
+            stored += (stored > 0 ? 1 : 0) + strlen(item->text);
         }
-        return true;
+        return stored <= APP_SETTING_VALUE_MAX;
     }
     return type != APP_SETTING_SECRET && type != APP_SETTING_PLACE &&
            is_text_of(value, 1, APP_SETTING_VALUE_MAX) && is_printable(value->text) &&

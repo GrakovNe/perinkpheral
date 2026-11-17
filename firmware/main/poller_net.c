@@ -308,11 +308,12 @@ static int64_t s_read_by_ms;
  * Negative when the connection broke, READ_TOO_LONG past the answer's time. */
 static int read_piece(esp_http_client_handle_t client, uint8_t *piece)
 {
-    if (now_ms() > s_read_by_ms) {
-        return READ_TOO_LONG;
-    }
     int length = 0;
     while (length < HOST_DATA_CHUNK_MAX) {
+        /* Every read may wait its own timeout: the answer's time is looked at before each. */
+        if (now_ms() > s_read_by_ms) {
+            return READ_TOO_LONG;
+        }
         int count = esp_http_client_read(client, (char *)piece + length,
                                          HOST_DATA_CHUNK_MAX - length);
         if (count < 0) {
@@ -338,11 +339,16 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     }
     json_pick_init(&request->pick, request->paths, path_count);
     /* Room for the elements of list paths, only when there are some. */
-    char *list = NULL;
-    for (int i = 0; i < path_count && list == NULL; i++) {
-        if (json_pick_is_list(&request->pick, i)) {
-            list = malloc(HOST_LIST_BYTES);
-        }
+    bool wants_lists = false;
+    for (int i = 0; i < path_count; i++) {
+        wants_lists = wants_lists || json_pick_is_list(&request->pick, i);
+    }
+    char *list = wants_lists ? malloc(HOST_LIST_BYTES) : NULL;
+    if (wants_lists && list == NULL) {
+        /* Without the room every list would come empty, and pass for an answer. */
+        esp_http_client_close(client);
+        hand_over_values(app_name, poll_number, HOST_FAILED_NO_MEMORY, &request->response, &request->pick);
+        return;
     }
     json_pick_lists(&request->pick, list, HOST_LIST_BYTES);
     size_t total = 0;
@@ -357,7 +363,9 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
             break;
         }
     }
-    json_pick_finish(&request->pick);
+    if (!json_pick_finish(&request->pick)) {
+        is_whole = false; /* "{\"price\":123": values, and no document around them */
+    }
     esp_http_client_close(client);
     if (length < 0 || !is_whole) {
         /* Broke off, too long, or not JSON: what was read so far is not

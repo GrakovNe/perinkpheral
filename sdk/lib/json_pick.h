@@ -102,8 +102,10 @@ void json_pick_init(json_pick_t *pick, const char *const *paths, int path_count)
 bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);
 
 /* Signals the end of the document. Required to complete a number at the
- * very end of the input. */
-void json_pick_finish(json_pick_t *pick);
+ * very end of the input. Returns whether the document ended whole: every
+ * object and array closed, no string left open, nothing invalid on the way -
+ * {"price":123 is a value found in a document that is not one. */
+bool json_pick_finish(json_pick_t *pick);
 
 /* Returns the value of path number `index`, or NULL if the document had
  * none. NULL for a list path: see json_pick_element(). */

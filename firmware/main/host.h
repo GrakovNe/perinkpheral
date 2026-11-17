@@ -77,6 +77,10 @@ void host_reload_apps(void);
  * handler has returned. Never lost. */
 void host_reload_apps_later(void);
 
+/* Removes an installed application, asked for from inside another one's handler: when the
+ * handler has returned, and the list is read anew after it. */
+void host_remove_app_later(const char *app_name);
+
 /* Gives the application what is for it, on the screen or off it. */
 void host_deliver(const char *app_name, const app_delivery_t *delivery);
 

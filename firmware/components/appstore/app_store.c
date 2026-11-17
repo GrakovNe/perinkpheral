@@ -88,8 +88,13 @@ int app_store_list(const char *root, app_manifest_t *manifests, int capacity)
         }
     }
     closedir(directory);
-    qsort(manifests, (size_t)count, sizeof manifests[0], by_title);
+    app_store_sort_by_title(manifests, count);
     return count;
+}
+
+void app_store_sort_by_title(app_manifest_t *manifests, int count)
+{
+    qsort(manifests, (size_t)count, sizeof manifests[0], by_title);
 }
 
 uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)

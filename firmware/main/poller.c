@@ -156,7 +156,8 @@ static const poller_net_host_t NET_HOST = {
 
 /* The application's id, or NO_APP. With the lock held, or before the
  * poller's task is there. */
-static int id_of(const char *app_name)
+/* The id of the installed application by its name, NO_APP for none. With the lock held. */
+static int id_of_locked(const char *app_name)
 {
     for (int i = 0; i < s_known_count; i++) {
         if (strcmp(s_known[i].name, app_name) == 0) {
@@ -179,13 +180,13 @@ static bool name_of(int app, char name[APP_NAME_MAX + 1])
     return false;
 }
 
-static int app_number(const char *app_name)
+static int app_id_of(const char *app_name)
 {
     if (s_lock == NULL) {
         return NO_APP; /* asked before the poller started: nothing is scheduled yet */
     }
     lock();
-    int app = id_of(app_name);
+    int app = id_of_locked(app_name);
     unlock();
     return app;
 }
@@ -289,7 +290,7 @@ static bool run_pending_request(int why_not)
 
 int32_t poller_request(const char *app_name, const app_request_t *asked)
 {
-    int app = app_number(app_name);
+    int app = app_id_of(app_name);
     if (app == NO_APP) {
         return HOST_ERR_FAILED;
     }
@@ -437,7 +438,7 @@ void poller_answer_was_abandoned(const char *app_name, int request)
         return; /* a request of the application's own is not the host's to repeat */
     }
     lock();
-    s_abandoned.app = id_of(app_name);
+    s_abandoned.app = id_of_locked(app_name);
     s_abandoned.poll = request;
     s_abandoned.is_one = s_abandoned.app != NO_APP;
     unlock();
@@ -498,19 +499,26 @@ static bool has_waited_for_memory_enough(void)
 /* A poll with "each" is a round of requests, an item of the list each,
  * made one at a time between the others: the one under way. The task's
  * alone. */
-static struct {
+typedef struct {
     bool is_on;
     int  app;
     int  poll;
     int  item; /* the next to ask */
-} s_round;
+} round_t;
+static round_t s_round;
+/* After an item of the round, another poll that waits goes first: a long list does not keep
+ * every other application's data back until it is through. */
+static bool s_round_gives_way;
+/* A poll with a list of its own that went between the items of the round under way: the rest
+ * of its items, as the round after it. */
+static round_t s_next_round;
 
 /* Whether anything is waiting for the network now. */
 static bool wants_network(void)
 {
     lock();
     bool wanted = s_fetch_job != NULL || poll_schedule_next_wanted(&s_schedule) != NULL ||
-                  s_round.is_on;
+                  s_round.is_on || s_next_round.is_on;
     unlock();
     return wanted || has_pending_request();
 }
@@ -559,9 +567,14 @@ static bool run_wanted_poll(void)
      * list of applications read anew while the request runs: what is needed
      * of both is taken now. */
     char name[APP_NAME_MAX + 1] = "";
+    if (!s_round.is_on && s_next_round.is_on) {
+        s_round = s_next_round; /* the round that waited for the one before */
+        s_next_round.is_on = false;
+    }
     lock();
     const poll_entry_t *wanted = poll_schedule_next_wanted(&s_schedule);
-    bool is_round = s_round.is_on;
+    bool is_round = s_round.is_on && (wanted == NULL || !s_round_gives_way);
+    bool is_between = s_round.is_on && !is_round; /* a poll that waited, between two items */
     int  app = is_round ? s_round.app : wanted != NULL ? wanted->app : NO_APP;
     int  poll = is_round ? s_round.poll : wanted != NULL ? wanted->poll : 0;
     int  item = is_round ? s_round.item : 0;
@@ -607,12 +620,23 @@ static bool run_wanted_poll(void)
         }
     }
     /* More items to ask: the round goes on, between whatever else waits. */
-    s_round.is_on = item + 1 < items;
-    if (s_round.is_on) {
-        s_round.app = app;
-        s_round.poll = poll;
-        s_round.item = item + 1;
-        return true;
+    round_t rest = { .is_on = item + 1 < items, .app = app, .poll = poll, .item = item + 1 };
+    if (is_between) {
+        s_round_gives_way = false;
+        if (rest.is_on && !s_next_round.is_on) {
+            s_next_round = rest; /* its own round comes after the one under way */
+            return true;
+        }
+    } else {
+        s_round = rest;
+        s_round_gives_way = rest.is_on;
+        if (!rest.is_on && s_next_round.is_on) {
+            s_round = s_next_round;
+            s_next_round.is_on = false;
+        }
+        if (rest.is_on) {
+            return true;
+        }
     }
     /* By id: if the application is gone meanwhile, so is its poll. */
     lock();
@@ -803,7 +827,7 @@ static uint32_t user_interval_seconds(const known_app_t *known, int poll)
  * once, and those whose pace is a setting take the pace it has now. */
 void poller_hurry(const char *app_name)
 {
-    int app = app_number(app_name);
+    int app = app_id_of(app_name);
     if (app == NO_APP) {
         return;
     }
@@ -834,12 +858,28 @@ void poller_hurry(const char *app_name)
     wake();
 }
 
+/* poll_now() at most once a second (host_api.h): one asked sooner is made when the second is
+ * up, so an application that asks again from every answer does not keep the network to itself. */
+#define POLL_NOW_EVERY_MS 1000
+static int64_t s_polled_now_at_ms = -POLL_NOW_EVERY_MS;
+
 bool poller_poll_now(const char *app_name, int poll)
 {
-    int app = app_number(app_name);
+    int app = app_id_of(app_name);
     if (app == NO_APP) {
         return false;
     }
+    int64_t since_ms = uptime_ms() - s_polled_now_at_ms;
+    if (since_ms < POLL_NOW_EVERY_MS) {
+        lock();
+        bool is_one = poll_schedule_pace_ms(&s_schedule, app, poll) > 0;
+        unlock();
+        if (is_one) {
+            deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, (uint32_t)(POLL_NOW_EVERY_MS - since_ms));
+        }
+        return is_one;
+    }
+    s_polled_now_at_ms = uptime_ms();
     lock();
     bool found = poll_schedule_want(&s_schedule, app, poll);
     unlock();
@@ -849,7 +889,7 @@ bool poller_poll_now(const char *app_name, int poll)
 
 bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
 {
-    int app = app_number(app_name);
+    int app = app_id_of(app_name);
     if (app == NO_APP) {
         return false;
     }

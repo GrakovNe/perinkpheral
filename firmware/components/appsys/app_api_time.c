@@ -55,11 +55,17 @@ HOST_FUNCTION(text_fill)
         memcpy(filled + used, piece, length);
         used += length;
     }
-    /* Full to the brim: the last character may be only half there. */
-    while (used > 0 && used == HOST_TEXT_MAX && ((unsigned char)filled[used - 1] & 0x80) != 0) {
-        bool is_first_byte = !gfx_is_utf8_tail(filled[--used]);
-        if (is_first_byte) {
-            break;
+    /* Full to the brim: the last character may be only half there - its first byte and
+     * fewer of the others than it says it has. Only such a one goes. */
+    if (used == HOST_TEXT_MAX) {
+        size_t start = used;
+        while (start > 0 && gfx_is_utf8_tail(filled[start - 1])) {
+            start--;
+        }
+        unsigned char first = start > 0 ? (unsigned char)filled[start - 1] : 0;
+        size_t whole = first >= 0xF0 ? 4 : first >= 0xE0 ? 3 : first >= 0xC0 ? 2 : 1;
+        if (start > 0 && first >= 0xC0 && used - (start - 1) < whole) {
+            used = start - 1;
         }
     }
     filled[used] = '\0';

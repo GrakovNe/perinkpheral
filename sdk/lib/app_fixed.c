@@ -65,7 +65,7 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
     /* The number is mantissa * 10^exponent. */
     uint64_t mantissa = 0;
     int32_t  exponent = 0, kept = 0;
-    bool     has_digits = false, in_fraction = false;
+    bool     has_digits = false, in_fraction = false, is_inexact = false;
     for (;; at++) {
         if (is_digit(*at)) {
             has_digits = true;
@@ -77,6 +77,9 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
                 exponent -= in_fraction;
             } else if (!in_fraction) {
                 exponent++; /* a digit too many of the whole part: its place counts */
+                /* ...and its value would be lost: "1234567890123456789" is no number of 18 digits,
+                 * and one past INT64_MAX would pass for one under it. */
+                is_inexact = is_inexact || *at != '0';
             }
         } else if (*at == '.' && !in_fraction) {
             in_fraction = true;
@@ -84,7 +87,7 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
             break;
         }
     }
-    if (!has_digits) {
+    if (!has_digits || is_inexact) {
         return false;
     }
     if (*at == 'e' || *at == 'E') {
@@ -153,6 +156,11 @@ int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
     uint64_t result = dividend / divisor, rest = dividend % divisor;
     /* A decimal at a time: rest * 10^decimals would not fit. */
     for (int32_t i = 0; i < decimals; i++) {
+        /* A divisor past a tenth of 64 bits: both halved until rest * 10 fits, the ratio kept. */
+        while (rest > UINT64_MAX / DECIMAL_BASE) {
+            rest >>= 1;
+            divisor >>= 1;
+        }
         rest *= DECIMAL_BASE;
         result = result * DECIMAL_BASE + rest / divisor;
         rest %= divisor;

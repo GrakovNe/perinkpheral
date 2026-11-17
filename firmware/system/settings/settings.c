@@ -260,20 +260,12 @@ static int32_t current_city(void)
 
 static bool clock_save(void)
 {
-    int64_t local_seconds = app_date_seconds(&clock);
-    /* The host keeps UTC, and says how far the zone is from it only for a
-     * time it knows: set once to find that out, and once more to be right. */
-    if (sys_time_set(local_seconds) != HOST_OK) {
-        return false;
-    }
-    int32_t offset = time_zone_offset();
-    if (sys_time_set(local_seconds - offset) != HOST_OK) {
-        return false;
-    }
-    /* Near a change of the clocks the first guess is an hour off: the
-     * offset at the time that was meant says so. */
-    int32_t offset_then = time_zone_offset();
-    return offset_then == offset || sys_time_set(local_seconds - offset_then) == HOST_OK;
+    /* The host turns the local time into the moment, its zone and summer time with it: the
+     * clock is set once, to what was meant. */
+    host_local_time_t parts = { .year = clock.year, .month = clock.month, .day = clock.day,
+                                .hour = clock.hour, .minute = clock.minute };
+    int64_t moment = time_from_local(&parts);
+    return moment > 0 && sys_time_set(moment) == HOST_OK;
 }
 
 /* ---- the rows of a page ---- */

@@ -300,6 +300,11 @@ static bool references_other_server(const char *manifest, const char *app_name, 
         }
         char stored[APP_SETTING_VALUE_MAX + 1];
         stored_value(app_name, value->name, stored);
+        /* Nothing stored is the manifest's default: that is the server the token went to. */
+        if (stored[0] == '\0' &&
+            app_manifest_setting_default(manifest, value->name, stored, sizeof stored) < 0) {
+            stored[0] = '\0';
+        }
         if (stored[0] != '\0' && strcmp(stored, value->text) != 0) {
             return true;
         }
@@ -707,9 +712,8 @@ static const char *install_file(const char *source, const char *app_name, const 
  * there, and the list of applications is read anew - in one step, with
  * nothing of the host looking at the folder meanwhile. */
 typedef struct {
-    const char  *app_name;
-    const json_t *files;
-    bool         is_done;
+    const char *app_name;
+    bool        is_done;
 } install_command_t;
 
 static void commit_install(void *argument)
@@ -778,7 +782,7 @@ static bool is_sound_file_list(const json_t *files)
 
 /* What the files of the list take on the device, each in whole blocks:
  * the module's, and the data files' between it and the manifest. */
-static long blocks_of(double bytes)
+static long bytes_in_blocks(double bytes)
 {
     return ((long)bytes + MANIFEST_FILE_BLOCK_BYTES - 1) / MANIFEST_FILE_BLOCK_BYTES *
            MANIFEST_FILE_BLOCK_BYTES;
@@ -788,7 +792,7 @@ static long data_files_bytes(const json_t *files)
 {
     long taken = 0;
     for (int i = 1; i < json_count(files) - 1; i++) {
-        taken += blocks_of(json_get(json_at(files, i), "size")->number);
+        taken += bytes_in_blocks(json_get(json_at(files, i), "size")->number);
     }
     return taken;
 }
@@ -851,19 +855,19 @@ static esp_err_t handle_install(httpd_req_t *request)
      * when its manifest is here. */
     long module_bytes = (long)json_get(json_at(files, 0), "size")->number;
     long files_bytes = data_files_bytes(files);
-    long manifest_bytes = blocks_of(json_get(json_at(files, json_count(files) - 1), "size")->number);
+    long manifest_bytes = bytes_in_blocks(json_get(json_at(files, json_count(files) - 1), "size")->number);
+    /* What an install that failed left behind is not this one's, and is not counted against it. */
+    app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
     if ((!was_installed && count >= CATALOG_INSTALLED_MAX) ||
         !app_code_has_room(app_name, (size_t)module_bytes) ||
         !files_room_holds(app_name, false, files_bytes,
-                          blocks_of((double)module_bytes) + files_bytes + manifest_bytes)) {
+                          bytes_in_blocks((double)module_bytes) + files_bytes + manifest_bytes)) {
         json_free(json);
         return web_send_message(request, "409 Conflict", "error", "Not enough storage.");
     }
     const char  *problem = NULL;
     const json_t *entry;
     bool         asks_for_system = false, writes_files = false;
-    /* What an install that failed left behind is not this one's. */
-    app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
     /* The device stays on the network until the last file is here. */
     power_hold_radio();
     json_for_each(entry, files)
@@ -876,8 +880,9 @@ static esp_err_t handle_install(httpd_req_t *request)
     power_release_radio();
     /* Here, it takes what it fetched; one that writes has its share kept
      * from now on. */
-    if (problem == NULL && writes_files && !files_room_holds(app_name, true, files_bytes, 0)) {
-        problem = "Not enough storage.";
+    if (problem == NULL && writes_files &&
+        (files_bytes + manifest_bytes > HOST_FILES_WRITER_MAX || !files_room_holds(app_name, true, files_bytes, 0))) {
+        problem = "Not enough storage."; /* one that writes has 32 KB, its package's files in it */
     }
     /* An application with the system API can do what the network may not
      * do unasked - reset the device, forget its network: installing one is
@@ -890,7 +895,7 @@ static esp_err_t handle_install(httpd_req_t *request)
                                                   : "Not confirmed.";
     }
     if (problem == NULL) {
-        install_command_t command = { .app_name = app_name, .files = files };
+        install_command_t command = { .app_name = app_name };
         if (!events_call(commit_install, &command)) {
             problem = "Device busy.";
         } else if (!command.is_done) {
@@ -904,6 +909,8 @@ static esp_err_t handle_install(httpd_req_t *request)
         if (!was_installed) {
             remove_command_t undo = { .app_name = app_name };
             events_call(remove_command, &undo);
+        } else {
+            app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
         }
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
         /* Whose fault: the device's being busy, its storage's, its firmware's

@@ -85,7 +85,7 @@ static scene_t *system_app_scene(app_manifest_t *manifest, const char *manifest_
             strlen(manifest->name) + 1);
     memcpy(manifest->name, SYSTEM_NAME_PREFIX, strlen(SYSTEM_NAME_PREFIX));
     take_translated_title(manifest);
-    return app_scene_create_built_in(manifest, wasm, wasm_size, app_host_services());
+    return app_scene_create_in_place(manifest, wasm, wasm_size, app_host_services());
 }
 
 /* What the host calls an application: a number made of its code and its
@@ -170,6 +170,8 @@ static void read_installed(void)
     for (int i = 0; i < s_installed_count; i++) {
         take_translated_title(&s_installed[i]);
     }
+    /* By the titles shown: sys_app_list() gives them in this order. */
+    app_store_sort_by_title(s_installed, s_installed_count);
     for (int i = 0; i < s_installed_count; i++) {
         /* Run from its slot, in place; one that has none is read from its
          * file into memory, as all of them used to be. */
@@ -177,7 +179,7 @@ static void read_installed(void)
         const uint8_t *code = app_code_find(s_installed[i].name, &size);
         s_installed[i].id = id_of(s_installed[i].name, code, size);
         s_app_scenes[i] = code != NULL
-                              ? app_scene_create_built_in(&s_installed[i], code, size,
+                              ? app_scene_create_in_place(&s_installed[i], code, size,
                                                           app_host_services())
                               : app_scene_create(&s_installed[i], STORAGE_APPS_ROOT,
                                                  app_host_services());
@@ -251,8 +253,8 @@ int launcher_read_installed(app_manifest_t *copy, int capacity)
         uint32_t version = s_installed_version;
         if ((version & 1) != 0) {
             /* The host loop is reading the list anew - it reads flash, for
-             * milliseconds - and every reader outranks it: to spin here
-             * would keep it from ever finishing. */
+             * milliseconds: a reader above it that spun here would keep it
+             * from ever finishing, so a reader waits a tick whatever its tier. */
             vTaskDelay(1);
             continue;
         }

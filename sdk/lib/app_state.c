@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "app_state.h"
+#include "manifest_limits.h"
 
 #include "app_text.h"
 #include "app_values.h"
@@ -122,7 +123,8 @@ int32_t app_seconds_of(const char *text, int32_t otherwise)
                    : *text == 'h'               ? SECONDS_PER_HOUR
                    : *text == 'd'               ? SECONDS_PER_DAY
                                                 : 0;
-    return digits == 0 || unit == 0 ? otherwise : number * unit;
+    /* As the host reads a pace (app_manifest.c): more than a day is none, and would not fit. */
+    return digits == 0 || unit == 0 || number > MANIFEST_POLL_EVERY_MAX_S / unit ? otherwise : number * unit;
 }
 
 int32_t app_setting_seconds(const char *key, int32_t otherwise)

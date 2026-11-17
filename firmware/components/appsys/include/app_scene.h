@@ -26,9 +26,10 @@ scene_t *app_scene_create(const app_manifest_t *manifest, const char *store_root
  * hold the pointer after this. */
 void app_scene_destroy(scene_t *scene);
 
-/* The same for an application that is part of the firmware: its module is
- * `wasm`, which stays where it is, and nothing is read from a store. */
-scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,
+/* The same for an application whose module is run where it lies - in the firmware, or in its
+ * slot of the code partition: `wasm` stays where it is, is not copied, and nothing is read
+ * from a store. It must outlive the scene. */
+scene_t *app_scene_create_in_place(const app_manifest_t *manifest, const uint8_t *wasm,
                                    size_t wasm_size, const app_services_t *services);
 
 /* The application of this scene while it is loaded and running; NULL

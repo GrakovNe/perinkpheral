@@ -6,6 +6,7 @@
  * answers and alarms handed to an application wherever it is, news it
  * asked for, and what it keeps in the header while it is away.
  */
+#include <stdio.h>
 #include <string.h>
 
 #include "host.h"
@@ -122,14 +123,32 @@ void host_reload_apps(void)
 }
 
 static bool s_reload_is_due;
+/* An application another one asked to remove: not from inside that one's handler, where
+ * closing the scene removed could unload the interpreter running the handler. */
+static char s_removing[APP_NAME_MAX + 1];
 
 void host_reload_apps_later(void)
 {
     s_reload_is_due = true;
 }
 
+void host_remove_app_later(const char *app_name)
+{
+    snprintf(s_removing, sizeof s_removing, "%s", app_name);
+    s_reload_is_due = true;
+}
+
 void host_apps_after_event(void)
 {
+    if (s_removing[0] != '\0') {
+        host_close_app(s_removing);
+        if (launcher_remove(s_removing, false)) {
+            ESP_LOGI(TAG, "\"%s\" removed", s_removing);
+        } else {
+            ESP_LOGW(TAG, "\"%s\" could not be removed", s_removing);
+        }
+        s_removing[0] = '\0';
+    }
     if (s_reload_is_due) {
         /* Asked for from inside a handler, which has returned by now. */
         s_reload_is_due = false;
@@ -152,6 +171,13 @@ void host_deliver(const char *app_name, const app_delivery_t *delivery)
 {
     scene_t *owner = launcher_app_scene(app_name);
     if (owner != NULL) {
+        /* An alarm, news or settings for another application in the middle of an answer taken
+         * piece by piece: that answer gives way as it does to a press - its poll is asked again
+         * in a while - for there is room for one instance. */
+        if (delivery->kind != APP_DELIVERY_PIECE && host_delivery.is_mid_answer &&
+            host_delivery.in_background != NULL && host_delivery.in_background != owner) {
+            host_end_background_answer();
+        }
         s_is_delivering = true;
         app_deliver(&host_delivery, &host_wm, owner, delivery, esp_timer_get_time() / US_PER_MS);
         s_is_delivering = false;

@@ -322,8 +322,8 @@ void settings_read(appconf_t *copy)
         version = s_version;
         if ((version & 1) != 0) {
             /* Caught the owner in the middle of a change. It is the host
-             * loop, which every reader outranks: spinning here would keep
-             * it from ever finishing. */
+             * loop: a reader above it that spun here would keep it from ever
+             * finishing, so a reader waits a tick whatever its tier. */
             vTaskDelay(1);
             continue;
         }

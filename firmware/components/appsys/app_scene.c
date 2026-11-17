@@ -18,8 +18,8 @@ typedef struct {
     app_manifest_t        manifest;
     const char           *store_root;
     const app_services_t *services;
-    const uint8_t        *built_in;   /* the module of an application that is in the firmware */
-    size_t                built_in_size;
+    const uint8_t        *in_place;   /* a module run where it lies - the firmware, the code partition - not copied */
+    size_t                in_place_size;
     const uint8_t        *module;     /* the module's bytes while the application runs */
     app_t                *app;        /* NULL while not on the screen or not loadable */
     const char           *load_error; /* why app is NULL although the scene is on the screen */
@@ -59,7 +59,7 @@ static void cancel_timers(const app_services_t *services)
 
 static void release_module(app_scene_t *self)
 {
-    if (self->built_in == NULL) {
+    if (self->in_place == NULL) {
         free((uint8_t *)self->module);
     }
     self->module = NULL;
@@ -81,8 +81,8 @@ static bool load(app_scene_t *self)
         self->load_error = word(WORD_UPDATE_THE_FIRMWARE);
         return false;
     }
-    size_t module_size = self->built_in_size;
-    self->module = self->built_in != NULL ? self->built_in
+    size_t module_size = self->in_place_size;
+    self->module = self->in_place != NULL ? self->in_place
                                           : app_store_read_module(self->store_root,
                                                                   self->manifest.name, &module_size);
     if (self->module == NULL) {
@@ -334,13 +334,13 @@ void app_scene_destroy(scene_t *scene)
     free(self);
 }
 
-scene_t *app_scene_create_built_in(const app_manifest_t *manifest, const uint8_t *wasm,
+scene_t *app_scene_create_in_place(const app_manifest_t *manifest, const uint8_t *wasm,
                                    size_t wasm_size, const app_services_t *services)
 {
     scene_t *scene = app_scene_create(manifest, NULL, services);
     if (scene != NULL) {
-        ((app_scene_t *)scene)->built_in = wasm;
-        ((app_scene_t *)scene)->built_in_size = wasm_size;
+        ((app_scene_t *)scene)->in_place = wasm;
+        ((app_scene_t *)scene)->in_place_size = wasm_size;
     }
     return scene;
 }
