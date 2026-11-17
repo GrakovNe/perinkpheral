@@ -17,6 +17,7 @@ const RUSSIAN = {
 
   /* apps */
   "Add app": "Добавить приложение", "Sources": "Источники", "Catalog": "Каталог",
+  "Installed apps": "Мои приложения", "name": "название",
   "Latest": "Последняя", "{0} - up to date": "{0} - актуальна", "Default": "По умолчанию",
   "Install": "Установить", "Update": "Обновить", "Remove": "Удалить", "Set up": "Настроить",
   "Info": "Сведения", "Loading": "Загрузка", "No apps available.": "Нет доступных приложений.",

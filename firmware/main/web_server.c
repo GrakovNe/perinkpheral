@@ -204,6 +204,10 @@ static esp_err_t handle_status(httpd_req_t *request)
     json_add_string(json, "firmware", esp_app_get_description()->version);
     json_add_string(json, "slot", running != NULL ? running->label : "?");
     json_add_bool(json, "on_probation", ota_is_on_probation());
+#ifdef CONFIG_APP_DEV_CONSOLE
+    /* The page offers Control by this, and does not ask for a screen a release has not got. */
+    json_add_bool(json, "dev_tools", true);
+#endif
     json_add_string(json, "wifi", phase_name(wifi.phase));
     json_add_string(json, "ssid", wifi.ssid);
     json_add_string(json, "address", wifi.address);

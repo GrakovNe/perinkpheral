@@ -99,19 +99,13 @@ function drawStatus() {
 const LONG_PRESS_MS = 600, SCREEN_EVERY_MS = 1000;
 let frame = null, screenTimer = 0;
 
-/* The screen, while its section is in sight, a frame a second. `once`: looked at
- * wherever the page is, to learn whether the firmware has the tools at all. */
-async function lookAtScreen(once) {
+/* The screen, while its section is in sight, a frame a second: a firmware with the development
+ * tools only, as its status says. */
+async function lookAtScreen() {
   clearTimeout(screenTimer);
-  if (!once && (currentSection() !== "control" || document.hidden)) return;
+  if (!status.dev_tools || currentSection() !== "control" || document.hidden) return;
   try {
     const answer = await fetch("/api/dev/screen");
-    /* A firmware for release has no such thing: its section stays away. */
-    byId("nav-control").hidden = !answer.ok;
-    if (answer.status === 404) {
-      if (currentSection() === "control") location.hash = "#device";
-      return;
-    }
     if (answer.ok) {
       const number = answer.headers.get("X-Frame");
       if (number !== frame) {
@@ -122,7 +116,7 @@ async function lookAtScreen(once) {
       }
     }
   } catch (error) { /* the device is away for a moment: looked at again */ }
-  if (!once) screenTimer = setTimeout(lookAtScreen, SCREEN_EVERY_MS);
+  screenTimer = setTimeout(lookAtScreen, SCREEN_EVERY_MS);
 }
 
 async function press(key, isLong) {
@@ -153,6 +147,7 @@ for (const button of byId("keys").children) {
 byId("image").addEventListener("change", () => {
   const file = byId("image").files[0];
   show("image-name", file ? file.name + ", " + kb(file.size) : "No file chosen");
+  byId("image-install").disabled = !file;
 });
 
 /* A firmware on its way: a screen over the page, the time since it was sent, what is going on,

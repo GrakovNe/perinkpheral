@@ -174,8 +174,16 @@ function showSection() {
   else openInside(inside);
   for (const section of document.querySelectorAll("section"))
     section.classList.toggle("current", section.id === name);
-  for (const link of document.querySelectorAll("nav a:not(.brand)"))
+  for (const link of document.querySelectorAll("nav a:not(.brand)")) {
     link.classList.toggle("current", link.hash === "#" + name);
+    /* On a phone the menu is a line that scrolls: the section open is brought into it. */
+    if (link.hash === "#" + name)
+      document.fonts.ready.then(() => requestAnimationFrame(() => {
+        const row = link.parentElement.getBoundingClientRect(), at = link.getBoundingClientRect();
+        if (at.right > row.right) link.parentElement.scrollLeft += at.right - row.right;
+        else if (at.left < row.left) link.parentElement.scrollLeft -= row.left - at.left;
+      }));
+  }
   for (const shown of sectionShown) shown(name);
   /* The browser scrolls to what the link names; a section starts at its top. */
   scrollTo(0, 0);

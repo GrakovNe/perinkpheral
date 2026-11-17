@@ -10,8 +10,11 @@ the device's page - without one, the notes are the commits since the release bef
   "Custom" takes a POSIX string. Detect finds the browser's city by its zone's name.
 - Firmware is a section of its own: what is installed, OTA with a newer release's notes on the
   screen, and Custom firmware. Device keeps what the device is, and restart and reset.
-- Apps and the catalog are one page: the installed apps, and under a line what the sources
-  have, in columns, with the sources' gear beside it.
+- Installed apps and the Catalog are two sections: the catalog has a search over it, what the
+  sources have in columns, and the sources' gear beside its name.
+- The status says whether the firmware has the development tools: the page no longer asks a
+  release for its screen, and its log no longer says "not found" for it.
+- Custom firmware is one line: the file, and Install at its end.
 - The log is a section of its own: a window as tall as the screen, a line a row with its time
   of day, a search, warnings and errors marked.
 - The cities are in the device's language, on the device and on the page, sorted by the names

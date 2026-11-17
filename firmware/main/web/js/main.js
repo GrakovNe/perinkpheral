@@ -9,7 +9,9 @@ const isOffline = () => status.wifi === "setup" || status.wifi === "rescue";
 
 async function loadAll() {
   await Promise.all([loadStatus(), loadSettings(), loadApps()]);
-  lookAtScreen(true);
+  /* Control is for a firmware with the development tools: the status says so. */
+  byId("nav-control").hidden = !status.dev_tools;
+  if (!status.dev_tools && currentSection() === "control") location.hash = "#device";
   if (isOffline()) {
     await loadSources();
     /* the packs on offer are the official catalog's, on the internet */

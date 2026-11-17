@@ -17,28 +17,40 @@
     <svg class="mark" viewBox="0 0 11 11" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor"><path d="M4 1h6v1H4zM9 2h1v5H9zM1 4h1v5H1zM1 9h6v1H1z"/></svg>
     <svg class="wordmark" viewBox="0 0 67 5" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor"><path d="M0 0h5v1h-5zM6 0h5v1h-5zM12 0h5v1h-5zM18 0h1v1h-1zM20 0h1v1h-1zM24 0h1v1h-1zM26 0h1v1h-1zM30 0h1v1h-1zM32 0h5v1h-5zM38 0h1v1h-1zM44 0h5v1h-5zM50 0h5v1h-5zM56 0h5v1h-5zM62 0h1v1h-1zM0 1h1v1h-1zM4 1h1v1h-1zM6 1h1v1h-1zM10 1h1v1h-1zM12 1h1v1h-1zM16 1h1v1h-1zM18 1h1v1h-1zM20 1h2v1h-2zM24 1h1v1h-1zM26 1h1v1h-1zM28 1h2v1h-2zM32 1h1v1h-1zM36 1h1v1h-1zM38 1h1v1h-1zM44 1h1v1h-1zM48 1h1v1h-1zM50 1h1v1h-1zM54 1h1v1h-1zM60 1h1v1h-1zM62 1h1v1h-1zM0 2h5v1h-5zM6 2h3v1h-3zM12 2h5v1h-5zM18 2h1v1h-1zM20 2h1v1h-1zM22 2h1v1h-1zM24 2h1v1h-1zM26 2h2v1h-2zM32 2h5v1h-5zM38 2h5v1h-5zM44 2h3v1h-3zM50 2h5v1h-5zM56 2h5v1h-5zM62 2h1v1h-1zM0 3h1v1h-1zM6 3h1v1h-1zM12 3h1v1h-1zM15 3h1v1h-1zM18 3h1v1h-1zM20 3h1v1h-1zM23 3h2v1h-2zM26 3h1v1h-1zM28 3h2v1h-2zM32 3h1v1h-1zM38 3h1v1h-1zM42 3h1v1h-1zM44 3h1v1h-1zM50 3h1v1h-1zM53 3h1v1h-1zM56 3h1v1h-1zM60 3h1v1h-1zM62 3h1v1h-1zM0 4h1v1h-1zM6 4h5v1h-5zM12 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM20 4h1v1h-1zM24 4h1v1h-1zM26 4h1v1h-1zM30 4h1v1h-1zM32 4h1v1h-1zM38 4h1v1h-1zM42 4h1v1h-1zM44 4h5v1h-5zM50 4h1v1h-1zM54 4h1v1h-1zM56 4h5v1h-5zM62 4h5v1h-5z"/></svg>
   </a>
-  <a href="#apps">Apps</a>
+  <div class="links">
+  <a href="#apps">Installed apps</a>
+  <a href="#catalog">Catalog</a>
   <a href="#device">Device</a>
   <a href="#firmware">Firmware</a>
   <a href="#log">Log</a>
   <a href="#control" id="nav-control" hidden>Control</a>
   <a href="#settings">Settings</a>
   <a href="#about">Credits</a>
+  </div>
   <p translate="no"><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
 </nav>
 <main>
 
 <section id="apps">
   <div class="head">
-    <h2>Apps</h2>
+    <h2>Installed apps</h2>
     <span class="count" id="app-count"></span>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
+</section>
 
-  <div class="head catalog-head">
+<section id="catalog">
+  <div class="head">
     <h2>Catalog</h2>
     <span class="count" id="catalog-count"></span>
     <button class="icon" id="open-sources" title="Sources"></button>
+  </div>
+  <div class="search">
+    <label for="catalog-search">Search</label>
+    <div class="rows"><div>
+      <input id="catalog-search" type="search" placeholder="name" autocomplete="off" spellcheck="false">
+      <button type="button" class="quiet" id="clear-catalog-search" title="Clear">&times;</button>
+    </div></div>
   </div>
   <div class="catalog" id="catalog-rows"><p class="note">Loading</p></div>
 </section>
@@ -73,12 +85,10 @@
     </div>
 
     <h3>Custom firmware</h3>
-    <form id="custom-firmware">
+    <form id="custom-firmware" class="file-row">
       <label class="file"><input id="image" type="file" accept=".bin" required>
         <span class="button">Choose file</span><span class="name" id="image-name">No file chosen</span></label>
-      <div class="buttons">
-        <button>Install</button>
-      </div>
+      <button id="image-install" disabled>Install</button>
     </form>
   </div>
 </section>
@@ -88,14 +98,14 @@
     <h2>Log</h2>
     <span class="count" id="log-count"></span>
   </div>
-  <div class="panel log-search">
+  <div class="search">
     <label for="log-search">Search</label>
     <div class="rows"><div>
       <input id="log-search" type="search" placeholder="tag, text, address" autocomplete="off" spellcheck="false">
       <button type="button" class="quiet" id="clear-search" title="Clear">&times;</button>
     </div></div>
   </div>
-  <div class="panel log-panel">
+  <div class="log-panel">
     <div class="log-tools">
       <h3>Device log</h3>
       <button type="button" class="quiet toggle" id="follow-log" aria-pressed="true">Follow</button>

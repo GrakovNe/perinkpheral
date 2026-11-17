@@ -371,7 +371,11 @@ const available = () => offered.filter(offer => !installed.some(have => have.nam
 function drawCatalog() {
   const kept = offer => removed.includes(offer.app.name);
   const isFull = installed.length >= SLOTS;
-  const rows = available().sort((a, b) => kept(b) - kept(a) || a.app.title.localeCompare(b.app.title))
+  const wanted = byId("catalog-search").value.trim().toLowerCase();
+  const offers = available();
+  const found = offers.filter(offer => !wanted ||
+    (offer.app.title + " " + offer.app.name).toLowerCase().includes(wanted));
+  const rows = found.sort((a, b) => kept(b) - kept(a) || a.app.title.localeCompare(b.app.title))
     .map(offer => {
       const row = make("div", { className: "offer" }), text = make("div");
       const needed = firmwareNeeded(offer.app);
@@ -386,9 +390,13 @@ function drawCatalog() {
     });
   const view = byId("catalog-rows");
   view.replaceChildren(...rows);
-  if (!rows.length && catalogsRead) view.append(make("p", { className: "note", textContent: "No apps available." }));
-  show("catalog-count", catalogsRead ? String(rows.length) : "");
+  if (!rows.length && catalogsRead)
+    view.append(make("p", { className: "note", textContent: offers.length ? "Nothing found." : "No apps available." }));
+  show("catalog-count", !catalogsRead ? "" : wanted ? t("{0} of {1}", rows.length, offers.length) : String(offers.length));
 }
+
+byId("catalog-search").addEventListener("input", drawCatalog);
+byId("clear-catalog-search").addEventListener("click", () => { byId("catalog-search").value = ""; drawCatalog(); });
 
 /* The tiles stand as the device's menu does: in the order the user set on the device,
  * one it does not name yet - installed since - first. */

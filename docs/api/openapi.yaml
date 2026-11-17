@@ -77,6 +77,7 @@ components:
         storage_total: { type: integer, description: Bytes }
         largest_free_block: { type: integer, description: Bytes }
         usb_host: { type: boolean, description: A computer is on the USB cable }
+        dev_tools: { type: boolean, description: The firmware has the development tools (/api/dev); absent otherwise }
         memory_refusals: { type: integer }
         failed_allocations: { type: integer }
     Settings:
