@@ -187,8 +187,8 @@ class Guide(root: File) {
 
     /**
      * The guide into a PDF: a table of contents made of its headings, printed with a Chromium
-     * browser twice - the first print tells on which page every heading landed - and the cover,
-     * printed to its edges, joined in front with pdfunite of poppler. A number of the guide's
+     * browser twice - the first print tells on which page every heading landed - the cover on a
+     * page of its own name, printed to its edges, so that the links to the sections stay. A number of the guide's
      * table of limits that the headers have otherwise stops it.
      */
     fun pdf(contract: Contract, language: String, outFile: File?): String {
@@ -205,32 +205,21 @@ class Guide(root: File) {
         source = Regex("<table>\\s*(<tr><th.*?</tr>)", RegexOption.DOT_MATCHES_ALL).replace(source) { "<table><thead>${it.groupValues[1]}</thead>" }
         // A section's number on a plate of its own: "4. A first application".
         source = Regex("(<h1 id=\"[^\"]+\">)(\\d+)\\. ").replace(source) { "${it.groupValues[1]}<span class=\"plate\">${it.groupValues[2]}</span>" }
-        // The cover is a sheet of its own, printed to its edges; a browser does not print one page
-        // of a document without margins and the rest with them. The two are joined afterwards.
-        val coverFrom = source.indexOf("<div class=\"cover\">")
-        var coverTo = source.indexOf("</div>", source.indexOf("class=\"facts\"")) + "</div>".length
-        coverTo = source.indexOf("</div>", coverTo) + "</div>".length
-        val bodyFrom = source.indexOf("<body>") + "<body>".length
-        val cover = source.substring(0, bodyFrom) + "\n<style>@page { margin: 0; @bottom-left { content: none; border: 0; } " +
-            "@bottom-right { content: none; border: 0; } }</style>\n" + source.substring(coverFrom, coverTo) + "\n</body>\n</html>\n"
-        // The pages after the cover count from 2.
-        source = source.substring(0, coverFrom) + "<style>html { counter-reset: page 1; }</style>" + source.substring(coverTo)
+        // The cover is printed to its edges and without the pages' footer: a page of its own name,
+        // in the one print - a print joined from two would lose the links to the sections.
+        source = source.replace("</head>", "<style>@page cover { margin: 0; @bottom-left { content: none; border: 0; } " +
+            "@bottom-right { content: none; border: 0; } } .cover { page: cover; }</style>\n</head>")
         val scratch = Files.createTempDirectory("perinkpheral-guide").toFile()
         try {
             val page = File(scratch, "guide.html")
             val first = File(scratch, "first.pdf")
-            val coverPdf = File(scratch, "cover.pdf")
-            val bodyPdf = File(scratch, "body.pdf")
             // A marker inside every heading, for the first print to be searched for.
             val marked = Regex("(<h[12][^>]*id=\"([^\"]+)\"[^>]*>)").replace(source) { "${it.groupValues[1]}<span class=\"mark\">[[${it.groupValues[2]}]]</span>" }
             page.writeText(marked.replace("<!--CONTENTS-->", contents(found, emptyMap())))
             printPdf(page, first)
-            val pages = pagesOf(first).mapValues { it.value + 1 }
+            val pages = pagesOf(first)
             page.writeText(source.replace("<!--CONTENTS-->", contents(found, pages)))
-            printPdf(page, bodyPdf)
-            page.writeText(cover)
-            printPdf(page, coverPdf)
-            run("pdfunite", coverPdf.path, bodyPdf.path, out.absolutePath)
+            printPdf(page, out.absoluteFile)
             val missing = found.map { it.id }.filter { it !in pages }
             return (if (missing.isNotEmpty()) "no page found for: ${missing.joinToString(", ")}\n" else "") +
                 "${out.path}: ${found.size} headings"
