@@ -16,6 +16,8 @@ import java.security.MessageDigest
  *
  *     { "catalog": 1,
  *       "apps": [ { "name": "clock", "title": "Clock", "version": "0.1.0", "abi": 2,
+ *                   "description": "The time and the date, across the whole screen",
+ *                   "translations": { "ru": { "title": "Часы", "description": "..." } },
  *                   "files": [ { "name": "app.wasm", "size": 1741, "sha256": "..." },
  *                              { "name": "manifest.json", "size": 98, "sha256": "..." } ] } ] }
  *
@@ -86,8 +88,19 @@ object Catalog {
                 Certificates.authority(Certificates.read(File(built.dir, file as String), Long.MAX_VALUE))
             }
         }
-        // What a page shows of an application before it is installed.
+        // What a page shows of an application before it is installed: its icon, what it does,
+        // and its title and description in the languages it has (manifest.<code> of the package).
         if ("icon" in manifest) entry["icon"] = manifest["icon"]
+        if ("description" in manifest) entry["description"] = manifest["description"]
+        val translations = sortedMapOf<String, Any?>()
+        for (file in built.dir.listFiles().orEmpty().filter { Regex("manifest\\.[a-z]{2,3}").matches(it.name) }) {
+            val said = Json.parse(file.readText()) as? Map<*, *> ?: continue
+            val words = linkedMapOf<String, Any?>()
+            said["title"]?.let { words["title"] = it }
+            said["description"]?.let { words["description"] = it }
+            if (words.isNotEmpty()) translations[file.name.substringAfter('.')] = words
+        }
+        if (translations.isNotEmpty()) entry["translations"] = translations
         return entry
     }
 }

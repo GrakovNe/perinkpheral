@@ -185,6 +185,7 @@ static void add_settings(json_t *app, const char *app_name)
     free(manifest_text);
     json_t *settings = json_detach(manifest, "settings");
     json_t *icon = json_detach(manifest, "icon");
+    json_t *description = json_detach(manifest, "description");
     json_t *companion = json_detach(manifest, "companion");
     /* What the application is and reaches, for the page to say in words. */
     static const char *const FACTS[] = { "hosts", "polls", "intents", "system", "writes_files",
@@ -207,6 +208,14 @@ static void add_settings(json_t *app, const char *app_name)
     }
     json_t *values = json_new_object();
     json_t *translation = translation_of(app_name);
+    /* What the application does, in the device's language when the package has it so. */
+    const json_t *translated = json_get(translation, "description");
+    if (json_is_string(translated)) {
+        json_add_string(app, "description", translated->text);
+        json_free(description);
+    } else if (description != NULL) {
+        json_add_item(app, "description", description);
+    }
     json_t *setting;
     json_for_each(setting, settings)
     {

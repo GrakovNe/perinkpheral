@@ -171,6 +171,9 @@ button.icon:hover:not(:disabled) { border-color: var(--ink); background: var(--p
 .offer > div:not(.picture) { flex: 1; min-width: 0; }
 .offer b { display: block; font-weight: 400; }
 .offer small { display: block; color: var(--dim); }
+/* What an application does: a line under its title, in the catalog and in what it is. */
+.offer .about { display: block; margin: .15rem 0 .2rem; font-size: .9rem; }
+#info-description { margin: -.25rem 0 1.1rem; }
 .offer button { margin: 0; }
 
 /* ---- settings: tabs over forms ---- */

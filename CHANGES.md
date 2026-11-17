@@ -10,6 +10,10 @@ the device's page - without one, the notes are the commits since the release bef
   "Custom" takes a POSIX string. Detect finds the browser's city by its zone's name.
 - Firmware is a section of its own: what is installed, OTA with a newer release's notes on the
   screen, and Custom firmware. Device keeps what the device is, and restart and reset.
+- An application may say what it does: `description` in its manifest, a line of up to 95
+  characters, translated as its title is. The catalog shows it with the title in the page's
+  language, and so does what an application is; every official application has one, in
+  English and Russian.
 - Installed apps and the Catalog are two sections: the catalog has a search over it, what the
   sources have in columns, and the sources' gear beside its name.
 - The status says whether the firmware has the development tools: the page no longer asks a

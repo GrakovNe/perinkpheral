@@ -155,8 +155,9 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
         return out.toByteArray()
     }
 
-    /** The "manifest" of a translation, held to the manifest: a title, and for settings that
-     * exist their titles, help and the labels of options that exist. */
+    /** The "manifest" of a translation, held to the manifest: a title, a description when the
+     * manifest has one, and for settings that exist their titles, help and the labels of options
+     * that exist. */
     private fun translatedManifest(path: String, words: Any?, manifest: Map<*, *>, glyphs: Set<Int>): String {
         val settings = ((manifest["settings"] as? List<*>) ?: emptyList<Any>())
             .associateBy { (it as Map<*, *>)["key"] as String }.mapValues { it.value as Map<*, *> }
@@ -171,11 +172,17 @@ class Strings(private val sdk: Sdk, private val check: ManifestCheck) {
             return text as String
         }
 
-        if (words !is Map<*, *> || (words.keys - setOf("title", "settings")).isNotEmpty()) {
-            fail("$path: \"manifest\" has a \"title\" and \"settings\", nothing else")
+        if (words !is Map<*, *> || (words.keys - setOf("title", "description", "settings")).isNotEmpty()) {
+            fail("$path: \"manifest\" has a \"title\", a \"description\" and \"settings\", nothing else")
+        }
+        if ("description" in words && "description" !in manifest) {
+            fail("$path: the manifest has no \"description\" to translate")
         }
         val out = LinkedHashMap<String, Any>()
         if ("title" in words) out["title"] = wordsOf(words["title"], sdk.limit("TITLE_MAX"), "the title")
+        if ("description" in words) {
+            out["description"] = wordsOf(words["description"], sdk.limit("DESCRIPTION_MAX"), "the description")
+        }
         for ((key, said) in (words["settings"] as? Map<*, *>) ?: emptyMap<String, Any>()) {
             key as String
             val setting = settings[key] ?: fail("$path: the manifest has no setting \"$key\"")

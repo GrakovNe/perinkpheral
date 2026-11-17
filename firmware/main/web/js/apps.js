@@ -229,13 +229,13 @@ window.addEventListener("message", event => {
 async function install(button, offer) {
   /* The system API is the owner's to give: the page asks, once, in so many words. */
   if (offer.app.system &&
-      !await confirmed(t("{0} requests system access.", offer.app.title), "Install")) return;
+      !await confirmed(t("{0} requests system access.", offerSays(offer, "title")), "Install")) return;
   /* So is a certificate authority it trusts for its own requests. */
   const trusts = offer.app.trusts || [];
   if (trusts.length &&
       !await confirmed(t(trusts.length > 1 ? "{0} trusts its own certificate authorities: {1}."
                                            : "{0} trusts its own certificate authority: {1}.",
-                         offer.app.title, trusts.join(", ")), "Install")) return;
+                         offerSays(offer, "title"), trusts.join(", ")), "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
   if (await send(button, url, post({ files: offer.app.files }))) await loadApps();
 }
@@ -353,12 +353,19 @@ function appFacts(app) {
 
 function openAppInfo(app) {
   show("info-dialog-title", app.title);
+  show("info-description", app.description || "");
+  byId("info-description").hidden = !app.description;
   byId("info-facts").replaceChildren(...appFacts(app).flatMap(([name, value]) =>
     [make("dt", { textContent: name }), make("dd", { textContent: value })]));
   byId("info-dialog").showModal();
 }
 
 /* ---- the tiles, and adding one ---- */
+
+/* What a catalog says of an application - its title, its description - in the page's language
+ * when the application has it so, in English otherwise. */
+const offerSays = (offer, what) =>
+  ((offer.app.translations || {})[pageLanguage] || {})[what] || offer.app[what] || "";
 
 /* Whether the sources were read: until then the catalog says it is loading. */
 let catalogsRead = false;
@@ -374,13 +381,15 @@ function drawCatalog() {
   const wanted = byId("catalog-search").value.trim().toLowerCase();
   const offers = available();
   const found = offers.filter(offer => !wanted ||
-    (offer.app.title + " " + offer.app.name).toLowerCase().includes(wanted));
-  const rows = found.sort((a, b) => kept(b) - kept(a) || a.app.title.localeCompare(b.app.title))
+    [offerSays(offer, "title"), offerSays(offer, "description"), offer.app.name].join(" ").toLowerCase().includes(wanted));
+  const rows = found.sort((a, b) => kept(b) - kept(a) || offerSays(a, "title").localeCompare(offerSays(b, "title"), pageLanguage))
     .map(offer => {
       const row = make("div", { className: "offer" }), text = make("div");
       const needed = firmwareNeeded(offer.app);
-      text.append(make("b", { textContent: offer.app.title }),
-                  make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
+      text.append(make("b", { textContent: offerSays(offer, "title") }));
+      if (offerSays(offer, "description"))
+        text.append(make("span", { className: "about", textContent: offerSays(offer, "description") }));
+      text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
                                                 (needed ? " - " + t("needs firmware {0}", needed) : "") }));
       const button = make("button", { className: "quiet", textContent: "Install" });
       button.disabled = Boolean(needed) || isFull;

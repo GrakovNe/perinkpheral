@@ -2959,3 +2959,12 @@ The oldest firmware the application runs on, and the host call that asks for it
 ... app_on_terminate; app_init, app_on_focus, app_on_draw
 ... app_on_terminate; app_init, app_on_focus, app_on_draw
 
+description
+description
+
+1 - 95 characters, optional
+1 - 95 символов, необязательно
+
+What the application does, in a line: shown in the catalog and on the web page. Translatable
+Что делает приложение, одной строкой: показывается в каталоге и на веб-странице. Переводится
+

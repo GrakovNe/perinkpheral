@@ -12,6 +12,7 @@ import java.io.File
 class ManifestCheck(private val sdk: Sdk) {
     private val nameMax = sdk.limit("NAME_MAX")
     private val titleMax = sdk.limit("TITLE_MAX")
+    private val descriptionMax = sdk.limit("DESCRIPTION_MAX")
     private val versionMax = sdk.limit("VERSION_MAX")
     private val pollsMax = sdk.limit("POLLS_MAX")
     private val everyMin = sdk.limit("POLL_EVERY_MIN_S")
@@ -60,6 +61,9 @@ class ManifestCheck(private val sdk: Sdk) {
             fail("$path: \"name\" must be the name of the application's folder")
         }
         if (!isWords(manifest["title"], 1, titleMax)) fail("$path: \"title\" must be 1-$titleMax characters")
+        if ("description" in manifest && !isWords(manifest["description"], 1, descriptionMax)) {
+            fail("$path: \"description\" must be 1-$descriptionMax characters")
+        }
         val version = manifest["version"] ?: ""
         if (version !is String || version.toByteArray().size > versionMax) {
             fail("$path: \"version\" must be a string of at most $versionMax bytes")
