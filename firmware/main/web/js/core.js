@@ -89,7 +89,9 @@ const WORDS = { Save: ["Saving", "Saved"], Install: ["Installing", "Installed"],
  * wrong goes to the corner. Returns whether it went well. */
 async function busy(button, work) {
   const label = button.textContent;
-  const words = WORDS[Object.keys(WORDS).find(word => label.startsWith(word))] || [label, label];
+  /* The label may be in the page's language; the words are English, and put into it where they stand. */
+  const words = WORDS[Object.keys(WORDS).find(word => label.startsWith(word) || label.startsWith(t(word)))] ||
+                [label, label];
   /* Its width stays: the text changes under the user's eyes, the layout does not. */
   button.style.minWidth = button.offsetWidth + "px";
   button.disabled = true;

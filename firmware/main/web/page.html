@@ -21,8 +21,8 @@
   <a href="#device">Device</a>
   <a href="#control" id="nav-control" hidden>Control</a>
   <a href="#settings">Settings</a>
-  <a href="#about">About</a>
-  <p><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
+  <a href="#about">Credits</a>
+  <p translate="no"><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
 </nav>
 <main>
 
@@ -40,18 +40,23 @@
     <div class="head"><h2>Device</h2></div>
     <div class="groups" id="status"><p class="note">Loading</p></div>
 
-    <h3>Firmware</h3>
+    <h3>OTA</h3>
+    <dl class="ota"><dt>Installed</dt><dd id="ota-installed"></dd></dl>
+    <div class="buttons">
+      <button class="quiet" id="check-release">Check for updates</button>
+    </div>
+
+    <h3>Custom firmware</h3>
     <form id="firmware">
       <label class="file"><input id="image" type="file" accept=".bin" required>
         <span class="button">Choose file</span><span class="name" id="image-name">No file chosen</span></label>
       <div class="buttons">
         <button>Install</button>
-        <button type="button" class="quiet" id="check-release">Check for updates</button>
       </div>
     </form>
 
     <h3>Log</h3>
-    <pre id="log"></pre>
+    <pre id="log" translate="no"></pre>
     <div class="buttons">
       <button class="quiet" id="load-log">Refresh</button>
       <label class="check"><input id="follow-log" type="checkbox">Follow</label>
@@ -206,6 +211,14 @@
   <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
 </dialog>
 
+<dialog id="updating" class="updating">
+  <svg class="mark" viewBox="0 0 11 11" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor"><path d="M4 1h6v1H4zM9 2h1v5H9zM1 4h1v5H1zM1 9h6v1H1z"/></svg>
+  <h2 id="updating-title"></h2>
+  <p class="timer" id="updating-timer">0:00</p>
+  <p id="updating-step"></p>
+  <div class="buttons" id="updating-buttons" hidden><button id="updating-reload">Reload</button></div>
+</dialog>
+
 <dialog id="confirm-dialog">
   <form method="dialog">
     <p id="confirm-text"></p>
@@ -237,6 +250,6 @@
 
 <div class="toasts" id="toasts"></div>
 
-<!-- script: js/core.js js/apps.js js/device.js js/settings.js js/main.js -->
+<!-- script: js/i18n.js js/core.js js/apps.js js/device.js js/settings.js js/main.js -->
 </body>
 </html>

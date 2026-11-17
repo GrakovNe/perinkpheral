@@ -182,6 +182,7 @@ button.tile.add:disabled { color: var(--line); border-color: var(--line); opacit
 pre { margin: 0; padding: .9rem 1rem; border: 1px solid var(--ink); max-height: 22rem; overflow: auto;
       font-family: inherit; font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty::before { content: "Empty."; color: var(--dim); }
+html:lang(ru) pre:empty::before { content: "Пусто."; }
 /* The panel as it stands in its case: the screen in a frame of wood, the buttons under it. */
 .screen { display: grid; gap: 1rem; max-width: 40rem; margin: 0; }
 .bezel { padding: .7rem; background: var(--wood); border: 1px solid var(--ink); }
@@ -196,13 +197,26 @@ dialog { width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 3rem); 
          color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0;
          box-shadow: 8px 8px 0 var(--ink); }
 dialog::backdrop { background: rgba(20, 20, 19, .5); }
+/* A firmware on its way: the page waits under it. */
+.updating { width: min(24rem, calc(100vw - 2rem)); text-align: center; padding: 2.25rem 1.6rem 2rem; }
+.updating::backdrop { background: var(--paper); }
+.updating .mark { width: 2.75rem; height: 2.75rem; margin: 0 auto 1.25rem; display: block; }
+.updating h2 { margin-bottom: .5rem; }
+.updating .timer { font-size: 2.75rem; margin: 0 0 .5rem; font-variant-numeric: tabular-nums; }
+.updating p { margin: 0; }
+.updating .buttons { justify-content: center; margin-top: 1.25rem; }
+.ota { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: .9rem; }
+.ota dd { text-align: left; }
 dialog h2 { font-size: 1.35rem; margin-bottom: 1rem; }
 dialog p { margin: 0 0 .5rem; }
 dialog .notes { margin: .75rem 0 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; font: inherit; font-size: .9rem; }
 dialog .buttons { justify-content: flex-end; margin-top: 1.5rem; }
-ul.plain { list-style: none; padding: 0; margin: 0; }
-ul.plain li { padding: .55rem 0; border-bottom: 1px solid var(--line); }
-ul.plain small { color: var(--dim); display: block; }
+/* What the firmware is made with: a row a part, as the portal lists them. */
+table.credits { width: 100%; border-collapse: collapse; }
+.credits th { text-align: left; font-weight: normal; color: var(--dim); padding: 0 1rem .4rem 0; }
+.credits td { padding: .55rem 1rem .55rem 0; border-top: 1px solid var(--line); vertical-align: top;
+              overflow-wrap: anywhere; }
+.credits td:first-child { white-space: nowrap; }
 details { margin-top: 2.25rem; }
 summary { cursor: pointer; padding-bottom: .4rem; border-bottom: 1px solid var(--ink); margin-bottom: .9rem;
           list-style: none; }

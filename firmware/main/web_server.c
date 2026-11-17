@@ -213,7 +213,9 @@ static esp_err_t handle_status(httpd_req_t *request)
         time_t now = (time_t)net_time_now();
         struct tm local;
         localtime_r(&now, &local);
-        strftime(local_time, sizeof local_time, "%a %d %b %H:%M", &local);
+        /* In the device's language, as its header says it: "Tue 17 Nov", "Вт 17 ноя". */
+        snprintf(local_time, sizeof local_time, "%s %d %s %02d:%02d", word(WORD_SUN + local.tm_wday),
+                 local.tm_mday, word(WORD_JAN + local.tm_mon), local.tm_hour, local.tm_min);
         json_add_string(json, "time", local_time);
     }
     json_add_string(json, "hostname", settings.hostname);

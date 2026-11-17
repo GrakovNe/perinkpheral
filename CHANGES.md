@@ -4,6 +4,17 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.18
+
+- The device's page speaks the device's language - English or Russian - in the terms the device
+  uses itself; the status's time is in it too.
+- The page's firmware is two parts, OTA and Custom firmware. While an update is under way a
+  screen over the page counts the time and says what is going on, finds the device when it is
+  back and reads the page anew.
+- About is Credits, as on the portal: the project, what the firmware is made with, the
+  typefaces.
+- The confirmation of a new firmware is logged by its number, not "UNKNOWN ERROR".
+
 ## 0.1.17
 
 - The device's page answers while the device waits for OK on its screen, and while it installs

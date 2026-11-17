@@ -50,6 +50,7 @@ function posixZone() {
 
 async function loadSettings() {
   settings = await ask("/api/settings");
+  setLanguage(settings.language);
   for (const key of ["device_name", "ntp_server", "refresh_min_data_s", "refresh_keepalive_h"])
     byId(key).value = settings[key];
   /* A device that was never told its zone is offered the browser's. */
@@ -58,7 +59,7 @@ async function loadSettings() {
   /* A value the list does not have - set some other way - gets a line of its own. */
   if (![...fullEvery.options].some(option => Number(option.value) === settings.refresh_full_every))
     fullEvery.append(make("option", { value: settings.refresh_full_every,
-                                      textContent: "Every " + settings.refresh_full_every + " updates" }));
+                                      textContent: t("Every {0} updates", settings.refresh_full_every) }));
   fullEvery.value = settings.refresh_full_every;
   byId("dither").checked = settings.dither;
   byId("font").value = settings.font;

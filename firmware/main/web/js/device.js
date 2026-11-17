@@ -10,13 +10,13 @@ let status = {};
 function duration(seconds) {
   const days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600);
   const minutes = Math.floor(seconds % 3600 / 60);
-  return days ? days + " d " + hours + " h" : hours ? hours + " h " + minutes + " min" : minutes + " min";
+  return days ? t("{0} d {1} h", days, hours) : hours ? t("{0} h {1} min", hours, minutes) : t("{0} min", minutes);
 }
 
-const kb = bytes => Math.round(bytes / 1024) + " KB";
+const kb = bytes => t("{0} KB", Math.round(bytes / 1024));
 
 /* Why the device started this time: esp_reset_reason_t. */
-const STARTS = { 1: "Power on", 2: "Reset pin", 3: "Restart", 4: "Fault", 5: "Interrupt watchdog",
+const STARTS = { 1: "Power on", 2: "Reset pin", 3: "Restarted", 4: "Fault", 5: "Interrupt watchdog",
                  6: "Task watchdog", 7: "Watchdog", 8: "Wake from sleep", 9: "Brownout" };
 
 /* The record of the last fault: "6 \"Interrupt wdt timeout o\" wifi pc ...": so many starts ago,
@@ -25,30 +25,30 @@ function lastFault(record) {
   const found = (record || "").match(/^(\d+) "([^"]*)" (\S+)/);
   if (!found) return null;
   const [, ago, why, task] = found;
-  return why.trim() + ", " + task + " - " + ago + (ago === "1" ? " start ago" : " starts ago");
+  return t(ago === "1" ? "{0}, {1} - {2} start ago" : "{0}, {1} - {2} starts ago", why.trim(), task, ago);
 }
 
 /* The network's state, as the device names it, in words. */
-const WIFI = { online: "Connected", connecting: "Connecting", setup: "Setup", rescue: "Not connected" };
+const WIFI = { online: "Online", connecting: "Connecting", setup: "Setup mode", rescue: "Not connected" };
 const wifiState = () => WIFI[status.wifi] || status.wifi;
 
 /* The device's facts as a person reads them, in groups; what it does not say is left out. */
 function statusFacts() {
   const language = (settings.languages || []).find(known => known.code === settings.language);
   const faults = [];
-  if (status.memory_refusals) faults.push(status.memory_refusals + " refused");
-  if (status.failed_allocations) faults.push(status.failed_allocations + " failed");
+  if (status.memory_refusals) faults.push(t("{0} refused", status.memory_refusals));
+  if (status.failed_allocations) faults.push(t("{0} failed", status.failed_allocations));
   const has = number => number !== undefined;
   return [
     ["Device", [
       ["Name", status.name],
-      ["Firmware", status.firmware && status.firmware + (status.on_probation ? " (verifying)" : "")],
+      ["Firmware", status.firmware && (status.on_probation ? t("{0} (verifying)", status.firmware) : status.firmware)],
       ["Built", status.built],
       ["ESP-IDF", status.idf],
       ["Slot", status.slot],
       ["Time", status.time],
       ["Uptime", has(status.uptime_s) && duration(status.uptime_s)],
-      ["Last start", STARTS[status.reset_reason] || (status.reset_reason && "Code " + status.reset_reason)],
+      ["Last start", STARTS[status.reset_reason] || (status.reset_reason && t("Code {0}", status.reset_reason))],
       ["Last fault", lastFault(status.last_panic)],
       ["Language", language && language.name],
     ]],
@@ -63,9 +63,9 @@ function statusFacts() {
       ["Lowest", has(status.least_free_memory) && kb(status.least_free_memory)],
       ["Largest block", has(status.largest_free_block) && kb(status.largest_free_block)],
       ["Errors", faults.join(", ")],
-      ["App area", status.app_area && kb(status.app_area_used) + " of " + kb(status.app_area)],
+      ["App area", status.app_area && t("{0} of {1}", kb(status.app_area_used), kb(status.app_area))],
       ["Storage", status.storage_ok === false ? "Error"
-        : status.storage_total && kb(status.storage_used) + " of " + kb(status.storage_total)],
+        : status.storage_total && t("{0} of {1}", kb(status.storage_used), kb(status.storage_total))],
     ]],
   ].map(([name, facts]) => [name, facts.filter(([, value]) => value)]).filter(([, facts]) => facts.length);
 }
@@ -79,6 +79,7 @@ async function loadStatus() {
   drawStatus();
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
+  show("ota-installed", status.firmware || "");
 }
 
 function drawStatus() {
@@ -152,11 +153,63 @@ byId("image").addEventListener("change", () => {
   show("image-name", file ? file.name + ", " + kb(file.size) : "No file chosen");
 });
 
-byId("firmware").addEventListener("submit", async event => {
+/* A firmware on its way: a screen over the page, the time since it was sent, what is going on,
+ * and the page read anew once the device is back with it. */
+const BACK_EVERY_MS = 2000, BACK_WITHIN_MS = 5 * 60 * 1000;
+
+async function updateFirmware(url, options) {
+  const dialog = byId("updating");
+  const started = Date.now();
+  const step = (title, text) => { show("updating-title", title); show("updating-step", text); };
+  const clock = setInterval(() => {
+    const seconds = Math.floor((Date.now() - started) / 1000);
+    show("updating-timer", Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0"));
+  }, 250);
+  byId("updating-buttons").hidden = true;
+  step("Updating", CONFIRM_ON_DEVICE);
+  dialog.showModal();
+  /* While its firmware is written, the page has nothing else to offer. */
+  dialog.addEventListener("cancel", event => event.preventDefault());
+  /* The device answers once the image is written: until then it asks, and then fetches. */
+  const asking = setTimeout(() => step("Updating", "Installing."), 15000);
+  try {
+    await ask(url, options);
+  } catch (error) {
+    /* The device said no ("Not confirmed.", "Invalid image."). One that went quiet may be
+       restarting into the image already: it is looked for. */
+    if (!(error instanceof TypeError)) {
+      clearTimeout(asking);
+      clearInterval(clock);
+      dialog.close();
+      toast(error.message, "error");
+      return;
+    }
+  }
+  clearTimeout(asking);
+  step("Restarting", "Waiting for the device.");
+  const sent = Date.now(), before = status.firmware;
+  while (Date.now() - sent < BACK_WITHIN_MS) {
+    await new Promise(resolve => setTimeout(resolve, BACK_EVERY_MS));
+    let now;
+    try { now = await (await fetch("/api/status", { cache: "no-store" })).json(); } catch (error) { continue; }
+    /* Back, and started since: another firmware, or up for less time than it was away. */
+    if (now.firmware !== before || now.uptime_s * 1000 < Date.now() - sent) {
+      step("Restarting", "Back online.");
+      clearInterval(clock);
+      location.reload();
+      return;
+    }
+  }
+  clearInterval(clock);
+  step("Restarting", "Device not found.");
+  byId("updating-buttons").hidden = false;
+}
+
+byId("updating-reload").addEventListener("click", () => location.reload());
+
+byId("firmware").addEventListener("submit", event => {
   event.preventDefault();
-  toast(CONFIRM_ON_DEVICE);
-  if (await send(event.submitter, "/api/ota", { method: "POST", body: byId("image").files[0] }))
-    afterRestart();
+  updateFirmware("/api/ota", { method: "POST", body: byId("image").files[0] });
 });
 
 /* "0.1.0" and "0.1.0-da983bb": the version a build says of itself is the release's, and its commit. */
@@ -177,10 +230,8 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   if (!isNewer(releaseOf(version), releaseOf(status.firmware || ""))) return toast("Up to date.");
   /* The release's notes are the version's section of CHANGES.md, the flasher's line after them. */
   const notes = (release.body || "").split(/\n\s*\nA first flash/)[0].trim();
-  if (!await confirmed("Update to " + version + "?", "Update", notes)) return;
-  toast(CONFIRM_ON_DEVICE);
-  if (await send(event.target, "/api/ota/release", post({ url: image.browser_download_url, size: image.size })))
-    afterRestart();
+  if (!await confirmed(t("Update to {0}?", version), "Update", notes)) return;
+  updateFirmware("/api/ota/release", post({ url: image.browser_download_url, size: image.size }));
 }));
 
 /* ---- the log: what was written since the last look; after a restart, the new log whole ---- */

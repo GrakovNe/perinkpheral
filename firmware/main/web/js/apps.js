@@ -229,12 +229,13 @@ window.addEventListener("message", event => {
 async function install(button, offer) {
   /* The system API is the owner's to give: the page asks, once, in so many words. */
   if (offer.app.system &&
-      !await confirmed(offer.app.title + " requests system access.", "Install")) return;
+      !await confirmed(t("{0} requests system access.", offer.app.title), "Install")) return;
   /* So is a certificate authority it trusts for its own requests. */
   const trusts = offer.app.trusts || [];
   if (trusts.length &&
-      !await confirmed(offer.app.title + " trusts its own certificate " +
-                       (trusts.length > 1 ? "authorities: " : "authority: ") + trusts.join(", ") + ".", "Install")) return;
+      !await confirmed(t(trusts.length > 1 ? "{0} trusts its own certificate authorities: {1}."
+                                           : "{0} trusts its own certificate authority: {1}.",
+                         offer.app.title, trusts.join(", ")), "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
   if (await send(button, url, post({ files: offer.app.files }))) await loadApps();
 }
@@ -274,7 +275,7 @@ function tile(have, offer) {
      * what it needs instead, where it can be read. */
     const needed = firmwareNeeded(offer.app);
     if (needed) {
-      box.append(make("small", { className: "needs", textContent: "Update needs firmware " + needed }));
+      box.append(make("small", { className: "needs", textContent: t("Update needs firmware {0}", needed) }));
     } else {
       const update = make("button", { className: "action", textContent: "Update" });
       update.title = offer.app.version;
@@ -284,7 +285,7 @@ function tile(have, offer) {
   }
   const remove = make("button", { className: "action quiet", textContent: "Remove" });
   remove.addEventListener("click", async () => {
-    if (await confirmed("Remove " + have.title + "? Settings are kept.", "Remove") &&
+    if (await confirmed(t("Remove {0}? Settings are kept.", have.title), "Remove") &&
         await send(remove, "/api/apps/remove?app=" + encodeURIComponent(have.name), { method: "POST" }))
       await loadApps();
   });
@@ -294,8 +295,8 @@ function tile(have, offer) {
 
 /* ---- what an application is, as its manifest says it ---- */
 
-const pace = seconds => seconds % 3600 === 0 ? seconds / 3600 + " h"
-                      : seconds % 60 === 0 ? seconds / 60 + " min" : seconds + " s";
+const pace = seconds => seconds % 3600 === 0 ? t("{0} h", seconds / 3600)
+                      : seconds % 60 === 0 ? t("{0} min", seconds / 60) : t("{0} s", seconds);
 
 /* A poll's pace: so many seconds, or "{{key}}" of a setting the user chose it in. */
 function paceOf(app, every) {
@@ -320,7 +321,7 @@ function hostOf(app, address) {
     return new URL(whole.includes("://") ? whole : "http://" + whole).host;
   } catch (error) {
     const setting = app.settings.find(have => have.key === key);
-    return setting ? setting.title + " (not set)" : address;
+    return setting ? setting.title + " (" + t("not set") + ")" : address;
   }
 }
 
@@ -331,10 +332,10 @@ const hiddenKeys = app => new Set(app.settings.filter(setting => setting.type ==
 function appFacts(app) {
   const hosts = [...new Set([...(app.hosts || []), ...(app.polls || []).map(poll => poll.url)]
                             .map(address => hostOf(app, address)))];
-  const updates = (app.polls || []).map(poll => "Every " + paceOf(app, poll.every));
+  const updates = (app.polls || []).map(poll => t("Every {0}", paceOf(app, poll.every)));
   const hidden = hiddenKeys(app);
   const stores = app.settings.filter(setting => !hidden.has(setting.key))
-    .map(setting => setting.title + (setting.type === "secret" || setting.type === "link" ? " (secret)" : ""));
+    .map(setting => setting.title + (setting.type === "secret" || setting.type === "link" ? " (" + t("secret") + ")" : ""));
   return [
     ["Name", app.name],
     ["Version", app.version || "-"],
@@ -378,8 +379,8 @@ function openStore() {
     const row = make("div", { className: "offer" }), text = make("div");
     const needed = firmwareNeeded(offer.app);
     text.append(make("b", { textContent: offer.app.title }),
-                make("small", { textContent: offer.app.version + (kept(offer) ? " - settings kept" : "") +
-                                              (needed ? " - needs firmware " + needed : "") }));
+                make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
+                                              (needed ? " - " + t("needs firmware {0}", needed) : "") }));
     const button = make("button", { textContent: "Install" });
     button.disabled = Boolean(needed);
     button.addEventListener("click", async () => {
@@ -406,7 +407,7 @@ function inMenuOrder(apps) {
 function drawTiles() {
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles, addTile());
-  show("app-count", installed.length + " of " + SLOTS);
+  show("app-count", t("{0} of {1}", installed.length, SLOTS));
 }
 
 async function loadApps() {
@@ -440,7 +441,7 @@ async function loadCatalogs() {
   offered = found;
   drawTiles();
   loadGlyphs();
-  for (const source of silent) toast("Source unavailable: " + source, "error");
+  for (const source of silent) toast(t("Source unavailable: {0}", source), "error");
 }
 
 /* ---- sources ---- */
