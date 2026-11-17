@@ -61,6 +61,9 @@ typedef struct {
     int      depth;
     wm_change_t change;
     bool     suspended;   /* see wm_suspend() */
+    /* Taken off the stack by the step under way: told so once it is done (scene_ops_t.discard). */
+    scene_t *forgotten[WM_STACK_DEPTH + 1];
+    int      forgotten_count;
 
     wm_draw_header_fn draw_header;
     void             *header_context;

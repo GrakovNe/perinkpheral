@@ -23,6 +23,7 @@ typedef struct {
     int              entered;
     int              left;
     int              discarded;
+    int              left_when_discarded; /* told after its last leave, not before */
     int              presses;
     int              last_timer;
     int              surface_w;
@@ -43,6 +44,7 @@ static void probe_leave(scene_t *scene)
 static void probe_discard(scene_t *scene)
 {
     ((probe_t *)scene)->discarded++;
+    ((probe_t *)scene)->left_when_discarded = ((probe_t *)scene)->left;
 }
 
 static scene_reaction_t probe_button(scene_t *scene, scene_button_t button, scene_press_t press)
@@ -472,6 +474,12 @@ static void test_drop(void)
     CHECK(wm.current == &page.scene);
 }
 
+static void resume_before_switch(void *context)
+{
+    (void)context;
+    wm_resume(&wm);
+}
+
 /* Where the user is in a scene lasts while it is in the stack: a scene that waits under another
  * keeps it, one that leaves the stack - BACK, the long press, the oldest forgotten, opened anew
  * from the menu - is told so. */
@@ -507,6 +515,19 @@ static void test_leaving_the_stack(void)
     wm_open(&wm, &page.scene);
     wm_close(&wm, &page.scene);
     CHECK(page.discarded == 1);
+
+    /* Suspended for a delivery, and another opened from the menu: the switch first ends the
+     * suspension - the scene enters and leaves again - and only then is it told it is gone. */
+    wm_open_from_home(&wm, &app.scene);
+    CHECK(wm.current == &app.scene);
+    int discarded_before = app.discarded;
+    wm_suspend(&wm);
+    wm_before_switch(&wm, resume_before_switch, NULL);
+    wm_open_from_home(&wm, &page.scene);
+    CHECK(wm.current == &page.scene);
+    CHECK(app.discarded == discarded_before + 1);
+    CHECK(app.left_when_discarded == app.left); /* its last leave came first */
+    wm_before_switch(&wm, NULL, NULL);
 }
 
 static void test_stack(void)

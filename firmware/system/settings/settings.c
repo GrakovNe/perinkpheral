@@ -639,6 +639,11 @@ static void activate(page_t page, int32_t row)
         }
         break;
     case PAGE_DEFAULT_APP:
+        /* The applications as the host lists them now: an OK that came before the page was
+         * drawn again must not choose from a list never read. */
+        if (row > app_count()) {
+            break;
+        }
         if (sys_app_set_default(row == 0 ? 0 : app_ids[row - 1]) == HOST_OK) {
             go_back();
         } else {

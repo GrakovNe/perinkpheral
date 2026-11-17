@@ -137,6 +137,11 @@ const scene_t *host_scene_on_panel(void)
 /* The buttons that went down while a scene that asks once was on the
  * panel: only their presses are that scene's to take. */
 static uint8_t s_went_down_on_question;
+/* What each of them went down on: the scene and its question. */
+static struct {
+    const scene_t *scene;
+    uint32_t       question;
+} s_went_down_for[4];
 /* When the scene on the panel got there: the end of the refresh that put
  * its first picture on it. A press made before this was made for another
  * picture, though it is taken off the queue only now. */
@@ -162,12 +167,16 @@ static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t pres
         if (s_scene_on_panel == scene && s_question_on_panel == scene->question &&
             at_ms >= s_scene_shown_at_ms) {
             s_went_down_on_question |= button;
+            s_went_down_for[index].scene = scene;
+            s_went_down_for[index].question = scene->question;
         } else {
             s_went_down_on_question &= (uint8_t)~button;
         }
         return false; /* a question has no use for the way down itself */
     }
-    bool began_here = (s_went_down_on_question & button) != 0;
+    /* Down on this very question: another one opened while the button was held is not answered. */
+    bool began_here = (s_went_down_on_question & button) != 0 && s_went_down_for[index].scene == scene &&
+                      s_went_down_for[index].question == scene->question;
     if (press == EVENT_PRESS_SHORT || press == EVENT_PRESS_LONG) {
         s_went_down_on_question &= (uint8_t)~button;
     }
@@ -193,7 +202,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     }
     power_note_press(); /* the user is here: the device stays reachable for a while */
     app_delivery_note_press(&host_delivery, at_ms); /* and nobody takes the screen from them */
-    host_notices_note_press();
+    if (press == EVENT_PRESS_DOWN) {
+        host_notices_note_press(); /* a new press: the release of the long BACK is not one */
+    }
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */

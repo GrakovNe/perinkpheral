@@ -164,6 +164,18 @@ static bool is_running(const app_scene_t *self)
     return self->app != NULL && !app_has_stopped(self->app);
 }
 
+/* A request's question: another number each time it asks one, 0 when the request asks none. */
+static void take_question(app_scene_t *self, int flags)
+{
+    static uint32_t questions;
+    if ((flags & HOST_REDRAW_QUESTION) == 0) {
+        self->scene.question = 0;
+    } else {
+        questions = questions == UINT32_MAX ? 1 : questions + 1;
+        self->scene.question = questions;
+    }
+}
+
 /* What the application asked for while its handler ran. */
 static scene_reaction_t reaction_of(app_scene_t *self)
 {
@@ -176,14 +188,7 @@ static scene_reaction_t reaction_of(app_scene_t *self)
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {
         int flags = app_take_redraw_flags(self->app);
-        /* A question of its own: another one each time it asks. */
-        static uint32_t questions;
-        if ((flags & HOST_REDRAW_QUESTION) == 0) {
-            self->scene.question = 0;
-        } else {
-            questions = questions == UINT32_MAX ? 1 : questions + 1;
-            self->scene.question = questions;
-        }
+        take_question(self, flags);
         reaction.kind = (flags & HOST_REDRAW_CLEAN)      ? SCENE_REDRAW_CLEAN
                         : (flags & HOST_REDRAW_NO_BLINK) ? SCENE_REDRAW_NO_BLINK
                         : (flags & HOST_REDRAW_SOON)     ? SCENE_REDRAW_SOON
@@ -264,8 +269,12 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
         return;
     }
     if (!app_has_stopped(self->app)) {
+        /* Drawing is itself the answer to any request made so far - one made at its entry, in
+         * app_init() or app_on_focus(), among them: a question asked there is a question. */
+        if (app_take_redraw_request(self->app)) {
+            take_question(self, app_take_redraw_flags(self->app));
+        }
         app_draw(self->app, surface);
-        /* Drawing is itself the answer to any request made so far. */
         app_take_redraw_request(self->app);
         app_take_redraw_flags(self->app);
     }

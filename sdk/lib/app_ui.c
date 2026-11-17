@@ -10,12 +10,15 @@
 #include "app_text.h"
 #include "host_api.h"
 
+/* Round the range, however far: 55 minutes and ten more are 5. */
 static int32_t wrapped(int32_t value, int32_t first, int32_t last)
 {
-    if (value < first) {
-        return last;
+    int32_t span = last - first + 1;
+    if (span <= 0) {
+        return first;
     }
-    return value > last ? first : value;
+    int32_t into = (value - first) % span;
+    return first + (into < 0 ? into + span : into);
 }
 
 /* ---- a list ---- */

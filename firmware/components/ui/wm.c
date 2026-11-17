@@ -57,18 +57,42 @@ static int place_of(const wm_t *wm, const scene_t *scene)
     return -1;
 }
 
-static void forget(scene_t *scene)
+static int place_of(const wm_t *wm, const scene_t *scene);
+
+static void discard(scene_t *scene)
 {
     if (scene != NULL && scene->ops->discard != NULL) {
         scene->ops->discard(scene);
     }
 }
 
+/* Taken off the stack: told once the step is done, for the switch it leads to may first end a
+ * suspension - give the screen back to a scene, and take it again - whose blur must not speak
+ * for a scene that is gone. */
+static void forget(wm_t *wm, scene_t *scene)
+{
+    if (scene != NULL && wm->forgotten_count < WM_STACK_DEPTH + 1) {
+        wm->forgotten[wm->forgotten_count++] = scene;
+    }
+}
+
+/* The step is done: those that are not back in the stack, and not on the screen, are gone. */
+static void tell_forgotten(wm_t *wm)
+{
+    for (int i = 0; i < wm->forgotten_count; i++) {
+        scene_t *scene = wm->forgotten[i];
+        if (scene != wm->current && place_of(wm, scene) < 0) {
+            discard(scene);
+        }
+    }
+    wm->forgotten_count = 0;
+}
+
 /* The stack emptied: every scene in it is done with. */
 static void forget_all(wm_t *wm)
 {
     for (int i = 0; i < wm->depth; i++) {
-        forget(wm->stack[i]);
+        forget(wm, wm->stack[i]);
     }
     wm->depth = 0;
 }
@@ -98,7 +122,7 @@ static void push(wm_t *wm, scene_t *scene)
     if (place >= 0) {
         remove_at(wm, place);
     } else if (wm->depth == WM_STACK_DEPTH) {
-        forget(wm->stack[0]);
+        forget(wm, wm->stack[0]);
         remove_at(wm, 0); /* the oldest is the one to forget */
     }
     wm->stack[wm->depth++] = scene;
@@ -113,6 +137,7 @@ static void show_top(wm_t *wm)
 static void open_over_current(wm_t *wm, scene_t *scene)
 {
     if (scene == NULL) {
+        tell_forgotten(wm);
         return;
     }
     if (scene == wm->home) {
@@ -123,6 +148,7 @@ static void open_over_current(wm_t *wm, scene_t *scene)
         push(wm, scene);
     }
     show_top(wm);
+    tell_forgotten(wm);
 }
 
 /* Opened from the menu: a start anew, whatever the menu was opened over. */
@@ -130,7 +156,9 @@ static void open_from(wm_t *wm, const scene_t *opener, scene_t *scene)
 {
     if (opener == wm->home) {
         forget_all(wm);
-        forget(scene); /* a start anew, even when it waited in the stack */
+        if (scene != wm->current) {
+            discard(scene); /* a start anew, even when it waited in the stack; not loaded now */
+        }
     }
     open_over_current(wm, scene);
 }
@@ -139,7 +167,7 @@ static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
 {
     int place = place_of(wm, done);
     if (place >= 0) {
-        forget(wm->stack[place]);
+        forget(wm, wm->stack[place]);
         remove_at(wm, place);
     }
     open_over_current(wm, scene);
@@ -148,10 +176,11 @@ static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
 static void go_back(wm_t *wm)
 {
     if (wm->depth > 0) {
-        forget(wm->stack[--wm->depth]);
+        forget(wm, wm->stack[--wm->depth]);
         settle(wm);
     }
     show_top(wm);
+    tell_forgotten(wm);
 }
 
 void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_header,
@@ -163,6 +192,7 @@ void wm_init(wm_t *wm, scene_t *home, scene_t *first, wm_draw_header_fn draw_hea
     wm->depth = 0;
     wm->change = WM_CLEAN;
     wm->suspended = false;
+    wm->forgotten_count = 0;
     wm->draw_header = draw_header;
     wm->header_context = header_context;
     wm->before_switch = NULL;
@@ -292,7 +322,7 @@ void wm_close(wm_t *wm, const scene_t *scene)
 {
     int place;
     while ((place = place_of(wm, scene)) >= 0) {
-        forget(wm->stack[place]);
+        forget(wm, wm->stack[place]);
         remove_at(wm, place);
     }
     settle(wm);
@@ -301,6 +331,7 @@ void wm_close(wm_t *wm, const scene_t *scene)
     if (wm->current == scene || wm->current != top(wm)) {
         show_top(wm);
     }
+    tell_forgotten(wm);
 }
 
 void wm_header_share(int left_width, int right_width, int available, int *left_max,
