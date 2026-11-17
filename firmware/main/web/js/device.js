@@ -5,7 +5,7 @@
 
 const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
 const RELEASE_IMAGE = "perinkpheral.bin";
-let status = {};
+let status = {}, statusAt = 0; /* statusAt: when it was read, for the log's clock */
 
 function duration(seconds) {
   const days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600);
@@ -76,6 +76,7 @@ const factList = facts => facts.flatMap(([name, value]) =>
 
 async function loadStatus() {
   status = await ask("/api/status");
+  statusAt = Date.now();
   drawStatus();
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
@@ -234,54 +235,6 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   updateFirmware("/api/ota/release", post({ url: image.browser_download_url, size: image.size }));
 }));
 
-/* ---- the log: what was written since the last look; after a restart, the new log whole ---- */
-
-const LOG_EVERY_MS = 2000, LOG_KEPT_CHARS = 64 * 1024;
-let logEnd = null, logTimer = 0, logReading = Promise.resolve();
-
-async function readLogNow() {
-  const answer = await fetch("/api/log" + (logEnd === null ? "" : "?since=" + logEnd));
-  if (!answer.ok) throw new Error("HTTP " + answer.status);
-  const end = Number(answer.headers.get("X-Log-End"));
-  const text = await answer.text();
-  const log = byId("log");
-  /* A position behind the one before: the device started anew, and its log with it. */
-  if (logEnd !== null && end < logEnd) {
-    logEnd = null;
-    log.append("--- restart ---\n");
-    return readLogNow();
-  }
-  const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
-  if (logEnd === null && !log.textContent.endsWith("--- restart ---\n")) log.textContent = "";
-  log.append(text);
-  if (log.textContent.length > LOG_KEPT_CHARS) log.textContent = log.textContent.slice(-LOG_KEPT_CHARS);
-  logEnd = end;
-  if (atEnd || logEnd === null) log.scrollTop = log.scrollHeight;
-}
-
-/* One read at a time: the one that follows and the one a press asks for would
- * both append what came since the same place. `fresh`: the whole log anew. */
-function readLog(fresh) {
-  logReading = logReading.catch(() => {}).then(() => {
-    if (fresh) {
-      logEnd = null;
-      byId("log").textContent = "";
-    }
-    return readLogNow();
-  });
-  return logReading;
-}
-
-async function followLog() {
-  clearTimeout(logTimer);
-  if (!byId("follow-log").checked || currentSection() !== "device") return;
-  try { await readLog(false); } catch (error) { /* away for a moment: asked again */ }
-  logTimer = setTimeout(followLog, LOG_EVERY_MS);
-}
-
-byId("load-log").addEventListener("click", event => busy(event.target, () => readLog(true)));
-byId("follow-log").addEventListener("change", followLog);
-
 /* ---- restart and reset ---- */
 
 byId("restart").addEventListener("click", async event => {
@@ -298,6 +251,5 @@ byId("reset").addEventListener("click", async event => {
 /* What a section does only while it is in sight. */
 sectionShown.push(name => {
   if (name === "control") lookAtScreen();
-  if (name === "device") followLog();
 });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { lookAtScreen(); followLog(); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) lookAtScreen(); });

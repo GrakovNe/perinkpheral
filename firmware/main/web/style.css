@@ -183,6 +183,42 @@ pre { margin: 0; padding: .9rem 1rem; border: 1px solid var(--ink); max-height: 
       font-family: inherit; font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty::before { content: "Empty."; color: var(--dim); }
 html:lang(ru) pre:empty::before { content: "Пусто."; }
+/* ---- the log: a search, and a window as tall as the screen allows, a line a row ---- */
+.log-search { margin-bottom: 1.25rem; }
+.log-search label { display: block; margin: 0 0 .1rem; font-size: .85rem; letter-spacing: .08em;
+                    text-transform: uppercase; color: var(--dim); }
+.log-search .rows { margin-top: .5rem; }
+.log-search input[type=search] { -webkit-appearance: none; appearance: none; }
+.log-search input[type=search]::-webkit-search-cancel-button { display: none; }
+.log-tools { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.log-tools h3 { flex: 1; margin: 0; padding: 0; border: none; font-size: .85rem; letter-spacing: .08em;
+                text-transform: uppercase; color: var(--dim); }
+.log-tools label.check, .log-tools button { margin: 0; }
+.log-view { height: max(20rem, calc(100vh - 21rem)); overflow: auto; border: 1px solid var(--ink);
+            padding: .5rem 0; font-size: .8rem; line-height: 1.6; }
+.log-view .note { margin: 0; padding: 0 1rem; }
+.log-row { display: grid; grid-template-columns: 4.5rem 1ch 8rem minmax(0, 1fr); gap: .9rem; padding: 0 1rem; }
+.log-row:hover { background: var(--line); }
+.log-row .when { color: var(--dim); }
+.log-row .level, .log-row .tag { color: var(--ink); }
+.log-row .tag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-row .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-row.i .text, .log-row.d .text, .log-row.v .text { color: var(--dim); }
+/* A warning stands out; an error is ink over the whole line. */
+.log-row.w .level { color: var(--paper); background: var(--ink); text-align: center; }
+.log-row.e { color: var(--paper); background: var(--ink); }
+.log-row.e .when, .log-row.e .level, .log-row.e .tag { color: var(--paper); }
+.log-row.restart { display: block; margin: .4rem 1rem; text-align: center; color: var(--dim);
+                   border-top: 1px dashed var(--dim); border-bottom: 1px dashed var(--dim); }
+@media (max-width: 40rem) {
+  /* On a phone the window's own name gives its room to the buttons. */
+  .log-tools h3 { display: none; }
+  .log-tools { justify-content: space-between; gap: .5rem; }
+  .log-tools button { padding: 0 .7rem; }
+  .log-row { grid-template-columns: auto 1ch minmax(0, 1fr); gap: .5rem; padding: .2rem 1rem; }
+  .log-row .text { grid-column: 1 / -1; }
+}
+
 /* The panel as it stands in its case: the screen in a frame of wood, the buttons under it. */
 .screen { display: grid; gap: 1rem; max-width: 40rem; margin: 0; }
 .bezel { padding: .7rem; background: var(--wood); border: 1px solid var(--ink); }

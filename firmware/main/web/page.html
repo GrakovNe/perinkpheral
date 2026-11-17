@@ -19,6 +19,7 @@
   </a>
   <a href="#apps">Apps</a>
   <a href="#device">Device</a>
+  <a href="#log">Log</a>
   <a href="#control" id="nav-control" hidden>Control</a>
   <a href="#settings">Settings</a>
   <a href="#about">Credits</a>
@@ -55,18 +56,34 @@
       </div>
     </form>
 
-    <h3>Log</h3>
-    <pre id="log" translate="no"></pre>
-    <div class="buttons">
-      <button class="quiet" id="load-log">Refresh</button>
-      <label class="check"><input id="follow-log" type="checkbox">Follow</label>
-    </div>
-
     <h3>Reset</h3>
     <div class="buttons">
       <button class="quiet" id="restart">Restart</button>
       <button class="quiet" id="reset">Factory reset</button>
     </div>
+  </div>
+</section>
+
+<section id="log">
+  <div class="head">
+    <h2>Log</h2>
+    <span class="count" id="log-count"></span>
+  </div>
+  <div class="panel log-search">
+    <label for="log-search">Search</label>
+    <div class="rows"><div>
+      <input id="log-search" type="search" placeholder="tag, text, address" autocomplete="off" spellcheck="false">
+      <button type="button" class="quiet" id="clear-search" title="Clear">&times;</button>
+    </div></div>
+  </div>
+  <div class="panel log-panel">
+    <div class="log-tools">
+      <h3>Device log</h3>
+      <label class="check"><input id="follow-log" type="checkbox" checked>Follow</label>
+      <button class="quiet" id="load-log">Refresh</button>
+      <button class="quiet" id="clear-log">Clear</button>
+    </div>
+    <div class="log-view" id="log-lines" translate="no"></div>
   </div>
 </section>
 
@@ -255,6 +272,6 @@
 <div class="toasts" id="toasts"></div>
 
 <!-- data: CITIES ../../system/settings/cities.json -->
-<!-- script: js/i18n.js js/core.js js/apps.js js/device.js js/settings.js js/main.js -->
+<!-- script: js/i18n.js js/core.js js/apps.js js/device.js js/log.js js/settings.js js/main.js -->
 </body>
 </html>
