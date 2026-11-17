@@ -648,7 +648,8 @@ HOST_FUNCTION(request_redraw)
     app_t *app = APP_OF(runtime);
     app->redraw_requested = true;
     /* Bits the host does not know are an application from the future. */
-    app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN | HOST_REDRAW_NO_BLINK);
+    app->redraw_flags |= flags & (HOST_REDRAW_SOON | HOST_REDRAW_CLEAN | HOST_REDRAW_NO_BLINK |
+                                  HOST_REDRAW_QUESTION);
     m3ApiSuccess();
 }
 
@@ -720,6 +721,44 @@ HOST_FUNCTION(request_focus)
 {
     APP_OF(runtime)->focus_requested = true;
     m3ApiSuccess();
+}
+
+_Static_assert(APP_SESSION_BYTES == HOST_SESSION_MAX, "the session's room is the contract's");
+
+HOST_FUNCTION(session_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, offset);
+    m3ApiGetArg(int32_t, length);
+    app_t         *app = APP_OF(runtime);
+    const uint8_t *data = app_memory_at(runtime, _mem, offset, length);
+    if (data == NULL || length < 0 || length > HOST_SESSION_MAX || app->session == NULL ||
+        !app->session_is_writable) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (!app->session->is_closed) { /* left the stack: what its last blur says is over */
+        memcpy(app->session->bytes, data, (size_t)length);
+        app->session->length = length;
+    }
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(session_get)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, offset);
+    m3ApiGetArg(int32_t, capacity);
+    app_t   *app = APP_OF(runtime);
+    uint8_t *buffer = (uint8_t *)app_memory_at(runtime, _mem, offset, capacity);
+    if (buffer == NULL || capacity < 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int32_t length = app->session != NULL && !app->session->is_closed ? app->session->length : 0;
+    if (length > capacity) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    memcpy(buffer, app->session->bytes, (size_t)length);
+    m3ApiReturn(length);
 }
 
 HOST_FUNCTION(request_exit)

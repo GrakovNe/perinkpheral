@@ -264,6 +264,31 @@ static void test_not_twice_in_a_row(void)
     CHECK(wm.current == probe);
 }
 
+/* Somebody pressing buttons, or a question waiting for its answer, keeps the screen. */
+static void test_not_from_under_the_user(void)
+{
+    start_on(&menu.scene);
+    app_delivery_note_press(&state, 5000);
+    int64_t pressed_lately = 5000 + APP_FOCUS_AFTER_PRESS_MS - 1;
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, pressed_lately);
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, pressed_lately);
+    deliver_piece(2500 - 2048, HOST_DATA_LAST, pressed_lately);
+    CHECK(wm.current == &menu.scene && !wm.suspended);
+
+    menu.scene.question = 7; /* the screen asks something */
+    int64_t later = 5000 + APP_FOCUS_AFTER_PRESS_MS;
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, later);
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, later);
+    deliver_piece(2500 - 2048, HOST_DATA_LAST, later);
+    CHECK(wm.current == &menu.scene);
+
+    menu.scene.question = 0;
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, later);
+    deliver_piece(HOST_DATA_CHUNK_MAX, 0, later);
+    deliver_piece(2500 - 2048, HOST_DATA_LAST, later);
+    CHECK(wm.current == probe);
+}
+
 static void test_a_request_that_broke_off(void)
 {
     start_on(&menu.scene);
@@ -354,6 +379,7 @@ int main(void)
     test_off_the_screen();
     test_asks_for_the_screen();
     test_not_twice_in_a_row();
+    test_not_from_under_the_user();
     test_a_request_that_broke_off();
     test_something_else_in_the_middle_of_an_answer();
     test_a_press_in_the_middle_of_an_answer();

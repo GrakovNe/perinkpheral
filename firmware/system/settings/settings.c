@@ -13,7 +13,9 @@
  * host, and goes through the system API.
  */
 #include <stdbool.h>
+#include <stddef.h>
 
+#include "app_state.h"
 #include "app_text.h"
 #include "app_ui.h"
 #include "cities.h"
@@ -42,10 +44,11 @@ typedef enum {
 /* The pages from the first one down to the one on the screen, each with
  * the row the user was on. */
 #define DEPTH_MAX 5
-static struct {
+typedef struct {
     page_t  page;
     int32_t selected;
-} path[DEPTH_MAX];
+} step_t;
+static step_t  path[DEPTH_MAX];
 static int32_t depth;
 
 #define HERE (path[depth])
@@ -498,18 +501,16 @@ static const char *page_title(page_t page)
 /* ---- moving between pages ---- */
 
 /* The page on the screen changed, or what it shows did. */
+static bool is_question(page_t page);
+
 static void show(void)
 {
     const char *title = page_title(HERE.page);
     header_text(HOST_HEADER_LEFT, title, app_text_length(title));
-    request_redraw(REDRAW);
+    /* A question is answered only by an OK pressed once it is on the panel: the host holds
+     * back one meant for the row that led here. */
+    request_redraw(REDRAW | (is_question(HERE.page) ? HOST_REDRAW_QUESTION : 0));
 }
-
-/* When the page on the screen was opened. A question is answered by one
- * press of OK, and the panel takes a moment to show it: an OK that comes
- * sooner was meant for the row that led here. */
-#define QUESTION_READING_MS 1500
-static int64_t opened_ms;
 
 static void open(page_t page, int32_t selected)
 {
@@ -518,7 +519,6 @@ static void open(page_t page, int32_t selected)
     }
     HERE.page = page;
     HERE.selected = selected;
-    opened_ms = time_uptime_ms();
     show();
 }
 
@@ -708,9 +708,6 @@ static void press_up_or_down(int32_t by)
 static void press_ok(void)
 {
     page_t page = HERE.page;
-    if (is_question(page) && time_uptime_ms() - opened_ms < QUESTION_READING_MS) {
-        return;
-    }
     if (page == PAGE_VALUE) {
         if (write_number(edited->key, edited->choices[edited_choice.chosen]) == HOST_OK) {
             go_back();
@@ -735,6 +732,66 @@ static void press_back(void)
     } else {
         go_back();
     }
+}
+
+/* ---- where the user was, while another scene had the screen ---- */
+
+/* Settings is unloaded whenever another application takes an answer off the screen: what it
+ * kept of where the user was brings them back to the same page, row and half-set value. */
+typedef struct {
+    int32_t      depth;
+    step_t       path[DEPTH_MAX];
+    app_date_t   clock;
+    int32_t      edited; /* in DISPLAY_SETTINGS; -1 for none */
+    app_picker_t edited_choice;
+    uint32_t     app_to_remove;
+} place_t;
+APP_SESSION_FITS(place_t);
+
+void app_on_blur(void)
+{
+    place_t place = { .depth = depth, .clock = clock, .edited = -1, .edited_choice = edited_choice,
+                      .app_to_remove = app_to_remove };
+    for (int32_t i = 0; i < DEPTH_MAX; i++) {
+        place.path[i] = path[i];
+    }
+    if (edited != NULL) {
+        place.edited = (int32_t)(edited - DISPLAY_SETTINGS);
+    }
+    /* What came of something is said once: back to where it was done from. */
+    if (HERE.page == PAGE_NOTICE && place.depth > 0) {
+        place.depth--;
+    }
+    app_session_save(&place, sizeof place);
+}
+
+void app_on_focus(void)
+{
+    place_t place;
+    if (!app_session_load(&place, sizeof place) || place.depth < 0 || place.depth >= DEPTH_MAX ||
+        place.edited >= (int32_t)COUNT_OF(DISPLAY_SETTINGS)) {
+        return;
+    }
+    depth = place.depth;
+    for (int32_t i = 0; i < DEPTH_MAX; i++) {
+        path[i] = place.path[i];
+    }
+    clock = place.clock;
+    edited = place.edited >= 0 ? &DISPLAY_SETTINGS[place.edited] : NULL;
+    edited_choice = place.edited_choice;
+    app_to_remove = place.app_to_remove;
+    /* The title is the application's as it is called now; one removed meanwhile is no question. */
+    if (HERE.page == PAGE_REMOVE_APP) {
+        int32_t length = sys_app_title(app_to_remove, app_to_remove_title, TEXT_MAX);
+        app_to_remove_title[length > 0 ? length : 0] = '\0';
+        if (length <= 0 && depth > 0) {
+            depth--;
+        }
+    }
+    if (HERE.page == PAGE_VALUE && edited == NULL && depth > 0) {
+        depth--;
+    }
+    show();
 }
 
 void app_init(void)

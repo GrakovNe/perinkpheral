@@ -124,6 +124,19 @@ app_load_result_t app_load(const char *name, const uint8_t *wasm, size_t wasm_si
 /* `app` may be NULL. */
 void app_unload(app_t *app);
 
+/* Where the user is in an application (session_set, host/app.h): kept by its scene, which
+ * outlives the instance. Closed between the scene leaving the stack and its next entry, so
+ * that the last app_on_blur() does not write it back. */
+#define APP_SESSION_BYTES 128 /* HOST_SESSION_MAX: held equal where both are seen */
+typedef struct {
+    uint8_t bytes[APP_SESSION_BYTES];
+    int32_t length;
+    bool    is_closed;
+} app_session_t;
+
+/* The instance reads and writes `session`; one loaded off the screen only reads it. */
+void app_attach_session(app_t *app, app_session_t *session, bool is_writable);
+
 /* Handler calls. A missing export is skipped. A trap stops the
  * application permanently, see app_has_stopped(). */
 void app_focus(app_t *app);

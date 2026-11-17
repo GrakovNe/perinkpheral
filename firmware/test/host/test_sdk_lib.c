@@ -46,6 +46,29 @@ int32_t kv_set(const char *key, int32_t key_length, const void *value, int32_t l
     return HOST_OK;
 }
 
+/* The session as the host keeps it: one block, copied in and out whole. */
+static uint8_t session[HOST_SESSION_MAX];
+static int32_t session_length;
+
+int32_t session_set(const void *data, int32_t length)
+{
+    if (length < 0 || length > HOST_SESSION_MAX) {
+        return HOST_ERR_ARGUMENT;
+    }
+    memcpy(session, data, (size_t)length);
+    session_length = length;
+    return HOST_OK;
+}
+
+int32_t session_get(void *buffer, int32_t capacity)
+{
+    if (session_length > capacity) {
+        return HOST_ERR_NO_SPACE;
+    }
+    memcpy(buffer, session, (size_t)session_length);
+    return session_length;
+}
+
 int32_t time_text(int64_t unix_time, int32_t style, char *text, int32_t capacity)
 {
     (void)unix_time; (void)style;
@@ -107,6 +130,22 @@ static void test_text(void)
     char tight[4];
     CHECK(app_time_text(0, HOST_TIME_DATE, tight, sizeof tight) == 3 && tight[3] == '\0');
     CHECK(app_time_text(0, HOST_TIME_DATE, tight, 0) == 0);
+}
+
+static void test_session(void)
+{
+    typedef struct {
+        int32_t page, row;
+    } place_t;
+    APP_SESSION_FITS(place_t);
+    place_t here = { 2, 7 }, back = { -1, -1 };
+    CHECK(!app_session_load(&back, sizeof back)); /* nothing kept yet */
+    CHECK(back.page == -1);
+    CHECK(app_session_save(&here, sizeof here));
+    CHECK(app_session_load(&back, sizeof back) && back.page == 2 && back.row == 7);
+    int32_t other = 9;
+    CHECK(!app_session_load(&other, sizeof other)); /* another size is another struct */
+    CHECK(other == 9);
 }
 
 static void test_fixed_numbers_at_the_edges(void)
@@ -192,6 +231,7 @@ int main(void)
     test_text();
     test_paces();
     test_fixed_numbers_at_the_edges();
+    test_session();
     test_places();
     test_days();
     test_centring();

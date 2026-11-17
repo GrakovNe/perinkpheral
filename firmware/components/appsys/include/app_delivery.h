@@ -67,12 +67,18 @@ typedef struct {
  * is shown at once whatever arrives for it. */
 #define APP_SETTINGS_SHOWN_SOON_MS (30 * 1000)
 
+/* For how long after a press of the user's an application in the background does not take the
+ * screen: somebody is reading or setting something, and request_focus() would take it from
+ * under their hands. What cannot wait is a notify(). */
+#define APP_FOCUS_AFTER_PRESS_MS (30 * 1000)
+
 typedef struct {
     scene_t *in_background; /* the owner loaded off the screen, between its first piece and its last */
     bool     is_mid_answer; /* pieces of an answer are still to come for it */
     int      answer_request; /* the number that answer is delivered under */
     bool     has_given_focus;
     int64_t  last_focus_ms;
+    int64_t  last_press_ms; /* the user's last press: 0 for none yet */
     /* Whose settings were saved last, and when: only ever compared. */
     const scene_t *settings_owner;
     int64_t        settings_ms;
@@ -89,6 +95,9 @@ typedef struct {
     scene_t *owner;
     int      request;
 } app_abandoned_t;
+
+/* A press of the user's, at `now_ms`. */
+void app_delivery_note_press(app_delivery_state_t *state, int64_t now_ms);
 
 void app_delivery_abort(app_delivery_state_t *state, wm_t *wm, int64_t now_ms,
                            app_abandoned_t *abandoned);

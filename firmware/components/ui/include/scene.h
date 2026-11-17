@@ -58,6 +58,10 @@ typedef struct {
     /* Optional. enter: the scene received the screen. leave: it is about to lose it. */
     void (*enter)(scene_t *scene);
     void (*leave)(scene_t *scene);
+    /* Optional. It left the stack for good - popped, forgotten as the oldest, the stack emptied,
+     * or opened anew from the menu: where the user was in it is over. Called before the leave
+     * of the switch that follows, when it had the screen. */
+    void (*discard)(scene_t *scene);
 
     scene_reaction_t (*button)(scene_t *scene, scene_button_t button, scene_press_t press);
 
@@ -75,6 +79,9 @@ struct scene {
     /* A press here is irreversible. The scene receives only presses that
      * began after its picture reached the panel. */
     bool               asks_once;
+    /* Its picture asks a question that OK answers: OK is taken only when it went down after
+     * this question reached the panel. Another number for every question; 0 for none. */
+    uint32_t           question;
     /* Header texts of the scene. NULL: the side shows the host's content. */
     const char        *header_left;
     const char        *header_right;

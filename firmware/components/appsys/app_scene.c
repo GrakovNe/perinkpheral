@@ -26,6 +26,7 @@ typedef struct {
     /* The header's texts as the application last gave them: they outlive
      * the instance, which is unloaded for a delivery to another one. */
     char                  header[HOST_HEADER_RIGHT + 1][HOST_HEADER_TEXT_MAX + 1];
+    app_session_t         session; /* where the user is in it, while it is in the stack */
 } app_scene_t;
 
 /* Takes over what the application has in the header now; true when that
@@ -128,10 +129,21 @@ static void app_scene_enter(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
     bool was_loaded = self->module != NULL;
+    self->session.is_closed = false; /* in the stack again, or for the first time */
     if (load(self) && !was_loaded) {
+        app_attach_session(self->app, &self->session, true);
         app_focus(self->app);
     }
     take_header(self);
+}
+
+static void app_scene_discard(scene_t *scene)
+{
+    app_scene_t *self = (app_scene_t *)scene;
+    self->session.length = 0;
+    self->scene.question = 0; /* a question it waited with is over too */
+    /* Still loaded, it is about to leave: its blur must not write the session back. */
+    self->session.is_closed = self->app != NULL;
 }
 
 static void app_scene_leave(scene_t *scene)
@@ -164,6 +176,14 @@ static scene_reaction_t reaction_of(app_scene_t *self)
         reaction.kind = SCENE_BACK;
     } else if (app_take_redraw_request(self->app)) {
         int flags = app_take_redraw_flags(self->app);
+        /* A question of its own: another one each time it asks. */
+        static uint32_t questions;
+        if ((flags & HOST_REDRAW_QUESTION) == 0) {
+            self->scene.question = 0;
+        } else {
+            questions = questions == UINT32_MAX ? 1 : questions + 1;
+            self->scene.question = questions;
+        }
         reaction.kind = (flags & HOST_REDRAW_CLEAN)      ? SCENE_REDRAW_CLEAN
                         : (flags & HOST_REDRAW_NO_BLINK) ? SCENE_REDRAW_NO_BLINK
                         : (flags & HOST_REDRAW_SOON)     ? SCENE_REDRAW_SOON
@@ -259,6 +279,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
 static const scene_ops_t APP_SCENE_OPS = {
     .enter = app_scene_enter,
     .leave = app_scene_leave,
+    .discard = app_scene_discard,
     .button = app_scene_button,
     .timer = app_scene_timer,
     .draw = app_scene_draw,
@@ -293,7 +314,11 @@ app_t *app_scene_begin_background(scene_t *scene)
     if (!is_app_scene(scene) || self->module != NULL) {
         return NULL; /* on the screen: there is nothing to do in the background */
     }
-    return load(self) ? self->app : NULL;
+    if (!load(self)) {
+        return NULL;
+    }
+    app_attach_session(self->app, &self->session, false);
+    return self->app;
 }
 
 void app_scene_end_background(scene_t *scene)

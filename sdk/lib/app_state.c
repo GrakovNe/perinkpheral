@@ -17,14 +17,32 @@ bool app_state_load(const char *key, void *state, int32_t size, int32_t version)
            *(const int32_t *)state == version;
 }
 
-void app_state_save(const char *key, const void *state, int32_t size)
+bool app_state_save(const char *key, const void *state, int32_t size)
 {
-    kv_set(key, app_text_length(key), state, size);
+    return kv_set(key, app_text_length(key), state, size) == HOST_OK;
 }
 
-void app_state_forget(const char *key)
+bool app_state_forget(const char *key)
 {
-    kv_set(key, app_text_length(key), key, 0);
+    return kv_set(key, app_text_length(key), key, 0) == HOST_OK;
+}
+
+bool app_session_save(const void *state, int32_t size)
+{
+    return session_set(state, size) == HOST_OK;
+}
+
+bool app_session_load(void *state, int32_t size)
+{
+    uint8_t kept[HOST_SESSION_MAX];
+    if (size > HOST_SESSION_MAX || session_get(kept, sizeof kept) != size) {
+        return false;
+    }
+    uint8_t *into = state;
+    for (int32_t i = 0; i < size; i++) {
+        into[i] = kept[i];
+    }
+    return true;
 }
 
 int32_t app_setting(const char *key, char *text, int32_t text_size)

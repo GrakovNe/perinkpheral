@@ -13,6 +13,7 @@ void app_delivery_init(app_delivery_state_t *state)
     state->is_mid_answer = false;
     state->has_given_focus = false;
     state->last_focus_ms = 0;
+    state->last_press_ms = 0;
     state->settings_owner = NULL;
     state->settings_ms = 0;
 }
@@ -58,9 +59,20 @@ static bool is_last(const app_delivery_t *delivery)
            (delivery->flags & (HOST_DATA_LAST | HOST_DATA_FAILED)) != 0;
 }
 
-static bool may_give_focus(const app_delivery_state_t *state, int64_t now_ms)
+void app_delivery_note_press(app_delivery_state_t *state, int64_t now_ms)
 {
-    return !state->has_given_focus || now_ms - state->last_focus_ms >= APP_FOCUS_MIN_GAP_MS;
+    state->last_press_ms = now_ms;
+}
+
+/* Not more often than every so long; not while the user is pressing buttons; and never over a
+ * question waiting for its answer. */
+static bool may_give_focus(const app_delivery_state_t *state, const wm_t *wm, int64_t now_ms)
+{
+    const scene_t *shown = wm->current;
+    bool is_asking = shown != NULL && (shown->asks_once || shown->question != 0);
+    bool is_user_here = state->last_press_ms != 0 && now_ms - state->last_press_ms < APP_FOCUS_AFTER_PRESS_MS;
+    return !is_asking && !is_user_here &&
+           (!state->has_given_focus || now_ms - state->last_focus_ms >= APP_FOCUS_MIN_GAP_MS);
 }
 
 static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, int64_t now_ms)
@@ -70,7 +82,7 @@ static void end_background(app_delivery_state_t *state, wm_t *wm, app_t *app, in
     app_scene_end_background(owner);
     state->in_background = NULL;
     state->is_mid_answer = false;
-    if (wants_screen && may_give_focus(state, now_ms)) {
+    if (wants_screen && may_give_focus(state, wm, now_ms)) {
         state->has_given_focus = true;
         state->last_focus_ms = now_ms;
         wm_open(wm, owner);

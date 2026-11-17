@@ -521,6 +521,14 @@ void app_unload(app_t *app)
 #endif
 }
 
+void app_attach_session(app_t *app, app_session_t *session, bool is_writable)
+{
+    if (app != NULL) {
+        app->session = session;
+        app->session_is_writable = is_writable;
+    }
+}
+
 void app_focus(app_t *app)
 {
     CALL_HANDLER(app, app_on_focus);

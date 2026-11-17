@@ -47,6 +47,8 @@ void host_notices_start(void);
 /* After every event: an answered question and a dismissed notice leave,
  * and the next notice is shown. Never from inside a scene's handler. */
 void host_notices_after_event(void);
+/* A press of the user's: notices held back since their long BACK may show again. */
+void host_notices_note_press(void);
 void host_confirm_timed_out(void);
 
 /* ---- host_apps.c ---- */

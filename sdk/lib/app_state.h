@@ -9,19 +9,34 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "host_api.h"
+
 /* Loads a struct stored under `key`. The first field of the struct is an
  * int32_t version. Returns true if a value of exactly `size` bytes with
- * this `version` is stored; otherwise `state` is unchanged in content that
- * matters: initialise it after a false return. */
+ * this `version` is stored. On false `state` may hold any part of what was
+ * read: initialise it whole. */
 bool app_state_load(const char *key, void *state, int32_t size, int32_t version);
 
 /* Stores `size` bytes of `state` under `key`. One flash write: call it
  * when the state changed, in app_on_terminate() or at once for a value
- * that must survive a power loss. */
-void app_state_save(const char *key, const void *state, int32_t size);
+ * that must survive a power loss. False when it was not stored - the
+ * application's 2 KB are full, or the storage failed: what is lost is the
+ * caller's to judge. */
+bool app_state_save(const char *key, const void *state, int32_t size);
 
-/* Removes the value stored under `key`. */
-void app_state_forget(const char *key);
+/* Removes the value stored under `key`; false when the storage failed. */
+bool app_state_forget(const char *key);
+
+/* Where the user is in the application - a page, a selection, a value half
+ * set - kept while it is in the stack, in memory (session_set, host/app.h).
+ * Save it in app_on_blur(), load it in app_on_focus(). The struct is at most
+ * HOST_SESSION_MAX bytes: APP_SESSION_FITS(type) says so when it builds.
+ * app_session_load() is true when what is kept is exactly `size` bytes, and
+ * leaves `state` as it was otherwise. */
+bool app_session_save(const void *state, int32_t size);
+bool app_session_load(void *state, int32_t size);
+#define APP_SESSION_FITS(type) \
+    _Static_assert(sizeof(type) <= HOST_SESSION_MAX, #type " is larger than HOST_SESSION_MAX")
 
 /* Copies a setting to `text` as a null-terminated string. Returns its
  * length; 0 if the setting is not set or does not fit, `text` then being

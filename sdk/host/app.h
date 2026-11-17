@@ -195,12 +195,21 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * ghosting stays until the next full refresh or until the application
  * leaves the screen.
  *
+ * Questions (QUESTION). The picture asks a question that OK answers - a
+ * removal, a reset, anything that cannot be taken back. OK reaches the
+ * application only when it was pressed after this picture reached the
+ * panel: a press meant for the picture before, or made while the panel was
+ * still drawing, is not an answer. The other buttons are not held back.
+ * Every request with the flag is a new question; the next request without
+ * it ends it. Use it when the question is opened, not for later redraws.
+ *
  * The host does not limit redraw requests. Every refresh uses battery
  * energy and wears the panel. */
 #define HOST_REDRAW_NORMAL   0
 #define HOST_REDRAW_SOON     1
 #define HOST_REDRAW_CLEAN    2
 #define HOST_REDRAW_NO_BLINK 4
+#define HOST_REDRAW_QUESTION 8
 HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
 /* Sets application text in the host header. The header is shown above an
@@ -259,6 +268,29 @@ HOST_IMPORT(request_focus, void request_focus(void));
  * other handlers. A long press of BACK closes any application without
  * calling it. */
 HOST_IMPORT(request_exit, void request_exit(void));
+
+/* Where the user is in the application: a page, a selection, a value half
+ * set. The application is unloaded whenever another one needs the room - a
+ * delivery in the background, a question of the host - and enters again
+ * from what it stored; what is worth no write of the flash goes here.
+ *
+ * session_set() keeps up to HOST_SESSION_MAX bytes for the application while
+ * it is in the stack: across its unloads, and while another is on top of it.
+ * They are gone when it leaves the stack - BACK from its first page,
+ * request_exit(), a long press of BACK, too many above it - when it is
+ * opened anew from the menu, and at a restart. Length 0 forgets them.
+ * Set them in app_on_blur(); read them in app_on_focus(), which is where an
+ * application that comes back is told so. An instance loaded off the screen
+ * for a delivery may read them and cannot change them (HOST_ERR_ARGUMENT).
+ *
+ * session_get() copies them into `buffer` and returns their length; 0 when
+ * there are none; HOST_ERR_NO_SPACE, copying nothing, when `capacity` is
+ * smaller. sdk/lib/app_state.h keeps one struct this way. */
+#define HOST_SESSION_MAX 128
+#define HOST_SINCE_session_set "0.1.21"
+#define HOST_SINCE_session_get "0.1.21"
+HOST_IMPORT(session_set, int32_t session_set(const void *data, int32_t length));
+HOST_IMPORT(session_get, int32_t session_get(void *buffer, int32_t capacity));
 
 /* One-shot timer: app_on_timer(id) after `milliseconds`. 0 cancels.
  * Setting a running timer restarts it. id: 0..HOST_TIMER_COUNT-1.

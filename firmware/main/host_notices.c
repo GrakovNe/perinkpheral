@@ -142,6 +142,15 @@ static const char *line_or_none(const char *text)
     return text[0] != '\0' ? text : NULL;
 }
 
+/* The user left a notice with the long press that empties the stack: they want the menu, and
+ * the notices that wait are shown at their next press, not over it at once. */
+static bool s_is_held_by_user;
+
+void host_notices_note_press(void)
+{
+    s_is_held_by_user = false;
+}
+
 /* The one that was dismissed leaves, and the next one that waits is shown. */
 static void process_notifications(void)
 {
@@ -152,8 +161,9 @@ static void process_notifications(void)
      * took it off the screen: seen. */
     if (notice_queue_is_shown(&s_notices) && !wm_has(&host_wm, s_notice_scene)) {
         notice_queue_gone(&s_notices);
+        s_is_held_by_user = true;
     }
-    if (host_is_delivering()) {
+    if (host_is_delivering() || s_is_held_by_user) {
         return;
     }
     const notice_told_t *told = notice_queue_next(&s_notices);

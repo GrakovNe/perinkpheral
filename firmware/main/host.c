@@ -131,6 +131,9 @@ const scene_t *host_scene_on_panel(void)
 {
     return s_scene_on_panel;
 }
+#define BUTTON_OK_INDEX   1
+#define BUTTON_BACK_INDEX 3
+
 /* The buttons that went down while a scene that asks once was on the
  * panel: only their presses are that scene's to take. */
 static uint8_t s_went_down_on_question;
@@ -138,6 +141,8 @@ static uint8_t s_went_down_on_question;
  * its first picture on it. A press made before this was made for another
  * picture, though it is taken off the queue only now. */
 static int64_t s_scene_shown_at_ms;
+/* The question of an application's picture on the panel (scene_t.question); 0 for none. */
+static uint32_t s_question_on_panel;
 
 /* Whether the press is one the scene on the screen may have: every press,
  * unless one press there does what cannot be taken back - then only a
@@ -146,13 +151,16 @@ static int64_t s_scene_shown_at_ms;
  * picture before it must not answer it. */
 static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t press, int64_t at_ms)
 {
-    if (!scene->asks_once) {
+    /* A question an application asks: OK alone is held to it, the rest is the application's. */
+    bool is_held = scene->asks_once || (scene->question != 0 && index == BUTTON_OK_INDEX);
+    if (!is_held) {
         s_went_down_on_question = 0;
         return true;
     }
     uint8_t button = (uint8_t)(1u << index);
     if (press == EVENT_PRESS_DOWN) {
-        if (s_scene_on_panel == scene && at_ms >= s_scene_shown_at_ms) {
+        if (s_scene_on_panel == scene && s_question_on_panel == scene->question &&
+            at_ms >= s_scene_shown_at_ms) {
             s_went_down_on_question |= button;
         } else {
             s_went_down_on_question &= (uint8_t)~button;
@@ -166,7 +174,6 @@ static bool is_press_for(const scene_t *scene, uint8_t index, event_press_t pres
     return began_here;
 }
 
-#define BUTTON_BACK_INDEX 3
 
 /* The buttons in the order they sit on the device. */
 static const scene_button_t BUTTON_ROLE[] = {
@@ -185,6 +192,8 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
         ESP_LOGI(TAG, "button %d %s", index + 1, press == EVENT_PRESS_LONG ? "long" : "short");
     }
     power_note_press(); /* the user is here: the device stays reachable for a while */
+    app_delivery_note_press(&host_delivery, at_ms); /* and nobody takes the screen from them */
+    host_notices_note_press();
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
@@ -260,10 +269,11 @@ static uint32_t show_pending_frame(wm_t *wm, gfx_t *screen)
     case DISPLAY_UNCHANGED:
         break;
     }
-    if (s_scene_on_panel != wm->current) {
+    if (s_scene_on_panel != wm->current || s_question_on_panel != wm->current->question) {
         s_scene_shown_at_ms = esp_timer_get_time() / US_PER_MS;
     }
     s_scene_on_panel = wm->current;
+    s_question_on_panel = wm->current->question;
     wm_shown(wm);
     return NOTHING_TO_SHOW;
 }

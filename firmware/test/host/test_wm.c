@@ -22,6 +22,7 @@ typedef struct {
     scene_t          scene;
     int              entered;
     int              left;
+    int              discarded;
     int              presses;
     int              last_timer;
     int              surface_w;
@@ -37,6 +38,11 @@ static void probe_enter(scene_t *scene)
 static void probe_leave(scene_t *scene)
 {
     ((probe_t *)scene)->left++;
+}
+
+static void probe_discard(scene_t *scene)
+{
+    ((probe_t *)scene)->discarded++;
 }
 
 static scene_reaction_t probe_button(scene_t *scene, scene_button_t button, scene_press_t press)
@@ -67,6 +73,7 @@ static scene_reaction_t probe_timer(scene_t *scene, int timer_id)
 static const scene_ops_t PROBE_OPS = {
     .enter = probe_enter,
     .leave = probe_leave,
+    .discard = probe_discard,
     .button = probe_button,
     .timer = probe_timer,
     .draw = probe_draw,
@@ -465,6 +472,43 @@ static void test_drop(void)
     CHECK(wm.current == &page.scene);
 }
 
+/* Where the user is in a scene lasts while it is in the stack: a scene that waits under another
+ * keeps it, one that leaves the stack - BACK, the long press, the oldest forgotten, opened anew
+ * from the menu - is told so. */
+static void test_leaving_the_stack(void)
+{
+    static probe_t question;
+    start(&menu.scene);
+    memset(&question, 0, sizeof question);
+    question.scene.ops = &PROBE_OPS;
+    menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &app.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    CHECK(app.discarded == 1); /* opened from the menu: anew */
+
+    /* waiting under a question, and moved to the top again: kept */
+    wm_open(&wm, &question.scene);
+    wm_open(&wm, &app.scene);
+    CHECK(app.discarded == 1 && question.discarded == 0);
+    /* suspended for a delivery and back: kept */
+    wm_suspend(&wm);
+    wm_resume(&wm);
+    CHECK(app.discarded == 1);
+
+    /* BACK pops it: told, before it leaves */
+    app.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(app.discarded == 2 && app.left >= 1 && wm.current == &question.scene);
+
+    /* the long press empties the stack: everything in it is told */
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+    CHECK(question.discarded == 1 && wm.depth == 0);
+
+    /* closed by the host */
+    wm_open(&wm, &page.scene);
+    wm_close(&wm, &page.scene);
+    CHECK(page.discarded == 1);
+}
+
 static void test_stack(void)
 {
     static probe_t question, alarm;
@@ -659,6 +703,7 @@ int main(void)
 {
     test_chart();
     test_stack();
+    test_leaving_the_stack();
     test_drop();
     test_header_share();
     test_first_scene();

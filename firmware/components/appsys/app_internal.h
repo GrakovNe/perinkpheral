@@ -71,6 +71,8 @@ struct app {
     /* What it put into the host's header; empty leaves a side to the host. */
     char        header[HOST_HEADER_RIGHT + 1][HOST_HEADER_TEXT_MAX + 1];
     const char *stop_reason; /* NULL while the application is alive */
+    app_session_t *session;  /* its scene's; NULL for none */
+    bool           session_is_writable;
 };
 
 /* ---- the host API as the application sees it ---- */

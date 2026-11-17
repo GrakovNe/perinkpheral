@@ -57,6 +57,22 @@ static int place_of(const wm_t *wm, const scene_t *scene)
     return -1;
 }
 
+static void forget(scene_t *scene)
+{
+    if (scene != NULL && scene->ops->discard != NULL) {
+        scene->ops->discard(scene);
+    }
+}
+
+/* The stack emptied: every scene in it is done with. */
+static void forget_all(wm_t *wm)
+{
+    for (int i = 0; i < wm->depth; i++) {
+        forget(wm->stack[i]);
+    }
+    wm->depth = 0;
+}
+
 static void remove_at(wm_t *wm, int place)
 {
     for (int i = place; i + 1 < wm->depth; i++) {
@@ -82,6 +98,7 @@ static void push(wm_t *wm, scene_t *scene)
     if (place >= 0) {
         remove_at(wm, place);
     } else if (wm->depth == WM_STACK_DEPTH) {
+        forget(wm->stack[0]);
         remove_at(wm, 0); /* the oldest is the one to forget */
     }
     wm->stack[wm->depth++] = scene;
@@ -101,7 +118,7 @@ static void open_over_current(wm_t *wm, scene_t *scene)
     if (scene == wm->home) {
         /* The menu is the beginning: whoever goes there is done with
          * everything that was open, and BACK there leads nowhere. */
-        wm->depth = 0;
+        forget_all(wm);
     } else {
         push(wm, scene);
     }
@@ -112,7 +129,8 @@ static void open_over_current(wm_t *wm, scene_t *scene)
 static void open_from(wm_t *wm, const scene_t *opener, scene_t *scene)
 {
     if (opener == wm->home) {
-        wm->depth = 0;
+        forget_all(wm);
+        forget(scene); /* a start anew, even when it waited in the stack */
     }
     open_over_current(wm, scene);
 }
@@ -121,6 +139,7 @@ static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
 {
     int place = place_of(wm, done);
     if (place >= 0) {
+        forget(wm->stack[place]);
         remove_at(wm, place);
     }
     open_over_current(wm, scene);
@@ -129,7 +148,7 @@ static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
 static void go_back(wm_t *wm)
 {
     if (wm->depth > 0) {
-        wm->depth--;
+        forget(wm->stack[--wm->depth]);
         settle(wm);
     }
     show_top(wm);
@@ -273,6 +292,7 @@ void wm_close(wm_t *wm, const scene_t *scene)
 {
     int place;
     while ((place = place_of(wm, scene)) >= 0) {
+        forget(wm->stack[place]);
         remove_at(wm, place);
     }
     settle(wm);
