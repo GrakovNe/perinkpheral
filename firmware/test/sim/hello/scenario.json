@@ -1,0 +1,6 @@
+{
+  "app": "sdk/apps/hello",
+  "at": 1794832230,
+  "tz": "Europe/Moscow",
+  "steps": ["shot start", "press 2 2 2", "shot pressed"]
+}

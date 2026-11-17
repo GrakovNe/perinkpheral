@@ -198,6 +198,7 @@ dialog { width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 3rem); 
 dialog::backdrop { background: rgba(20, 20, 19, .5); }
 dialog h2 { font-size: 1.35rem; margin-bottom: 1rem; }
 dialog p { margin: 0 0 .5rem; }
+dialog .notes { margin: .75rem 0 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; font: inherit; font-size: .9rem; }
 dialog .buttons { justify-content: flex-end; margin-top: 1.5rem; }
 ul.plain { list-style: none; padding: 0; margin: 0; }
 ul.plain li { padding: .55rem 0; border-bottom: 1px solid var(--line); }

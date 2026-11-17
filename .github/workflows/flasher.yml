@@ -1,0 +1,56 @@
+# The files of every release, on this repository's Pages, for the web flasher at
+# perinkpheral.dev/flash: a browser cannot read a release's files from GitHub itself, and Pages
+# lets any page read them. flash/index.json lists the releases, newest first, with their notes
+# and the manifest of each build; flash/<tag>/ holds the release's files as they are.
+# Called by CI after a release, or by hand.
+
+name: Flasher
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="${{ github.repository }}"
+          mkdir -p site/flash
+          echo '<!doctype html><meta charset="utf-8"><title>perINKpheral firmware</title><p>The firmware of <a href="https://perinkpheral.dev/flash">perINKpheral</a>, for its web flasher.</p>' > site/index.html
+          echo '[]' > site/flash/index.json
+          for tag in $(gh release list --repo "$repo" --limit 100 --exclude-drafts --json tagName --jq '.[].tagName'); do
+            gh release download "$tag" --repo "$repo" --dir "site/flash/$tag" --pattern '*.bin' --pattern '*.json'
+            release=null; debug=null
+            [ -f "site/flash/$tag/manifest.json" ] && release="\"$tag/manifest.json\""
+            [ -f "site/flash/$tag/debug-manifest.json" ] && debug="\"$tag/debug-manifest.json\""
+            gh release view "$tag" --repo "$repo" --json tagName,publishedAt,body \
+              | jq --argjson release "$release" --argjson debug "$debug" \
+                   '{version: (.tagName | ltrimstr("v")), date: .publishedAt[0:10], notes: .body,
+                     builds: {release: $release, debug: $debug}}' > entry.json
+            jq --slurpfile entry entry.json '. + $entry' site/flash/index.json > index.json
+            mv index.json site/flash/index.json
+          done
+          jq 'map(select(.builds.release != null or .builds.debug != null))' site/flash/index.json > index.json
+          mv index.json site/flash/index.json
+          echo "$(jq length site/flash/index.json) releases"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}

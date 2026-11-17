@@ -53,16 +53,17 @@ object FirmwareTools {
      * flasher_args.json of an ESP-IDF build lists - the bootloader, the partition table, the
      * OTA data, the firmware and the applications' file system - copied into `out`, and
      * manifest.json beside them in the form of ESP Web Tools: the chip and, for every file,
-     * where it goes.
+     * where it goes. `prefix` goes before every name, the manifest's too: the build for
+     * debugging stands beside the one for release in one release, as debug-*.
      */
-    fun flashManifest(build: File, out: File, version: String) {
+    fun flashManifest(build: File, out: File, version: String, prefix: String = "") {
         val args = Json.parse(File(build, "flasher_args.json").readText()) as Map<*, *>
         out.mkdirs()
         val files = (args["flash_files"] as Map<*, *>).entries.sortedBy { (it.key as String).removePrefix("0x").toLong(16) }
         val parts = files.map { (offset, path) ->
             val source = File(build, path as String)
-            source.copyTo(File(out, source.name), overwrite = true)
-            linkedMapOf("path" to source.name, "offset" to (offset as String).removePrefix("0x").toLong(16))
+            source.copyTo(File(out, prefix + source.name), overwrite = true)
+            linkedMapOf("path" to prefix + source.name, "offset" to (offset as String).removePrefix("0x").toLong(16))
         }
         val manifest = linkedMapOf(
             "name" to "perINKpheral",
@@ -71,6 +72,6 @@ object FirmwareTools {
             "builds" to listOf(linkedMapOf("chipFamily" to "ESP32-C6", "parts" to parts)),
             "flash" to args["flash_settings"],
         )
-        File(out, "manifest.json").writeText(Json.pretty(manifest) + "\n")
+        File(out, "${prefix}manifest.json").writeText(Json.pretty(manifest) + "\n")
     }
 }

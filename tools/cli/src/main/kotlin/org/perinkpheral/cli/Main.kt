@@ -34,6 +34,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
                      [--glyphs <dir>] [--mocks <file>] [--clock] [--at <unix>] [--state <dir>] [--binary <file>]
                                               run the application in the simulator; Ctrl-C stops it
     perinkpheral preview [dir] [--font jersey] the host's screens as PNGs, rendered on this computer
+    perinkpheral sim-test <dir> [--update]    applications in the simulator, their screens against kept pictures
 
   What the project makes of its sources:
     perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
@@ -54,7 +55,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral check-layers [firmware dir]  the firmware's layers, by its includes and calls
     perinkpheral check-languages              the firmware's languages are the SDK's
     perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
-    perinkpheral flash-manifest <build> <out> <version>
+    perinkpheral flash-manifest <build> <out> <version> [--prefix debug-]
                                               the files of a first flash and their manifest
     perinkpheral mark [<pixels> <file>]...    the mark into assets/mark, and on paper at other sizes
 
@@ -166,7 +167,7 @@ private fun simulator(arguments: Arguments): Int {
 }
 
 private fun run(raw: Array<String>): Int {
-    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock"))
+    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update"))
     when (arguments.words.firstOrNull()) {
         "build" -> {
             builder().build(File(arguments.word(1, "the application's folder")),
@@ -189,7 +190,7 @@ private fun run(raw: Array<String>): Int {
         "page" -> FirmwareTools.page(File(arguments.word(1, "the folder of the page")), File(arguments.word(2, "the page")),
             File(arguments.word(3, "the packed page")))
         "flash-manifest" -> FirmwareTools.flashManifest(File(arguments.word(1, "the build")), File(arguments.word(2, "the folder")),
-            arguments.word(3, "the version"))
+            arguments.word(3, "the version"), arguments.option("prefix").orEmpty())
         "check-layers" -> {
             val (broken, checks) = Layers(File(arguments.words.getOrNull(1) ?: File(root(), "firmware").path)).check()
             broken.forEach { println("layers: $it") }
@@ -215,6 +216,11 @@ private fun run(raw: Array<String>): Int {
             "missing" -> Guide(root()).missing(arguments.word(2, "the language")).forEach { println(it) }
             "apply" -> println(Guide(root()).apply(arguments.word(2, "the language")))
             else -> fail(USAGE)
+        }
+        "sim-test" -> {
+            val failed = SimTest(root()) { builder {} }.run(File(arguments.word(1, "the folder of tests")), arguments.has("update"))
+            failed.forEach { println("  $it") }
+            if (failed.isNotEmpty()) return 1
         }
         "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
         "mark" -> {

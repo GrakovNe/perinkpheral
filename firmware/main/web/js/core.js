@@ -126,9 +126,12 @@ const send = (button, url, options) => busy(button, async () => {
 const CONFIRM_ON_DEVICE = "Confirm on the device.";
 
 /* A question before something that cannot be taken back. */
-function confirmed(text, action) {
+/* `notes`, when given, stand under the question as they were written: what a release brings. */
+function confirmed(text, action, notes) {
   show("confirm-text", text);
   show("confirm-yes", action);
+  show("confirm-notes", notes || "");
+  byId("confirm-notes").hidden = !notes;
   const dialog = byId("confirm-dialog");
   dialog.returnValue = "no";
   dialog.showModal();

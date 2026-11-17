@@ -1,0 +1,204 @@
+# Every push and pull request: the host tests and the layers, the applications in the simulator
+# against the pictures kept of them, the firmware built twice - for release, and for debugging
+# with the development tools - and its size against the last build of main.
+#
+# A push to main whose VERSION has no release yet makes it: v<VERSION>, with both builds and the
+# files of a first flash for each, its notes the version's section of CHANGES.md. The web flasher
+# takes every release from this repository's Pages, made anew after a release.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  WASI_SDK_URL: https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: wasi-sdk
+        run: |
+          curl -sSL "$WASI_SDK_URL" | tar -xz -C "$RUNNER_TEMP"
+          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+      - name: The tools
+        run: tools/perinkpheral > /dev/null
+      - name: Host tests and the layers
+        run: make -C firmware/test/host test
+      - name: The applications in the simulator
+        run: tools/perinkpheral sim-test firmware/test/sim
+      - name: The pictures that differ
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-pictures
+          path: firmware/test/sim/**/*.actual.png
+          if-no-files-found: ignore
+
+  firmware:
+    name: Firmware (${{ matrix.flavor }})
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [release, debug]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: wasi-sdk
+        shell: bash
+        run: |
+          curl -sSL "$WASI_SDK_URL" | tar -xz -C /opt
+          echo "WASI_SDK_PATH=/opt/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: The tools
+        shell: bash
+        run: tools/perinkpheral > /dev/null
+      - name: Build
+        shell: bash
+        working-directory: firmware
+        run: |
+          . "$IDF_PATH/export.sh"
+          version=$(tr -d '[:space:]' < ../VERSION)
+          if [ "${{ matrix.flavor }}" = release ]; then
+            # What a device updates itself to: no development tools, the version alone.
+            export APP_VERSION="$version"
+            idf.py -B build-release -D SDKCONFIG=build-release/sdkconfig \
+                   -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
+          else
+            # The development tools in it, the commit beside the version.
+            export APP_VERSION="$version-${GITHUB_SHA::7}"
+            idf.py -B build-debug -D SDKCONFIG=build-debug/sdkconfig \
+                   -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults" build
+          fi
+          idf.py -B "build-${{ matrix.flavor }}" size --format csv > "../size-${{ matrix.flavor }}.txt"
+      - name: The files of a first flash
+        shell: bash
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "${{ matrix.flavor }}" = release ]; then
+            tools/perinkpheral flash-manifest firmware/build-release flash "$version"
+          else
+            tools/perinkpheral flash-manifest firmware/build-debug flash "$version-${GITHUB_SHA::7}" --prefix debug-
+          fi
+          # The numbers the size report compares: the image and the RAM it takes.
+          image=$(stat -c %s flash/*perinkpheral.bin)
+          diram=$(awk -F'","' '/^"DIRAM"/ { print $2; exit }' "size-${{ matrix.flavor }}.txt")
+          printf 'image=%s\ndiram=%s\n' "$image" "$diram" > "size-${{ matrix.flavor }}.env"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.flavor }}
+          path: flash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: size-${{ matrix.flavor }}
+          path: size-${{ matrix.flavor }}.*
+
+  size:
+    name: Size
+    needs: firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: size-*
+          path: now
+          merge-multiple: true
+      - name: Against the last build of main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          slot=$((0x170000))
+          before=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --branch main --status success \
+                   --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$before" ]; then
+            gh run download "$before" --repo "$GITHUB_REPOSITORY" --pattern 'size-*' --dir was || true
+          fi
+          {
+            echo "### Firmware size"
+            echo
+            echo "| Build | Image | Against main | Free in the slot | RAM taken | Against main |"
+            echo "|---|---|---|---|---|---|"
+            for flavor in release debug; do
+              . "now/size-$flavor.env"
+              now_image=$image; now_diram=$diram
+              was_image=""; was_diram=""
+              if [ -f "was/size-$flavor/size-$flavor.env" ]; then
+                . "was/size-$flavor/size-$flavor.env"; was_image=$image; was_diram=$diram
+              fi
+              delta() { [ -n "$2" ] && printf '%+d' $(($1 - $2)) || echo "-"; }
+              free=$((slot - now_image))
+              echo "| $flavor | $now_image | $(delta $now_image "$was_image") | $free ($((free * 100 / slot)) %) | $now_diram | $(delta $now_diram "$was_diram") |"
+            done
+          } > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: On the pull request
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" --body-file report.md --edit-last || gh pr comment "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" --body-file report.md
+
+  release:
+    name: Release
+    needs: [tests, firmware]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: A new VERSION is a release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "v$version is released already: the builds are this run's artifacts."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The version's section of CHANGES.md, its heading aside: a release says what it brings.
+          awk -v version="$version" '
+            /^## / { if (inside) exit; inside = ($2 == version) ; next }
+            inside { print }
+          ' CHANGES.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGES.md has no section \"## $version\": write what $version brings first" >&2
+            exit 1
+          fi
+          printf '\nA first flash, for release or for debugging: https://perinkpheral.dev/flash. A device on its network updates itself from Device, Check for updates.\n' >> notes.md
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'firmware-*' --dir builds
+          gh release create "v$version" builds/firmware-release/* builds/firmware-debug/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes-file notes.md
+          echo "released=true" >> "$GITHUB_OUTPUT"
+
+  flasher:
+    name: The flasher's files
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/flasher.yml

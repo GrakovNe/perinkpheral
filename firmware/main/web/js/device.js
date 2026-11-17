@@ -175,7 +175,9 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   const image = release ? release.assets.find(asset => asset.name === RELEASE_IMAGE) : null;
   if (!release || !image) return toast("No releases.");
   if (!isNewer(releaseOf(version), releaseOf(status.firmware || ""))) return toast("Up to date.");
-  if (!await confirmed("Update to " + version + "?", "Update")) return;
+  /* The release's notes are the version's section of CHANGES.md, the flasher's line after them. */
+  const notes = (release.body || "").split(/\n\s*\nA first flash/)[0].trim();
+  if (!await confirmed("Update to " + version + "?", "Update", notes)) return;
   toast(CONFIRM_ON_DEVICE);
   if (await send(event.target, "/api/ota/release", post({ url: image.browser_download_url, size: image.size })))
     afterRestart();

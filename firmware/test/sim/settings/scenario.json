@@ -1,0 +1,6 @@
+{
+  "app": "firmware/system/settings",
+  "at": 1794832230,
+  "tz": "Europe/Moscow",
+  "steps": ["shot root", "press 2", "shot general", "press 4 3 3 2", "shot display", "press 2 3 2", "shot display-jersey"]
+}

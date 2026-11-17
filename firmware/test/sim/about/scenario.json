@@ -1,0 +1,6 @@
+{
+  "app": "firmware/system/about",
+  "at": 1794832230,
+  "tz": "Europe/Moscow",
+  "steps": ["shot first", "press 2", "shot second"]
+}
