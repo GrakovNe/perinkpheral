@@ -503,6 +503,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c"><code>help</code></td><td>Optional: up to 95 characters and 190 UTF-8 bytes; empty when omitted. Translatable</td></tr>
   <tr><td class="c"><code>default</code></td><td>Optional: a nonempty string, or a nonempty array for list. Unset when omitted. Not allowed for secret or place</td></tr>
   <tr><td class="c"><code>options</code></td><td>Required for choice, forbidden otherwise: 1 - 8 strings, each 1 - 23 characters and at most 46 UTF-8 bytes. Saved values must be printable ASCII</td></tr>
+  <tr><td class="c"><code>hidden</code></td><td>Optional: true for a setting written by something else - an integration through the device's web API, a companion page - and left off the device page's form. Stored and read like any other</td></tr>
   <tr><td class="c"><code>latitude</code>, <code>longitude</code></td><td>Required for place: keys of two distinct number settings declared in the same manifest</td></tr>
 </table>
 <h3>Setting types</h3>

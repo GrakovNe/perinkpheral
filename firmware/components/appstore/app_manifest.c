@@ -314,7 +314,9 @@ static int setting_type(const json_t *setting)
 {
     const json_t *type = json_get(setting, "type");
     const json_t *help = json_get(setting, "help");
+    const json_t *hidden = json_get(setting, "hidden");
     if (!json_is_object(setting) || !json_is_string(type) ||
+        (hidden != NULL && !json_is_bool(hidden)) ||
         !is_setting_key(json_get(setting, "key")) ||
         !is_words_of(json_get(setting, "title"), 1,
                      APP_SETTING_TITLE_MAX) ||

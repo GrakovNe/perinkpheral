@@ -5,6 +5,12 @@ section of its version, when written, is the release's notes on GitHub, in the w
 the device's page - without one, the notes are the commits since the release before.
 
 
+
+## 0.1.26
+
+- A setting may be `"hidden": true` in its manifest: written by an integration or a companion
+  page, left off the device page's form. HA Companion's server and token are, set by the Home
+  Assistant integration; its Sensor and the way without the integration are gone.
 ## 0.1.25
 
 - The Catalog shows the installed applications too: Installed, or Update when a source has

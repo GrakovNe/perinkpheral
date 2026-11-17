@@ -100,7 +100,8 @@ function settingFields(app) {
     parts.push(hidden[setting.key]);
   }
   for (const setting of app.settings) {
-    if (filled.has(setting.key)) continue;
+    /* "hidden": set by something else - an integration, a companion page - and not typed here. */
+    if (filled.has(setting.key) || setting.hidden) continue;
     const field = settingField(app, setting);
     if (setting.type === "place")
       field[1] = placeField(field[1], hidden[setting.latitude], hidden[setting.longitude]);
@@ -268,7 +269,8 @@ function tile(have, offer) {
   if (settings.default_app === have.name) box.append(make("span", { className: "mark", textContent: "Default" }));
   box.append(make("div", { className: "spring" }));
   const tools = make("div", { className: "tools" });
-  if (have.settings.length) tools.append(iconButton(GEAR, "Settings", () => openAppSettings(have)));
+  if (have.settings.some(setting => !setting.hidden))
+    tools.append(iconButton(GEAR, "Settings", () => openAppSettings(have)));
   tools.append(iconButton(INFO, "Info", () => openAppInfo(have)));
   box.append(tools);
   if (offer && offer.app.version !== have.version) {
@@ -326,9 +328,11 @@ function hostOf(app, address) {
   }
 }
 
-/* The numbers a place fills are the place's: not settings of their own to a person. */
-const hiddenKeys = app => new Set(app.settings.filter(setting => setting.type === "place")
-  .flatMap(place => [place.latitude, place.longitude]));
+/* The numbers a place fills are the place's, and a hidden setting is set elsewhere: neither is
+ * a setting of its own to a person. */
+const hiddenKeys = app => new Set([...app.settings.filter(setting => setting.type === "place")
+  .flatMap(place => [place.latitude, place.longitude]),
+  ...app.settings.filter(setting => setting.hidden).map(setting => setting.key)]);
 
 function appFacts(app) {
   const hosts = [...new Set([...(app.hosts || []), ...(app.polls || []).map(poll => poll.url)]

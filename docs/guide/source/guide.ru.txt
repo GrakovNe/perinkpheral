@@ -4239,3 +4239,6 @@ Paths have at most 63 bytes, property names at most 31 ASCII bytes, and extracti
 
 <code>app_fixed_parse()</code> keeps up to 18 significant digits. It refuses a number if discarded digits would change the result at the requested decimals, including after exponent scaling, and leaves the destination unchanged. Digits below that precision still round half away from zero.
 <code>app_fixed_parse()</code> сохраняет до 18 значащих цифр. Если отброшенные цифры изменили бы результат при запрошенном числе знаков после запятой, в том числе после применения экспоненты, функция отклоняет число и не изменяет выходное значение. Цифры ниже этой точности по-прежнему округляются от нуля при равенстве половине.
+
+Optional: true for a setting written by something else - an integration through the device's web API, a companion page - and left off the device page's form. Stored and read like any other
+Необязательно: true для настройки, которую записывает что-то другое - интеграция через веб-API устройства или страница-компаньон; в форме на странице устройства её нет. Хранится и читается как любая другая

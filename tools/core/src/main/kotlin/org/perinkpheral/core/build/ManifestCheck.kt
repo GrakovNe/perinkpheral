@@ -256,6 +256,8 @@ class ManifestCheck(private val sdk: Sdk) {
             }
             val kind = setting["type"]
             if (kind !in SETTING_TYPES) fail("$where: \"type\" must be one of ${SETTING_TYPES.joinToString(", ")}")
+            // Set by something else - an integration, a companion page - and left off the device's form.
+            if (setting["hidden"] != null && setting["hidden"] !is Boolean) fail("$where: \"hidden\" must be true or false")
             if (!isWords(setting["help"] ?: "", 0, settingHelpMax)) {
                 fail("$where: \"help\" must be a string of at most $settingHelpMax characters")
             }
