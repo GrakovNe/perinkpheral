@@ -26,7 +26,8 @@ import javax.imageio.ImageIO
  *       "tz": "Europe/Moscow",               the computer's zone for the run
  *       "font": "departure", "language": "en", "clock": false, "glyphs": "glyphs",
  *       "store": { "lat": "59.93" },         the application's store before it starts
- *       "mocks": { "https://api...": { "body": "..." } },   the network, as `sim --mocks` takes it
+ *       "mocks": { "https://api...*": { "body": "..." } },  the network, as `sim --mocks` takes it,
+ *                                            or the name of such a file beside the scenario
  *       "steps": [ "wait 6", "shot weather", "press 2 2 1L", "forward 60", "shot later" ]
  *     }
  *
@@ -88,9 +89,10 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
             (scenario["at"] as? Long)?.let { command += listOf("--at", it.toString()) }
             if (scenario["clock"] == true) command += "--clock"
             (scenario["glyphs"] as? String)?.let { command += listOf("--glyphs", File(it).absolutePath) }
-            (scenario["mocks"] as? Map<*, *>)?.let { mocks ->
-                val file = File(state, "mocks.json").apply { writeText(Json.write(mocks)) }
-                command += listOf("--mocks", file.path)
+            when (val mocks = scenario["mocks"]) {
+                // a file beside the scenario, whose "file"s are beside it too
+                is String -> command += listOf("--mocks", File(folder, mocks).absolutePath)
+                is Map<*, *> -> command += listOf("--mocks", File(state, "mocks.json").apply { writeText(Json.write(mocks)) }.path)
             }
             val builderOfProcess = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(File(state, "sim.log"))
             builderOfProcess.environment()["TZ"] = scenario["tz"] as? String ?: "UTC"

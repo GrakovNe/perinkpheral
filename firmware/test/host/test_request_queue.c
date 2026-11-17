@@ -13,6 +13,13 @@
 
 static request_queue_t queue;
 
+/* A queue anew: what a test before left in it given back first. */
+static void fresh(void)
+{
+    request_queue_keep_apps(&queue, NULL, 0);
+    request_queue_init(&queue);
+}
+
 static bool add(int app, int number, int64_t now_ms)
 {
     return request_queue_add(&queue, app, number, HOST_HTTP_GET, "https://example.org/x", NULL, 0,
@@ -35,7 +42,7 @@ static int take(int *app)
 
 static void test_turns(void)
 {
-    request_queue_init(&queue);
+    fresh();
     CHECK(request_queue_is_empty(&queue) && request_queue_next(&queue) == -1);
     CHECK(add(A, 1, 0) && add(A, 2, 0) && add(A, 3, 0) && add(B, 1, 0));
     int app;
@@ -51,7 +58,7 @@ static void test_turns(void)
 
 static void test_limits(void)
 {
-    request_queue_init(&queue);
+    fresh();
     for (int i = 0; i < HOST_HTTP_PENDING_MAX; i++) {
         CHECK(add(A, i, 0));
     }
@@ -60,7 +67,7 @@ static void test_limits(void)
     CHECK(add(B, 1, 0));
 
     /* the bytes of all of them together */
-    request_queue_init(&queue);
+    fresh();
     static uint8_t body[HOST_HTTP_BODY_MAX];
     int added = 0;
     for (int app = 1; app <= REQUEST_QUEUE_APPS; app++) {
@@ -77,7 +84,7 @@ static void test_limits(void)
 
 static void test_what_it_carries(void)
 {
-    request_queue_init(&queue);
+    fresh();
     app_header_t headers[2] = { { "Accept", "application/json" }, { "X-Token", "abc" } };
     static const uint8_t BODY[] = { 'h', 'i', 0, '!' };
     CHECK(request_queue_add(&queue, A, 7, HOST_HTTP_POST, "https://example.org/api", headers, 2, BODY,
@@ -101,7 +108,7 @@ static void test_what_it_carries(void)
 
 static void test_overdue_and_gone(void)
 {
-    request_queue_init(&queue);
+    fresh();
     int64_t recheck;
     CHECK(request_queue_overdue(&queue, 0, 100, &recheck) == -1 && recheck == -1);
     CHECK(add(A, 1, 0) && add(B, 2, 50));

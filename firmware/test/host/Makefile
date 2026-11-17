@@ -1,5 +1,7 @@
 CC      ?= cc
 CFLAGS  ?= -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined
+# POSIX beside C11, as the device's newlib has it (strnlen): glibc hides it under -std=c11
+CFLAGS  += -D_DEFAULT_SOURCE
 COMP    := ../../components
 # Units and other headers with no code, shared by every component.
 CFLAGS  += -I$(COMP)/board/include
@@ -98,24 +100,27 @@ build/wasm3/%.o: $(WASM3)/%.c
 	@mkdir -p build/wasm3
 	$(CC) $(WASM3_FLAGS) -c -o $@ $<
 
+# A file as the bytes of a C array, by POSIX od: xxd is not everywhere.
+c_bytes = od -An -v -tx1 $(1) | sed -e 's/\([0-9a-f][0-9a-f]\)/0x\1,/g'
+
 build/probe/app.wasm: apps/probe/probe.c apps/probe/manifest.json $(SDK)/host_api.h $(wildcard $(SDK)/lib/*) $(TOOLS)
 	$(MKAPP) apps/probe --out build/probe
 
 build/probe_wasm.h: build/probe/app.wasm
-	(echo "static const unsigned char probe_wasm[] = {"; xxd -i < $<; \
+	(echo "static const unsigned char probe_wasm[] = {"; $(call c_bytes,$<); \
 	 echo "};"; echo "static const unsigned int probe_wasm_len = sizeof probe_wasm;") > $@
 
 build/wrongret/app.wasm: apps/wrongret/wrongret.c apps/wrongret/manifest.json $(SDK)/host_api.h $(TOOLS)
 	$(MKAPP) apps/wrongret --out build/wrongret
 
 build/wrongret_wasm.h: build/wrongret/app.wasm
-	(echo "static const unsigned char wrongret_wasm[] = {"; xxd -i < $<; echo "};") > $@
+	(echo "static const unsigned char wrongret_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(SDK)/host_api.h $(TOOLS)
 	$(MKAPP) apps/wrongarg --out build/wrongarg
 
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
-	(echo "static const unsigned char wrongarg_wasm[] = {"; xxd -i < $<; echo "};") > $@
+	(echo "static const unsigned char wrongarg_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 build/host_imports.inc: $(SDK)/host_api.h
 	$(TOOLS) imports build
@@ -127,7 +132,7 @@ build/every_call/app.wasm: build/src/every-call/every_call.c $(TOOLS)
 	$(MKAPP) build/src/every-call --out build/every_call
 
 build/every_call_wasm.h: build/every_call/app.wasm
-	(echo "static const unsigned char every_call_wasm[] = {"; xxd -i < $<; echo "};") > $@
+	(echo "static const unsigned char every_call_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 test_app: test_app.c tinytest.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
@@ -156,8 +161,6 @@ test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 
 MANIFEST_SRCS := $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c $(SDK_LIB)/json_pick.c
 MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
-
-	$(CC) -std=c11 -w -c -o $@ $<
 
 test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSTORE)/include/app_manifest.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm

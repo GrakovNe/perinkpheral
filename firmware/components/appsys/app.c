@@ -592,7 +592,9 @@ void app_data(app_t *app, int request, const uint8_t *data, size_t length, int f
     if (memory == NULL || app->stop_reason != NULL) {
         return;
     }
-    memcpy(memory + app->data_buffer_offset, data, length);
+    if (length > 0) { /* a request that failed comes with no data at all */
+        memcpy(memory + app->data_buffer_offset, data, length);
+    }
     CALL_HANDLER(app, app_on_data, (int32_t)request, (int32_t)app->data_buffer_offset,
                  (int32_t)length, (int32_t)flags, (int32_t)http_status);
 }

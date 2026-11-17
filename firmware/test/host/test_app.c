@@ -193,7 +193,7 @@ static bool fake_poll_now(const char *app_name, int poll)
     return true;
 }
 
-static char asked_request[160];
+static char asked_request[2048]; /* every field at its longest: gcc checks it may be cut */
 static int  asked_tag;
 static int32_t fake_http_request(const char *app_name, const app_request_t *request)
 {

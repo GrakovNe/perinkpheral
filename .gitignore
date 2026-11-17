@@ -24,3 +24,4 @@ sdk/apps/*/*.wasm
 .DS_Store
 cmake-build-*/
 docs/guide/guide.*.html
+*.actual.png

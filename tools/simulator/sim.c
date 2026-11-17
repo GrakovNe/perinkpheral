@@ -77,7 +77,7 @@
 #define LOG_KEPT_BYTES     (256 * 1024)
 #define REQUEST_HEAD_MAX   8192
 #define REQUEST_BODY_MAX   (2 * 1024 * 1024)
-#define PATH_BYTES         1024
+#define PATH_BYTES         PATH_MAX /* what realpath() writes: 1024 on macOS, 4096 on Linux */
 #define NOTICES_MAX        4
 #define FIRST_POLLS_MS     2000 /* after a start, as the device spreads them */
 #define REDIRECTS_MAX      3
