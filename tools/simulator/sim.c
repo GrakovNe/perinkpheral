@@ -303,7 +303,8 @@ static int32_t stored_bytes(const char *app_name, const char *except_path)
     return total;
 }
 
-static int32_t kv_set(const char *app_name, const char *key, const void *value, int32_t length)
+/* `is_users`: written as the page writes a setting, which may set the server; the application may not. */
+static int32_t kv_store(const char *app_name, const char *key, const void *value, int32_t length, bool is_users)
 {
     char path[PATH_BYTES], folder[PATH_BYTES];
     store_path(path, app_name, key);
@@ -311,7 +312,7 @@ static int32_t kv_set(const char *app_name, const char *key, const void *value, 
         remove(path);
         return HOST_OK;
     }
-    if (s_manifest_json != NULL && app_manifest_is_server_setting(s_manifest_json, key)) {
+    if (!is_users && s_manifest_json != NULL && app_manifest_is_server_setting(s_manifest_json, key)) {
         say('W', "sim", "%s: \"%s\" is the user's to set", app_name, key);
         return HOST_ERR_ARGUMENT;
     }
@@ -329,9 +330,14 @@ static int32_t kv_set(const char *app_name, const char *key, const void *value, 
     return fclose(file) == 0 && is_written ? HOST_OK : HOST_ERR_FAILED;
 }
 
-/* A setting as the host puts it into an address: what is stored, and
- * nothing else - a manifest's default is what the page shows, as on the
- * device. With a context, the item of a list a poll with "each" stands for. */
+/* What the application writes. */
+static int32_t kv_set(const char *app_name, const char *key, const void *value, int32_t length)
+{
+    return kv_store(app_name, key, value, length, false);
+}
+
+/* A setting as the host puts it into an address: what is stored, or the
+ * manifest's default when nothing is, as on the device. With a context, the item of a list a poll with "each" stands for. */
 typedef struct {
     const char *key;
     const char *item;
@@ -880,7 +886,7 @@ static void services_log(int level, const char *text, int length)
     static const char LEVELS[] = "EWID";
     /* HOST_LOG_ERROR is 1. */
     say(level >= HOST_LOG_ERROR && level <= HOST_LOG_DEBUG ? LEVELS[level - HOST_LOG_ERROR] : 'I',
-        s_options.app, "%.*s", length, text);
+        "app", "%.*s", length, text); /* as the device tags it: what --app and the page's filter look for */
 }
 
 static void services_timer(int id, int32_t milliseconds)
@@ -1013,7 +1019,16 @@ static void notice_scene_draw(scene_t *scene, gfx_t *surface)
     notice_draw(surface, &notice);
 }
 
-static const scene_ops_t NOTICE_OPS = { .button = notice_button, .draw = notice_scene_draw };
+/* Off the screen however it went - a long BACK empties the stack without a press for it - so the
+ * next one, or this one again, is shown when there is room. */
+static void notice_leave(scene_t *scene)
+{
+    (void)scene;
+    s_notice_is_open = false;
+}
+
+static const scene_ops_t NOTICE_OPS = { .button = notice_button, .draw = notice_scene_draw,
+                                        .leave = notice_leave };
 static scene_t           s_notice_scene = { .ops = &NOTICE_OPS };
 
 static bool services_notify(const char *first, const char *second, const char *detail, int icon)
@@ -1364,7 +1379,7 @@ static void answer(int socket_fd, int status, const char *type, const char *extr
     int  head_length = snprintf(head, sizeof head,
                                 "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
                                 "Access-Control-Allow-Origin: *\r\n"
-                                "Access-Control-Expose-Headers: X-Frame, X-Pending, X-Log-End\r\n"
+                                "Access-Control-Expose-Headers: X-Frame, X-Pending, X-Log-End, X-Log-Boot\r\n"
                                 "%sConnection: close\r\n\r\n",
                                 status, status == 200 ? "OK" : "Error", type, length,
                                 extra_headers != NULL ? extra_headers : "");
@@ -1446,8 +1461,9 @@ static void answer_log(int socket_fd, const request_t *request)
         uint64_t since = strtoull(since_text, NULL, 10);
         from = since <= kept_from ? 0 : since >= s_log_written ? s_log_length : (size_t)(since - kept_from);
     }
-    char headers[48];
-    snprintf(headers, sizeof headers, "X-Log-End: %llu\r\n", (unsigned long long)s_log_written);
+    char headers[80];
+    snprintf(headers, sizeof headers, "X-Log-End: %llu\r\nX-Log-Boot: %lu\r\n", (unsigned long long)s_log_written,
+             (unsigned long)s_boot_id);
     answer(socket_fd, 200, "text/plain; charset=utf-8", headers, s_log + from, s_log_length - from);
 }
 
@@ -1572,8 +1588,8 @@ static void handle(int socket_fd, const request_t *request)
             return;
         }
         int32_t stored = request->body_length > 0
-                             ? kv_set(s_options.app, name, request->body, (int32_t)request->body_length)
-                             : kv_set(s_options.app, name, "", 0);
+                             ? kv_store(s_options.app, name, request->body, (int32_t)request->body_length, true)
+                             : kv_store(s_options.app, name, "", 0, true);
         app_delivery_t settings = { .kind = APP_DELIVERY_SETTINGS };
         deliver(&settings);
         for (int poll = 0; poll < s_manifest.poll_count; poll++) {

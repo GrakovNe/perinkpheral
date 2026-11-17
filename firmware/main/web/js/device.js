@@ -21,11 +21,26 @@ const STARTS = { 1: "Power on", 2: "Reset pin", 3: "Restarted", 4: "Fault", 5: "
 
 /* The record of the last fault: "6 \"Interrupt wdt timeout o\" wifi pc ...": so many starts ago,
  * why, in which task, and where - the rest for whoever has the firmware's symbols. */
+const FAULTS = { "Interrupt wdt": "Interrupt watchdog", "Task watchdog": "Task watchdog", "abort()": "Abort",
+                 "Load access fault": "Memory fault", "Store access fault": "Memory fault",
+                 "Illegal instruction": "Illegal instruction", "Breakpoint": "Breakpoint",
+                 "Stack protection": "Stack overflow", "Unhandled debug exception": "Stack overflow" };
+
 function lastFault(record) {
   const found = (record || "").match(/^(\d+) "([^"]*)" (\S+)/);
   if (!found) return null;
-  const [, ago, why, task] = found;
+  const [, ago, said, task] = found;
+  /* The chip's words, cut to the record's room: said as a person names the fault. */
+  const why = Object.entries(FAULTS).find(([start]) => said.startsWith(start))?.[1] || said.trim();
   return t(ago === "1" ? "{0}, {1} - {2} start ago" : "{0}, {1} - {2} starts ago", why.trim(), task, ago);
+}
+
+/* When the firmware was built ("Nov 17 2026 12:04:05", as the compiler says it), in the page's language. */
+function builtOn(text) {
+  const when = text && new Date(text.replace(/^(\w+) +(\d+) (\d+) /, "$1 $2, $3 "));
+  const hasTime = /\d:\d/.test(text || "");
+  return when && !isNaN(when) ? when.toLocaleString(pageLanguage, { day: "numeric", month: "short", year: "numeric",
+                                                                    ...(hasTime && { hour: "2-digit", minute: "2-digit" }) }) : text;
 }
 
 /* The network's state, as the device names it, in words. */
@@ -43,7 +58,7 @@ function statusFacts() {
     ["Device", [
       ["Name", status.name],
       ["Firmware", status.firmware && (status.on_probation ? t("{0} (verifying)", status.firmware) : status.firmware)],
-      ["Built", status.built],
+      ["Built", builtOn(status.built)],
       ["ESP-IDF", status.idf],
       ["Slot", status.slot],
       ["Time", status.time],
@@ -71,8 +86,10 @@ function statusFacts() {
 }
 
 /* Facts as a list of names and values. */
+/* What the user named - the device, the network - stays as they wrote it, whatever it reads like. */
+const NAMED_BY_USER = new Set(["Name", "SSID", "IP address", "Hostname"]);
 const factList = facts => facts.flatMap(([name, value]) =>
-  [make("dt", { textContent: name }), make("dd", { textContent: value })]);
+  [make("dt", { textContent: name }), make("dd", { textContent: value, translate: !NAMED_BY_USER.has(name) })]);
 
 async function loadStatus() {
   status = await ask("/api/status");
@@ -121,7 +138,9 @@ async function lookAtScreen() {
 
 async function press(key, isLong) {
   try {
-    await ask("/api/dev/button?button=" + key + "&press=" + (isLong ? "long" : "short"), { method: "POST" });
+    /* The answer is a word, not JSON. */
+    const answer = await fetch("/api/dev/button?button=" + key + "&press=" + (isLong ? "long" : "short"), { method: "POST" });
+    if (!answer.ok) throw new Error((await answer.text()).trim() || "HTTP " + answer.status);
   } catch (error) {
     toast(error.message, "error");
   }

@@ -68,7 +68,10 @@ async function loadSettings() {
   byId("header_clock").checked = settings.header_clock;
   byId("time_auto").checked = settings.time_auto;
   byId("power_saving").value = settings.power_saving;
-  byId("menu_idle_min").value = settings.menu_idle_min;
+  const idle = byId("menu_idle_min");
+  if (![...idle.options].some(option => Number(option.value) === settings.menu_idle_min))
+    idle.append(make("option", { value: settings.menu_idle_min, textContent: t("{0} min", settings.menu_idle_min) }));
+  idle.value = settings.menu_idle_min;
   byId("ssid").value = settings.wifi_ssid;
   byId("hostname").value = settings.hostname ? settings.hostname + ".local" : "";
   byId("language-choice").replaceChildren(...(settings.languages || []).map(

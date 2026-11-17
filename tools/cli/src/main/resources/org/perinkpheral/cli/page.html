@@ -126,13 +126,23 @@ addEventListener("keydown", event => {
 });
 
 /* ---- the log: only what came since the last look ---- */
-let log_end = null, kept_part = "";
+let log_end = null, log_boot = null, kept_part = "";
 
 async function read_log() {
   try {
     const answer = await fetch("/api/log" + (log_end === null ? "" : "?since=" + log_end));
     if (answer.ok) {
-      log_end = Number(answer.headers.get("X-Log-End"));
+      const end = Number(answer.headers.get("X-Log-End")), boot = answer.headers.get("X-Log-Boot");
+      /* Another run of the device - Run restarts it - or a position behind the one before: its log
+       * began anew, and is read from its beginning. */
+      if (log_end !== null && (end < log_end || (boot && log_boot && boot !== log_boot))) {
+        log_end = null;
+        log_boot = boot;
+        kept_part = "";
+        return read_log();
+      }
+      log_boot = boot;
+      log_end = end;
       /* A line may arrive in two halves: the last one waits for its end. */
       const lines = (kept_part + await answer.text()).split("\n");
       kept_part = lines.pop();

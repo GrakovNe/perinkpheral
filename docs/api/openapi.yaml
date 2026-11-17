@@ -60,7 +60,6 @@ components:
         ssid: { type: string }
         address: { type: string }
         tz: { type: string, description: POSIX TZ string }
-        tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
         time: { type: string, description: Local time, when known }
         hostname: { type: string }
         idf: { type: string }
@@ -210,6 +209,9 @@ paths:
             X-Log-End:
               schema: { type: integer }
               description: Where this answer ends, for the next `since`
+            X-Log-Boot:
+              schema: { type: integer }
+              description: The run of the device the log is of; another after every restart
           content:
             text/plain:
               schema: { type: string }

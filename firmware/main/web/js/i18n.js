@@ -55,6 +55,8 @@ const RUSSIAN = {
   "Power on": "Включение", "Reset pin": "Кнопка сброса", "Restart": "Перезагрузить",
   "Restarted": "Перезагрузка",
   "Fault": "Сбой", "Interrupt watchdog": "Watchdog прерываний", "Task watchdog": "Watchdog задач",
+  "Abort": "Аварийная остановка", "Memory fault": "Ошибка памяти", "Illegal instruction": "Недопустимая инструкция",
+  "Breakpoint": "Точка останова", "Stack overflow": "Переполнение стека",
   "Watchdog": "Watchdog", "Wake from sleep": "Выход из сна", "Brownout": "Просадка питания",
   "Online": "В сети", "Connecting": "Подключение", "Setup mode": "Настройка", "Not connected": "Нет сети",
   "{0} KB": "{0} КБ", "{0} of {1}": "{0} из {1}",
@@ -72,7 +74,7 @@ const RUSSIAN = {
   "Factory reset? All settings and app data will be erased.":
     "Сбросить всё? Все настройки и данные приложений будут стёрты.",
   /* a firmware on its way */
-  "Updating": "Обновление", "Restarting": "Перезапуск", "Confirm on the device.": "Подтвердите на устройстве.",
+  "Updating": "Обновление", "Restarting": "Перезагрузка", "Confirm on the device.": "Подтвердите на устройстве.",
   "Installing.": "Установка.", "Waiting for the device.": "Ожидание устройства.",
   "Back online.": "Снова в сети.", "Device not found.": "Устройство не найдено.",
   "Reload": "Обновить страницу",
@@ -135,10 +137,10 @@ const RUSSIAN = {
   "Source not found.": "Источник не найден.", "Too many sources.": "Слишком много источников.",
   "Source unavailable (HTTP {0}).": "Источник недоступен (HTTP {0}).",
   "Time is set automatically.": "Время устанавливается автоматически.",
-  "Saved.": "Сохранено.", "Saved. Restarting.": "Сохранено. Перезапуск.",
+  "Saved.": "Сохранено.", "Saved. Restarting.": "Сохранено. Перезагрузка.",
   "Saved. Restart to apply.": "Сохранено. Перезагрузите, чтобы применить.",
-  "Installed.": "Установлено.", "Installed. Restarting.": "Установлено. Перезапуск.",
-  "Removed.": "Удалено.", "Restarting.": "Перезапуск.", "Reset. Restarting.": "Сброшено. Перезапуск.",
+  "Installed.": "Установлено.", "Installed. Restarting.": "Установлено. Перезагрузка.",
+  "Removed.": "Удалено.", "Restarting.": "Перезагрузка.", "Reset. Restarting.": "Сброшено. Перезагрузка.",
 };
 
 const LANGUAGES = { ru: RUSSIAN };
@@ -158,7 +160,10 @@ const patterns = Object.keys(words).filter(text => text.includes("{0}") &&
                                                  /[A-Za-z]{3}/.test(text.replace(/\{\d\}/g, "")))
   .sort((a, b) => b.replace(/\{\d\}/g, "").length - a.replace(/\{\d\}/g, "").length)
   .map(text => [new RegExp("^" + text.replace(/[.*+?^$()|[\]\\]/g, "\\$&")
-                                     .replace(/\{(\d)\}/g, "(?<p$1>.+?)") + "$"), words[text]]);
+                                     .replace(/\{(\d)\}/g, "(?<p$1>.+?)") + "$"), words[text], text]);
+
+/* The device's answers that name a setting by its key: translated whatever the key. */
+const ANSWERS_WITH_NAMES = new Set(["Invalid value: {0}."]);
 
 const fill = (text, parts) => text.replace(/\{(\d)\}/g, (all, at) => parts[at] === undefined ? all : parts[at]);
 
@@ -170,9 +175,14 @@ function t(text, ...parts) {
 /* A whole text as the page shows it, put into the language: null when it has no translation. */
 function translated(text) {
   if (words[text]) return words[text];
-  for (const [pattern, into] of patterns) {
+  for (const [pattern, into, said] of patterns) {
     const found = text.match(pattern);
-    if (found) return into.replace(/\{(\d)\}/g, (all, at) => found.groups["p" + at]);
+    /* A part with no digit is a name somebody gave - "Home min", "Every day" - and is left be;
+     * a text that takes a name is the scripts', through t(). The device's own answers are the one
+     * exception: they name a setting by its key. */
+    if (found && (ANSWERS_WITH_NAMES.has(said) ||
+                  Object.values(found.groups).every(part => /\d/.test(part))))
+      return into.replace(/\{(\d)\}/g, (all, at) => found.groups["p" + at]);
   }
   return null;
 }

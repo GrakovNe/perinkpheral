@@ -5,7 +5,7 @@
 "use strict";
 
 const LOG_EVERY_MS = 2000, LOG_LINES_KEPT = 4000;
-let logEnd = null, logTimer = 0, logReading = Promise.resolve(), logRest = "";
+let logEnd = null, logBoot = null, logTimer = 0, logReading = Promise.resolve(), logRest = "";
 const logLines = []; /* { at, level, tag, text } or { restart: true } */
 
 /* "I (2509707) httpd: what": the level, the milliseconds since the start, who, what. */
@@ -52,7 +52,7 @@ function drawLog() {
   const view = byId("log-lines"), wanted = logSearched();
   const rows = logLines.filter(line => logMatches(line, wanted)).map(logRow);
   view.replaceChildren(...rows);
-  if (!rows.length) view.append(make("p", { className: "note", textContent: logLines.length ? "Nothing found." : "Empty." }));
+  if (!rows.length) view.append(make("p", { className: "note", textContent: t(logLines.length ? "Nothing found." : "Empty.") }));
   drawLogCount(rows.filter(row => !row.classList.contains("restart")).length);
   view.scrollTop = view.scrollHeight;
 }
@@ -76,15 +76,19 @@ function addLogLines(lines) {
 async function readLogNow() {
   const answer = await fetch("/api/log" + (logEnd === null ? "" : "?since=" + logEnd));
   if (!answer.ok) throw new Error("HTTP " + answer.status);
-  const end = Number(answer.headers.get("X-Log-End"));
+  const end = Number(answer.headers.get("X-Log-End")), boot = answer.headers.get("X-Log-Boot");
   const text = await answer.text();
-  /* A position behind the one before: the device started anew, and its log with it. */
-  if (logEnd !== null && end < logEnd) {
+  /* Another run, or a position behind the one before: the device started anew, and its log
+   * with it - and its uptime, which the clock of the lines counts from. */
+  if (logEnd !== null && (end < logEnd || (boot && logBoot && boot !== logBoot))) {
     logEnd = null;
     logRest = "";
+    logBoot = boot;
     addLogLines([{ restart: true }]);
+    await loadStatus().catch(() => {});
     return readLogNow();
   }
+  logBoot = boot;
   logEnd = end;
   /* A line is shown once it is whole: the rest waits for the next look. */
   const parts = (logRest + text).split("\n");

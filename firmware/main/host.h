@@ -81,6 +81,9 @@ void host_reload_apps_later(void);
  * handler has returned, and the list is read anew after it. */
 void host_remove_app_later(const char *app_name);
 
+/* The application the next start opens, before the default one: the development tools' run. */
+void host_start_once(const char *app_name);
+
 /* Gives the application what is for it, on the screen or off it. */
 void host_deliver(const char *app_name, const app_delivery_t *delivery);
 

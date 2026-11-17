@@ -4,6 +4,8 @@
  */
 #include <string.h>
 
+#include "esp_attr.h"
+
 #include "priorities.h"
 #include "host.h"
 #include "host_private.h"
@@ -283,9 +285,31 @@ static scene_t *default_scene(void)
     return settings.default_app[0] != '\0' ? launcher_app_scene(settings.default_app) : NULL;
 }
 
+/* An application the development tools restarted into: the next start's, before the default
+ * one, and only the next. Kept through the restart in RTC memory, checked by a mark. */
+#define START_ONCE_MARK 0x52554E31u /* "RUN1" */
+static RTC_NOINIT_ATTR struct {
+    uint32_t mark;
+    char     name[APP_NAME_MAX + 1];
+} s_start_once;
+
+void host_start_once(const char *app_name)
+{
+    strlcpy(s_start_once.name, app_name, sizeof s_start_once.name);
+    s_start_once.mark = START_ONCE_MARK;
+}
+
+static scene_t *take_start_once(void)
+{
+    bool is_one = s_start_once.mark == START_ONCE_MARK;
+    s_start_once.mark = 0;
+    s_start_once.name[APP_NAME_MAX] = '\0';
+    return is_one ? launcher_app_scene(s_start_once.name) : NULL;
+}
+
 /* Where the device goes after the splash at power-up: to be set up when
- * it has no network, else to the default application, else back to the
- * application it showed last, else to the menu. */
+ * it has no network, else to the application the development tools asked for, else to the
+ * default application, else back to the application it showed last, else to the menu. */
 static scene_t *scene_with_storage(scene_t *menu)
 {
     wifi_status_t wifi;
@@ -295,7 +319,10 @@ static scene_t *scene_with_storage(scene_t *menu)
          * menu: Device has the access point's address. */
         return launcher_setup() != NULL ? launcher_setup() : menu;
     }
-    scene_t *chosen = default_scene();
+    scene_t *chosen = take_start_once();
+    if (chosen == NULL) {
+        chosen = default_scene();
+    }
     if (chosen != NULL) {
         return chosen;
     }

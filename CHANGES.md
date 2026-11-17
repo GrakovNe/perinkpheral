@@ -4,6 +4,26 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.20
+
+- Fixes found by a review of the whole project. An application with system access that
+  removes the one waiting under it no longer brings the device down; the removal takes effect
+  once its handler returns.
+- Data: an answer that never closes its JSON is no answer; a slow server is cut off at the
+  deadline however it trickles; a list the device has no memory for says so. `poll_now` is
+  held to once a second, and a long list of one application lets the others' polls in.
+- An alarm of another application in the middle of an answer taken in pieces ends it as a
+  press does, and the poll is asked again soon.
+- Installing: what a failed try left is cleared first; an application that writes files is
+  held to its 32 KB; a server left at its default counts when the address is changed.
+- Settings: Apps lists the applications in the order of their titles in the device's
+  language; the date and time are set in one step.
+- The device's page: Control's buttons no longer report an error; the log knows a restart
+  and keeps its clock right; names of the device and the network stay as written; on a
+  phone the facts and the file chooser fit the width; the build date and faults are said in
+  the page's language.
+- The development tools' Run opens the application even when another is the default.
+
 ## 0.1.19
 
 - The time zone is chosen by a city on the device's page too, from the list the device has;

@@ -19,6 +19,7 @@
 #include "esp_http_server.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -370,6 +371,13 @@ static esp_err_t handle_log(httpd_req_t *request)
     char end_text[INT32_TEXT_BYTES];
     snprintf(end_text, sizeof end_text, "%" PRIu32, end);
     httpd_resp_set_hdr(request, "X-Log-End", end_text);
+    /* Which run of the device the log is of: a position alone cannot tell a restart that has
+     * already written more than the reader had read. Drawn once a run. */
+    static char boot_text[INT32_TEXT_BYTES];
+    if (boot_text[0] == '\0') {
+        snprintf(boot_text, sizeof boot_text, "%" PRIu32, esp_random() | 1);
+    }
+    httpd_resp_set_hdr(request, "X-Log-Boot", boot_text);
     httpd_resp_set_type(request, "text/plain; charset=utf-8");
     esp_err_t err = httpd_resp_send(request, log + skipped, (ssize_t)(length - skipped));
     free(log);

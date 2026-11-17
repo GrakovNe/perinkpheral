@@ -31,7 +31,7 @@ jobs:
           mkdir -p site/flash
           echo '<!doctype html><meta charset="utf-8"><title>perINKpheral firmware</title><p>The firmware of <a href="https://perinkpheral.dev/flash">perINKpheral</a>, for its web flasher.</p>' > site/index.html
           echo '[]' > site/flash/index.json
-          for tag in $(gh release list --repo "$repo" --limit 100 --exclude-drafts --json tagName --jq '.[].tagName'); do
+          for tag in $(gh release list --repo "$repo" --limit 1000 --exclude-drafts --json tagName --jq '.[].tagName'); do
             gh release download "$tag" --repo "$repo" --dir "site/flash/$tag" --pattern '*.bin' --pattern '*.json'
             release=null; debug=null
             [ -f "site/flash/$tag/manifest.json" ] && release="\"$tag/manifest.json\""

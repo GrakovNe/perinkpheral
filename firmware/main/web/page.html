@@ -31,7 +31,7 @@
 </nav>
 <main>
 
-<section id="apps">
+<section data-section="apps">
   <div class="head">
     <h2>Installed apps</h2>
     <span class="count" id="app-count"></span>
@@ -39,7 +39,7 @@
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
 </section>
 
-<section id="catalog">
+<section data-section="catalog">
   <div class="head">
     <h2>Catalog</h2>
     <span class="count" id="catalog-count"></span>
@@ -55,7 +55,7 @@
   <div class="catalog" id="catalog-rows"><p class="note">Loading</p></div>
 </section>
 
-<section id="device">
+<section data-section="device">
   <div class="narrow">
     <div class="head"><h2>Device</h2></div>
     <div class="groups" id="status"><p class="note">Loading</p></div>
@@ -68,7 +68,7 @@
   </div>
 </section>
 
-<section id="firmware">
+<section data-section="firmware">
   <div class="narrow">
     <div class="head"><h2>Firmware</h2></div>
     <dl class="ota">
@@ -93,7 +93,7 @@
   </div>
 </section>
 
-<section id="log">
+<section data-section="log">
   <div class="head">
     <h2>Log</h2>
     <span class="count" id="log-count"></span>
@@ -116,7 +116,7 @@
   </div>
 </section>
 
-<section id="control">
+<section data-section="control">
   <div class="head"><h2>Control</h2></div>
   <figure class="screen">
     <div class="bezel"><img id="screen-image" alt="The device's screen"></div>
@@ -129,7 +129,7 @@
   </figure>
 </section>
 
-<section id="settings">
+<section data-section="settings">
   <div class="head narrow"><h2>Settings</h2></div>
   <div class="tabs narrow" id="tabs">
     <button data-pane="general">General</button>
@@ -284,7 +284,7 @@
 
 <dialog id="app-dialog">
   <form id="app-settings">
-    <h2 id="app-dialog-title"></h2>
+    <h2 id="app-dialog-title" translate="no"></h2>
     <div id="app-fields"></div>
     <div class="buttons">
       <button>Save</button>

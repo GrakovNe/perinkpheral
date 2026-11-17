@@ -27,8 +27,8 @@ class Sdk(val root: File) {
     /** HOST_KV_TOTAL_MAX: what all values of one application may take of its store. */
     val storeMax: Long by lazy { contract.number("HOST_KV_TOTAL_MAX") }
 
-    /** VERSION of the checkout: the firmware it belongs to, which every application it
-     * builds is stamped with as the least it runs on. */
+    /** VERSION of the checkout: the least version of the next firmware, past which no
+     * application's "firmware" may ask. What a build stamps is the latest of its calls'. */
     val version: String by lazy {
         val text = File(root, "VERSION").takeIf { it.isFile }?.readText()?.trim()
             ?: throw BuildError("${root.path} has no VERSION")

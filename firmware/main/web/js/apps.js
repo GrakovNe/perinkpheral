@@ -58,7 +58,9 @@ function placeField(input, latitude, longitude) {
           name: [place.name, place.state, place.country].map(part => ascii(part || "")),
           longitude: geometry.coordinates[0].toFixed(4), latitude: geometry.coordinates[1].toFixed(4) }))
           .filter(place => place.name[0])
-          .map(place => ({ ...place, name: place.name.filter(part => part).join(", ").slice(0, input.maxLength) }))
+          /* "Saint Petersburg, Saint Petersburg, Russia": a region named as its city is said once. */
+          .map(place => ({ ...place, name: place.name.filter((part, at, all) => part && all.indexOf(part) === at)
+                                                     .join(", ").slice(0, input.maxLength) }))
           .filter((place, index, all) => all.findIndex(other => other.name === place.name) === index)
           .slice(0, PLACES_OFFERED));
       } catch (error) {
@@ -262,7 +264,7 @@ function firmwareNeeded(app) {
 function tile(have, offer) {
   const box = make("div", { className: "tile" });
   box.append(picture(isIcon(have.icon) ? have.icon : offer && offer.app.icon, 5),
-             make("b", { textContent: have.title }), make("small", { textContent: have.version }));
+             make("b", { textContent: have.title, translate: false }), make("small", { textContent: have.version }));
   /* What the device shows by itself is marked: after a restart, and when the menu is left. */
   if (settings.default_app === have.name) box.append(make("span", { className: "mark", textContent: "Default" }));
   box.append(make("div", { className: "spring" }));
@@ -314,7 +316,7 @@ function hostOf(app, address) {
   /* An address the device keeps to itself - a calendar's - is named, not shown. */
   if (key && typeof app.values[key] !== "string") {
     const kept = app.settings.find(have => have.key === key);
-    return (kept ? kept.title : key) + (app.values[key] ? "" : " (not set)");
+    return (kept ? kept.title : key) + (app.values[key] ? "" : " (" + t("not set") + ")");
   }
   const whole = key ? address.replace("{{" + key + "}}", app.values[key] || "") : address;
   try {
@@ -341,7 +343,7 @@ function appFacts(app) {
     ["Version", app.version || "-"],
     ["Connects to", hosts.join("\n") || "Nothing"],
     ["Updates", [...new Set(updates)].join(", ") || "On request"],
-    ["Settings", stores.join(", ") || "None"],
+    ["Settings", stores.join("\n") || "None"], /* one a line: a name is not broken between two */
     ["Starts with device", (app.intents || []).includes("started") ? "Yes" : "No"],
     ["System access", app.system ? "Yes" : "No"],
     ["Writes files", app.writes_files ? "Yes, 32 KB" : "No"],
@@ -386,9 +388,10 @@ function drawCatalog() {
     .map(offer => {
       const row = make("div", { className: "offer" }), text = make("div");
       const needed = firmwareNeeded(offer.app);
-      text.append(make("b", { textContent: offerSays(offer, "title") }));
+      /* Already in the page's language, from the index: nothing to put into it. */
+      text.append(make("b", { textContent: offerSays(offer, "title"), translate: false }));
       if (offerSays(offer, "description"))
-        text.append(make("span", { className: "about", textContent: offerSays(offer, "description") }));
+        text.append(make("span", { className: "about", textContent: offerSays(offer, "description"), translate: false }));
       text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
                                                 (needed ? " - " + t("needs firmware {0}", needed) : "") }));
       const button = make("button", { className: "quiet", textContent: "Install" });

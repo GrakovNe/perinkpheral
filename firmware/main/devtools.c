@@ -270,6 +270,7 @@ static void run_app(void *argument)
     /* In the host loop, which keeps the last application too: nothing
      * writes another one over it before the restart. */
     settings_save_last_app(argument);
+    host_start_once(argument); /* before a default application, too */
     host_stop_soon(HOST_STOP_RESTART);
 }
 

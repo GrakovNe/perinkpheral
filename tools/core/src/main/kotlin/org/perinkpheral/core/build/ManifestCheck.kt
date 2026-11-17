@@ -121,8 +121,8 @@ class ManifestCheck(private val sdk: Sdk) {
         if (abi !is Long || abi != sdk.hostApiVersion) {
             fail("$path: \"abi\" must be ${sdk.hostApiVersion}, the version of sdk/host_api.h")
         }
-        // The least firmware it runs on: the build writes the SDK's; one given by hand may
-        // be older, for an application that calls nothing newer, and never newer.
+        // The least firmware it runs on: the build writes the latest its calls came with; one
+        // given by hand may ask for more, for a behaviour, never past this SDK's VERSION.
         val firmware = manifest["firmware"]
         if (firmware != null) {
             val number = (firmware as? String)?.let { versionNumber(it) }

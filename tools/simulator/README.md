@@ -36,7 +36,8 @@ every address that begins with the rest.
       "https://example.com/api/state": { "status": 401, "body": "{}" }
     }
 
-Not simulated: the menu of several applications, the system API, e-paper
+Not simulated: the menu of several applications, the system API but the
+host's settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`), e-paper
 refresh timing, sleep and the battery. The application area of the device
 (128 KB for the interpreter) is not enforced: the build's report is the check.
 

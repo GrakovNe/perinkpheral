@@ -15,8 +15,8 @@ const GEAR = ["....###....", ".##.###.##.", ".#########.", "..##...##..", "###..
               "....###...."];
 
 const INFO = ["...#####...", "..#.....#..", ".#...#...#.", "#.........#", "#....#....#",
-              "#....#....#", "#....#....#", ".#...#...#.", "..#.....#..", "...#####...",
-              "..........."];
+              "#....#....#", "#....#....#", "#....#....#", ".#...#...#.", "..#.....#..",
+              "...#####..."];
 
 
 /* An icon as the manifest writes it - rows of '#' and '.' - drawn cell by cell. */
@@ -164,7 +164,9 @@ const sectionShown = [];  /* what a section does when it comes into view: (name)
 
 function currentSection() {
   const wanted = (location.hash.slice(1) || "apps").split(":")[0];
-  return byId(wanted) && byId(wanted).tagName === "SECTION" ? wanted : "apps";
+  /* A section is named by data-section, not an id: an id would be the target of its own address,
+   * which the browser scrolls to whenever the page is opened at it. */
+  return document.querySelector(`section[data-section="${CSS.escape(wanted)}"]`) ? wanted : "apps";
 }
 
 function showSection() {
@@ -173,7 +175,7 @@ function showSection() {
   if (name === "settings") showPane(byId(inside) && byId(inside).classList.contains("pane") ? inside : "general");
   else openInside(inside);
   for (const section of document.querySelectorAll("section"))
-    section.classList.toggle("current", section.id === name);
+    section.classList.toggle("current", section.dataset.section === name);
   for (const link of document.querySelectorAll("nav a:not(.brand)")) {
     link.classList.toggle("current", link.hash === "#" + name);
     /* On a phone the menu is a line that scrolls: the section open is brought into it. */

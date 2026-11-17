@@ -47,7 +47,7 @@ object SimulatorNetwork {
 
     private val client: HttpClient by lazy { clientTrusting(emptyList()) }
 
-    /** A client a set of authorities: one for each set an application brings, kept. */
+    /** A client a set of authorities: the one of the set asked last, kept for the next request. */
     private val trustingClients = java.util.concurrent.ConcurrentHashMap<List<String>, HttpClient>()
 
     private fun clientTrusting(files: List<String>): HttpClient {
@@ -154,14 +154,34 @@ object SimulatorNetwork {
             // Kept by the files as they are now: a certificate changed while the IDE runs is read anew.
             val key = trust.map { it + "@" + java.io.File(it).lastModified() }
             val chosen = try {
-                if (trust.isEmpty()) client else trustingClients.getOrPut(key) { clientTrusting(trust) }
+                if (trust.isEmpty()) client else {
+                    // Another set - another application, or a certificate changed - lets the one before go.
+                    if (!trustingClients.containsKey(key)) trustingClients.clear()
+                    trustingClients.getOrPut(key) { clientTrusting(trust) }
+                }
             } catch (error: Exception) {
                 // The application's certificates could not be read: nothing it asks is trusted.
                 System.err.println("simulator network: the application's certificates: ${error.message}")
                 return mapOf("status" to NOT_TRUSTED)
             }
             val response = chosen.send(request.build(), HttpResponse.BodyHandlers.ofInputStream())
-            val content = response.body().use { stream -> stream.readNBytes((most + 1).toInt()) }
+            // The timeout bounds the request up to its headers; the body has the same time again, and a
+            // server that sends a byte now and then is cut off when it is up, as the device does.
+            val stream = response.body()
+            val isCut = java.util.concurrent.atomic.AtomicBoolean(false)
+            val deadline = java.util.Timer(true)
+            deadline.schedule(object : java.util.TimerTask() {
+                override fun run() { isCut.set(true); runCatching { stream.close() } }
+            }, timeout.toMillis())
+            val content = try {
+                stream.use { it.readNBytes((most + 1).toInt()) }
+            } catch (error: IOException) {
+                if (isCut.get()) return mapOf("status" to TIMEOUT)
+                throw error
+            } finally {
+                deadline.cancel()
+            }
+            if (isCut.get()) return mapOf("status" to TIMEOUT)
             if (content.size > most) return mapOf("status" to TOO_LARGE)
             val kept = LinkedHashMap<String, Any?>()
             for ((name, values) in response.headers().map()) {

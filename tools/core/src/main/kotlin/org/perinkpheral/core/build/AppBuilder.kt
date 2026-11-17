@@ -290,7 +290,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             setting as Map<*, *>
             when (setting["type"]) {
                 "toggle" -> taken(1)
-                "number" -> taken(NUMBER_TEXT_MAX)
+                "number" -> taken(NUMBER_TEXT_COUNTED)
                 "choice" -> taken((setting["options"] as? List<*>).orEmpty()
                     .maxOfOrNull { it.toString().toByteArray().size.toLong() } ?: 0)
                 else -> taken(settingValueMax)
@@ -340,8 +340,9 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         const val MANIFEST = "manifest.json"
         private const val HOST_MODULE = "host"
         private const val FILE_WRITE = "file_write"
-        // The longest a number setting is written: a sign, digits and a point.
-        private const val NUMBER_TEXT_MAX = 21L
+        // What a number setting is counted at: a sign, the digits of 64 bits and a point - a number
+        // as a person writes one, not the 255 bytes the host would take of any text.
+        private const val NUMBER_TEXT_COUNTED = 21L
         // What an application's code costs when it runs, as measured on the device: about this much
         // for any application, and about four bytes for every byte of the code section.
         private const val INTERPRETER_BASE_BYTES = 11L * 1024

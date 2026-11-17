@@ -22,7 +22,7 @@ svg.pixels { display: block; fill: currentColor; shape-rendering: crispEdges; }
 nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; display: flex; flex-direction: column;
       position: sticky; top: 0; height: 100vh; }
 .brand { display: flex; align-items: center; gap: .7rem; margin: 0 1.25rem 2rem; color: var(--ink); }
-.brand .mark { width: 1.6rem; height: 1.6rem; flex: none; }
+.brand .mark { width: 22px; height: 22px; flex: none; } /* two pixels a cell: every stroke as thick */
 .brand .wordmark { height: .95rem; width: auto; }
 nav a:not(.brand) { display: block; padding: .55rem 1.25rem; color: var(--ink); text-decoration: none; }
 nav a:not(.brand):hover { background: var(--line); }
@@ -113,6 +113,7 @@ label.file .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis;
 .place li:hover, .place li.current { background: var(--ink); color: var(--paper); }
 /* Lines a person adds and takes away: a field and its button a line. */
 .rows { display: grid; gap: .6rem; margin-top: .75rem; }
+label + .rows { margin-top: 0; } /* under its label as an input is */
 .rows div { display: flex; gap: .6rem; }
 .rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; flex: none; }
 .rows button.add { width: 100%; }
@@ -257,7 +258,10 @@ dialog p { margin: 0 0 .5rem; }
 dialog .notes { margin: .75rem 0 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; font: inherit; font-size: .9rem; }
 dialog .buttons { justify-content: flex-end; margin-top: 1.5rem; }
 /* What the firmware is made with: a row a part, as the portal lists them. */
-table.credits { width: 100%; border-collapse: collapse; }
+table.credits { width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* The same columns in every table of the page. */
+.credits th:nth-child(1) { width: 30%; }
+.credits th:nth-child(2) { width: 45%; }
 .credits th { text-align: left; font-weight: normal; color: var(--dim); padding: 0 1rem .4rem 0; }
 .credits td { padding: .55rem 1rem .55rem 0; border-top: 1px solid var(--line); vertical-align: top;
               overflow-wrap: anywhere; }
@@ -288,6 +292,13 @@ details[open] summary::before { content: "- "; }
   .tile:hover { transform: none; box-shadow: none; }
   /* One row that scrolls, the last tab cut at the edge: wrapped, the chosen
    * tab stood a row away from the line it opens. */
-  .tabs button { min-width: 0; padding: 0 .75rem; }
+  .tabs { gap: .15rem; }
+  .tabs button { min-width: 0; padding: 0 .5rem; }
+  /* A file's name on a line of its own, the button under it. */
+  .file-row { flex-direction: column; align-items: stretch; }
+  .file-row > button { width: 100%; }
+  /* A value under its name: a name of the device or a fault does not fit beside it. */
+  .facts, #status dl, #network-now { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .facts dd, #status dd, #network-now dd { text-align: left; margin-bottom: .55rem; }
   dialog { padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink); }
 }

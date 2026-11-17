@@ -81,7 +81,7 @@ class PageServer(private val client: DeviceClient, private val appDir: File?, pr
             exchange.requestMethod == "GET" && path == "/api/dev/screen" ->
                 passOn(exchange, path, expose = listOf("X-Frame", "X-Pending"))
             exchange.requestMethod == "GET" && path == "/api/log" ->
-                passOn(exchange, path + (exchange.requestURI.rawQuery?.let { "?$it" } ?: ""), expose = listOf("X-Log-End"))
+                passOn(exchange, path + (exchange.requestURI.rawQuery?.let { "?$it" } ?: ""), expose = listOf("X-Log-End", "X-Log-Boot"))
             exchange.requestMethod == "GET" && path == "/api/status" -> passOn(exchange, path)
             exchange.requestMethod == "POST" && path == "/api/dev/button" -> {
                 if (query["button"].orEmpty() !in setOf("1", "2", "3", "4") || query["press"] !in setOf("short", "long")) {
