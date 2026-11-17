@@ -149,7 +149,8 @@ You need ESP-IDF 5.5, [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/release
 with `WASI_SDK_PATH` pointing at it (the firmware image carries wasm
 applications), Java 21 or later (the tools), and the board on USB. Or
 take a build from CI: every push makes one for release and one for
-debugging, and every release can be written from the browser at
+debugging, every push to `main` is a release, and every release can be
+written from the browser at
 <https://perinkpheral.dev/flash>.
 
 ```bash

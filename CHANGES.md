@@ -1,7 +1,8 @@
 # Changes
 
-What each release of the firmware brings, newest first. The section of a version is its release's
-notes on GitHub and in the web flasher; a release is not made without one.
+What each release of the firmware brings, newest first. Every push to `main` is a release; the
+section of its version, when written, is the release's notes on GitHub, in the web flasher and on
+the device's page - without one, the notes are the commits since the release before.
 
 ## 0.1.14
 
@@ -9,6 +10,7 @@ notes on GitHub and in the web flasher; a release is not made without one.
 - Every push is built: the firmware for release and for debugging, the host tests, the
   applications in the simulator against pictures that were looked at and kept, and the size of
   the image against the last build of `main`.
+- Every push to `main` is a release, its version raised by itself.
 - The web flasher writes any release, for release or for debugging.
 - The tools are all Java: the project has no Python of its own. `tools/perinkpheral console`
   reads the device's console over USB.

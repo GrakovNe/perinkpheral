@@ -2,9 +2,12 @@
 # against the pictures kept of them, the firmware built twice - for release, and for debugging
 # with the development tools - and its size against the last build of main.
 #
-# A push to main whose VERSION has no release yet makes it: v<VERSION>, with both builds and the
-# files of a first flash for each, its notes the version's section of CHANGES.md. The web flasher
-# takes every release from this repository's Pages, made anew after a release.
+# Every push to main is a release, once the tests pass: the next version - VERSION, or the last
+# release's with its patch one up, whichever is greater - with both builds and the files of a
+# first flash for each. Its notes are the version's section of CHANGES.md when there is one,
+# else the commits since the last release. The web flasher takes every release from this
+# repository's Pages, made anew after a release. A push elsewhere builds the same, as
+# <version>-<commit>, and releases nothing.
 
 name: CI
 
@@ -20,6 +23,7 @@ permissions:
   pull-requests: write
   actions: read
 
+# One run of main at a time: each takes the version the one before released.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -28,6 +32,37 @@ env:
   WASI_SDK_URL: https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
 
 jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      next: ${{ steps.version.outputs.next }}
+      build: ${{ steps.version.outputs.build }}
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: version
+        run: |
+          base=$(tr -d '[:space:]' < VERSION)
+          last=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1 | sed 's/^v//')
+          next=$base
+          if [ -n "$last" ]; then
+            IFS=. read -r major minor patch <<< "$last"
+            next=$(printf '%s\n%s\n' "$base" "$major.$minor.$((patch + 1))" | sort -V | tail -1)
+          fi
+          release=false
+          build="$next-${GITHUB_SHA::7}"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            release=true
+            build=$next
+          fi
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "The build is $build; released: $release" >> "$GITHUB_STEP_SUMMARY"
+
   tests:
     name: Tests
     runs-on: ubuntu-latest
@@ -57,6 +92,7 @@ jobs:
 
   firmware:
     name: Firmware (${{ matrix.flavor }})
+    needs: version
     runs-on: ubuntu-latest
     container: espressif/idf:v5.5.5
     strategy:
@@ -83,15 +119,14 @@ jobs:
         working-directory: firmware
         run: |
           . "$IDF_PATH/export.sh"
-          version=$(tr -d '[:space:]' < ../VERSION)
           if [ "${{ matrix.flavor }}" = release ]; then
-            # What a device updates itself to: no development tools, the version alone.
-            export APP_VERSION="$version"
+            # What a device updates itself to: no development tools.
+            export APP_VERSION="${{ needs.version.outputs.build }}"
             idf.py -B build-release -D SDKCONFIG=build-release/sdkconfig \
                    -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
           else
-            # The development tools in it, the commit beside the version.
-            export APP_VERSION="$version-${GITHUB_SHA::7}"
+            # The development tools in it; a device takes it for the release it is beside.
+            export APP_VERSION="${{ needs.version.outputs.build }}-debug"
             idf.py -B build-debug -D SDKCONFIG=build-debug/sdkconfig \
                    -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults" build
           fi
@@ -99,11 +134,11 @@ jobs:
       - name: The files of a first flash
         shell: bash
         run: |
-          version=$(tr -d '[:space:]' < VERSION)
+          version="${{ needs.version.outputs.build }}"
           if [ "${{ matrix.flavor }}" = release ]; then
             tools/perinkpheral flash-manifest firmware/build-release flash "$version"
           else
-            tools/perinkpheral flash-manifest firmware/build-debug flash "$version-${GITHUB_SHA::7}" --prefix debug-
+            tools/perinkpheral flash-manifest firmware/build-debug flash "$version-debug" --prefix debug-
           fi
           # The numbers the size report compares: the image and the RAM it takes.
           image=$(stat -c %s flash/*perinkpheral.bin)
@@ -164,41 +199,34 @@ jobs:
 
   release:
     name: Release
-    needs: [tests, firmware]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [version, tests, firmware]
+    if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v5
-      - name: A new VERSION is a release
-        id: release
+        with:
+          fetch-depth: 0
+      - name: v${{ needs.version.outputs.next }}
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.next }}
         run: |
-          version=$(tr -d '[:space:]' < VERSION)
-          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "v$version is released already: the builds are this run's artifacts."
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # The version's section of CHANGES.md, its heading aside: a release says what it brings.
-          awk -v version="$version" '
-            /^## / { if (inside) exit; inside = ($2 == version) ; next }
+          # The version's section of CHANGES.md, its heading aside; without one, the commits
+          # since the last release.
+          awk -v version="$VERSION" '
+            /^## / { if (inside) exit; inside = ($2 == version); next }
             inside { print }
           ' CHANGES.md > notes.md
           if [ ! -s notes.md ]; then
-            echo "CHANGES.md has no section \"## $version\": write what $version brings first" >&2
-            exit 1
+            last=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+            git log --no-merges --format='- %s' ${last:+$last..}HEAD > notes.md
           fi
           printf '\nA first flash, for release or for debugging: https://perinkpheral.dev/flash. A device on its network updates itself from Device, Check for updates.\n' >> notes.md
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'firmware-*' --dir builds
-          gh release create "v$version" builds/firmware-release/* builds/firmware-debug/* \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes-file notes.md
-          echo "released=true" >> "$GITHUB_OUTPUT"
+          gh release create "v$VERSION" builds/firmware-release/* builds/firmware-debug/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md
 
   flasher:
     name: The flasher's files
     needs: release
-    if: needs.release.outputs.released == 'true'
     uses: ./.github/workflows/flasher.yml
