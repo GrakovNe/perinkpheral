@@ -72,12 +72,17 @@ void screens_header(gfx_t *g, const screens_header_t *header)
 }
 
 void screens_menu(gfx_t *g, screens_menu_row_fn row_at, void *context, int count, int selected,
-                  bool is_moving)
+                  bool is_moving, screens_menu_view_t *view)
 {
     /* Moving a row, the list leaves the bottom to the row of buttons. */
     const list_t list = { .count = count, .selected = selected, .is_framed = is_moving,
-                          .height = is_moving ? g->h - KIT_ACTIONS_HEIGHT : 0 };
+                          .height = is_moving ? g->h - KIT_ACTIONS_HEIGHT : 0,
+                          .first = view != NULL ? view->first : 0 };
     int first = list_first_row(g, &list);
+    if (view != NULL) {
+        view->first = first;
+        view->visible = list_visible_rows(g, &list);
+    }
     list_draw_scrollbar(g, &list);
     for (int index = first; index < first + list_visible_rows(g, &list) && index < count; index++) {
         screens_menu_row_t item;

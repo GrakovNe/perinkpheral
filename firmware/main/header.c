@@ -72,7 +72,10 @@ screens_header_t header_compose(const header_kept_t *kept, const header_now_t *n
         .right = now->scene_right != NULL ? now->scene_right : now->time_known ? when : NULL,
         .right_icon = SCREENS_NO_ICON,
     };
-    if (kept->side[HOST_HEADER_LEFT].app_id != 0) {
+    /* The left side says where the user is - a page's title - and the screen's own text there
+     * comes first; a status kept on it shows where the screen leaves the side to the host. The
+     * right is status, and a kept one comes first there. */
+    if (kept->side[HOST_HEADER_LEFT].app_id != 0 && now->scene_left == NULL) {
         header.left_icon = kept->side[HOST_HEADER_LEFT].icon;
         header.left = kept->side[HOST_HEADER_LEFT].text;
     }

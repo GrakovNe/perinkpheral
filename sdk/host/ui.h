@@ -23,7 +23,10 @@
 /* List.
  *
  * One row per line. The selected row is inverted. A scroll bar is drawn
- * when the rows do not fit. The selected row is kept in the middle.
+ * when the rows do not fit. `first` is the top row, kept by the
+ * application: the rows move only when the selected one would leave the
+ * screen, and then only as far as it needs. ui_list_first() says where
+ * the top row is now; keep it in `first` (app_list_first() does).
  * The application keeps the list state and calls ui_list_row() for the
  * visible rows:
  *
@@ -39,9 +42,9 @@
  * ui_actions() row below the list, reduce the height by
  * HOST_UI_ACTIONS_HEIGHT.
  *
- * selected = -1: a list without a selection. UP and DOWN scroll it;
- * `first` is the top row. sdk/lib/app_ui.h handles the buttons for both
- * kinds.
+ * selected = -1: a list without a selection. UP and DOWN scroll it.
+ * sdk/lib/app_ui.h handles the buttons for both kinds, a long UP or DOWN
+ * a page at a time.
  *
  * Row layout: `value` is right-aligned; length 0 omits it. Label and
  * value never overlap. If both do not fit, a value up to half the row
@@ -56,7 +59,7 @@ typedef struct host_list {
     int32_t selected; /* or -1 */
     int32_t top;
     int32_t height;   /* 0: to the bottom of the surface */
-    int32_t first;    /* without a selection: the top row */
+    int32_t first;    /* the top row */
 } host_list_t;
 HOST_LAYOUT(host_list_t, 20);
 HOST_IMPORT(ui_list_visible, int32_t ui_list_visible(const host_list_t *list));

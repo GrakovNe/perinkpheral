@@ -20,9 +20,40 @@ static int32_t wrapped(int32_t value, int32_t first, int32_t last)
 
 /* ---- a list ---- */
 
+/* How many rows the list showed when it was drawn last: a press, which draws nothing, pages by
+ * it. A list not drawn yet pages by a few. */
+#define PAGE_UNKNOWN 5
+static const app_list_t *drawn_list;
+static int32_t           drawn_rows;
+
+static int32_t page_of(const app_list_t *list)
+{
+    return list == drawn_list && drawn_rows > 0 ? drawn_rows : PAGE_UNKNOWN;
+}
+
+static int32_t clamped(int32_t value, int32_t low, int32_t high)
+{
+    return value < low ? low : value > high ? high : value;
+}
+
 app_ui_result_t app_list_button(app_list_t *list, int32_t event)
 {
     switch (event) {
+    case BTN_UP_LONG_PRESSED:
+    case BTN_DOWN_LONG_PRESSED: {
+        /* A page at a time, and no further than the ends. */
+        int32_t by = (event == BTN_UP_LONG_PRESSED ? -1 : 1) * page_of(list);
+        int32_t *moved = list->selected < 0 ? &list->first : &list->selected;
+        int32_t  to = clamped(*moved + by, 0, list->count > 0 ? list->count - 1 : 0);
+        if (to == *moved) {
+            return APP_UI_IGNORED;
+        }
+        *moved = to;
+        if (list->selected >= 0) {
+            list->first = clamped(list->first + by, 0, list->count - 1); /* the page moves with it */
+        }
+        return APP_UI_CHANGED;
+    }
     case BTN_UP_PRESSED:
     case BTN_DOWN_PRESSED: {
         int32_t by = event == BTN_UP_PRESSED ? -1 : 1;
@@ -53,9 +84,11 @@ app_ui_result_t app_list_button(app_list_t *list, int32_t event)
 int32_t app_list_first(app_list_t *list)
 {
     int32_t first = ui_list_first(list);
-    if (list->selected < 0 && first >= 0) {
-        list->first = first;
+    if (first >= 0) {
+        list->first = first; /* where it stands, for the next step */
     }
+    drawn_list = list;
+    drawn_rows = ui_list_visible(list);
     return first;
 }
 
@@ -213,6 +246,18 @@ app_ui_result_t app_date_button(app_date_t *date, int32_t event)
     case BTN_DOWN_PRESSED:
         step(date, -1);
         return APP_UI_CHANGED;
+    case BTN_UP_LONG_PRESSED:
+    case BTN_DOWN_LONG_PRESSED: {
+        /* A long press steps far: minutes by ten, days by a week, years by ten - one picture
+         * for what would be many presses. */
+        int32_t far = date->part == HOST_DATE_MINUTE ? 10
+                      : date->part == HOST_DATE_DAY  ? 7
+                      : date->part == HOST_DATE_YEAR ? 10
+                      : date->part == HOST_DATE_HOUR ? 6
+                                                     : 3;
+        step(date, event == BTN_UP_LONG_PRESSED ? far : -far);
+        return APP_UI_CHANGED;
+    }
     case BTN_OK_PRESSED:
         if (date->part == last_part(date)) {
             return APP_UI_DONE;

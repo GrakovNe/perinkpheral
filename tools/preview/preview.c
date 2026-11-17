@@ -95,18 +95,18 @@ int main(int argc, char **argv)
 
     const char *titles[] = { "Clock", "Hello", "Settings", "About" };
     start_screen(&online, &content);
-    screens_menu(&content, row_from_array, titles, 4, 0, false);
+    screens_menu(&content, row_from_array, titles, 4, 0, false, NULL);
     if (save(dir, "menu")) {
         return 1;
     }
     start_screen(&offline, &content);
-    screens_menu(&content, row_from_array, titles, 4, 1, false);
+    screens_menu(&content, row_from_array, titles, 4, 1, false, NULL);
     if (save(dir, "menu-offline")) {
         return 1;
     }
     /* A row being moved: in a frame, what OK and BACK do along the bottom. */
     start_screen(&online, &content);
-    screens_menu(&content, row_from_array, titles, 4, 1, true);
+    screens_menu(&content, row_from_array, titles, 4, 1, true, NULL);
     if (save(dir, "menu-moving")) {
         return 1;
     }
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     const char *const names[] = { "menu-scroll-start", "menu-scroll-middle", "menu-scroll-end" };
     for (int shot = 0; shot < 3; shot++) {
         start_screen(&online, &content);
-        screens_menu(&content, row_from_array, many, 10, selections[shot], false);
+        screens_menu(&content, row_from_array, many, 10, selections[shot], false, NULL);
         if (save(dir, names[shot])) {
             return 1;
         }
@@ -167,14 +167,14 @@ int main(int argc, char **argv)
      * in place of the host's, its line beside it. */
     const screens_header_t counting = { GFX_ICON_SIGNAL, NULL, "12 min", GFX_ICON_HOURGLASS };
     start_screen(&counting, &content);
-    screens_menu(&content, row_from_array, titles, 4, 0, false);
+    screens_menu(&content, row_from_array, titles, 4, 0, false, NULL);
     if (save(dir, "header-status")) {
         return 1;
     }
     /* Both sides taken, by two applications. */
     const screens_header_t both = { GFX_ICON_PLAY, "Blue in Green", "12 min", GFX_ICON_HOURGLASS };
     start_screen(&both, &content);
-    screens_menu(&content, row_from_array, titles, 4, 0, false);
+    screens_menu(&content, row_from_array, titles, 4, 0, false, NULL);
     if (save(dir, "header-status-both")) {
         return 1;
     }

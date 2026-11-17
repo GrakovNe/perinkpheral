@@ -50,12 +50,13 @@ typedef host_list_t app_list_t;
  * OK returns APP_UI_DONE, `selected` is the row.
  * Without a selection (`selected` = -1): UP and DOWN scroll by one row;
  * OK is ignored.
- * BACK returns APP_UI_CANCELLED in both cases. */
+ * A long UP or DOWN moves a page - as many rows as the list showed - and
+ * stops at the ends. BACK returns APP_UI_CANCELLED in both cases. */
 app_ui_result_t app_list_button(app_list_t *list, int32_t event);
 
-/* Returns the first visible row. Call in app_on_draw() before drawing
- * rows. For a list without a selection it also clamps `first` to the
- * valid range. */
+/* Returns the first visible row and keeps it in `first`, so that the rows
+ * move only when the selection reaches an edge. Call in app_on_draw()
+ * before drawing rows. */
 int32_t app_list_first(app_list_t *list);
 
 /* ---- Picker ---- */
@@ -95,8 +96,9 @@ typedef struct {
  * device if it is known. */
 void app_date_start(app_date_t *date, int32_t has, int32_t year_first, int32_t year_last);
 
-/* UP increases and DOWN decreases the part, wrapping at the ends.
- * OK moves to the next part and returns APP_UI_DONE after the last one.
+/* UP increases and DOWN decreases the part, wrapping at the ends; held,
+ * they step far: minutes by 10, hours by 6, days by 7, months by 3, years
+ * by 10. OK moves to the next part and returns APP_UI_DONE after the last one.
  * BACK moves to the previous part and returns APP_UI_CANCELLED from the
  * first one. */
 app_ui_result_t app_date_button(app_date_t *date, int32_t event);

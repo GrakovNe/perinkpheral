@@ -38,9 +38,15 @@ int list_first_row(const gfx_t *g, const list_t *list)
 {
     int visible = list_visible_rows(g, list);
     int last_first = list->count > visible ? list->count - visible : 0;
-    /* Chosen: in the middle while there is more both ways. Not chosen:
-     * where the user scrolled to. */
-    int first = list->selected >= 0 ? list->selected - visible / 2 : list->first;
+    /* Where it stood, moved only as far as the chosen row needs to be seen: a step does not
+     * move every label on a panel that takes half a second to show it. Not chosen: where the
+     * user scrolled to. */
+    int first = list->first;
+    if (list->selected >= 0 && list->selected < first) {
+        first = list->selected;
+    } else if (list->selected >= 0 && visible > 0 && list->selected >= first + visible) {
+        first = list->selected - visible + 1;
+    }
     if (first > last_first) {
         first = last_first;
     }

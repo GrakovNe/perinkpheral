@@ -13,6 +13,7 @@ typedef struct {
     menu_entry_t *entries;
     int           count;
     int           selected;
+    screens_menu_view_t view; /* where the list stands, as it was drawn last */
     scene_t      *back_target; /* what BACK leads to: the default application, or NULL */
     /* Moving a row: where it was taken from, to put it back when BACK says so. */
     bool          is_moving;
@@ -102,6 +103,20 @@ static scene_reaction_t menu_button(scene_t *scene, scene_button_t button, scene
         reaction.kind = MOVED;
         return reaction;
     }
+    /* A long UP or DOWN: a page of rows at a time, to the ends and no further. A row being
+     * moved is moved a row at a time. */
+    if (press == SCENE_PRESS_LONG && (button == SCENE_BUTTON_UP || button == SCENE_BUTTON_DOWN) &&
+        !menu->is_moving && menu->count > 0) {
+        int page = menu->view.visible > 0 ? menu->view.visible : 1;
+        int to = menu->selected + (button == SCENE_BUTTON_UP ? -page : page);
+        to = to < 0 ? 0 : to > menu->count - 1 ? menu->count - 1 : to;
+        if (to != menu->selected) {
+            menu->view.first += to - menu->selected; /* the page moves with it */
+            menu->selected = to;
+            reaction.kind = MOVED;
+        }
+        return reaction;
+    }
     if (press != SCENE_PRESS_SHORT) {
         return reaction;
     }
@@ -157,7 +172,7 @@ static void menu_row_at(void *context, int index, screens_menu_row_t *row)
 static void menu_draw(scene_t *scene, gfx_t *surface)
 {
     menu_scene_t *menu = (menu_scene_t *)scene;
-    screens_menu(surface, menu_row_at, menu, menu->count, menu->selected, menu->is_moving);
+    screens_menu(surface, menu_row_at, menu, menu->count, menu->selected, menu->is_moving, &menu->view);
 }
 
 static const scene_ops_t MENU_OPS = { .button = menu_button, .draw = menu_draw, .leave = menu_leave };

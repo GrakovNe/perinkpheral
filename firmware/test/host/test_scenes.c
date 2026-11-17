@@ -65,8 +65,14 @@ static void test_menu_back_and_long(void)
     scene_menu_set_back_target(NULL);
     CHECK(press(menu, SCENE_BUTTON_BACK).kind == SCENE_BACK);
 
-    /* a long press means nothing in the menu and moves nothing */
+    /* a long press moves a page - a row, before the menu was ever drawn - and stops at the ends */
+    CHECK(menu->ops->button(menu, SCENE_BUTTON_DOWN, SCENE_PRESS_LONG).kind == SCENE_REDRAW_NO_BLINK);
+    CHECK(opened_by_ok(menu) == &second_target);
+    menu->ops->button(menu, SCENE_BUTTON_DOWN, SCENE_PRESS_LONG);
+    CHECK(opened_by_ok(menu) == &third_target);
     CHECK(menu->ops->button(menu, SCENE_BUTTON_DOWN, SCENE_PRESS_LONG).kind == SCENE_IGNORED);
+    menu->ops->button(menu, SCENE_BUTTON_UP, SCENE_PRESS_LONG);
+    CHECK(menu->ops->button(menu, SCENE_BUTTON_UP, SCENE_PRESS_LONG).kind == SCENE_REDRAW_NO_BLINK);
     CHECK(opened_by_ok(menu) == &first_target);
 }
 
@@ -82,13 +88,19 @@ static void test_empty_menu(void)
 /* A surface on which a list has room for five rows. */
 #define FIVE_ROWS_HEIGHT 220
 
-static int first_row(int count, int selected)
+/* Where a list of five rows on the screen stands, given where it stood. */
+static int first_row_from(int count, int selected, int first)
 {
     static uint8_t bits[400 / 8 * FIVE_ROWS_HEIGHT];
     gfx_t g;
     gfx_init(&g, bits, 400, FIVE_ROWS_HEIGHT);
-    const list_t list = { .count = count, .selected = selected };
+    const list_t list = { .count = count, .selected = selected, .first = first };
     return list_first_row(&g, &list);
+}
+
+static int first_row(int count, int selected)
+{
+    return first_row_from(count, selected, 0);
 }
 
 static void test_menu_window(void)
@@ -98,14 +110,18 @@ static void test_menu_window(void)
     CHECK(first_row(3, 2) == 0);
     CHECK(first_row(5, 4) == 0);
 
-    /* longer than the surface: the selection stays in the middle... */
+    /* longer than the surface: the window stands until the selection reaches an edge... */
     CHECK(first_row(20, 0) == 0);
-    CHECK(first_row(20, 2) == 0);
-    CHECK(first_row(20, 3) == 1);
-    CHECK(first_row(20, 10) == 8);
-    /* ...until the last rows, where the window stops at the end */
-    CHECK(first_row(20, 17) == 15);
+    CHECK(first_row(20, 4) == 0);
+    CHECK(first_row(20, 5) == 1);
+    CHECK(first_row(20, 10) == 6);
+    CHECK(first_row_from(20, 8, 6) == 6);  /* a step inside it moves nothing */
+    CHECK(first_row_from(20, 5, 6) == 5);  /* up past the top edge: a row */
+    CHECK(first_row_from(20, 0, 15) == 0); /* wrapped round to the first */
+    /* ...and stops at the end */
+    CHECK(first_row(20, 17) == 13);
     CHECK(first_row(20, 19) == 15);
+    CHECK(first_row_from(20, 19, 40) == 15);
 
     CHECK(first_row(0, 0) == 0);
 
@@ -435,7 +451,15 @@ static void test_header(void)
     CHECK(header_keep_only(&kept, installed, 1));
     header = header_compose(&kept, &now, when, sizeof when);
     CHECK_STR(header.right, "Lisbon");
-    CHECK(header_keep(&kept, 3, HOST_HEADER_LEFT, HEADER_NO_ICON, "Run"));
+    CHECK(header_keep(&kept, 3, HOST_HEADER_LEFT, GFX_ICON_HOURGLASS, "Run"));
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.left, "Run");
+    /* the left is where the user is: a page's title is not covered by another's status */
+    now.scene_left = "Display";
+    header = header_compose(&kept, &now, when, sizeof when);
+    CHECK_STR(header.left, "Display");
+    CHECK(header.left_icon != GFX_ICON_HOURGLASS);
+    now.scene_left = NULL;
     CHECK(header_keep(&kept, 3, HOST_HEADER_LEFT, HEADER_NO_ICON, ""));
     CHECK(kept.side[HOST_HEADER_LEFT].app_id == 0);
 }
