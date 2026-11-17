@@ -3,7 +3,8 @@
  * Copyright (c) 2026 GrakovNe
  *
  * The values the host picked out of an answer ("pick" in the manifest).
- * Valid inside app_on_picked(), but app_parse_number().
+ * Value readers are valid inside app_on_picked(); app_parse_number()
+ * accepts independent text and works in any handler.
  */
 #pragma once
 

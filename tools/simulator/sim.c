@@ -312,7 +312,7 @@ static int32_t kv_store(const char *app_name, const char *key, const void *value
 {
     char path[PATH_BYTES], folder[PATH_BYTES];
     store_path(path, app_name, key);
-    if (length == 0) {
+    if (length == 0 && !is_users) {
         remove(path);
         return HOST_OK;
     }

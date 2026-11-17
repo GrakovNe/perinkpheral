@@ -14,10 +14,14 @@
   The conversation, in messages between the two windows:
     this page says   { perinkpheral: "ready" }
     the device says  { perinkpheral: "app", name, title, settings, values }
-                     the manifest's settings and what is set, secrets left out
+                     the manifest's settings, including hidden ones;
+                     values omit secret and link settings
     this page says   { perinkpheral: "settings", values: { key: "value" } }
                      keys the manifest declares, values as text, 255 bytes at most
-  The values go into the form on the device's page; the user saves them.
+  Only fields present in the form can be filled. Hidden settings are omitted
+  from the form; an integration writes them through /api/apps/settings.
+  The user saves the filled form. Message source and origin are checked by
+  the device page; this example accepts messages only from window.opener.
 -->
 <html lang="en">
 <meta charset="utf-8">

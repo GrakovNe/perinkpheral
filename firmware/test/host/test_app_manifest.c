@@ -442,8 +442,52 @@ static void test_list_setting(void)
                 "\"list\",\"title\":\"T\",\"default\":[\"\"]}]}") == APP_MANIFEST_BAD_SETTING);
 }
 
+static bool default_setting(void *context, const char *key, char *value, size_t size)
+{
+    return app_manifest_setting_default(context, key, value, (int)size) >= 0;
+}
+
+static bool empty_setting(void *context, const char *key, char *value, size_t size)
+{
+    (void)context; (void)key;
+    if (size == 0) { return false; }
+    value[0] = '\0';
+    return true;
+}
+
+static void test_four_default_links(void)
+{
+    static const char STATUS[] =
+        "{\"name\":\"status\",\"title\":\"Service status\",\"abi\":3,\"settings\":["
+        "{\"key\":\"page1\",\"type\":\"link\",\"title\":\"Page 1\",\"default\":\"https://www.githubstatus.com/api/v2/status.json\"},"
+        "{\"key\":\"page2\",\"type\":\"link\",\"title\":\"Page 2\",\"default\":\"https://www.cloudflarestatus.com/api/v2/status.json\"},"
+        "{\"key\":\"page3\",\"type\":\"link\",\"title\":\"Page 3\",\"default\":\"https://discordstatus.com/api/v2/status.json\"},"
+        "{\"key\":\"page4\",\"type\":\"link\",\"title\":\"Page 4\",\"default\":\"https://status.openai.com/api/v2/status.json\"}],"
+        "\"hosts\":[\"{{page1}}\",\"{{page2}}\",\"{{page3}}\",\"{{page4}}\"],\"polls\":["
+        "{\"url\":\"{{page1}}\",\"every\":300},{\"url\":\"{{page2}}\",\"every\":300},"
+        "{\"url\":\"{{page3}}\",\"every\":300},{\"url\":\"{{page4}}\",\"every\":300}]}";
+    CHECK(parse(STATUS) == APP_MANIFEST_OK);
+    CHECK(manifest.poll_count == 4);
+    for (int index = 0; index < 4; index++) {
+        char key[16], url[256], reference[20];
+        snprintf(key, sizeof key, "page%d", index + 1);
+        snprintf(reference, sizeof reference, "{{%s}}", key);
+        CHECK(app_manifest_setting_default(STATUS, key, url, sizeof url) > 0);
+        CHECK(app_manifest_accepts_setting(STATUS, key, url, NULL));
+        CHECK(app_manifest_allows_url(STATUS, url, default_setting, (void *)STATUS));
+        CHECK(!app_manifest_allows_url(STATUS, url, empty_setting, NULL));
+        app_poll_t poll;
+        CHECK(app_manifest_parse_poll(STATUS, index, &poll) == APP_MANIFEST_OK);
+        CHECK_STR(poll.url, reference);
+    }
+    CHECK(!app_manifest_allows_url(STATUS, "https://evil.example/", default_setting, (void *)STATUS));
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"settings\":[{\"key\":\"page\","
+                "\"type\":\"link\",\"title\":\"Page\",\"default\":\"https://user:pass@example.com/a\"}]}") == APP_MANIFEST_BAD_SETTING);
+}
+
 int main(void)
 {
+    test_four_default_links();
     test_list_setting();
     test_complete();
     test_defaults_and_unknown_fields();

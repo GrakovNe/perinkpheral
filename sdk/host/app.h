@@ -156,7 +156,7 @@ HOST_IMPORT(text_fill, int32_t text_fill(const char *pattern, int32_t pattern_le
                                          char *text, int32_t capacity));
 
 /* The user has saved the application settings on the device web page.
- * Settings are declared in the manifest. Each value is stored as text
+ * Settings, including hidden ones, are declared in the manifest. Each value is stored as text
  * under the key of the setting and is read with kv_get(). A "list" setting
  * is its items separated by '\n'; sdk/lib/app_state.h reads them.
  * Called on and off the screen, like the data handlers. */
@@ -215,8 +215,7 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * NORMAL cannot clear a QUESTION still pending. Use QUESTION when opening
  * a question, not for later redraws. OK KEYDOWN is consumed by the host;
  * later OK events are delivered only if the press began after the question
- * reached the panel. An application relying on HOST_REDRAW_QUESTION writes
- * "firmware": "0.1.21" in its manifest.
+ * reached the panel. QUESTION is included in the ABI 3 firmware floor.
  *
  * The host does not limit redraw requests. Every refresh uses battery
  * energy and wears the panel. */
@@ -284,8 +283,7 @@ HOST_IMPORT(header_set_status, int32_t header_set_status(int32_t side, int32_t i
  * button press, over a question waiting for its answer, or within 30
  * seconds of the last granted focus request. A refused request is discarded, with
  * no retry. A request in app_on_terminate() is too late for that decision.
- * An application relying on these focus rules writes "firmware": "0.1.21"
- * in its manifest. */
+ * These focus rules are included in the ABI 3 firmware floor. */
 HOST_IMPORT(screen_request, void screen_request(void));
 
 /* Closes the application: one step down the stack. Takes effect when

@@ -37,6 +37,9 @@ int32_t app_kv_get_or_default(const char *app_name, const char *key, void *value
 /* value_length 0 removes the key. */
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length);
 
+/* A form value, including an explicit empty value that overrides a default. */
+int32_t app_kv_set_setting(const char *app_name, const char *key, const char *value);
+
 /* The pace an application asked for one of its polls (poll_set_interval),
  * kept for it through a restart; 0: none, the manifest's or its setting's.
  * Setting 0 forgets it; false when persistence fails. */

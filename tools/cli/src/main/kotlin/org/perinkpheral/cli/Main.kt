@@ -38,6 +38,9 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral sim-test <dir> [--update]    applications in the simulator, their screens against kept pictures
 
   What the project makes of its sources:
+    perinkpheral check-generated              committed fonts, icons, marks, spelling and guide screens
+    perinkpheral check-api                    OpenAPI paths and methods against the firmware routes
+    perinkpheral check-pdf <kept> <made>       compare guide text, ignoring PDF metadata and pagination
     perinkpheral contract snapshot|check      record or check the frozen ABI (wasi-sdk required)
     perinkpheral check-wasm <file>            check import/export wasm types against the contract
     perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
@@ -188,6 +191,10 @@ private fun run(raw: Array<String>): Int {
             val out = File(arguments.words.getOrNull(1) ?: File(System.getProperty("java.io.tmpdir"), "perinkpheral-preview").path)
             Preview.render(root(), out, arguments.option("font")).forEach { println(it.path) }
         }
+        "check-generated" -> Generated.check(root(), Sdk(root()).contract).forEach(::println)
+        "check-api" -> println(Generated.checkApi(root()))
+        "check-pdf" -> Generated.checkPdf(File(arguments.word(1, "the committed PDF")),
+            File(arguments.word(2, "the rebuilt PDF")))
         "contract" -> {
             val sdk = Sdk(root())
             val action = arguments.word(1, "snapshot or check")

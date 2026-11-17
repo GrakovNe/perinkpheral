@@ -74,14 +74,6 @@ static bool asked_app(httpd_req_t *request, char name[APP_NAME_BUFFER])
     return web_query_value(request, "app", name, APP_NAME_BUFFER) && is_installed(name);
 }
 
-/* A setting as text: what is in the store under its key, or empty. */
-static void stored_value(const char *app_name, const char *key,
-                         char value[APP_SETTING_VALUE_MAX + 1])
-{
-    int32_t length = app_kv_get(app_name, key, value, APP_SETTING_VALUE_MAX);
-    value[length > 0 ? length : 0] = '\0';
-}
-
 /* What the application says of itself in the device's language, or NULL. */
 static json_t *translation_of(const char *app_name)
 {
@@ -228,12 +220,20 @@ static void add_settings(json_t *app, const char *app_name)
                                        json_get(translation, "settings"),
                                        key->text));
         char value[APP_SETTING_VALUE_MAX + 1];
-        stored_value(app_name, key->text, value);
+        int32_t length = app_kv_get(app_name, key->text, value, sizeof value - 1);
+        value[length > 0 ? length : 0] = '\0';
         if (strcmp(type->text, "secret") == 0 || strcmp(type->text, "link") == 0) {
             /* A secret goes one way: the page learns only whether there is one.
              * A link is one too - whoever has a calendar's address reads the
              * calendar. */
-            json_add_bool(values, key->text, value[0] != '\0');
+            const json_t *preset = json_get(setting, "default");
+            if (strcmp(type->text, "link") == 0 && length == HOST_ERR_NOT_FOUND &&
+                json_is_string(preset)) {
+                /* A manifest default is already public. Custom links stay private. */
+                json_add_string(values, key->text, preset->text);
+            } else {
+                json_add_bool(values, key->text, value[0] != '\0');
+            }
         } else {
             json_add_string(values, key->text, value);
         }
@@ -299,12 +299,9 @@ static bool references_other_server(const char *manifest, const char *app_name, 
             continue;
         }
         char stored[APP_SETTING_VALUE_MAX + 1];
-        stored_value(app_name, value->name, stored);
+        int32_t length = app_kv_get_or_default(app_name, value->name, stored, sizeof stored - 1);
+        stored[length > 0 ? length : 0] = '\0';
         /* Nothing stored is the manifest's default: that is the server the token went to. */
-        if (stored[0] == '\0' &&
-            app_manifest_setting_default(manifest, value->name, stored, sizeof stored) < 0) {
-            stored[0] = '\0';
-        }
         if (stored[0] != '\0' && strcmp(stored, value->text) != 0) {
             return true;
         }
@@ -349,9 +346,7 @@ static void change_app_settings(void *argument)
         int32_t written = 0;
         json_for_each(value, command->wanted)
         {
-            /* An empty value takes the setting back: kv_set removes the key. */
-            int32_t result = app_kv_set(command->app_name, value->name, value->text,
-                                        (int32_t)strlen(value->text));
+            int32_t result = app_kv_set_setting(command->app_name, value->name, value->text);
             is_full = is_full || result == HOST_ERR_NO_SPACE;
             stored = result == HOST_OK && stored;
             written += result == HOST_OK;

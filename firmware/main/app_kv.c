@@ -300,7 +300,7 @@ static bool is_full(esp_err_t err)
 /* HOST_OK, HOST_ERR_NO_SPACE for a value over what the application may
  * keep, or the storage's own error in *storage_error. */
 static int32_t write_value(const char *app_name, const char *key, const void *value,
-                           int32_t value_length, esp_err_t *storage_error)
+                           int32_t value_length, bool keep_empty, esp_err_t *storage_error)
 {
     *storage_error = ESP_OK;
     nvs_handle_t store;
@@ -309,13 +309,13 @@ static int32_t write_value(const char *app_name, const char *key, const void *va
         *storage_error = err;
         return HOST_ERR_FAILED;
     }
-    if (value_length > 0 &&
+    if ((value_length > 0 || keep_empty) &&
         stored_bytes(store, app_name, key) + taken_by((size_t)value_length) > HOST_KV_TOTAL_MAX) {
         nvs_close(store);
         ESP_LOGW(TAG, "%s: \"%s\" is over what an application may keep", app_name, key);
         return HOST_ERR_NO_SPACE;
     }
-    err = value_length > 0 ? nvs_set_blob(store, key, value, (size_t)value_length)
+    err = value_length > 0 || keep_empty ? nvs_set_blob(store, key, value, (size_t)value_length)
                            : nvs_erase_key(store, key);
     if (err == ESP_ERR_NVS_NOT_FOUND && value_length == 0) {
         err = ESP_OK; /* removing what is not there is done already */
@@ -328,23 +328,36 @@ static int32_t write_value(const char *app_name, const char *key, const void *va
     return err == ESP_OK ? HOST_OK : HOST_ERR_FAILED;
 }
 
-int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length)
+static int32_t store_value(const char *app_name, const char *key, const void *value,
+                           int32_t value_length, bool keep_empty)
 {
     esp_err_t err;
-    int32_t result = write_value(app_name, key, value, value_length, &err);
+    int32_t result = write_value(app_name, key, value, value_length, keep_empty, &err);
     /* Full: what the applications that were removed left behind goes
      * first, one at a time, for as long as that helps. */
     char orphaned[NVS_NS_NAME_MAX_SIZE];
     while (is_full(err) && find_namespace(PARTITION, is_orphaned, orphaned)) {
         ESP_LOGW(TAG, "full: forgetting what %s kept", orphaned + sizeof NAMESPACE_PREFIX - 1);
         erase_namespace(PARTITION, orphaned);
-        result = write_value(app_name, key, value, value_length, &err);
+        result = write_value(app_name, key, value, value_length, keep_empty, &err);
     }
     if (is_full(err)) {
         ESP_LOGW(TAG, "%s: no room for \"%s\"", app_name, key);
         return HOST_ERR_NO_SPACE;
     }
     return err == ESP_OK ? result : storage_failed(app_name, key, err);
+}
+
+int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length)
+{
+    return store_value(app_name, key, value, value_length, false);
+}
+
+int32_t app_kv_set_setting(const char *app_name, const char *key, const char *value)
+{
+    /* A user's empty setting overrides a default. It is an empty blob,
+     * distinct from an absent key; the ABI's kv_set(..., 0) still deletes. */
+    return store_value(app_name, key, value, (int32_t)strlen(value), true);
 }
 
 /* What the host itself keeps for an application, apart from the

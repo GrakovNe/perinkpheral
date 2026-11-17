@@ -65,7 +65,7 @@ object Icons {
 
     /** firmware/components/gfx/gfx_icon_art.c: the drawings packed a bit a cell, row by row,
      * and for every icon where each of its drawings is. Returns the bytes of drawings. */
-    fun make(root: File, contract: Contract): Int {
+    fun make(root: File, contract: Contract, out: File = File(root, "firmware/components/gfx/gfx_icon_art.c")): Int {
         val folder = icons(root)
         val order = order(contract)
         val strays = folder.listFiles().orEmpty().filter { it.name.endsWith(".txt") }.map { it.nameWithoutExtension }.toSet() - order.toSet()
@@ -85,7 +85,7 @@ object Icons {
         val lines = bytes.toList().chunked(16).joinToString("\n") { chunk ->
             "    " + chunk.joinToString(", ") { "0x%02x".format(it.toInt() and 0xFF) } + ","
         }
-        File(root, "firmware/components/gfx/gfx_icon_art.c").writeText(
+        out.writeText(
             "/*\n * SPDX-License-Identifier: MIT\n * Copyright (c) 2026 GrakovNe\n *\n" +
                 " * Made by tools/perinkpheral icons from firmware/components/gfx/icons:\n" +
                 " * change the drawings there and run it again, not this file.\n */\n" +
@@ -142,11 +142,11 @@ object Icons {
      * mark-512.png and mark-on-paper-512.png - and `onPaper`, the mark on paper at other sizes.
      * Returns the cells as rectangles, for the copies that stand in code.
      */
-    fun mark(root: File, onPaper: List<Pair<Int, File>> = emptyList()): List<IntArray> {
+    fun mark(root: File, onPaper: List<Pair<Int, File>> = emptyList(), out: File = File(root, "assets/mark")): List<IntArray> {
         val drawing = Pictures.drawingsOf(File(icons(root), "update.txt")).firstOrNull { it.first == "11" }?.second
             ?: throw BuildError("update.txt has no drawing of eleven cells")
         val rects = rectangles(drawing)
-        val out = File(root, "assets/mark").apply { mkdirs() }
+        out.mkdirs()
         val withPaper = drawing.size + 2 * MARK_MARGIN
         File(out, "mark.svg").writeText(svg(rects, drawing.size, 0, false))
         File(out, "mark-on-paper.svg").writeText(svg(rects, withPaper, MARK_MARGIN, true))

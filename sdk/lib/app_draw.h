@@ -21,7 +21,7 @@ int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);
 /* Where `text` starts for its ink to stand in the middle of the column
  * `center`: what is seen is centred, not the room its glyphs take, which in
  * some typefaces is more on one side. A text with no ink is centred by its
- * room. Needs gfx_text_ink: firmware 0.1.8. */
+ * room. Uses gfx_text_ink(). */
 int32_t app_text_center_x(int32_t center, int32_t font, const char *text);
 
 /* Draws `text` centred on the column `center`, by its ink. */

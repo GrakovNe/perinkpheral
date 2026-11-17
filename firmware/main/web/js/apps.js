@@ -123,7 +123,9 @@ function listField(value) {
 /* One field of an application's settings, as its manifest describes it. */
 function settingField(app, setting) {
   const preset = Array.isArray(setting.default) ? setting.default.join("\n") : setting.default;
-  const id = "setting-" + setting.key, value = app.values[setting.key] || preset || "";
+  const id = "setting-" + setting.key;
+  const value = setting.type === "link" && preset ? (app.values[setting.key] ?? preset) :
+    (app.values[setting.key] || preset || "");
   const label = make("label", { htmlFor: id, textContent: setting.title });
   let input;
   if (setting.type === "list") {
@@ -150,6 +152,12 @@ function settingField(app, setting) {
        * A link - a calendar's address - is a secret too, though it is typed in the open. */
       input.type = setting.type === "secret" ? "password" : "url";
       input.placeholder = value ? "Unchanged" : setting.type === "link" ? "https://" : "Not set";
+      if (setting.type === "link" && preset) {
+        /* Defaults are public, custom addresses remain write-only. */
+        if (typeof value === "string") input.value = value;
+        input.dataset.changed = typeof value === "string" ? "1" : "0";
+        input.addEventListener("input", () => { input.dataset.changed = "1"; });
+      }
     } else {
       input.inputMode = setting.type === "number" ? "decimal" : "text";
       if (setting.type === "url" || setting.type === "link") {
@@ -165,6 +173,15 @@ function settingField(app, setting) {
   input.dataset.key = setting.key;
   input.dataset.type = setting.type;
   const parts = setting.type === "toggle" ? [label] : [label, input];
+  if (setting.type === "link" && preset) {
+    const clear = make("button", { type: "button", textContent: "Remove" });
+    clear.addEventListener("click", () => {
+      input.value = "";
+      input.dataset.changed = "1";
+      input.placeholder = "Not set";
+    });
+    parts.push(clear);
+  }
   if (setting.help) input.title = setting.help;
   return parts;
 }
@@ -522,7 +539,8 @@ byId("app-settings").addEventListener("submit", async event => {
     else if (input.dataset.type === "list") values[input.dataset.key] = input.listValue();
     /* A calendar's address is often given as webcal://, which is https. */
     else if (input.dataset.type === "link") {
-      if (input.value.trim()) values[input.dataset.key] = input.value.trim().replace(/^webcals?:\/\//i, "https://");
+      if (input.value.trim() || input.dataset.changed === "1")
+        values[input.dataset.key] = input.value.trim().replace(/^webcals?:\/\//i, "https://");
     }
     else if (input.dataset.type !== "secret" || input.value) values[input.dataset.key] = input.value;
   }

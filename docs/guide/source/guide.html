@@ -123,7 +123,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 10, 2026-11-17 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
+  <div class="facts">revision 11, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Contents</h1>
@@ -239,7 +239,7 @@
   <tr><td>Installation, update</td><td class="n">once each</td><td><code>app_on_installed()</code>, <code>app_on_updated()</code></td></tr>
   <tr><td>Queued notifications</td><td class="n">4</td><td>Per device</td></tr>
   <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>screen_request()</code>; granted by the host</td></tr>
-  <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network. 0 until first set. The time zone is a host setting</td></tr>
+  <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network or by hand. 0 until first set. The time zone is a host setting</td></tr>
 </table>
 
 <h2 id="char-text">Text</h2>
@@ -378,13 +378,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
 <p>BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.</p>
 
 <h2 id="start-report">Build report</h2>
-<pre>tools/perinkpheral build my-app --out build/my-app
-
-build/my-app/app.wasm: 811 bytes, 5 host calls
-  module  0.8 KB of 48.0 KB
-  code    0.5 KB; running it takes about 13.0 KB of the interpreter's 64.0 KB
-  memory  9.1 KB of 64.0 KB: 8.0 KB of stack, 1.1 KB of data; 54.9 KB left for app_alloc()
-  firmware 0.1.23 or later</pre>
+<pre>tools/perinkpheral build my-app --out build/my-app</pre>
 <table>
   <tr><th style="width:14%">Line</th><th>Measures</th><th style="width:36%">When exceeded</th></tr>
   <tr><td class="c">module</td><td>File size: code and initial data. Executed from flash</td><td>Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing</td></tr>
@@ -448,7 +442,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>3</code></td><td>Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware." Firmware before 0.1.8 ignores this field.</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.30"</code></td><td>The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware."</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
@@ -502,7 +496,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c"><code>help</code></td><td>Optional: up to 95 characters and 190 UTF-8 bytes; empty when omitted. Translatable</td></tr>
   <tr><td class="c"><code>default</code></td><td>Optional: a nonempty string, or a nonempty array for list. Unset when omitted. Not allowed for secret or place</td></tr>
   <tr><td class="c"><code>options</code></td><td>Required for choice, forbidden otherwise: 1 - 8 strings, each 1 - 23 characters and at most 46 UTF-8 bytes. Saved values must be printable ASCII</td></tr>
-  <tr><td class="c"><code>hidden</code></td><td>Optional: true for a setting written by something else - an integration through the device's web API, a companion page - and left off the device page's form. Stored and read like any other</td></tr>
+  <tr><td class="c"><code>hidden</code></td><td>Optional: true for a setting written through the device API by an integration and omitted from the page form. Stored and read like any other; the companion form cannot fill it</td></tr>
   <tr><td class="c"><code>latitude</code>, <code>longitude</code></td><td>Required for place: keys of two distinct number settings declared in the same manifest</td></tr>
 </table>
 <h3>Setting types</h3>
@@ -515,11 +509,11 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <tr><td class="c">secret</td><td>Password field</td><td>The secret. Write-only for the web page; readable by the application with <code>kv_get()</code></td></tr>
   <tr><td class="c">place</td><td>Place search by name</td><td>The place name. The page also fills the two <code>number</code> settings named in <code>latitude</code> and <code>longitude</code></td></tr>
   <tr><td class="c">url</td><td>Address of the user's server</td><td>Scheme, host and optional port: <code>http://192.168.1.10:8123</code></td></tr>
-  <tr><td class="c">link</td><td>Complete URL supplied by the user</td><td><code>https://host/path?key</code>, up to 255 bytes. Hidden on the web page like a secret. <code>webcal://</code> is converted to <code>https://</code></td></tr>
+  <tr><td class="c">link</td><td>Complete URL supplied by the user</td><td><code>https://host/path?key</code>, up to 255 bytes. Custom values are write-only on the page; a manifest default is public. <code>webcal://</code> is converted to <code>https://</code></td></tr>
   <tr><td class="c">list</td><td>A line per item; items are added and removed</td><td>Items of 1 - 63 printable ASCII characters, separated by a line break (<code>\n</code>); 255 bytes in all, about 40 tickers. Read with <code>app_setting_count()</code> and <code>app_setting_item()</code></td></tr>
 </table>
 <ul>
-  <li>A setting with nothing stored reads as its <code>default</code>: <code>kv_get()</code> returns it, <code>{{key}}</code> in a poll or a request is it, and the page shows it. Nothing is stored until the user saves the form. The default of a <code>list</code> is a list of items.</li>
+  <li>An absent setting reads as its <code>default</code> through <code>kv_get()</code> and placeholders. The page uses the default for an unset form field. Saving an empty value through <code>/api/apps/settings</code> stores an empty override; <code>kv_set(..., 0)</code> instead deletes the key and restores the default. A list default is a list of items.</li>
   <li>The application can write any setting with <code>kv_set()</code> but <code>url</code> and <code>link</code>; a list as its items with line breaks between them.</li>
   <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
@@ -539,7 +533,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <pre>{ perinkpheral: "ready" }
 { perinkpheral: "app", name, title, settings, values }
 { perinkpheral: "settings", values: { key: "value" } }</pre>
-<p>The companion sends ready; the device page replies with app, the manifest settings and their current values. Both secret and link values are omitted. The companion returns settings with declared keys and string values of at most 255 bytes. These values fill the form; the user must press Save to store them.</p>
+<p>The companion sends ready; the device page replies with app, the manifest settings and their current values. Both secret and link values are omitted. The companion returns settings with declared keys and string values of at most 255 bytes. Only fields present in the form can be filled; hidden settings have no fields. An integration can write hidden settings through <code>/api/apps/settings</code>. The user must press Save to store filled values.</p>
 <p>Check event.source against window.opener and validate event.origin against the expected device origin. Use that origin as postMessage's target for values. The initial ready message carries no user data.</p>
 <h1 id="screen">6. Screen</h1>
 
@@ -913,7 +907,7 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 </table>
 
 <p>screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
-<p>An application relying on <code>HOST_REDRAW_QUESTION</code> or on these focus rules writes <code>"firmware": "0.1.21"</code> in its manifest. The calls themselves do not raise the minimum firmware version.</p>
+<p>These question and focus rules are included in the ABI 3 firmware floor, 0.1.30. No additional manifest minimum is needed for them.</p>
 <h2 id="background-notification_post">Notifications</h2>
 <pre>void app_on_alarm(int32_t id)                      /* the application is loaded for this call */
 {
@@ -1106,9 +1100,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <li>The output folder is created anew on every run. It must be empty or an earlier catalog, and must not contain the applications.</li>
   <li>The index lists the name, title, version and icon of each application, and its files with their sizes and SHA-256 hashes. The device accepts a file only if both the size and the hash match.</li>
   <li>Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.</li>
-  <li>The official catalog is the <code>perinkpheral-apps</code> repository. It is the first source on every device. The user can add up to three more sources on the device's web page by entering a repository address.</li>
+  <li>The official catalog is the <code>perinkpheral-apps</code> repository, with fifteen applications. It is the first source on every device. The user can add up to three HTTPS sources on the device's web page.</li>
   <li>The web page shows a summary of each installed application, taken from its manifest: the servers it connects to, the polling interval, what it stores, and whether it starts with the device.</li>
-  <li>Increase <code>version</code> with every change. The device compares versions to detect updates.</li>
+  <li>Increase <code>version</code> with every change. The page offers Update when a catalog version differs from the installed version. Catalog includes installed applications, marked Installed or Update. Update all appears in Installed apps when at least two compatible updates are available; Refresh fetches the catalogs again.</li>
 </ul>
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
@@ -1121,7 +1115,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).</p>
 
 <h2>ABI 3 compatibility</h2>
-<p>ABI 3 is being prepared for its first frozen release. After release, existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; HOST_SINCE_ stamps only entries added after the ABI 3 floor, 0.1.30. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
+<p>ABI 3 starts with firmware 0.1.30. Existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; HOST_SINCE_ stamps only entries added after the ABI 3 floor, 0.1.30. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
 <p>The supported set is {3}. The manifest ABI is retained through loading and checked before execution. The device page uses ABI membership and the firmware minimum together for Install, Update and Update all; /api/status reports supported_abis. The downloaded manifest is authoritative. Catalog publishing copies identity and compatibility metadata from the packaged manifest.</p>
 <p>tools/perinkpheral contract snapshot records the contract in sdk/abi/3.txt and package hashes separately in sdk/abi/3/fixtures.txt; contract check verifies both in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.</p>
 <h2>Binary representation and buffers</h2>

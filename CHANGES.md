@@ -4,8 +4,6 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
-
-
 ## 0.1.30
 
 - ABI 3 is the first frozen application contract. ABI 2 packages are refused with
@@ -28,30 +26,16 @@ the device's page - without one, the notes are the commits since the release bef
   checked separately in `sdk/abi/3/fixtures.txt`; `sdk/abi/3.txt` records only the contract.
 - Status exposes `supported_abis`. Install, Update and Update all use the same ABI and
   firmware compatibility check; catalog metadata comes from the packaged manifest.
-
-- Before the freeze, calls follow subject then verb, queries name what is asked, and
-  host-called events use `app_on_<what happened>`. ABI stays 3; rebuild applications.
-  `HOST_SINCE_` records only additions after the ABI 3 firmware floor, 0.1.30.
-
-| Previous name | ABI 3 name |
-|---|---|
-| `app_init`, `app_on_values` | `app_on_load`, `app_on_picked` |
-| `data_{value,count,element,item}` | `answer_{value,count,element,item}` |
-| `data_response`, `host_response_t` | `answer_info`, `host_answer_info_t` |
-| `gfx_{text,rect,line,bitmap,bitmap_file,picture,icon,qr}` | `gfx_draw_{text,rect,line,bitmap,bitmap_file,picture,icon,qr}` |
-| `ui_{text,text_lines,title,value,icon,button,actions,bar,frame,cell,chart,list_row,notice,picker,date,reason}` | `ui_draw_{text,text_lines,title,value,icon,button,actions,bar,frame,cell,chart,list_row,notice,picker,date,reason}` |
-| `sys_logo`, `gfx_color`, `gfx_text_fit` | `sys_draw_logo`, `gfx_set_color`, `gfx_fit_text` |
-| `header_{text,status}` | `header_set_{text,status}` |
-| `request_redraw`, `request_focus`, `request_exit` | `screen_redraw`, `screen_request`, `screen_leave` |
-| `notify`, `poll_now`, `http_request` | `notification_post`, `poll_run`, `http_send` |
-| `log` (C: `host_log`) | `log_write` in Wasm and C |
-| `sys_app_default`, `sys_do` | `sys_app_get_default`, `sys_run` |
+- CI builds both guide PDFs and the glyph packs and attaches them to each release.
+  It checks committed generated files, PDF text, guide limits, Russian translation
+  completeness and the API route list.
 
 ## 0.1.26
 
-- A setting may be `"hidden": true` in its manifest: written by an integration or a companion
-  page, left off the device page's form. HA Companion's server and token are, set by the Home
-  Assistant integration; its Sensor and the way without the integration are gone.
+- A setting may be `"hidden": true` in its manifest: written through the device API,
+  left off the device page's form. HA Companion's server and token are, set by the Home
+  Assistant integration.
+
 ## 0.1.25
 
 - The Catalog shows the installed applications too: Installed, or Update when a source has
@@ -59,10 +43,10 @@ the device's page - without one, the notes are the commits since the release bef
 - Time: the date and time are always there, with Network time beside them - pressed, they are the
   network's; released, they are typed - then the time zone and the time server, and one Save.
 - "Factory reset" in Russian is "Сбросить к заводским настройкам".
+
 ## 0.1.23
 
-- The application contract is still ABI 2 before the first release; rebuild applications.
-- `data_response(response, capacity)` copies a bounded prefix and returns the bytes written.
+- `answer_info(response, capacity)` copies a bounded prefix and returns the bytes written.
 - `poll_set_interval` rejects values outside 10..86400 seconds; 0 forgets the code override
   and restores the manifest or setting. Storage failures are reported; an unchanged pace
   keeps its deadline. Code overrides remain in effect across restarts and settings saves.
@@ -70,10 +54,10 @@ the device's page - without one, the notes are the commits since the release bef
   `HOST_ERR_NO_SPACE`; success means queued, not completed.
 - `time_from_local(parts, unix_time)` returns a status separately from the moment. Skipped
   local times move forward by the clock-change gap; repeated times use the earlier occurrence.
-- `gfx_icon` takes `(x, y, icon, cell)`, like the other drawing calls.
+- `gfx_draw_icon` takes `(x, y, icon, cell)`, like the other drawing calls.
 - `HOST_ALARM_REPEATING_MAX` names the device's 24 shared repeating-alarm slots. One
   application may use several; none are reserved per application.
-- `request_focus` remains void: decided after delivery, refused within 30 seconds of a press,
+- `screen_request` remains void: decided after delivery, refused within 30 seconds of a press,
   over a question, or within 30 seconds of the last grant. Refused requests are not retried.
 
 ## 0.1.21
@@ -102,7 +86,7 @@ the device's page - without one, the notes are the commits since the release bef
   removes the one waiting under it no longer brings the device down; the removal takes effect
   once its handler returns.
 - Data: an answer that never closes its JSON is no answer; a slow server is cut off at the
-  deadline however it trickles; a list the device has no memory for says so. `poll_now` is
+  deadline however it trickles; a list the device has no memory for says so. `poll_run` is
   held to once a second, and a long list of one application lets the others' polls in.
 - An alarm of another application in the middle of an answer taken in pieces ends it as a
   press does, and the poll is asked again soon.
@@ -183,8 +167,7 @@ the device's page - without one, the notes are the commits since the release bef
 
 - The host's settings are a store by key. Settings on the device and the device's page write the
   same keys by the same rules, and any application with system access may too
-  (`sys_setting_get`, `sys_setting_set`, `sys_setting_range` replace `sys_number_*` and
-  `sys_text_set`).
+  (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`).
 - An application cannot remove itself.
 - The mark is six cells by six; the icons of no signal, thunder and play are drawn anew, and info,
   gauge and battery are rounder and plainer.

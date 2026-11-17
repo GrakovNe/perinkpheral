@@ -1,28 +1,28 @@
 # Hardware notes
 
-Everything learned about the panel and the board on the bench: the working driver sequence, the pitfalls, the panel's limits and the sources. The parts and the wiring are in the root `README.md`; the case and assembly are on the page `bom/index.html`. The driver is `firmware/components/epd/epd.c`.
+Everything learned about the panel and the board on the bench: the working driver sequence, the pitfalls, the panel's limits and the sources. The parts and wiring are in [README.md](../README.md); the case and assembly are in [bom/index.html](bom/index.html) and at https://perinkpheral.dev/hardware. The driver is [epd.c](../firmware/components/epd/epd.c).
 
 ## What has been verified
 - Full refresh: the image settles in a single pass, BUSY releases after 2190 ms.
-- Partial refresh of the whole frame (Waveshare Display_Partial): BUSY 410 ms consistently, old digits are erased cleanly. The full "press -> new image" cycle was about 1 s with the SPI driver at 2 MHz (reset 200 ms + 15000 bytes + 410 ms); see the measurements of 2026-11-12 below for what it is now.
+- Partial refresh of the whole frame (Waveshare Display_Partial): BUSY 410 ms consistently, old digits are erased cleanly.
 - Buttons: all four, idle level 1, debounce 20 ms (4 polls of 5 ms each) - no false or double triggers, including during fast bursts.
 
 ## Display driver (SSD1683, working sequence)
-This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2_V2.c`, ported to ESP-IDF. The reference is `firmware/components/epd/epd.c`.
+This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2_V2.c`, ported to ESP-IDF. The implementation is the driver linked above.
 
 - SPI mode 0, the bytes clocked out by hand over GPIO: at most about 6 MHz, 75 ns and more to each half of the clock (the datasheet allows 20 MHz and asks for 25 ns; CS setup and hold 60 ns, CS high 100 ns). CS goes low and high on EVERY byte, as in Waveshare's `EpdIf::SpiTransfer`. See the pitfalls below - this is a mandatory condition.
 - HW reset: RST 1 (100 ms) -> 0 (2 ms) -> 1 (100 ms), wait for BUSY low. **The low part must really be 2 ms.** The module's reset circuit takes a longer low for "power off": the panel then keeps BUSY high through everything that follows and no refresh happens. A scheduler's delay is "at least" - while the flash is erased (a firmware update) it was about 20 ms - so the firmware counts the 2 ms itself with interrupts off (found 2026-11-12: "Updating in progress" never appeared).
 - Init: `0x12` (SW reset, wait for BUSY ~10 ms) -> `0x21 0x40 0x00` -> `0x3C 0x05` -> window `0x11 0x03`, `0x44 0x00 0x31`, `0x45 0x00 0x00 0x2B 0x01`, `0x4E 0x00`, `0x4F 0x00 0x00`.
 - Full (Display_Base): the frame into `0x24` and the same frame into `0x26`, then `0x22 0xF7`, `0x20`, wait for BUSY.
-- Partial (Display_Partial): HW reset (the firmware skips it for a partial within 1.5 s of the one before, see below) -> `0x3C 0x80` -> `0x21 0x00 0x00` -> `0x3C 0x80` -> window -> the frame into `0x24` only -> `0x22 0xFF`, `0x20`, wait for BUSY. One full refresh is mandatory before the first partial (it puts the "old" frame into 0x26). After N partials - a full one (Waveshare: "several times", in the FAQ - a clear after 5 rounds; the firmware has 5).
-- Partial in a window (PartialDisplay): the same as Display_Partial, with `0x44`/`0x45` set to the window (X in bytes) and `0x4E`/`0x4F` to its corner, and only the window's bytes into `0x24`. Measured: 3744 bytes 0.80 s, 5760 bytes 0.84 s, 11088 bytes 0.95 s, the whole frame (15000) 1.00 s - about 19 ms per kilobyte over a fixed 0.71 s.
+- Partial (Display_Partial): HW reset (the firmware skips it for a partial within 1.5 s of the one before, see below) -> `0x3C 0x80` -> `0x21 0x00 0x00` -> `0x3C 0x80` -> window -> the frame into `0x24` only -> `0x22 0xFF`, `0x20`, wait for BUSY. One full refresh is mandatory before the first partial (it puts the "old" frame into 0x26). The number of partial refreshes before a full one is configurable; the default is no periodic full refresh (`refresh_full_every = 255`). Scene changes and the first frame are full; keep-alive defaults to 24 h.
+- Partial in a window (PartialDisplay): the same as Display_Partial, with `0x44`/`0x45` set to the window (X in bytes) and `0x4E`/`0x4F` to its corner, and only the window's bytes into `0x24`.
 - Measured on 2026-11-12 with the bytes clocked out by hand (8 us a byte) and no reset or sleep between partial refreshes that follow within 1.5 s: partial 3744 bytes 0.45 s, 5760 bytes 0.46 s, the whole frame 0.53 s; the first of a row 0.2 s more for its reset. Full 2.7 s; fast full (`0x1A 0x6E`, `0x22 0x91`, then `0x22 0xC7`) 2.2 s.
 - Sleep: `0x10 0x01` (deep sleep mode 1, RAM is retained - needed for partial). Mode 2 (`0x03`) does not retain RAM.
 - Frame format: 400x300 -> 50x300 = 15000 bytes, most significant bit on the left, 1 = white, 0 = black.
 - BUSY: HIGH = busy. After `0x10` (deep sleep) BUSY stays HIGH forever - it must not be waited on, the only way out of sleep is HW reset. After sleep, image data is ignored until re-initialization.
 - Waiting for BUSY is always with a timeout (in the firmware: full 4 s, partial 3 s, other 1 s). A refresh that times out - HW reset and sleep, do not hang; an init's waits go on to the next command.
 
-More modes from the Waveshare code (present in their driver, not properly verified on our bench):
+More modes from the Waveshare code (present in the vendor driver; only the configured fast mode is measured here):
 - Fast (1.5 s / 1 s): in init after `0x3C 0x05` -> `0x1A 0x6E` (or `0x5A` for 1 s) -> `0x22 0x91`, `0x20`, wait for BUSY; display - both frames and `0x22 0xC7`. GxEPD2 for the same panel: `0x1A 0x6E` for 2024 panels, `0x64` for 2023; `0x22 0xD7`.
 - 4 gray levels: `Init_4Gray` + manual LUT (`0x32`, 227 bytes) + `0x22 0xCF`. Needs a 2-bit frame (two buffers).
 
@@ -53,8 +53,8 @@ Temperature: `0x18` after reset = `0x48` (external sensor, which the module does
 - XIAO ESP32-C6 deep sleep per Seeed data ~15 µA at 3.8 V; light sleep 3.1 mA; modem sleep 30 mA. For wake-up by button - ext1 on GPIO0-7 (there is no ext0 on the C6); the buttons on GPIO0-2 are suitable, button 4 on GPIO21 is not.
 
 ## Open questions
-- The cause of the BUSY hang with CS over the block is not established (see pitfall 1). If transfer speed is needed, a controlled A/B is required: enable block CS with everything else equal and watch BUSY.
-- 4Gray is not tried. Fast mode is measured (2.2 s, above) and in the firmware as a setting; its first run, with a clobbered CS, was invalid.
+- The cause of the BUSY hang with block CS is not established. Per-byte CS remains a driver constraint (pitfall 1).
+- 4Gray is not tried. Fast mode is measured (2.2 s, above), enabled by default and configurable.
 
 ## Sources
 - SSD1683 datasheet Rev 1.0 (Solomon Systech, 2021): https://www.laskakit.cz/user/related_files/ssd1683.pdf
@@ -64,4 +64,4 @@ Temperature: `0x18` after reset = `0x48` (external sensor, which the module does
 - GxEPD2, class GDEY042T81 (SSD1683, timings, fast/partial): https://github.com/ZinggJM/GxEPD2/blob/master/src/gdey/GxEPD2_420_GDEY042T81.cpp
 - Seeed, XIAO ESP32-C6 Getting Started (pins, antenna, sleep): https://wiki.seeedstudio.com/xiao_esp32c6_getting_started/
 - ESP-IDF 5.5, SPI Master (CS, DMA, polling): https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32c6/api-reference/peripherals/spi_master.html
-- ESP-IDF, `components/soc/esp32c6/include/soc/uart_pins.h` (U0TXD=16, U0RXD=17), `spi_pins.h` (IOMUX SPI2).
+- ESP-IDF 5.5.5: [UART pins](https://github.com/espressif/esp-idf/blob/v5.5.5/components/soc/esp32c6/include/soc/uart_pins.h) and [SPI pins](https://github.com/espressif/esp-idf/blob/v5.5.5/components/soc/esp32c6/include/soc/spi_pins.h).

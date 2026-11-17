@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: perINKpheral device API
-  version: 0.1.0
+  version: 0.1.30
   license:
     name: MIT
     identifier: MIT
@@ -10,17 +10,23 @@ info:
     The device's web page uses it; so do the command line tools.
 
     Requests from pages of other sites are refused: a browser request must carry
-    the device's own Origin, or none. Errors and plain confirmations are
+    the device's own Origin, or none, and Host must name the device's address or
+    hostname. The root page is public. Errors and plain confirmations are
     `{"error": "..."}` and `{"ok": "..."}`, but for a request refused for its origin,
     answered `Forbidden.` as text. Besides what each route lists, any of them may be
     answered 503 when the device is busy or short of memory, and 500 when its storage
     fails.
 
     Firmware updates, factory reset and a change of the Wi-Fi network wait for
-    a press of OK on the device, up to a minute; unanswered is
+    a press of OK on the device, up to a minute; installing a system application
+    also requires this confirmation. The press must begin after the question
+    reaches the panel. Unanswered is
     `403 {"error": "Not confirmed."}`.
 
     `/api/dev/*` exists only in firmware built with the development tools.
+    There is no authentication. Origin and Host checks restrict browser requests;
+    they do not authenticate command line clients. Update all and Refresh are
+    page operations over the existing install and catalog routes, not endpoints.
 servers:
   - url: http://{device}
     variables:
@@ -53,7 +59,7 @@ components:
       type: object
       properties:
         name: { type: string, description: Device name }
-        firmware: { type: string, examples: ["0.1.12-93e9811"] }
+        firmware: { type: string, examples: ["0.1.30"] }
         supported_abis:
           type: array
           description: Explicit supported application ABI generations; membership, never a version ceiling.
@@ -65,15 +71,15 @@ components:
         ssid: { type: string }
         address: { type: string }
         tz: { type: string, description: POSIX TZ string }
-        time: { type: string, description: Local time, when known }
+        time: { type: string, description: "Local time, when known" }
         hostname: { type: string }
         idf: { type: string }
         built: { type: string }
         uptime_s: { type: integer }
         free_memory: { type: integer, description: Bytes }
-        least_free_memory: { type: integer, description: Bytes, since start }
+        least_free_memory: { type: integer, description: "Bytes, since start" }
         reset_reason: { type: integer, description: "esp_reset_reason(): 3 restart, 4 fault, 5 interrupt watchdog" }
-        last_panic: { type: string, description: Record of the last fault, if any }
+        last_panic: { type: string, description: "Record of the last fault, if any" }
         app_area_used: { type: integer }
         app_area: { type: integer }
         storage_ok: { type: boolean }
@@ -88,18 +94,25 @@ components:
       type: object
       description: >-
         Every field is optional on POST; what is sent is checked as a whole and stored. The keys
-        are the settings' own, the same as an application with system access reads and writes
-        with sys_setting_get and sys_setting_set.
+        are the settings' own. Unknown fields are ignored. Wi-Fi changes use /api/wifi.
+        A change to device_name, ntp_server or language returns "Saved. Restart to apply.";
+        it does not restart automatically.
+        The system application API has a smaller explicit allowlist: it cannot access
+        refresh_min_button_ms. See sdk/host/sys.h.
       properties:
         device_name: { type: string }
         hostname: { type: string, readOnly: true }
         wifi_ssid: { type: string, readOnly: true }
         ntp_server: { type: string }
         tz: { type: string, description: POSIX TZ string }
-        tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
-        refresh_min_data_s: { type: integer, description: Seconds between refreshes driven by data }
-        refresh_full_every: { type: integer, description: "Full refresh after so many partial ones; 0 always full, 255 never" }
-        refresh_keepalive_h: { type: integer, description: Hours before a refresh is forced }
+        tz_city: { type: string, description: "The city the zone was chosen by, by its English name; empty for a zone of its own" }
+        refresh_min_data_s: { type: integer, minimum: 10, maximum: 3600, default: 60, description: Seconds between refreshes driven by data }
+        refresh_full_every:
+          type: integer
+          anyOf: [{ minimum: 0, maximum: 50 }, { const: 255 }]
+          default: 255
+          description: "Full refresh after so many partial ones; 0 always full, 255 no periodic full refresh"
+        refresh_keepalive_h: { type: integer, minimum: 1, maximum: 168, default: 24, description: Hours before a refresh is forced }
         dither: { type: boolean }
         font: { type: integer, description: "0 Departure Mono, 1 Jersey" }
         refresh_fast: { type: boolean }
@@ -131,6 +144,7 @@ components:
         name: { type: string }
         title: { type: string }
         version: { type: string }
+        description: { type: string, description: "Translated description, when provided" }
         icon: { type: array, items: { type: string }, description: 11 rows of 11 characters }
         hosts: { type: array, items: { type: string } }
         polls: { type: array, items: { type: object } }
@@ -140,11 +154,31 @@ components:
         fullscreen: { type: boolean }
         companion: { type: string }
         trusts: { type: array, items: { type: string }, description: Certificate authorities of its own }
-        settings: { type: array, items: { type: object }, description: As the manifest declares them, translated }
+        settings:
+          type: array
+          items: { $ref: "#/components/schemas/AppSetting" }
+          description: As the manifest declares them, translated; hidden declarations are included
         values:
           type: object
           additionalProperties: { oneOf: [{ type: string }, { type: boolean }] }
-          description: Stored values; a secret or a link only as set (true) or not (false)
+          description: >-
+            Stored values. A secret or custom link is returned only as set (true) or
+            not (false). An absent link with a public manifest default returns that
+            default as text; a stored empty link returns false and overrides the default.
+            Hidden is a form rule, not a restriction on API reads or writes.
+    AppSetting:
+      type: object
+      properties:
+        key: { type: string }
+        title: { type: string }
+        type: { type: string, enum: [text, secret, number, choice, toggle, place, url, link, list] }
+        hidden: { type: boolean, default: false, description: Omitted from the page form; writable through /api/apps/settings }
+        help: { type: string }
+        default: {}
+        options: { type: array, items: { type: string } }
+        labels: { type: array, items: { type: string }, description: "Translated choice labels, when available" }
+        latitude: { type: string, description: Key of the latitude setting for a place }
+        longitude: { type: string, description: Key of the longitude setting for a place }
     CatalogFile:
       type: object
       properties:
@@ -272,8 +306,8 @@ paths:
               properties:
                 ssid: { type: string }
                 password: { type: string }
-                tz: { type: string, description: Time zone to set along, on a device that has none }
-                tz_city: { type: string, description: The city the zone was chosen by, by its English name }
+                tz: { type: string, description: "Time zone to set along, on a device that has none" }
+                tz_city: { type: string, description: "The city the zone was chosen by, by its English name" }
               description: What is left out stays as it was
       responses:
         "200": { $ref: "#/components/responses/Ok" }
@@ -292,7 +326,7 @@ paths:
               type: object
               properties:
                 tz: { type: string, description: POSIX TZ string, examples: ["MSK-3"] }
-                tz_city: { type: string, description: The city the zone was chosen by, by its English name; empty for a zone of its own }
+                tz_city: { type: string, description: "The city the zone was chosen by, by its English name; empty for a zone of its own" }
               required: [tz]
       responses:
         "200": { $ref: "#/components/responses/Ok" }
@@ -309,7 +343,7 @@ paths:
             schema:
               type: object
               properties:
-                unix: { type: integer, description: Unix seconds, from 2026 to before 2100; refused while the network's time is on }
+                unix: { type: integer, description: "Unix seconds, from 2026 to before 2100; refused while the network's time is on" }
               required: [unix]
       responses:
         "200": { $ref: "#/components/responses/Ok" }
@@ -341,7 +375,11 @@ paths:
             schema:
               type: object
               additionalProperties: { type: string }
-              description: Setting key to value; checked against the manifest as a whole
+              description: >-
+                Declared setting key to text value, including hidden settings. Missing
+                keys are unchanged; an empty value is stored and overrides a default.
+                Validation precedes writes, but writes are not transactional. Changing
+                a url/link destination clears secrets omitted from this request.
       responses:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }
@@ -375,6 +413,8 @@ paths:
               properties:
                 files:
                   type: array
+                  minItems: 2
+                  maxItems: 8
                   description: As the catalog's index lists them; app.wasm first, manifest.json last
                   items: { $ref: "#/components/schemas/CatalogFile" }
               required: [files]
@@ -385,7 +425,8 @@ paths:
         "409":
           description: >-
             Not enough storage, or the application needs a newer firmware ("Update the firmware.",
-            "firmware" of its manifest) or another host API ("Incompatible firmware version.")
+            "firmware" of its manifest) or an unsupported ABI ("Update the app.").
+            The downloaded manifest governs compatibility; the index is not authoritative.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
