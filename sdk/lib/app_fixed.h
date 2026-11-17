@@ -19,8 +19,8 @@
  * digits, a point, digits, an exponent ("1.2e-05"). The result is scaled by
  * 10^decimals and rounded half away from zero: "-3.46" is -35 with 1
  * decimal. Returns false if the text is not a number, the result does
- * not fit in 64 bits, or its whole part has more than 18 digits that are
- * not zeros; `value` is then unchanged. */
+ * not fit in -INT64_MAX..INT64_MAX, or a nonzero whole-part digit follows
+ * the first 18 significant digits. `value` is then unchanged. */
 bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value);
 
 /* The same number with another number of decimals, rounded half away from

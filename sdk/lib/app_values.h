@@ -18,7 +18,8 @@ bool app_value_text(int32_t index, char *text, int32_t text_size);
 /* Reads the value as a number scaled by 10^decimals, rounded: "-3.46" is
  * -35 with one decimal and -3 with none. Floating point is not available.
  * Returns false if there is no such value, it is not a number, or it does
- * not fit in 32 bits. app_value_fixed() reads it in 64 bits. */
+ * not fit in -INT32_MAX..INT32_MAX. app_value_fixed() accepts
+ * -INT64_MAX..INT64_MAX. */
 bool app_value_number(int32_t index, int32_t decimals, int32_t *number);
 bool app_value_fixed(int32_t index, int32_t decimals, int64_t *number);
 

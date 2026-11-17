@@ -61,7 +61,7 @@
   thead { display: table-header-group; }
   h2 + p, h3 + p, h1 + p { break-before: avoid; }
   code { font-size: 8pt; background: var(--paper-light); padding: 0 .6mm; }
-  pre { font-size: 7pt; line-height: 1.38; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre;
+  pre { font-size: 7pt; line-height: 1.38; margin: 2mm 0 3.6mm; padding: 3mm 3.4mm; white-space: pre-wrap;
         background: var(--paper-light); break-inside: avoid; position: relative; }
   pre::before, .note::before { top: 0; right: 0; width: 5mm; height: 5mm; border-width: .8pt .8pt 0 0; }
   pre::after, .note::after   { bottom: 0; left: 0; width: 5mm; height: 5mm; border-width: 0 0 .8pt .8pt; }
@@ -92,7 +92,16 @@
   figure { margin: 0; flex: 1; }
   figure img { width: 100%; display: block; border: .7pt solid var(--ink); image-rendering: pixelated; }
   figcaption { font-size: 7.4pt; color: var(--grey); margin-top: 1.4mm; }
+  .keep { break-inside: avoid; }
+  #package-settings, #ref-limits { break-before: page; }
+  #ref-system + p { break-after: avoid; }
+  #ref-limits + table { break-inside: avoid; font-size: 7pt; line-height: 1.2; }
+  #ref-limits + table td { padding: .8mm 1.4mm; }
+  .icon-sample { display: inline-block; position: relative; overflow: hidden;
+                 width: 22px; height: 22px; margin-right: 2mm; vertical-align: middle; }
+  .icon-sample img { position: absolute; width: 400px; height: 300px; max-width: none; }
 </style>
+
 </head>
 <body>
 
@@ -136,8 +145,8 @@
   <li>Input: four buttons; short press, long press, key down and key up events</li>
   <li>Sandbox: 64 KB of private memory; network access through the host only</li>
   <li>Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code</li>
-  <li>Data: the host extracts values and lists from JSON answers; any answer can be streamed in 1 KB pieces</li>
-  <li>Background work: answers, alarms and device events are delivered while the application is off the screen</li>
+  <li>Data: the host extracts values and lists from JSON responses; any response can be streamed in 1 KB pieces</li>
+  <li>Background work: responses, alarms and device events are delivered while the application is off the screen</li>
 </ul>
 <ul>
   <li>Storage: a key-value store, kept across restarts and reinstalls, and files, kept across restarts</li>
@@ -156,6 +165,7 @@
 
 <h1 id="characteristics">2. Characteristics</h1>
 
+<p>Memory and file sizes use KB = 1024 bytes and MB = 1048576 bytes.</p>
 <h2 id="char-display">Display</h2>
 <table>
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
@@ -164,8 +174,8 @@
   <tr><td>Application surface</td><td class="n">400 x 260 px</td><td>Below the host header. 400 x 300 with <code>"fullscreen": true</code></td></tr>
   <tr><td>Depth</td><td class="n">1 bit</td><td>17 grey levels by fixed 4 x 4 dithering; for filled areas</td></tr>
   <tr><td>Partial refresh</td><td class="n">0.46 - 0.7 s</td><td>Only the changed rectangle is sent. 0.6 - 0.7 s when the panel has been idle for more than 1.5 s and is woken first</td></tr>
-  <tr><td>Full refresh</td><td class="n">2.2 s (2.7 s)</td><td>Fast waveform (default waveform). The panel flashes</td></tr>
-  <tr><td>Full refresh interval</td><td class="n">every 5 partial refreshes</td><td>User setting. Removes ghosting left by partial refreshes</td></tr>
+  <tr><td>Full refresh</td><td class="n">Fast: 2.2 s; standard: 2.7 s</td><td>The panel flashes during a full refresh. The refresh_fast setting selects the fast waveform</td></tr>
+  <tr><td>Full refresh interval</td><td class="n">disabled by default</td><td>Full refresh on screen changes, CLEAN requests and the 24-hour keep-alive. The user can enable a partial-refresh count</td></tr>
   <tr><td>Refresh after a button press</td><td class="n">immediate</td><td></td></tr>
   <tr><td>Refresh without a button press</td><td class="n">max. 1 per 60 s</td><td>User setting. The panel manufacturer recommends 180 s</td></tr>
   <tr><td>Frame sequence rate</td><td class="n">about 1.5 frames/s</td><td><code>HOST_REDRAW_NO_BLINK</code>. Ghosting accumulates until the sequence ends</td></tr>
@@ -199,10 +209,10 @@
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Store key</td><td class="n">1 - 15 characters</td><td>Characters <code>!</code> to <code>~</code></td></tr>
   <tr><td>Store value</td><td class="n">1024 bytes</td><td></td></tr>
-  <tr><td>Store total</td><td class="n">2048 bytes</td><td>Per application, settings included, counted as stored: 64 bytes for a value plus its length rounded up to 32. Guaranteed for every installed application. Kept after removal and restored on reinstall</td></tr>
+  <tr><td>Store total</td><td class="n">2048 bytes</td><td>Per application, settings included, counted as stored: 64 bytes per value plus its length rounded up to a multiple of 32 bytes. Guaranteed for every installed application. Removed applications' stores may be reclaimed when storage is full</td></tr>
   <tr><td>Files of a package</td><td class="n">64 KB</td><td>Per application. Each file counts as whole 4 KB blocks</td></tr>
-  <tr><td>Files of an application that writes</td><td class="n">32 KB</td><td>Packaged files and files written by the code, with <code>"writes_files": true</code>. Kept free from installation</td></tr>
-  <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code></td></tr>
+  <tr><td>Files of an application that writes</td><td class="n">32 KB</td><td>With <code>"writes_files": true</code>, unused space within the quota is reserved from installation. Catalog installation counts data files plus the manifest; runtime writes count data files only. Each file is rounded up to 4 KB</td></tr>
+  <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>. Names ending in <code>.new</code> are reserved. <code>file_write()</code> also refuses <code>app.wasm</code> and <code>manifest.json</code></td></tr>
 </table>
 
 <h2 id="char-network">Network</h2>
@@ -214,9 +224,9 @@
   <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. A poll can go over a list setting: one request per item, one at a time</td></tr>
   <tr><td>Concurrent requests</td><td class="n">1</td><td>Per device. Applications and polls take turns</td></tr>
   <tr><td>Requests from code waiting</td><td class="n">16</td><td>Per application</td></tr>
-  <tr><td>Request headers / body</td><td class="n">1023 / 512 bytes</td><td>Up to 4 header lines</td></tr>
-  <tr><td>Answer with extracted values</td><td class="n">256 KB</td><td>JSON; up to 16 paths; value up to 63 bytes; elements of lists up to 8 KB as text</td></tr>
-  <tr><td>Streamed answer</td><td class="n">4 MB</td><td>Pieces of up to 1024 bytes; about 90 KB/s over plain HTTP</td></tr>
+  <tr><td>Request headers / body</td><td class="n">1023 bytes / 512 bytes</td><td>Up to 4 header lines</td></tr>
+  <tr><td>Response with extracted values</td><td class="n">256 KB</td><td>JSON; up to 16 paths; value up to 63 bytes; elements of lists up to 8 KB as text</td></tr>
+  <tr><td>Streamed response</td><td class="n">4 MB</td><td>Pieces of up to 1024 bytes; about 90 KB/s over plain HTTP</td></tr>
   <tr><td>Redirects</td><td class="n">3</td><td><code>GET</code> only. Requests from code stay within the hosts list</td></tr>
   <tr><td>HTTPS request time</td><td class="n">about 6 s</td><td>Mostly the TLS handshake</td></tr>
 </table>
@@ -236,7 +246,7 @@
 <h2 id="char-text">Text</h2>
 <table>
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
-  <tr><td>Encoding</td><td class="n">UTF-8</td><td>All text. Passed as pointer and length</td></tr>
+  <tr><td>Encoding</td><td class="n">UTF-8</td><td>Displayed text. Passed as pointer and byte length. Settings form values must be printable ASCII; lists also allow line breaks between items</td></tr>
   <tr><td>Built-in glyphs</td><td class="n">printable ASCII, °</td><td></td></tr>
   <tr><td>Glyph packs</td><td class="n">3</td><td>Extended Latin, Cyrillic, Greek. Installed by the user on the device's web page</td></tr>
   <tr><td>Fallback</td><td class="n">ASCII transliteration</td><td>"Moskva", "Strasse", "Athina"; otherwise <code>?</code></td></tr>
@@ -252,8 +262,8 @@
 <table>
   <tr><th style="width:27%">Event</th><th style="width:33%">Instance</th><th>Handlers, in order</th></tr>
   <tr><td>The user opens the application</td><td>Loaded; stays while it has the screen</td><td class="c">app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate</td></tr>
-  <tr><td>An answer, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
-  <tr><td>The same while off the screen</td><td>Loaded for the call, unloaded after it. The current screen is suspended and restored</td><td class="c">app_init, the handler, app_on_terminate</td></tr>
+  <tr><td>A response, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings</td></tr>
+  <tr><td>The same while off the screen</td><td>Loaded for the delivery, unloaded when it ends. Stream chunks share one instance. The current screen is suspended and restored</td><td class="c">app_init, the handler, app_on_terminate</td></tr>
   <tr><td>Installed, or updated to another version</td><td>Once, on or off the screen</td><td class="c">app_on_installed / app_on_updated</td></tr>
   <tr><td><code>request_focus()</code> granted by the host</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_init, app_on_focus, app_on_draw</td></tr>
   <tr><td>The application leaves the screen: BACK, the menu, another application on top</td><td>Unloaded</td><td class="c">app_on_blur, app_on_terminate</td></tr>
@@ -265,16 +275,17 @@
   <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.</li>
   <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.</li>
   <li><code>app_init()</code> is called before any other handler of an instance.</li>
-  <li>Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one answer are delivered in order; a settings change or an alarm may be delivered between two of them.</li>
-  <li>Background delivery of an answer can be interrupted. On a button press the instance is unloaded and the remaining pieces are dropped. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute, or after its interval when that is shorter.</li>
+  <li>Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one response are delivered in order; a settings change or an alarm may be delivered between two of them.</li>
+  <li>Background delivery of a response can be interrupted. A button press, screen switch, application-list reload or delivery to another application can unload the instance and drop the remaining pieces. Only <code>app_on_terminate()</code> is called. The poll is repeated after one minute, or after its interval when that is shorter.</li>
 </ul>
 
 <h2 id="model-state">State</h2>
-<p>Global variables are kept until the application is unloaded. Unloading occurs every time the application leaves the screen and after every background call.</p>
+<p>Global variables are kept until the application is unloaded. It is unloaded when it leaves the screen and after a background delivery ends. A streamed response keeps the same instance between chunks; it also handles intervening events for that application.</p>
 <p>State is loaded in <code>app_init()</code> and saved in <code>app_on_terminate()</code>, the last call of every instance that was not stopped for a fault. A value that must survive a power loss is saved immediately after it changes.</p>
-<p>Where the user is - a page, a selected row, a value half set - is kept in the session, not in the store: up to 128 bytes (<code>HOST_SESSION_MAX</code>) in memory, kept while the application is in the stack and through its unloads. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
-<p>Timestamps that stay valid across restarts: <code>time_now()</code>, or <code>time_uptime_ms()</code> together with <code>time_boot_id()</code>. The boot id changes after every restart.</p>
+<p>Use session memory for temporary UI state: the current page, selected row or unfinished edit. Up to 128 bytes (<code>HOST_SESSION_MAX</code>) survive unloads while the application remains in the navigation stack. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
+<p>Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.</p>
 
+<p>The session is attached after app_init() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_init() returns HOST_ERR_ARGUMENT.</p>
 <h2 id="model-screen">Navigation and refresh</h2>
 <p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.</p>
 <p>The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.</p>
@@ -296,14 +307,20 @@
 </ul>
 
 <h2 id="start-new">Create, build, run</h2>
-<pre>tools/perinkpheral new my-app --title "My app"     # create a folder from the SDK sample
-tools/perinkpheral run my-app                      # build, upload, restart into the application
-tools/perinkpheral serve my-app                    # local page: live screen, buttons, log, Run
-tools/perinkpheral sim my-app                      # run it in the simulator on this computer</pre>
+<p>Run these commands from the repository root.</p>
+<h3>Create</h3>
+<pre>tools/perinkpheral new my-app --title "My app"</pre>
+<h3>Run on a device</h3>
+<pre>tools/perinkpheral run my-app</pre>
+<h3>Run in the simulator</h3>
+<pre>tools/perinkpheral sim my-app</pre>
+<h3>Open the development page</h3>
+<pre>tools/perinkpheral serve my-app</pre>
 <p><code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.</p>
 <p>The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.</p>
 <p><code>serve</code> starts a local web page with the live screen, the four buttons, the device log and a Run button. The arrow keys, Enter and Backspace act as the buttons. The page accepts requests from itself only, as the device does.</p>
 
+<h2 id="start-ide">IDE setup</h2>
 <p><code>new</code> also creates a <code>CMakeLists.txt</code> in the application's folder. Open this folder in an IDE that supports CMake, such as CLion or VS Code.</p>
 <p>The IDE resolves the SDK headers and the generated <code>strings.h</code> and <code>pictures.h</code>. The project has four build targets: <code>my-app</code> (build), <code>my-app-package</code> (build and check the package, with the report), <code>my-app-run</code> (build and run on the device) and <code>my-app-serve</code> (the live page). The IDE compiles with the flags of the build (<code>tools/perinkpheral flags</code>) and produces the same module.</p>
 <p>The generated headers are made when the project is configured, and again when it is reloaded after <code>strings/</code> or <code>pictures/</code> change; the CLion plugin remakes them on every change. A string the code does not use yet, or a translation that lacks a string, is accepted in them; the build refuses both.</p>
@@ -373,7 +390,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><th style="width:14%">Line</th><th>Measures</th><th style="width:36%">When exceeded</th></tr>
   <tr><td class="c">module</td><td>File size: code and initial data. Executed from flash</td><td>Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing</td></tr>
   <tr><td class="c">code</td><td>Code size and the estimated interpreter memory needed to run all of it. <b>The scarcest resource</b>: one byte of code uses four bytes of memory</td><td>See "Memory" in section 13</td></tr>
-  <tr><td class="c">memory</td><td>The 64 KB page: stack, static data, and the remainder for the arena</td><td>Allocate large buffers with <code>app_alloc()</code> under a mark. Read files in parts</td></tr>
+  <tr><td class="c">memory</td><td>The 64 KB page: stack, static data, and the remainder for the arena</td><td>Call <code>app_alloc_mark()</code> before allocating temporary buffers with <code>app_alloc()</code>. Call <code>app_alloc_release(mark)</code> when finished. Read files in parts; see app_alloc.h in section 23</td></tr>
   <tr><td class="c">firmware</td><td>The oldest firmware the application runs on, and the host call that asks for it</td><td>-</td></tr>
 </table>
 <p>The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.</p>
@@ -399,8 +416,9 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   strings/           optional: en.json, ru.json ...; one file per language    (section 12)
   pictures/          optional: PNG, PBM, or text rows of '#' and '.'          (section 6)
   files/             optional: data files, read with file_read()</pre>
-<p>The build makes the package from this folder. It compiles the sources with the SDK library, generates <code>strings.h</code> from <code>strings/</code> and <code>pictures.h</code> from <code>pictures/</code>, and checks all limits. The package contains <code>app.wasm</code>, <code>manifest.json</code>, the files and one string table per language.</p>
+<p>The build makes the package from this folder. It compiles the sources with the SDK library, generates <code>strings.h</code> from <code>strings/</code> and <code>pictures.h</code> from <code>pictures/</code>, and checks the module and data-file limits. Check the package file count and final manifest size separately: the build does not enforce them. The package contains <code>app.wasm</code>, <code>manifest.json</code>, data files and one string table per language.</p>
 
+<p>A catalog package contains at most eight files: app.wasm, manifest.json and at most six other files. Generated string tables and manifest translations count towards this limit.</p>
 <h2 id="package-manifest">Manifest</h2>
 <pre>{
   "name": "plex",
@@ -431,48 +449,68 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The oldest firmware the application runs on. Written by the build: the latest firmware among the host calls the module makes. Given in the manifest, it may only be later. An older firmware does not install or start it and says "Update the firmware."</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used. The manifest may specify that version or a later one. Older firmware refuses installation and startup with "Update the firmware."</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
   <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_request()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
-  <tr><td class="c">settings</td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
+  <tr><td class="c"><code>settings</code></td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
   <tr><td class="c">system</td><td>true / false (default)</td><td>Enables the <code>sys_*</code> calls. The web page warns the user before installation</td></tr>
-  <tr><td class="c">writes_files</td><td>true / false (default)</td><td>Enables <code>file_write()</code>. The device keeps 32 KB of files free for the application from installation</td></tr>
+  <tr><td class="c">writes_files</td><td>true / false (default)</td><td>Enables <code>file_write()</code>. The device reserves 32 KB for the application's files from installation</td></tr>
   <tr><td class="c">companion</td><td><code>https</code> URL</td><td>Developer's page opened from the settings form, for setup that a form cannot express</td></tr>
   <tr><td class="c">certificates</td><td>up to 2 files of <code>files/</code></td><td>Certificate authorities trusted for this application's own requests, beside the browser root set (section 9). The web page names them before installation</td></tr>
 </table>
+<p>The packaged manifest is at most 8192 bytes, including formatting and the firmware version written by the build.</p>
 <p>The host ignores unknown keys. The build validates the keys listed above.</p>
 
 <h2 id="package-polls">Polls</h2>
 <table>
   <tr><th style="width:13%">Field</th><th style="width:30%">Format</th><th>Description</th></tr>
-  <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required</td></tr>
+  <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td>Request URL; setting placeholders are described below</td></tr>
   <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
   <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code></td></tr>
-  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the answer is streamed</td></tr>
-  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item an answer is for</td></tr>
+  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the response is streamed</td></tr>
+  <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item a response is for</td></tr>
   <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list</td></tr>
 </table>
+<h2 id="package-placeholders">Setting placeholders</h2>
+<p><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.</p>
+<pre>https://api.example.com/repos/{{owner}}/{{name}}
+{{server}}/api/status
+{{calendar}}
+https://api.example.com/quote?symbols={{tickers}}</pre>
 <p>Polls are numbered from 0 in the order of the list. Handlers receive this number.</p>
 <pre>"settings": [ { "key": "tickers", "type": "list", "title": "Tickers", "default": ["AAPL", "MSFT"] } ],
 "polls": [ { "url": "https://api.example.com/chart/{{tickers}}", "every": 900,
              "each": "tickers", "pick": ["quote.name", "quote.closes[*]"] } ]
 
-answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
-<p>A path follows the answer from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the poll makes one request, which fails with <code>HOST_FAILED_NOT_READY</code>; <code>data_item()</code> is then -1.</p>
+response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
+<p>A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>data_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.</p>
 
 <h2 id="package-settings">Settings</h2>
 <p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
 <p>The application reads a setting with <code>kv_get()</code> and the key of the setting.</p>
+<p>Settings form values must be printable ASCII; list values also allow line breaks between items.</p>
 <p>When the user saves the form, the host calls <code>app_on_settings()</code> and repeats all polls immediately.</p>
+<h3>Setting fields</h3>
+<table>
+  <tr><th style="width:22%">Field</th><th>Rule</th></tr>
+  <tr><td class="c"><code>key</code></td><td>Required, unique: 1 - 15 printable ASCII characters from ! to ~. Store key</td></tr>
+  <tr><td class="c"><code>type</code></td><td>Required: one of the setting types below</td></tr>
+  <tr><td class="c"><code>title</code></td><td>Required: 1 - 31 characters, at most 62 UTF-8 bytes. Translatable</td></tr>
+  <tr><td class="c"><code>help</code></td><td>Optional: up to 95 characters and 190 UTF-8 bytes; empty when omitted. Translatable</td></tr>
+  <tr><td class="c"><code>default</code></td><td>Optional: a nonempty string, or a nonempty array for list. Unset when omitted. Not allowed for secret or place</td></tr>
+  <tr><td class="c"><code>options</code></td><td>Required for choice, forbidden otherwise: 1 - 8 strings, each 1 - 23 characters and at most 46 UTF-8 bytes. Saved values must be printable ASCII</td></tr>
+  <tr><td class="c"><code>latitude</code>, <code>longitude</code></td><td>Required for place: keys of two distinct number settings declared in the same manifest</td></tr>
+</table>
+<h3>Setting types</h3>
 <table>
   <tr><th style="width:11%">Type</th><th style="width:27%">Form field</th><th>Stored value</th></tr>
   <tr><td class="c">text</td><td>Text line</td><td>The text, up to 255 bytes</td></tr>
   <tr><td class="c">number</td><td>Number</td><td>Digits, optional sign and decimal point</td></tr>
   <tr><td class="c">choice</td><td>Selection from up to 8 <code>options</code></td><td>The option text, 1 - 23 characters. Translations add labels; the stored value is the option</td></tr>
-  <tr><td class="c">toggle</td><td>Checkbox</td><td><code>"1"</code> or <code>"0"</code>; empty until first saved</td></tr>
+  <tr><td class="c">toggle</td><td>Checkbox</td><td>Saved as <code>"1"</code> or <code>"0"</code>. Before saving, reads as its declared default, or is unset without one</td></tr>
   <tr><td class="c">secret</td><td>Password field</td><td>The secret. Write-only for the web page; readable by the application with <code>kv_get()</code></td></tr>
   <tr><td class="c">place</td><td>Place search by name</td><td>The place name. The page also fills the two <code>number</code> settings named in <code>latitude</code> and <code>longitude</code></td></tr>
   <tr><td class="c">url</td><td>Address of the user's server</td><td>Scheme, host and optional port: <code>http://192.168.1.10:8123</code></td></tr>
@@ -486,6 +524,22 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
 </ul>
 
+<p>Non-list defaults are nonempty strings, including number and toggle defaults. Secret and place settings cannot have defaults. A list default must contain at least one item.</p>
+<p>The host validates supplied settings before writing, but writes are not transactional. A storage failure can leave some values changed. If at least one write succeeds, app_on_settings() is delivered and polls are requested again, even after a partially failed save.</p>
+<h3>Place with coordinates</h3>
+<pre>"settings": [
+  { "key": "city", "type": "place", "title": "City",
+    "latitude": "latitude", "longitude": "longitude" },
+  { "key": "latitude", "type": "number", "title": "Latitude" },
+  { "key": "longitude", "type": "number", "title": "Longitude" }
+]</pre>
+<h2 id="package-companion">Companion page</h2>
+<p>Host a static HTTPS page and put its URL in companion. The device page opens it in a separate window for setup that a settings form cannot express. See <a href="https://github.com/GrakovNe/perinkpheral/blob/main/sdk/companion/example.html">sdk/companion/example.html</a>.</p>
+<pre>{ perinkpheral: "ready" }
+{ perinkpheral: "app", name, title, settings, values }
+{ perinkpheral: "settings", values: { key: "value" } }</pre>
+<p>The companion sends ready; the device page replies with app, the manifest settings and their current values. Both secret and link values are omitted. The companion returns settings with declared keys and string values of at most 255 bytes. These values fill the form; the user must press Save to store them.</p>
+<p>Check event.source against window.opener and validate event.origin against the expected device origin. Use that origin as postMessage's target for values. The initial ready message carries no user data.</p>
 <h1 id="screen">6. Screen</h1>
 
 <h2 id="screen-surface">Surface and colour</h2>
@@ -499,6 +553,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 <h2 id="screen-fonts">Fonts</h2>
 <p>A font constant selects a size. The typeface is a user setting: Departure Mono (monospaced) or Jersey (proportional). Character widths differ between the two, so layout is based on measured widths.</p>
 <p>Measure text with <code>gfx_text_width()</code>, <code>gfx_font_height()</code>, <code>gfx_font_ascent()</code> and <code>gfx_font_cap_height()</code>.</p>
+<p>Each cell gives the value for Departure Mono, then for Jersey.</p>
 <table>
   <tr><th style="width:24%">Constant</th><th>Capital height, px</th><th>Line height, px</th><th>Characters per 400 px</th><th style="width:34%">Typical use</th></tr>
   <tr><td class="c">HOST_FONT_SMALL</td><td>8 / 10</td><td>15 / 21</td><td>57 / 50</td><td>Units, captions</td></tr>
@@ -508,7 +563,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
   <tr><td class="c">HOST_FONT_DISPLAY</td><td>48 / 50</td><td>90 / 86</td><td>9 / 10</td><td>The main value of a screen</td></tr>
   <tr><td class="c">HOST_FONT_HUGE</td><td>80 / 80</td><td>150 / 140</td><td>5 / 6</td><td>Clock: five digits fill the width</td></tr>
 </table>
-<p>Each cell gives the value for Departure Mono, then for Jersey.</p>
+
 <ul>
   <li>The <code>y</code> argument of <code>gfx_text()</code> is the top of the line. The baseline is at <code>y + ascent</code>; the top of the capitals is at <code>y + ascent - cap_height</code>.</li>
   <li>Add <code>HOST_FONT_TABULAR</code> to the font for numbers that change in place, such as a clock or a countdown. All digits then have the same width. Every call that takes a font accepts the flag. Pass the same flag when measuring.</li>
@@ -516,7 +571,7 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 </ul>
 
 <h2 id="screen-letters">Text beyond ASCII</h2>
-<p>All text is UTF-8. The host draws each character using the first available option:</p>
+<p>Displayed text is UTF-8. The host draws each character using the first available option:</p>
 <ol>
   <li>The glyph of the character. Printable ASCII is always available. Extended Latin, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).</li>
   <li>An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.</li>
@@ -524,51 +579,54 @@ answer:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356
 </ol>
 <p>The degree sign is built in at every size.</p>
 <p>The width of a text depends on which option was used. Always measure a text before placing it.</p>
-<p>Limits on user-visible text of the manifest, such as a title or an option, are given in characters, whatever their bytes. A field of the contract, such as a notice's line, has a size in bytes, and holds half as many two-byte characters as one-byte characters.</p>
+<p>User-visible manifest text has both a character limit and a UTF-8 byte limit of twice that character limit. A title is at most 23 characters and 46 bytes. A field of the contract, such as a notice's line, has a size in bytes, and holds half as many two-byte characters as one-byte characters.</p>
 
 <h2 id="screen-pictures">Pictures and icons</h2>
 <p>The host provides 43 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
 <p><code>gfx_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
 <table>
   <tr><th style="width:27%">Constant</th><th style="width:23%">Meaning</th><th style="width:27%">Constant</th><th>Meaning</th></tr>
-  <tr><td class="c">HOST_ICON_SIGNAL</td><td>connected</td><td class="c">HOST_ICON_NO_SIGNAL</td><td>not connected</td></tr>
-  <tr><td class="c">HOST_ICON_UP</td><td>arrow up</td><td class="c">HOST_ICON_DOWN</td><td>arrow down</td></tr>
-  <tr><td class="c">HOST_ICON_LEFT</td><td>arrow left</td><td class="c">HOST_ICON_RIGHT</td><td>arrow right</td></tr>
-  <tr><td class="c">HOST_ICON_CHECK</td><td>selected, done</td><td class="c">HOST_ICON_CROSS</td><td>cancel, close</td></tr>
-  <tr><td class="c">HOST_ICON_PLUS</td><td>add</td><td class="c">HOST_ICON_MINUS</td><td>remove</td></tr>
-  <tr><td class="c">HOST_ICON_TRASH</td><td>delete</td><td class="c">HOST_ICON_GEAR</td><td>settings</td></tr>
-  <tr><td class="c">HOST_ICON_CLOCK</td><td>time</td><td class="c">HOST_ICON_HOURGLASS</td><td>waiting, timer</td></tr>
-  <tr><td class="c">HOST_ICON_BELL</td><td>notification, alarm</td><td class="c">HOST_ICON_INFO</td><td>information</td></tr>
-  <tr><td class="c">HOST_ICON_WARNING</td><td>warning, error</td><td class="c">HOST_ICON_PLAY</td><td>start, play</td></tr>
-  <tr><td class="c">HOST_ICON_PAUSE</td><td>pause</td><td class="c">HOST_ICON_UPDATE</td><td>update; the project mark</td></tr>
-  <tr><td class="c">HOST_ICON_SUN</td><td>clear sky</td><td class="c">HOST_ICON_PARTLY_CLOUDY</td><td>partly cloudy</td></tr>
-  <tr><td class="c">HOST_ICON_CLOUD</td><td>cloudy</td><td class="c">HOST_ICON_RAIN</td><td>rain</td></tr>
-  <tr><td class="c">HOST_ICON_SNOW</td><td>snow</td><td class="c">HOST_ICON_THUNDER</td><td>thunderstorm</td></tr>
-  <tr><td class="c">HOST_ICON_WIND</td><td>wind</td><td class="c">HOST_ICON_UMBRELLA</td><td>chance of rain</td></tr>
-  <tr><td class="c">HOST_ICON_DROP</td><td>humidity, water</td><td class="c">HOST_ICON_THERMOMETER</td><td>temperature</td></tr>
-  <tr><td class="c">HOST_ICON_BOLT</td><td>power, energy</td><td class="c">HOST_ICON_PLUG</td><td>socket, voltage</td></tr>
-  <tr><td class="c">HOST_ICON_BATTERY</td><td>battery</td><td class="c">HOST_ICON_HOME</td><td>home</td></tr>
-  <tr><td class="c">HOST_ICON_BULB</td><td>light</td><td class="c">HOST_ICON_DOOR</td><td>door</td></tr>
-  <tr><td class="c">HOST_ICON_MOON</td><td>night</td><td class="c">HOST_ICON_CHIP</td><td>processor</td></tr>
-  <tr><td class="c">HOST_ICON_NETWORK</td><td>traffic</td><td class="c">HOST_ICON_GAUGE</td><td>pressure, level</td></tr>
-  <tr><td class="c">HOST_ICON_CO2</td><td>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td>sunrise</td></tr>
-  <tr><td class="c">HOST_ICON_SUNSET</td><td>sunset</td><td class="c"></td><td></td></tr>
+  <tr><td class="c">HOST_ICON_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>connected</td><td class="c">HOST_ICON_NO_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>not connected</td></tr>
+  <tr><td class="c">HOST_ICON_UP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-67px" alt=""></span>arrow up</td><td class="c">HOST_ICON_DOWN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-67px" alt=""></span>arrow down</td></tr>
+  <tr><td class="c">HOST_ICON_LEFT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-67px" alt=""></span>arrow left</td><td class="c">HOST_ICON_RIGHT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-117px" alt=""></span>arrow right</td></tr>
+  <tr><td class="c">HOST_ICON_CHECK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-117px" alt=""></span>selected, done</td><td class="c">HOST_ICON_CROSS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-117px" alt=""></span>cancel, close</td></tr>
+  <tr><td class="c">HOST_ICON_PLUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-117px" alt=""></span>add</td><td class="c">HOST_ICON_MINUS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-117px" alt=""></span>remove</td></tr>
+  <tr><td class="c">HOST_ICON_TRASH</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-167px" alt=""></span>delete</td><td class="c">HOST_ICON_GEAR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-167px" alt=""></span>settings</td></tr>
+  <tr><td class="c">HOST_ICON_CLOCK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-167px" alt=""></span>time</td><td class="c">HOST_ICON_HOURGLASS</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-167px" alt=""></span>waiting, timer</td></tr>
+  <tr><td class="c">HOST_ICON_BELL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-167px" alt=""></span>notification, alarm</td><td class="c">HOST_ICON_INFO</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-16px;top:-217px" alt=""></span>information</td></tr>
+  <tr><td class="c">HOST_ICON_WARNING</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-92px;top:-217px" alt=""></span>warning, error</td><td class="c">HOST_ICON_PLAY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-168px;top:-217px" alt=""></span>start, play</td></tr>
+  <tr><td class="c">HOST_ICON_PAUSE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-244px;top:-217px" alt=""></span>pause</td><td class="c">HOST_ICON_UPDATE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons.png" style="left:-320px;top:-217px" alt=""></span>update; the project mark</td></tr>
+  <tr><td class="c">HOST_ICON_SUN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-67px" alt=""></span>clear sky</td><td class="c">HOST_ICON_PARTLY_CLOUDY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-67px" alt=""></span>partly cloudy</td></tr>
+  <tr><td class="c">HOST_ICON_CLOUD</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-67px" alt=""></span>cloudy</td><td class="c">HOST_ICON_RAIN</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-67px" alt=""></span>rain</td></tr>
+  <tr><td class="c">HOST_ICON_SNOW</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-67px" alt=""></span>snow</td><td class="c">HOST_ICON_THUNDER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-117px" alt=""></span>thunderstorm</td></tr>
+  <tr><td class="c">HOST_ICON_WIND</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-117px" alt=""></span>wind</td><td class="c">HOST_ICON_UMBRELLA</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-117px" alt=""></span>chance of rain</td></tr>
+  <tr><td class="c">HOST_ICON_DROP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-117px" alt=""></span>humidity, water</td><td class="c">HOST_ICON_THERMOMETER</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-117px" alt=""></span>temperature</td></tr>
+  <tr><td class="c">HOST_ICON_BOLT</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-167px" alt=""></span>power, energy</td><td class="c">HOST_ICON_PLUG</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-167px" alt=""></span>socket, voltage</td></tr>
+  <tr><td class="c">HOST_ICON_BATTERY</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-167px" alt=""></span>battery</td><td class="c">HOST_ICON_HOME</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-167px" alt=""></span>home</td></tr>
+  <tr><td class="c">HOST_ICON_BULB</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-167px" alt=""></span>light</td><td class="c">HOST_ICON_DOOR</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-217px" alt=""></span>door</td></tr>
+  <tr><td class="c">HOST_ICON_MOON</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-217px" alt=""></span>night</td><td class="c">HOST_ICON_CHIP</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-217px" alt=""></span>processor</td></tr>
+  <tr><td class="c">HOST_ICON_NETWORK</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-244px;top:-217px" alt=""></span>traffic</td><td class="c">HOST_ICON_GAUGE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-320px;top:-217px" alt=""></span>pressure, level</td></tr>
+  <tr><td class="c">HOST_ICON_CO2</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2</td><td class="c">HOST_ICON_SUNRISE</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-92px;top:-267px" alt=""></span>sunrise</td></tr>
+  <tr><td class="c">HOST_ICON_SUNSET</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-168px;top:-267px" alt=""></span>sunset</td><td class="c"></td><td></td></tr>
 </table>
 
 <div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons.png" alt=""><figcaption>The host's own icons at cell sizes of 2 and 4 pixels</figcaption></figure>
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" alt=""><figcaption>The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels</figcaption></figure>
 </div>
-<div class="screens">
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt=""><figcaption>Basic kit parts: title, text, caption, icons, value, button, bar, button row</figcaption></figure>
-</div>
+
 <p>An application's own pictures are placed in the <code>pictures/</code> folder. Supported formats are PNG, PBM and text. A text file contains rows of <code>#</code> (ink) and <code>.</code> (paper) and can hold several named pictures:</p>
-<pre>// pictures/things.txt                     #include "pictures.h"   /* generated by the build */
-drop:
-.....#.....                                gfx_picture(x, y, PICTURE_DROP, 4);    /* 44 px: cell size 4 */
-....###....                                gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */
+<h3>pictures/things.txt</h3>
+<pre>drop:
+.....#.....
+....###....
 ...#####...
 ..#######..</pre>
+<h3>Application C code</h3>
+<pre>#include "pictures.h"   /* generated by the build */
+gfx_picture(x, y, PICTURE_DROP, 4);    /* 44 px: cell size 4 */
+gfx_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
+
 <p>Rules for text files:</p>
 <ul>
   <li>A line of the form <code>name:</code> starts a picture.</li>
@@ -584,6 +642,9 @@ drop:
 
 <h2 id="screen-kit">Kit</h2>
 <p>The kit is the set of interface parts that the host's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.</p>
+<div class="screens">
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/screens/kit-primitives.png" alt=""><figcaption>UI kit primitives: title, text, caption, icons, value, button, bar and actions</figcaption></figure>
+</div>
 <p>Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in the host.</p>
 <table>
   <tr><th style="width:27%">Call</th><th>Description</th><th style="width:32%">Use</th></tr>
@@ -613,16 +674,19 @@ drop:
 <p>Button handling for lists, pickers and dates is implemented in the SDK library (<code>app_ui.h</code>). The application calls it from <code>app_on_button()</code> and acts on the result. See section 7.</p>
 <p>The <code>kit</code> application in the catalog shows every part on a separate page. Its source code is a working example for each part.</p>
 
+<div class="keep">
 <h2 id="screen-refresh">Requesting a refresh</h2>
 <table>
   <tr><th style="width:27%">Flag</th><th>Host behaviour</th><th style="width:36%">Use</th></tr>
-  <tr><td class="c">HOST_REDRAW_NORMAL</td><td>From a button handler: immediate. From a timer, alarm or data handler: when the refresh policy allows, by default once a minute</td><td>Default</td></tr>
-  <tr><td class="c">HOST_REDRAW_SOON</td><td>Immediate, without a button press</td><td>Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown</td></tr>
-  <tr><td class="c">HOST_REDRAW_CLEAN</td><td>Full refresh: 2 - 3 s, one flash, removes ghosting</td><td>Images that must be clean; the end of a frame sequence</td></tr>
+  <tr><td class="c">HOST_REDRAW_NORMAL</td><td>From a button handler: immediate. Other handlers follow the refresh policy, normally once a minute; settings changes use the urgent policy described below</td><td>Default</td></tr>
+  <tr><td class="c">HOST_REDRAW_SOON</td><td>Bypasses the normal data interval; waits until at least one second after the preceding refresh</td><td>Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown</td></tr>
+  <tr><td class="c">HOST_REDRAW_CLEAN</td><td>Full refresh: 2 - 3 s, one flash, removes ghosting. Waits until at least one second after the preceding refresh</td><td>Images that must be clean; the end of a frame sequence</td></tr>
   <tr><td class="c">HOST_REDRAW_NO_BLINK</td><td>Immediate; excluded from the periodic full refresh</td><td>List navigation; values that change every second</td></tr>
-  <tr><td class="c">HOST_REDRAW_QUESTION</td><td>OK reaches the application only when it is pressed after this frame is on the panel. Each request with the flag is a new question; a request without it ends the question</td><td>A question that OK answers: removal, reset, anything that cannot be undone</td></tr>
+  <tr><td class="c">HOST_REDRAW_QUESTION</td><td>OK reaches the application only when it is pressed after this frame is on the panel. Pending flags are combined with OR. Each consumed redraw with QUESTION starts a new question; one without it ends the question. NORMAL cannot clear a pending QUESTION</td><td>A question that OK answers: removal, reset, anything that cannot be undone</td></tr>
 </table>
+<p>Settings changes and deliveries to that application for the next 30 seconds use the urgent refresh policy while it is on screen. Other data, timer, alarm and intent redraws use the normal data policy.</p>
 <p>Redraw requests are unlimited.</p>
+</div>
 <p>Each refresh uses battery energy and wears the panel. Frequent changes also make the device distracting. See section 13 for guidelines.</p>
 
 <h1 id="buttons">7. Buttons</h1>
@@ -645,7 +709,7 @@ drop:
   <tr><td>Without <code>app_on_back()</code></td><td>Closes the application (one step down the stack)</td></tr>
   <tr><td>With <code>app_on_back()</code></td><td>Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>request_exit()</code></td></tr>
 </table>
-<p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives all other events.</p>
+<p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.</p>
 <p><code>request_exit()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>request_focus()</code>.</p>
 
 <h2 id="buttons-kit">Lists, pickers, dates</h2>
@@ -669,12 +733,12 @@ void app_on_draw(void)
         ui_list_row(&amp;list, row, label_of(row), label_length(row), "", 0, HOST_ICON_NONE);
     }
 }</pre>
-<p><code>app_picker_t</code> and <code>app_date_t</code> follow the same pattern. The application keeps a struct, passes button events to one function and draws with another. The button function returns <i>changed</i>, <i>done</i>, <i>cancelled</i> or <i>ignored</i>.</p>
+<p><code>app_picker_t</code> and <code>app_date_t</code> follow the same pattern. The application keeps a struct, passes button events to one function and draws with another. The button function returns <code>APP_UI_CHANGED</code>, <code>APP_UI_DONE</code>, <code>APP_UI_CANCELLED</code> or <code>APP_UI_IGNORED</code>.</p>
 
 <h1 id="storage">8. Storage</h1>
 <h2 id="storage-kv">Store</h2>
 <p><code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has a private namespace.</p>
-<p>The store holds the application's state and its settings. The data is kept when the application is removed and is available again after a reinstall.</p>
+<p>The store holds the application's state and its settings. Removal normally keeps the store for reinstall. The host may reclaim stores belonging to removed applications when the stores partition is full. Removal with "forget" erases it immediately.</p>
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
 
@@ -694,15 +758,15 @@ void app_init(void)
 <p><code>file_read()</code> and <code>file_write()</code> take an offset. A file can be read and extended in parts, so it never has to be held in memory in full.</p>
 <p>The files from the <code>files/</code> folder of the package are installed with the application.</p>
 <ul>
-  <li>Files written by the code are kept when the application is updated. They are removed with the application; the store is kept.</li>
+  <li>Existing files remain unless an update supplies a file with the same name, which replaces it. Use names outside the package's filenames for writable caches. Files are removed with the application.</li>
   <li>A write starts inside the file or at its end. To replace a file with a shorter one, delete it first: <code>file_write()</code> with length 0 at offset 0.</li>
-  <li>Writing needs <code>"writes_files": true</code> in the manifest. The device keeps 32 KB free for the application: its package's files and the files it writes together.</li>
+  <li>Writing needs <code>"writes_files": true</code> in the manifest. The total file quota is 32 KB, including packaged data files. Unused space in that quota is reserved for the application. At catalog installation the manifest also counts towards this limit.</li>
   <li>Each file takes whole blocks of 4 KB of the 32 KB. Keep related records in one file.</li>
 </ul>
 
 <h1 id="network">9. Network</h1>
-<p>All network access goes through the host. The application describes a request; the host performs it and delivers the answer. The host performs one request at a time for the whole device. Delivery is independent of whether the application is on the screen.</p>
-<p>Network availability is reported in the answer: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
+<p>All network access goes through the host. The application describes a request; the host performs it and delivers the response. The host performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.</p>
+<p>Network availability is reported in the response: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
 <table>
   <tr><th style="width:20%">Method</th><th style="width:33%">Trigger</th><th>Delivery</th></tr>
   <tr><td>Poll with <code>pick</code></td><td>Schedule</td><td><code>app_on_values()</code>, once, with the extracted values</td></tr>
@@ -727,7 +791,7 @@ void app_on_values(int32_t request, int32_t http_status)
     request_redraw(HOST_REDRAW_NORMAL);
 }</pre>
 <p>Numbers are integers. <code>app_value_number()</code> returns the value scaled by the requested number of decimals, rounded.</p>
-<p>A path that is absent from the answer has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
+<p>A path that is absent from the response has no value: <code>app_value_number()</code> returns false. An absent value means no data.</p>
 <h3>Lists</h3>
 <p>A path with <code>[*]</code> in place of one index is a list path: every element of that array, in order. <code>app_value_count()</code> returns the number of elements. <code>app_value_series()</code> converts them to numbers for <code>ui_chart()</code>:</p>
 <pre>/* "pick": ["quote.name", "quote.closes[*]"] */
@@ -743,7 +807,7 @@ void app_on_values(int32_t request, int32_t http_status)
 }</pre>
 <ul>
   <li>A null element is kept, as a gap in the series, so that two lists of one array stay in step. An element without the rest of the path (<code>items[*].title</code> in an item without a title) is skipped.</li>
-  <li>The elements of one answer take up to 8 KB as text (<code>HOST_LIST_BYTES</code>); each costs its length and 2 bytes. Elements beyond that are dropped and the log says so.</li>
+  <li>The elements of one response take up to 8 KB as text (<code>HOST_LIST_BYTES</code>); each costs its length and 2 bytes. Elements beyond that are dropped and the log says so.</li>
   <li>With more elements than the capacity, <code>app_value_series()</code> takes evenly spread elements, the first and the last among them.</li>
   <li>A value goes to the first path that names it: <code>a[*]</code> before <code>a[0]</code> takes the element.</li>
 </ul>
@@ -755,7 +819,7 @@ app_value_fixed(VALUE_PREVIOUS, 2, &amp;previous);
 int64_t percent = app_fixed_ratio((price - previous) * 100, previous, 2);  /* -> 39: +0.39 % */
 app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+1.39" */</pre>
 
-<h2 id="network-pieces">Streamed answers</h2>
+<h2 id="network-pieces">Streamed responses</h2>
 <pre>void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
 {
     if (flags &amp; HOST_DATA_FAILED) {                /* single call, no data: http_status is a HOST_FAILED_* code */
@@ -768,16 +832,17 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
     }
     read_piece(data, length);                      /* data is valid until the handler returns */
     if (flags &amp; HOST_DATA_LAST) {
-        take_what_was_read();                      /* the answer is complete */
+        take_what_was_read();                      /* the response is complete */
         request_redraw(HOST_REDRAW_NORMAL);
     }
 }</pre>
 <ul>
-  <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. An answer can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).</li>
-  <li>Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new answer.</li>
+  <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. A response can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).</li>
+  <li>Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new response.</li>
   <li>Inside the handler, <code>data_response()</code> returns the response metadata: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After.</li>
 </ul>
 
+<p>Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: data_response() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.</p>
 <h2 id="network-request">Requests from code</h2>
 <pre>enum { REQUEST_TOGGLE = HOST_REQUEST_FIRST };
 static const char URL[]     = "{{server}}/api/services/light/toggle";
@@ -787,13 +852,15 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
              body, body_length);</pre>
 <ul>
   <li>Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.</li>
-  <li>An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as answers arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.</li>
+  <li>An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as responses arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.</li>
   <li>The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
-  <li>An answer to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the answer is still needed.</li>
-  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the answer.</li>
-  <li><code>poll_now(n)</code> runs poll <code>n</code> immediately, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
+  <li>A response to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the response is still needed.</li>
+  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.</li>
+  <li><code>poll_now(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
+<p>For http_request(), URL substitution and the initial host check happen before queuing. An unset URL setting returns HOST_ERR_ARGUMENT with no callback. Header substitution happens later and may fail with HOST_FAILED_NOT_READY. Expanded URLs fit in 511 bytes; expanded header values fit in 255 bytes. Expansion failure also gives HOST_FAILED_NOT_READY, except for the initial URL check.</p>
+<p>The 16-request ceiling is per application, with no reserved slots. All queued requests share a 16 KB budget for queue records, URLs, headers and bodies. HOST_ERR_NO_SPACE may occur before sixteen requests are waiting. A raw header name is at most 31 bytes; its value is at most 255 bytes.</p>
 <h2 id="network-certificates">Certificate authorities of the application</h2>
 <p>The host verifies HTTPS servers against the browser root set. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
 <pre>"certificates": ["russian-root-ca.pem"]          /* files/russian-root-ca.pem */</pre>
@@ -808,12 +875,12 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
 <table>
   <tr><th style="width:34%">Status</th><th>Cause</th></tr>
   <tr><td class="c">HOST_FAILED_NO_NETWORK (-1)</td><td>No network connection</td></tr>
-  <tr><td class="c">HOST_FAILED_NO_ANSWER (-2)</td><td>No answer from the server, or an incomplete answer</td></tr>
+  <tr><td class="c">HOST_FAILED_NO_ANSWER (-2)</td><td>No answer from the server, or an incomplete response</td></tr>
   <tr><td class="c">HOST_FAILED_NOT_READY (-3)</td><td>A <code>{{setting}}</code> used by the request is empty</td></tr>
   <tr><td class="c">HOST_FAILED_NOT_ALLOWED (-4)</td><td>Redirect to a host outside the manifest's list</td></tr>
   <tr><td class="c">HOST_FAILED_TIMEOUT (-5)</td><td>Timeout after the server was reached</td></tr>
   <tr><td class="c">HOST_FAILED_NOT_TRUSTED (-6)</td><td>HTTPS certificate is not trusted by the device</td></tr>
-  <tr><td class="c">HOST_FAILED_TOO_LARGE (-7)</td><td>Answer larger than 256 KB (extracted values) or 4 MB (streamed)</td></tr>
+  <tr><td class="c">HOST_FAILED_TOO_LARGE (-7)</td><td>Response larger than 256 KB (extracted values) or 4 MB (streamed)</td></tr>
   <tr><td class="c">HOST_FAILED_NO_MEMORY (-8)</td><td>Insufficient device memory for the request</td></tr>
 </table>
 <p>Save the last status in the store. When there is no data to display, pass the status to <code>ui_reason()</code>. It draws the standard notice for the status and returns whether it drew anything:</p>
@@ -824,22 +891,23 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td class="c">401, 403</td><td>Access denied / Check the settings</td><td>1</td></tr>
   <tr><td class="c">404</td><td>Not found / Check the address</td><td>1</td></tr>
   <tr><td class="c">Any other non-2xx status</td><td>No answer / Code &lt;status&gt;</td><td>1</td></tr>
-  <tr><td class="c">200 - 299</td><td>None. The answer arrived; missing data is reported by the application</td><td>0</td></tr>
+  <tr><td class="c">200 - 299</td><td>None. The response arrived; missing data is reported by the application</td><td>0</td></tr>
 </table>
 
 <h1 id="background">10. Background work</h1>
-<p>The host loads an off-screen application for a single call when one of these events occurs:</p>
+<p>The host loads an off-screen application for a delivery when one of these events occurs:</p>
 <table>
   <tr><th style="width:26%">Task</th><th style="width:31%">Mechanism</th><th>Notes</th></tr>
   <tr><td>Scheduled data</td><td>Poll in the manifest</td><td>Active after a restart without code</td></tr>
   <tr><td>Action at a set time</td><td class="c">alarm_set, alarm_set_at, alarm_set_every</td><td>Alarms are cleared by a restart. Restore them in the <code>started</code> intent from a time kept in the store</td></tr>
   <tr><td>Message to the user</td><td class="c">notify</td><td>Shown by the host over the current screen until dismissed</td></tr>
   <tr><td>Bring the application to the screen</td><td class="c">request_focus</td><td>Granted by the host, at most once per 30 s</td></tr>
-  <tr><td>Status in the header</td><td class="c">header_status</td><td>An icon and a short text in the header above every screen while the application is off the screen</td></tr>
+  <tr><td>Status in the header</td><td class="c">header_status</td><td>An icon and short text above every screen with a header, including the owning application's screen. A screen's left text takes precedence over kept left status; kept right status takes precedence over the screen's right text</td></tr>
   <tr><td>Reaction to device start, network connection or clock change</td><td>Intent in the manifest</td><td><code>app_on_intent()</code></td></tr>
   <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms of the old one: set them here. Poll intervals set from code are kept</td></tr>
 </table>
 
+<p>For a streamed background response, focus is considered when delivery ends. A refused focus request is discarded, with no retry. A request made in app_on_terminate() is too late for that decision.</p>
 <h2 id="background-notify">Notifications</h2>
 <pre>void app_on_alarm(int32_t id)                      /* the application is loaded for this call */
 {
@@ -859,6 +927,8 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <tr><td class="c">alarm_set_every(id, seconds, first_in)</td><td>Repeating, every 60 s to 1 day. Each call loads the application; use the longest suitable period</td></tr>
 </table>
 
+<p>The device has one shared pool of 24 repeating alarms. An application may use several slots; none are reserved per application. HOST_ALARM_COUNT still limits each application to four alarm ids.</p>
+<p>first_in is 0 - 86400 independently of the repeating period. A late alarm does not replay every missed period: if the following occurrence is overdue, the next is scheduled one period from processing time.</p>
 <h1 id="time">11. Time</h1>
 <ul>
   <li><code>time_now()</code> returns Unix time in seconds. It returns 0 until the device has obtained the time. The application must handle this case.</li>
@@ -867,14 +937,41 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
   <li>To be called when the clock is set or changed, declare the <code>time_changed</code> intent.</li>
 </ul>
 
+<h2 id="time-styles">Time styles</h2>
+<p>Examples use local time 15:04 on Friday 13 November 2026. Relative examples assume today is Thursday 12 November 2026.</p>
+<table>
+  <tr><th style="width:42%">Style</th><th>Example</th></tr>
+  <tr><td class="c">HOST_TIME_CLOCK</td><td>15:04</td></tr>
+  <tr><td class="c">HOST_TIME_DATE</td><td>Fri 13 Nov</td></tr>
+  <tr><td class="c">HOST_TIME_WEEKDAY</td><td>Friday</td></tr>
+  <tr><td class="c">HOST_TIME_WEEKDAY_SHORT</td><td>Fri</td></tr>
+  <tr><td class="c">HOST_TIME_LONG_DATE</td><td>13 November</td></tr>
+  <tr><td class="c">HOST_TIME_NEAR</td><td>Tmrw 15:04</td></tr>
+  <tr><td class="c">HOST_TIME_NEAR_DAY</td><td>Tmrw</td></tr>
+</table>
 <h1 id="language">12. Languages</h1>
+<p>Application string keys match <code>[a-z][a-z0-9_]*</code>. Generated constants use <code>STR_</code> followed by the uppercase key.</p>
 <p>An application displays its text in the language of the device. The developer provides the translations. The host loads the translation for the current language.</p>
-<pre>strings/en.json    { "no_events": "No events", "starts_in": "In {0} min" }
-strings/ru.json    { "no_events": "Нет событий", "starts_in": "Через {0} мин",
-                     "manifest": { "title": "Календарь", "description": "События на две недели",
-                                   "settings": { "every": { "title": "Обновление",
-                                                            "options": { "15 min": "15 мин" } } } } }</pre>
-<pre>#include "strings.h"                              /* generated by the build: STR_NO_EVENTS, STR_STARTS_IN, app_string() */
+<h3>strings/en.json</h3>
+<pre>{ "no_events": "No events", "starts_in": "In {0} min" }</pre>
+<h3>strings/ru.json</h3>
+<pre>{
+  "no_events": "Нет событий",
+  "starts_in": "Через {0} мин",
+  "manifest": {
+    "title": "Календарь",
+    "description": "События на две недели",
+    "settings": {
+      "every": {
+        "title": "Обновление",
+        "options": { "15 min": "15 мин" }
+      }
+    }
+  }
+}</pre>
+
+<pre>/* generated by the build: STR_NO_EVENTS, STR_STARTS_IN, app_string() */
+#include "strings.h"
 
 const char *text = app_string(STR_NO_EVENTS);     /* text in the device's language */
 
@@ -888,7 +985,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <li><code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Write each string in one form for all numbers, for example "min".</li>
   <li>The <code>manifest</code> key of a translation contains the translated parts of the manifest: the title, the title and help of each setting, and labels for the options of a choice. The stored option value does not change; only its label is translated.</li>
   <li>The build fails if a language is not listed in <code>sdk/languages.json</code> (27 languages, two-letter codes), if a translation has a missing or an extra key, or if a string contains a character that the glyph packs of the language do not cover.</li>
-  <li>Translations are usually about a third longer than English. The kit shortens text that does not fit with "...". Check the translated screens on the device.</li>
+  <li>Translated text may be longer or shorter than English. Check every supported language with both typefaces, including long labels and truncated text.</li>
 </ul>
 
 <h1 id="design">13. Design rules</h1>
@@ -905,10 +1002,10 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <div class="rule"><b>Minimize code size before data size.</b> Each byte of executed code uses about four bytes of the interpreter's 64 KB. Each byte of data uses one byte of the 64 KB page, which is mostly free. Prefer a table to a chain of <code>if</code> statements, the kit to custom drawing, <code>pick</code> to a custom parser, and <code>time_text()</code> to custom date formatting.</div>
 <div class="rule"><b>Keep shared helpers out of line.</b> Mark a small helper that is called from many places with <code>__attribute__((noinline))</code> and compare the build reports.</div>
 <div class="rule"><b>Store pictures as bits.</b> Put pictures in <code>pictures/</code>. Put large pictures in <code>files/</code>.</div>
-<div class="rule"><b>Process answers as a stream.</b> Process an answer as it arrives and keep only the data to display. Allocate working buffers with <code>app_alloc()</code> and release them with a mark.</div>
+<div class="rule"><b>Process responses as a stream.</b> Process a response as it arrives and keep only the data to display. Call <code>app_alloc_mark()</code> before allocating temporary buffers with <code>app_alloc()</code>. When finished, call <code>app_alloc_release(mark)</code> to release every allocation made since that mark (section 23).</div>
 
 <h2 id="design-state">State and time</h2>
-<div class="rule"><b>Save state before every unload.</b> All state that matters must be in the store when <code>app_on_terminate()</code> returns. To test: open the application, leave it, open it again. The screen must look the same.</div>
+<div class="rule"><b>Save state before every unload.</b> Keep persistent data in the store. Save navigation and unfinished editing state to the session in <code>app_on_blur()</code>; restore it in <code>app_on_focus()</code>. Opening from the menu starts a new session.</div>
 <div class="rule"><b>Keep the displayed data until new data is complete.</b> After a failed or interrupted request, keep the previous data on the screen.</div>
 <div class="rule"><b>Explain an empty screen.</b> Call <code>ui_reason()</code> to show "Not set up", "No network" or "Loading".</div>
 <div class="rule"><b>Handle an unknown or changed clock.</b> Handle <code>time_now() == 0</code>. Use <code>alarm_set()</code> for a delay ("in ten minutes") and <code>alarm_set_at()</code> for a clock time ("at seven").</div>
@@ -939,7 +1036,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">tools/perinkpheral video &lt;video&gt; --out &lt;bin&gt;</td><td>Converts a video to a 1-bit stream that fits in an application file</td></tr>
   <tr><td class="c">tools/perinkpheral catalog &lt;folder&gt; --out &lt;dir&gt;</td><td>Builds a folder of applications into a catalog</td></tr>
 </table>
-<p><code>host_log(level, text, length)</code> writes one line of up to 200 characters to the device log. It replaces <code>printf</code>.</p>
+<p>Log bytes outside printable ASCII, including UTF-8 bytes and line breaks, are replaced with "?".</p>
+<p><code>host_log(level, text, length)</code> writes one line of up to 200 bytes to the device log. It replaces <code>printf</code>.</p>
 <p><code>press ... --shot</code> waits for the panel to finish and saves the frame. This can be used to script regression tests of the application's screens.</p>
 
 <h2 id="tools-simulator">Simulator</h2>
@@ -948,7 +1046,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:34%">Device</th><th>Simulator</th></tr>
   <tr><td>Store, files</td><td>A folder on the computer, with the device's limits. Kept between runs, as across an update on the device</td></tr>
-  <tr><td>Network</td><td>The computer's. Redirects, hosts and headers follow the device's rules. Answers can be replaced by mocks</td></tr>
+  <tr><td>Network</td><td>The computer's. Redirects, hosts and headers follow the device's rules. Responses can be replaced by mocks</td></tr>
   <tr><td>Clock</td><td>The computer's. Moved forward on request</td></tr>
   <tr><td>Language, font, glyph packs</td><td><code>--language</code>, <code>--font</code>, <code>--glyphs</code></td></tr>
   <tr><td>Where it keeps its state</td><td><code>--state &lt;folder&gt;</code>; by default <code>~/.perinkpheral/simulator/&lt;name&gt;</code></td></tr>
@@ -964,13 +1062,13 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">/api/sim/alarm?id=N</td><td>Alarm <code>N</code> expires now</td></tr>
   <tr><td class="c">/api/sim/forward?seconds=N</td><td>The clock and every pending poll, alarm and timer move forward</td></tr>
 </table>
-<p>Mocks are a JSON file of address to answer. An address that ends with <code>*</code> matches every address that begins with the rest:</p>
+<p>Mocks are a JSON file mapping URLs to responses. An address that ends with <code>*</code> matches every address that begins with the rest:</p>
 <pre>{ "https://api.example.com/quote*": { "status": 200, "file": "quote.json" },
   "https://api.example.com/login":  { "status": 401, "body": "{}" },
   "https://api.example.com/down":   { "status": -1 } }</pre>
 <ul>
   <li><code>status</code> is an HTTP status, or a negative <code>HOST_FAILED_*</code> code: -1 is no network, -5 a timeout.</li>
-  <li><code>file</code> is read relative to the mocks file, again for every request: change the file to change the answer while the simulator runs. The mocks file itself is read once, at start.</li>
+  <li><code>file</code> is read relative to the mocks file, again for every request: change the file to change the response while the simulator runs. The mocks file itself is read once, at start.</li>
 </ul>
 <ul>
   <li>The network sends <code>User-Agent: perinkpheral</code>, as the device does. The header's icon shows whether the last request reached the network.</li>
@@ -986,9 +1084,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td>State lost after leaving and returning</td><td>State kept in global variables. Save it in <code>app_on_terminate()</code>, load it in <code>app_init()</code></td></tr>
   <tr><td>"&lt;title&gt; crashed" with "memory alloca..."</td><td>Executed code exceeds the interpreter memory. See the build warning and "Memory" in section 13</td></tr>
   <tr><td>"&lt;title&gt; cannot start", "Update the app."</td><td>Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall</td></tr>
-  <tr><td>Poll fails with -3</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
-  <tr><td>HTTPS fails with -6</td><td>Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network</td></tr>
-  <tr><td><code>http_request()</code> returns -4</td><td>16 of the application's requests are waiting, or the device's queue is full. Queue more as answers arrive</td></tr>
+  <tr><td>Poll fails with HOST_FAILED_NOT_READY (-3)</td><td>A <code>{{setting}}</code> in its URL or headers is empty</td></tr>
+  <tr><td>HTTPS fails with HOST_FAILED_NOT_TRUSTED (-6)</td><td>Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network</td></tr>
+  <tr><td><code>http_request()</code> returns HOST_ERR_NO_SPACE (-4)</td><td>16 of the application's requests are waiting, or the device's queue is full. Queue more as responses arrive</td></tr>
   <tr><td>Ghost images of earlier frames</td><td>A sequence of <code>NO_BLINK</code> redraws without a final <code>CLEAN</code> redraw</td></tr>
   <tr><td>Characters shown as <code>?</code> or transliterated</td><td>The glyph pack for the script is not installed, or the text was truncated by bytes</td></tr>
   <tr><td>A press does not answer a question</td><td>The button went down before the question was on the panel: a press answers only what was shown. Press again</td></tr>
@@ -1008,7 +1106,9 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 </ul>
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
-<p>This part lists every declaration of <code>sdk/host_api.h</code> for ABI 2.</p>
+<p>This part summarizes the host calls and exports for ABI 2. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.</p>
+<p><code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.</p>
+<p>Host calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.</p>
 <p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.</p>
 <p>A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.</p>
 
@@ -1018,30 +1118,34 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">HOST_OK (0)</td><td>Success</td></tr>
   <tr><td class="c">HOST_ERR_NOT_DRAWING (-1)</td><td>Drawing call outside <code>app_on_draw()</code></td></tr>
   <tr><td class="c">HOST_ERR_ARGUMENT (-2)</td><td>Pointer outside the application's memory; unknown font, icon, timer or style; size out of range</td></tr>
-  <tr><td class="c">HOST_ERR_NOT_FOUND (-3)</td><td>Key not stored; file not found; time not set; path absent from the answer</td></tr>
+  <tr><td class="c">HOST_ERR_NOT_FOUND (-3)</td><td>Key not stored; file not found; time not set; path absent from the response</td></tr>
   <tr><td class="c">HOST_ERR_NO_SPACE (-4)</td><td>Value larger than the buffer; store or files full; request or notification queue full</td></tr>
   <tr><td class="c">HOST_ERR_FAILED (-5)</td><td>Storage failure</td></tr>
 </table>
 
 <h1 id="ref-exports">17. Exports</h1>
-<p>All exports are optional. The host skips a handler that the module does not export.</p>
+<p>Export the handlers required by the features your application uses. The host skips absent handlers; the build rejects a feature without its required handler (section 4).</p>
 <table>
   <tr><th style="width:42%">Export</th><th>Called when</th></tr>
   <tr><td class="c">void app_init(void)</td><td>The instance is loaded and its strings are in place. Once per instance</td></tr>
   <tr><td class="c">void app_on_focus(void)</td><td>The application receives the screen. Start <code>timer_set()</code> timers here</td></tr>
   <tr><td class="c">void app_on_blur(void)</td><td>The application is about to lose the screen</td></tr>
-  <tr><td class="c">void app_on_terminate(void)</td><td>The instance is about to be unloaded: leaving the screen, end of a background call, device restart, removal. Not after a fault stopped it. <code>app_on_blur()</code> precedes it if the application was on the screen</td></tr>
+  <tr><td class="c">void app_on_terminate(void)</td><td>The instance is about to be unloaded: leaving the screen, end of a background delivery, device restart, removal. Not after a fault stopped it. <code>app_on_blur()</code> precedes it if the application was on the screen</td></tr>
   <tr><td class="c">void app_on_draw(void)</td><td>A frame is needed. Draw the complete frame from the state. The surface is white</td></tr>
   <tr><td class="c">void app_on_button(int32_t event)</td><td>A button event occurs: <code>BTN_&lt;UP|OK|DOWN|BACK&gt;_&lt;KEYDOWN|KEYUP|PRESSED|LONG_PRESSED&gt;</code>. Excludes <code>BTN_BACK_PRESSED</code> and <code>BTN_BACK_LONG_PRESSED</code></td></tr>
   <tr><td class="c">void app_on_back(void)</td><td>BACK is pressed briefly. For applications with internal pages</td></tr>
   <tr><td class="c">void app_on_timer(int32_t id)</td><td>A timer expires</td></tr>
   <tr><td class="c">void app_on_alarm(int32_t id)</td><td>An alarm expires, on or off the screen</td></tr>
-  <tr><td class="c">void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)</td><td>A piece of an answer arrives. <code>request</code> is the poll number or the request tag. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>_LAST</code>, <code>_FAILED</code></td></tr>
-  <tr><td class="c">void app_on_values(int32_t request, int32_t http_status)</td><td>The answer to a poll with <code>pick</code> arrives. Values are readable inside the handler</td></tr>
+  <tr><td class="c">void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)</td><td>A response chunk arrives. <code>request</code> is the poll number or request tag. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>HOST_DATA_LAST</code>, <code>HOST_DATA_FAILED</code></td></tr>
+  <tr><td class="c">void app_on_values(int32_t request, int32_t http_status)</td><td>The response to a poll with <code>pick</code> arrives. Values are readable inside the handler</td></tr>
   <tr><td class="c">void app_on_settings(void)</td><td>The user saves the application's settings on the web page</td></tr>
-  <tr><td class="c">void app_on_intent(int32_t intent)</td><td>A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>_NETWORK_UP</code> (2), <code>_STARTED</code> (3)</td></tr>
+  <tr><td class="c">void app_on_intent(int32_t intent)</td><td>A declared device event occurs: <code>HOST_INTENT_TIME_CHANGED</code> (1), <code>HOST_INTENT_NETWORK_UP</code> (2), <code>HOST_INTENT_STARTED</code> (3)</td></tr>
   <tr><td class="c">void app_on_installed(void)</td><td>Once after the application is installed: it has not run on this device before, or was removed and installed again</td></tr>
-  <tr><td class="c">void app_on_updated(void)</td><td>Once after another version replaced the one that ran before. The store, the files and poll intervals are kept; alarms are not</td></tr>
+  <tr><td class="c">void app_on_updated(void)</td><td>Once after another version replaced the one that ran before. The store and poll intervals are kept; packaged files may replace existing files of the same name. Alarms are not kept</td></tr>
+</table>
+<h2 id="ref-buffers">SDK-provided exports</h2>
+<table>
+  <tr><th style="width:42%">Export</th><th>Purpose</th></tr>
   <tr><td class="c">uint8_t *app_data_buffer(void)</td><td>Returns the buffer for one piece of data (1 KB). Provided by <code>sdk/lib</code></td></tr>
   <tr><td class="c">uint8_t *app_strings_buffer(void)</td><td>Returns the buffer for the strings of the device's language. Generated by the build</td></tr>
 </table>
@@ -1064,18 +1168,19 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">gfx_bitmap(x, y, w, h, bits)</td><td>Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits are transparent</td></tr>
   <tr><td class="c">gfx_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by the host from an application file, starting at <code>offset</code></td></tr>
   <tr><td class="c">gfx_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
-  <tr><td class="c">void request_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>_SOON</code>, <code>_CLEAN</code>, <code>_NO_BLINK</code></td></tr>
-  <tr><td class="c">header_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
+  <tr><td class="c">void request_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION accepts OK only from a press begun after the question reached the panel</td></tr>
+  <tr><td class="c">header_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
 </table>
 
+<p>Drawing coordinates are bounded to -4096 through 4096. Both bitmap calls require positive dimensions no larger than the current surface, even if clipping would hide the excess. QR cell size is 0 - 16.</p>
 <h1 id="ref-kit">19. Kit</h1>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">ui_text(x, y, style, text, length, max_width)</td><td>Text in a style: <code>HOST_UI_TEXT</code>, <code>_TITLE</code>, <code>_CAPTION</code>, <code>_VALUE</code>; shortened to <code>max_width</code> (0: unlimited). Returns the width</td></tr>
+  <tr><td class="c">ui_text(x, y, style, text, length, max_width)</td><td>Text in a style: <code>HOST_UI_TEXT</code>, <code>HOST_UI_TITLE</code>, <code>HOST_UI_CAPTION</code>, <code>HOST_UI_VALUE</code>; shortened to <code>max_width</code> (0: unlimited). Returns the width</td></tr>
   <tr><td class="c">ui_text_lines(x, y, style, text, length, width, max_lines)</td><td>Text wrapped at spaces to <code>width</code>, up to <code>max_lines</code> (1 - 8); the last line is shortened with "...". Returns the number of lines</td></tr>
   <tr><td class="c">ui_text_width(style, text, length), ui_text_height(style)</td><td>Text width and line height of a style</td></tr>
   <tr><td class="c">ui_title(text, length)</td><td>Page title with a rule. Returns the <code>y</code> of the content area</td></tr>
-  <tr><td class="c">ui_icon(x, y, icon, size)</td><td>Built-in icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>_MEDIUM</code> (44), <code>_LARGE</code> (99)</td></tr>
+  <tr><td class="c">ui_icon(x, y, icon, size)</td><td>Built-in icon at <code>HOST_UI_ICON_SMALL</code> (22 px), <code>HOST_UI_ICON_MEDIUM</code> (44), <code>HOST_UI_ICON_LARGE</code> (99)</td></tr>
   <tr><td class="c">ui_actions(ok, ok_length, back, back_length)</td><td>Button row at the bottom, 44 px (<code>HOST_UI_ACTIONS_HEIGHT</code>). Length 0 omits a button; a single button is centred</td></tr>
   <tr><td class="c">ui_button(x, y, name, name_length, action, action_length, mirrored)</td><td>One button: its name on a plate and the action label beside it. Returns the width</td></tr>
   <tr><td class="c">ui_list_visible(list), ui_list_first(list)</td><td>For a <code>host_list_t</code> (count, selected or -1, top, height or 0 for the remaining height, first): number of visible rows; index of the first visible row</td></tr>
@@ -1087,42 +1192,75 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">ui_cell(cell, picture, icon)</td><td>Cell from a <code>host_cell_t</code> (x, y, width, height, name[48], value[48], size) with an optional picture (0: none) or a built-in icon (<code>HOST_ICON_NONE</code>: none). Picture size: 88 px in a full-surface cell, 44 px otherwise</td></tr>
   <tr><td class="c">ui_cell_fit(cell, picture, icon)</td><td>Returns the size class that fits the cell; 1 is the largest. Use the largest returned number for all cells of a screen</td></tr>
   <tr><td class="c">ui_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
-  <tr><td class="c">ui_chart(chart, values)</td><td>Chart from a <code>host_chart_t</code> (x, y, width, height, kind, flags, decimals, count) and <code>count</code> numbers (1 - 128), oldest first. <code>kind</code>: <code>HOST_CHART_LINE</code>, <code>_AREA</code>, <code>_BARS</code>, <code>_STEPS</code>. <code>flags</code>: <code>HOST_CHART_AXIS</code> (baseline rule), <code>_FROM_ZERO</code> (scale includes 0), <code>_RANGE</code> (greatest and least value as captions, with <code>decimals</code> decimals), <code>_RANGE_RIGHT</code> (the same captions at the right, the series from the left edge), <code>_MARK_LAST</code> (mark at the last value). <code>HOST_CHART_NO_VALUE</code> is a gap. The scale spans the least and the greatest value</td></tr>
-  <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>_DOWN</code></td></tr>
+  <tr><td class="c">ui_chart(chart, values)</td><td>Draws a series of integers using host_chart_t; missing values use HOST_CHART_NO_VALUE</td></tr>
+  <tr><td class="c">ui_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
   <tr><td class="c">ui_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel</td></tr>
-  <tr><td class="c">ui_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | _DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>_YEAR</code>, or <code>_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel</td></tr>
+  <tr><td class="c">ui_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel</td></tr>
 </table>
 
-<h1 id="ref-scene">20. Navigation, storage and network</h1>
+<h2 id="ref-chart">Chart fields and flags</h2>
+<table>
+  <tr><th>Field</th><th>Meaning</th></tr>
+  <tr><td class="c">x, y, width, height</td><td>Chart rectangle on the application surface</td></tr>
+  <tr><td class="c">kind</td><td>HOST_CHART_LINE, HOST_CHART_AREA, HOST_CHART_BARS or HOST_CHART_STEPS</td></tr>
+  <tr><td class="c">count</td><td>1 - 128 integers, oldest first. Scale spans the least and greatest value</td></tr>
+  <tr><td class="c">decimals</td><td>0 - 9 decimals in range captions</td></tr>
+  <tr><td class="c">flags</td><td>Combine flags below with OR</td></tr>
+</table>
+<table>
+  <tr><th style="width:44%">Flag</th><th>Effect</th></tr>
+  <tr><td class="c">HOST_CHART_AXIS</td><td>Baseline rule</td></tr>
+  <tr><td class="c">HOST_CHART_FROM_ZERO</td><td>Scale includes zero</td></tr>
+  <tr><td class="c">HOST_CHART_RANGE</td><td>Least and greatest value as captions, using decimals</td></tr>
+  <tr><td class="c">HOST_CHART_RANGE_RIGHT</td><td>Range captions at the right; series starts at the left edge</td></tr>
+  <tr><td class="c">HOST_CHART_MARK_LAST</td><td>Mark at the last value</td></tr>
+</table>
+<h1 id="ref-scene">20. Application services</h1>
+<h2 id="ref-navigation">Navigation and session</h2>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">void request_exit(void)</td><td>Closes the application: one step down the stack. Valid in button, back and timer handlers</td></tr>
   <tr><td class="c">void request_focus(void)</td><td>Requests the screen from a background handler. Granted by the host at most once per 30 s, not within 30 s of a button press, and not over a question waiting for an answer</td></tr>
   <tr><td class="c">int32_t session_set(data, length)</td><td>Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen</td></tr>
   <tr><td class="c">int32_t session_get(buffer, capacity)</td><td>Copies what is kept. Returns its length; 0 for none; <code>HOST_ERR_NO_SPACE</code> when the buffer is smaller</td></tr>
+</table>
+
+<h2 id="ref-notifications">Notifications and header status</h2>
+<table>
+  <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">notify(notice)</td><td>Queues a notification from a <code>host_notice_t</code>: first (required), second, detail, icon. <code>HOST_ERR_NO_SPACE</code> when four are queued</td></tr>
-  <tr><td class="c">header_status(side, icon, text, length)</td><td>Sets an icon and up to 31 bytes of text in the header, shown above every screen while the application is off the screen. Empty icon and text release the side. Cleared by a restart</td></tr>
-  <tr><td class="c">timer_set(id, milliseconds)</td><td>One-shot timer, id 0 - 3. 0 ms cancels. A new call restarts it</td></tr>
-  <tr><td class="c">alarm_set(id, seconds)</td><td>One-shot alarm, id 0 - 3. 0 s cancels</td></tr>
-  <tr><td class="c">alarm_set_at(id, int64_t unix_time)</td><td>One-shot alarm at a clock time</td></tr>
-  <tr><td class="c">alarm_set_every(id, seconds, first_in)</td><td>Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds (0: one period)</td></tr>
+  <tr><td class="c">header_status(side, icon, text, length)</td><td>Sets an icon and up to 31 bytes of text above screens with a header, including the owner's screen. A screen's left text wins over kept left status; kept right status wins over screen text. Empty icon and text release the side. Cleared by a restart, removal or an update that changes the application id</td></tr>
+</table>
+
+<h2 id="ref-store">Store and files</h2>
+<table>
+  <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">kv_get(key, key_length, value, capacity)</td><td>Reads a value. Returns its length; <code>HOST_ERR_NOT_FOUND</code>; <code>HOST_ERR_NO_SPACE</code> if the buffer is too small</td></tr>
   <tr><td class="c">kv_set(key, key_length, value, length)</td><td>Writes a value. Length 0 deletes the key. Fails for <code>url</code> and <code>link</code> settings</td></tr>
   <tr><td class="c">file_size(name, name_length)</td><td>Returns the file size, or <code>HOST_ERR_NOT_FOUND</code></td></tr>
   <tr><td class="c">file_read(name, name_length, offset, bytes, capacity)</td><td>Reads from an offset. Returns the number of bytes read; 0 at or past the end</td></tr>
   <tr><td class="c">file_write(name, name_length, offset, bytes, length)</td><td>Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file. Needs <code>"writes_files": true</code></td></tr>
-  <tr><td class="c">poll_now(poll)</td><td>Runs a manifest poll immediately</td></tr>
-  <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Sets the poll interval, 10 s to 1 day. Kept across restarts</td></tr>
-  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>_POST</code>, <code>_PUT</code>, <code>_DELETE</code>, <code>_PATCH</code>, <code>_HEAD</code>, <code>_PROPFIND</code>, <code>_REPORT</code>. Headers: "Name: value" lines</td></tr>
+</table>
+
+<h2 id="ref-network">Network</h2>
+<table>
+  <tr><th style="width:44%">Call</th><th>Description</th></tr>
+  <tr><td class="c">poll_now(poll)</td><td>Queues a manifest poll; repeated pending requests are coalesced. Does not wait for a response</td></tr>
+  <tr><td class="c">poll_set_interval(poll, seconds)</td><td>Positive values are clamped to 10 - 86400 s. A changed value resets the deadline; the same value does not. A manifest interval setting takes precedence after restart or settings save. Persistence failures are not returned</td></tr>
+  <tr><td class="c">http_request(tag, method, url, url_length, headers, headers_length, body, body_length)</td><td>Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Headers: "Name: value" lines</td></tr>
   <tr><td class="c">data_value(index, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies the value of path <code>index</code> as text without a terminator. Returns its length. A list path has no value</td></tr>
   <tr><td class="c">data_count(index)</td><td>Inside <code>app_on_values()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path</td></tr>
   <tr><td class="c">data_element(index, element, text, capacity)</td><td>Inside <code>app_on_values()</code>: copies element <code>element</code> of path <code>index</code>, as <code>data_value()</code> does</td></tr>
-  <tr><td class="c">data_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other answer</td></tr>
+  <tr><td class="c">data_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_values()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response</td></tr>
   <tr><td class="c">data_response(response)</td><td>Inside a data handler: fills a <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
-  <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Replaces <code>{0}</code> .. <code>{3}</code> in the pattern with <code>host_text_argument_t</code> values (a number, or a text and its length). Returns the length</td></tr>
-  <tr><td class="c">void host_log(level, text, length)</td><td>Writes one log line of up to 200 characters. Levels: <code>HOST_LOG_ERROR</code>, <code>_WARN</code>, <code>_INFO</code>, <code>_DEBUG</code></td></tr>
 </table>
 
+<h2 id="ref-text">Text and logging</h2>
+<table>
+  <tr><th style="width:44%">Call</th><th>Description</th></tr>
+  <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Replaces <code>{0}</code> .. <code>{3}</code> with <code>host_text_argument_t</code> values. Pattern, text arguments and filled result are each limited to HOST_TEXT_MAX bytes. The result is cut to capacity without a terminator; returns its byte length</td></tr>
+  <tr><td class="c">void host_log(level, text, length)</td><td>Writes one log line of up to 200 bytes. Levels: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
+</table>
 <h1 id="ref-time">21. Time</h1>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
@@ -1130,9 +1268,13 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">time_zone_offset(void)</td><td>Offset of local time from UTC in seconds, daylight saving included</td></tr>
   <tr><td class="c">time_local(parts), time_local_at(int64_t unix_time, parts)</td><td>Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sunday, hour, minute, second</td></tr>
   <tr><td class="c">int64_t time_from_local(parts)</td><td>Unix time of a local date and time. Out-of-range days carry into the next month</td></tr>
-  <tr><td class="c">time_text(int64_t unix_time, style, text, capacity)</td><td>Formats a moment in the device's language. Styles: <code>HOST_TIME_CLOCK</code>, <code>_DATE</code>, <code>_WEEKDAY</code>, <code>_LONG_DATE</code>, <code>_NEAR</code>, <code>_NEAR_DAY</code>, <code>_WEEKDAY_SHORT</code>. Returns the length</td></tr>
+  <tr><td class="c">time_text(int64_t unix_time, style, text, capacity)</td><td>Formats a moment in the device's language (examples in section 11). Styles: <code>HOST_TIME_CLOCK</code>, <code>HOST_TIME_DATE</code>, <code>HOST_TIME_WEEKDAY</code>, <code>HOST_TIME_LONG_DATE</code>, <code>HOST_TIME_NEAR</code>, <code>HOST_TIME_NEAR_DAY</code>, <code>HOST_TIME_WEEKDAY_SHORT</code>. Returns the length</td></tr>
   <tr><td class="c">int64_t time_uptime_ms(void)</td><td>Milliseconds since device start; includes sleep time</td></tr>
-  <tr><td class="c">uint32_t time_boot_id(void)</td><td>Identifier of the current boot; changes after every restart, never 0. Store it with a saved uptime</td></tr>
+  <tr><td class="c">uint32_t time_boot_id(void)</td><td>Random nonzero 32-bit boot identifier. Store it with saved uptime and discard uptime if it differs. Equality does not guarantee that no restart occurred</td></tr>
+  <tr><td class="c">timer_set(id, milliseconds)</td><td>One-shot timer, id 0 - 3. 0 ms cancels. A new call restarts it</td></tr>
+  <tr><td class="c">alarm_set(id, seconds)</td><td>One-shot alarm, id 0 - 3. 0 s cancels</td></tr>
+  <tr><td class="c">alarm_set_at(id, int64_t unix_time)</td><td>One-shot alarm at Unix seconds 1 - 253402300799</td></tr>
+  <tr><td class="c">alarm_set_every(id, seconds, first_in)</td><td>Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds, 0 - 86400 (0: one period). Shared device pool: 24 repeating alarms</td></tr>
 </table>
 
 <h1 id="ref-system">22. System API</h1>
@@ -1140,14 +1282,14 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p>Any application can use the system API if its manifest contains <code>"system": true</code>. The web page warns the user before installing such an application. A module that imports a <code>sys_*</code> call without this declaration is rejected.</p>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
-  <tr><td class="c">sys_info(what, text, capacity)</td><td>Device information as text: <code>SYS_INFO_VERSION</code>, <code>_NAME</code>, <code>_NETWORK</code>, <code>_ADDRESS</code>, <code>_WIFI</code> ("online", "connecting", "setup"), <code>_SLOT</code>, <code>_FREE_MEMORY</code>, <code>_FREE_FLASH</code>, <code>_FREE_STORE</code>, <code>_JOIN_CODE</code></td></tr>
-  <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>_FONT</code>, <code>_POWER_SAVING</code>, <code>_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
+  <tr><td class="c">sys_info(what, text, capacity)</td><td>Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code></td></tr>
+  <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>A numeric setting's value and its range</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock. Fails while the time source is the network</td></tr>
-  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in the order of their titles: list, title, removal. An application cannot remove itself</td></tr>
+  <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in the order of their titles: list, title, deferred removal. HOST_OK accepts a removal request; it does not confirm success. Only one pending removal is retained; a later call before processing replaces it. An application cannot remove itself</td></tr>
   <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
   <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
-  <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>_FORGET_NETWORK</code>, <code>_FACTORY_RESET</code>. Requires a confirmation screen in the application</td></tr>
+  <tr><td class="c">sys_do(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen</td></tr>
 </table>
 
 <h1 id="ref-library">23. SDK library</h1>
@@ -1157,65 +1299,91 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <pre>typedef struct { char *next; char *last; } app_text_t;      /* declared by the caller */
 
 void    app_text_start(app_text_t *text, char *buffer, int32_t buffer_size);
-void    app_text_add(app_text_t *text, const char *more);   /* excess text is dropped at a character boundary */
-void    app_text_add_number(app_text_t *text, int32_t value);               /* decimal, "-" when negative */
-void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);          /* 7, 2 -> "07" */
+/* excess text is dropped at a character boundary */
+void    app_text_add(app_text_t *text, const char *more);
+/* decimal, "-" when negative */
+void    app_text_add_number(app_text_t *text, int32_t value);
+/* 7, 2 -> "07" */
+void    app_text_add_padded(app_text_t *text, int32_t value, int32_t digits);
 int32_t app_text_length(const char *text);                  /* length of any null-terminated text */
-void    app_text_copy(char *to, int32_t size, const char *from);                    /* always null-terminated */
+/* always null-terminated */
+void    app_text_copy(char *to, int32_t size, const char *from);
 bool    app_text_equal(const char *a, const char *b);
 bool    app_text_starts(const char *text, const char *start);
 int32_t app_time_text(int64_t moment, int32_t style, char *text, int32_t size); /* time_text(), null-terminated */
 #define APP_TEXT_DEGREE "\xC2\xB0"                                 /* the degree sign the host draws */</pre>
-<p>The buffer is always null-terminated and stays within its size. The text is complete after each call.</p>
-<h2 id="lib-draw">app_draw.h, app_state.h: strings, state, settings</h2>
-<pre>#include "app_draw.h"                                        /* null-terminated text; inside app_on_draw() */
+<p>The buffer is always null-terminated and stays within its size. Each call leaves a terminated string; excess text is dropped at a character boundary.</p>
+<h2 id="lib-draw">app_draw.h: drawing helpers</h2>
+<pre>/* null-terminated text; inside app_on_draw() */
+#include "app_draw.h"
 int32_t app_text_width(int32_t font, const char *text);
-int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);        /* returns the width */
+/* returns the width */
+int32_t app_draw_text(int32_t x, int32_t y, int32_t font, const char *text);
 void    app_draw_centered(int32_t center, int32_t y, int32_t font, const char *text);  /* by its ink */
 int32_t app_text_center_x(int32_t center, int32_t font, const char *text);
 void    app_draw_right(int32_t right, int32_t y, int32_t font, const char *text);
-void    app_draw_actions(const char *ok, const char *back);         /* the row of buttons; NULL: no button */
+/* the row of buttons; NULL: no button */
+void    app_draw_actions(const char *ok, const char *back);
 void    app_draw_cells(host_cell_t *cells, const uint8_t *const *pictures,
                        const int32_t *icons, int32_t count);         /* cells in one size: the longest value's */
-
-#include "app_state.h"                                       /* the store, by null-terminated key */
-bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);  /* first field: int32_t version */
-bool    app_state_save(const char *key, const void *state, int32_t size);             /* one flash write; false: not stored */
+</pre>
+<h2 id="lib-state">app_state.h: state and settings</h2>
+<pre>#include "app_state.h"                                       /* the store, by null-terminated key */
+/* first field: int32_t version */
+bool    app_state_load(const char *key, void *state, int32_t size, int32_t version);
+/* one flash write; false: not stored */
+bool    app_state_save(const char *key, const void *state, int32_t size);
 bool    app_state_forget(const char *key);
-bool    app_session_save(const void *state, int32_t size);       /* where the user is: in app_on_blur() */
-bool    app_session_load(void *state, int32_t size);             /* in app_on_focus(); exactly `size` bytes */
+/* where the user is: in app_on_blur() */
+bool    app_session_save(const void *state, int32_t size);
+/* in app_on_focus(); exactly `size` bytes */
+bool    app_session_load(void *state, int32_t size);
 APP_SESSION_FITS(type);                                          /* the struct fits HOST_SESSION_MAX */
-int32_t app_setting(const char *key, char *text, int32_t text_size);   /* length; 0: not set or too long */
-int32_t app_setting_count(const char *key);                                           /* items of a list */
-int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);  /* length; 0: none */
+/* length; 0: not set or too long */
+int32_t app_setting(const char *key, char *text, int32_t text_size);
+/* items of a list */
+int32_t app_setting_count(const char *key);
+/* length; 0: none */
+int32_t app_setting_item(const char *key, int32_t index, char *text, int32_t text_size);
 bool    app_setting_is(const char *key, const char *wanted);
-bool    app_setting_is_on(const char *key);                                           /* toggle: true unless "0" */
+/* toggle: true unless "0" */
+bool    app_setting_is_on(const char *key);
 bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);
-int32_t app_seconds_of(const char *text, int32_t otherwise);      /* "15 min", "1 h" as the host reads "every" */
+/* "15 min", "1 h" as the host reads "every" */
+int32_t app_seconds_of(const char *text, int32_t otherwise);
 int32_t app_setting_seconds(const char *key, int32_t otherwise);
-int32_t app_setting_place(const char *key, char *name, int32_t size);     /* a place's name, before its comma */
-
-#include "app_days.h"                                        /* dates as days since 1970-01-01 */
+/* a place's name, before its comma */
+int32_t app_setting_place(const char *key, char *name, int32_t size);
+</pre>
+<p>The text is always null-terminated. A value that does not fit is not cut: the result is empty and the length 0.</p>
+<h2 id="lib-days">app_days.h: date conversion</h2>
+<pre>#include "app_days.h"                                        /* dates as days since 1970-01-01 */
 int32_t app_days_from_date(int32_t year, int32_t month, int32_t day);
 void    app_date_from_days(int32_t days, int32_t *year, int32_t *month, int32_t *day);</pre>
-<p>The text is always null-terminated. A value that does not fit is not cut: the result is empty and the length 0.</p>
-<h2 id="lib-values">app_values.h: what the host picked</h2>
-<pre>bool    app_value_text(int32_t index, char *text, int32_t text_size);      /* false: absent or buffer too small */
-bool    app_value_number(int32_t index, int32_t decimals, int32_t *number); /* "-3.46", 1 -> -35; false: absent, no
-                                                                               number, or over 32 bits */
-bool    app_value_fixed(int32_t index, int32_t decimals, int64_t *number);  /* the same in 64 bits */
-bool    app_parse_number(const char *text, int32_t decimals, int32_t *number);   /* the same for a given text */
 
-int32_t app_value_count(int32_t index);                             /* elements of a list path; 1 or 0 for others */
+<h2 id="lib-values">app_values.h: extracted JSON values</h2>
+<pre>/* false: absent or buffer too small */
+bool    app_value_text(int32_t index, char *text, int32_t text_size);
+/* "-3.46", 1 -> -35; false: absent, not numeric, or outside -INT32_MAX..INT32_MAX */
+bool    app_value_number(int32_t index, int32_t decimals, int32_t *number);
+bool    app_value_fixed(int32_t index, int32_t decimals, int64_t *number);  /* the same in 64 bits */
+/* the same for a given text */
+bool    app_parse_number(const char *text, int32_t decimals, int32_t *number);
+
+/* elements of a list path; 1 or 0 for others */
+int32_t app_value_count(int32_t index);
 bool    app_value_element_text(int32_t index, int32_t element, char *text, int32_t text_size);
 bool    app_value_element_fixed(int32_t index, int32_t element, int32_t decimals, int64_t *number);
 int32_t app_value_series(int32_t index, int32_t decimals, int32_t *values, int32_t capacity);
                          /* numbers for ui_chart(): HOST_CHART_NO_VALUE for "null"; evenly thinned to fit */</pre>
 <p>These functions work only inside <code>app_on_values()</code>, except <code>app_parse_number()</code>, which works anywhere. <code>index</code> is the position of the path in the <code>pick</code> list of the manifest. Numbers with an exponent are read: <code>"1.2e-05"</code>.</p>
+<p>Numeric readers accept -INT32_MAX through INT32_MAX in 32 bits, and -INT64_MAX through INT64_MAX in 64 bits.</p>
 <h2 id="lib-fixed">app_fixed.h: numbers with decimals</h2>
-<pre>bool    app_fixed_parse(const char *text, int32_t decimals, int64_t *value);   /* "356.27", 2 -> 35627; exponents too */
+<pre>/* "356.27", 2 -> 35627; exponents too */
+bool    app_fixed_parse(const char *text, int32_t decimals, int64_t *value);
 int64_t app_fixed_rescale(int64_t value, int32_t from_decimals, int32_t to_decimals);  /* rounded */
-int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals);        /* part / whole; 0 if whole is 0 */
+/* part / whole; 0 if whole is 0 */
+int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals);
 void    app_text_add_fixed(app_text_t *text, int64_t value, int32_t decimals, int32_t flags);
                                                              /* 35627, 2 -> "356.27"; APP_FIXED_SIGN: "+" */</pre>
 <p>Rounding is half away from zero. Up to 9 decimals (<code>APP_FIXED_DECIMALS_MAX</code>).</p>
@@ -1223,41 +1391,64 @@ void    app_text_add_fixed(app_text_t *text, int64_t value, int32_t decimals, in
 <pre>typedef enum { APP_UI_IGNORED, APP_UI_CHANGED, APP_UI_DONE, APP_UI_CANCELLED } app_ui_result_t;
 
 typedef host_list_t app_list_t;        /* count, selected (-1: none), top, height, first */
-app_ui_result_t app_list_button(app_list_t *list, int32_t event);    /* UP, DOWN: changed, held: a page; OK: done; BACK: cancelled */
-int32_t         app_list_first(app_list_t *list);                    /* call in app_on_draw() before drawing rows; keeps `first` */
+/* UP, DOWN: changed, held: a page; OK: done; BACK: cancelled */
+app_ui_result_t app_list_button(app_list_t *list, int32_t event);
+/* call in app_on_draw() before drawing rows; keeps `first` */
+int32_t         app_list_first(app_list_t *list);
 
 typedef struct { int32_t count; int32_t chosen; bool wraps; } app_picker_t;
 app_ui_result_t app_picker_button(app_picker_t *picker, int32_t event);
 void            app_picker_draw(const app_picker_t *picker, const char *const *labels);
 void            app_picker_draw_texts(const app_picker_t *picker, const char *above, const char *chosen,
                                       const char *below);    /* the three visible texts, made by the caller */
-int32_t         app_picker_above(const app_picker_t *picker);         /* index shown above the chosen one; -1: none */
+/* index shown above the chosen one; -1: none */
+int32_t         app_picker_above(const app_picker_t *picker);
 int32_t         app_picker_below(const app_picker_t *picker);         /* index shown below; -1: none */
 
 typedef struct { int32_t year, month, day, hour, minute, has, part, year_first, year_last; } app_date_t;
 void            app_date_start(app_date_t *date, int32_t has, int32_t year_first, int32_t year_last);
-app_ui_result_t app_date_button(app_date_t *date, int32_t event);    /* OK: next part; done after the last part */
+/* OK: next part; done after the last part */
+app_ui_result_t app_date_button(app_date_t *date, int32_t event);
 void            app_date_draw(const app_date_t *date);
-int64_t         app_date_seconds(const app_date_t *date);            /* local time; subtract time_zone_offset() for UTC */</pre>
+/* calendar seconds as if UTC; see conversion below */
+int64_t         app_date_seconds(const app_date_t *date);
+</pre>
+<p>Lists have at most 10000 rows. app_list_button() pages by the most recently measured matching list, using app_list_first(). Before measurement, or after another list was measured, it uses five rows.</p>
 <p>To handle BACK on these screens, export <code>app_on_back()</code> and pass <code>BTN_BACK_PRESSED</code> from it to the same button function.</p>
-<h2 id="lib-alloc">app_alloc.h, json_pick.h, and what is generated</h2>
+<p>app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(), which uses the offset at the selected moment.</p>
+<h2 id="lib-alloc">app_alloc.h: arena allocation</h2>
 <pre>void   *app_alloc(int32_t bytes);            /* NULL if the arena is too small; memory is not zeroed */
 int32_t app_alloc_left(void);
-int32_t app_alloc_mark(void);                /* app_alloc_release(mark) frees everything allocated after the mark */
+/* app_alloc_release(mark) frees everything allocated after the mark */
+int32_t app_alloc_mark(void);
 void    app_alloc_release(int32_t mark);
-
-json_pick_t pick;                                                      /* about 1.5 KB: static, not on the stack */
-void        json_pick_init(json_pick_t *pick, const char *const *paths, int path_count);    /* up to 16 */
-void        json_pick_lists(json_pick_t *pick, char *buffer, size_t size);   /* room for list elements; after init */
-bool        json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);      /* one piece of the answer */
-void        json_pick_finish(json_pick_t *pick);
-const char *json_pick_value(const json_pick_t *pick, int index);         /* NULL: value absent, or a list path */
+</pre>
+<p>Allocations are aligned to eight bytes. Call app_alloc_mark() before temporary allocations and app_alloc_release(mark) when finished.</p>
+<h2 id="lib-json">json_pick.h: streaming JSON parser</h2>
+<pre>/* about 1.5 KB: static, not on the stack */
+json_pick_t pick;
+/* up to 16 */
+void        json_pick_init(json_pick_t *pick, const char *const *paths, int path_count);
+/* room for list elements; after init */
+void        json_pick_lists(json_pick_t *pick, char *buffer, size_t size);
+/* one piece of the response */
+bool        json_pick_feed(json_pick_t *pick, const char *bytes, size_t length);
+bool        json_pick_finish(json_pick_t *pick);
+/* NULL: value absent, or a list path */
+const char *json_pick_value(const json_pick_t *pick, int index);
 int         json_pick_count(const json_pick_t *pick, int index);         /* elements of a list path */
 const char *json_pick_element(json_pick_t *pick, int index, int element);   /* in order is fast */
-bool        json_pick_is_cut(const json_pick_t *pick);                   /* an element did not fit the buffer */
+/* an element did not fit the buffer */
+bool        json_pick_is_cut(const json_pick_t *pick);
+</pre>
+<p>json_pick_finish() returns false if the document did not end whole. Do not accept extracted values as a complete response in that case.</p>
+<h2 id="lib-generated">Generated headers: strings.h and pictures.h</h2>
+<pre>/* generated from strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
+#include "strings.h"
+/* generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */
+#include "pictures.h"
+</pre>
 
-#include "strings.h"      /* generated from strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
-#include "pictures.h"     /* generated from pictures/: static const uint8_t PICTURE_DROP[] = { width, height, bits }; */</pre>
 <p><code>strings.h</code> and <code>pictures.h</code> are generated for each application. The build places them first on the include path, so a system header with the same name is not used.</p>
 <p><code>memcpy</code>, <code>memmove</code>, <code>memset</code> and <code>strlen</code> are provided because the compiler generates calls to them. They are the whole C library of the platform. They are declared in no SDK header: the code that calls one directly declares its prototype. <code>app_text_length()</code> of <code>app_text.h</code> replaces <code>strlen</code>.</p>
 
@@ -1266,30 +1457,47 @@ bool        json_pick_is_cut(const json_pick_t *pick);                   /* an e
   <tr><th style="width:44%">Constant</th><th style="width:22%">Value</th><th>Applies to</th></tr>
   <tr><td class="c">HOST_API_VERSION</td><td>2</td><td><code>abi</code> in the manifest</td></tr>
   <tr><td class="c">MANIFEST_MODULE_MAX_BYTES</td><td>48 KB</td><td><code>app.wasm</code></td></tr>
-  <tr><td class="c">MANIFEST_NAME_MAX / _TITLE_MAX</td><td>13 / 23 characters</td><td>Application name and title</td></tr>
-  <tr><td class="c">MANIFEST_POLLS_MAX / _HOSTS_MAX / _SETTINGS_MAX</td><td>4 / 4 / 8</td><td>Polls, hosts and settings per manifest</td></tr>
-  <tr><td class="c">MANIFEST_URL_MAX / _SETTING_VALUE_MAX</td><td>511 / 255 bytes</td><td>Poll URL; setting value</td></tr>
+  <tr><td class="c">MANIFEST_NAME_MAX</td><td>13 characters</td><td>Application name</td></tr>
+  <tr><td class="c">MANIFEST_TITLE_MAX</td><td>23 characters</td><td>Application title</td></tr>
+  <tr><td class="c">MANIFEST_POLLS_MAX</td><td>4</td><td>Polls per manifest</td></tr>
+  <tr><td class="c">MANIFEST_HOSTS_MAX</td><td>4</td><td>Hosts per manifest</td></tr>
+  <tr><td class="c">MANIFEST_SETTINGS_MAX</td><td>8</td><td>Settings per manifest</td></tr>
+  <tr><td class="c">MANIFEST_URL_MAX</td><td>511 bytes</td><td>Poll URL</td></tr>
+  <tr><td class="c">MANIFEST_SETTING_VALUE_MAX</td><td>255 bytes</td><td>Setting value</td></tr>
   <tr><td class="c">HOST_TEXT_MAX</td><td>127 bytes</td><td>Text per drawing or measuring call</td></tr>
-  <tr><td class="c">HOST_HEADER_TEXT_MAX / HOST_STATUS_TEXT_MAX</td><td>63 / 31 bytes</td><td>Header text; header status text</td></tr>
-  <tr><td class="c">HOST_KV_KEY_MAX / _VALUE_MAX / _TOTAL_MAX</td><td>15 / 1024 / 2048</td><td>Store key; value; total per application, as stored (64 bytes plus the length rounded up to 32, for each value)</td></tr>
-  <tr><td class="c">HOST_FILE_NAME_MAX / HOST_FILES_MAX / HOST_FILES_WRITER_MAX</td><td>23 / 64 KB / 32 KB</td><td>File name; files of a package; all files of an application that writes</td></tr>
-  <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>One piece of an answer</td></tr>
-  <tr><td class="c">HOST_ANSWER_MAX / HOST_ANSWER_PIECES_MAX</td><td>256 KB / 4 MB</td><td>Answer with extracted values; streamed answer</td></tr>
+  <tr><td class="c">HOST_HEADER_TEXT_MAX</td><td>63 bytes</td><td>Header text</td></tr>
+  <tr><td class="c">HOST_STATUS_TEXT_MAX</td><td>31 bytes</td><td>Header status text</td></tr>
+  <tr><td class="c">HOST_KV_KEY_MAX</td><td>15 characters</td><td>Store key</td></tr>
+  <tr><td class="c">HOST_KV_VALUE_MAX</td><td>1024 bytes</td><td>Store value</td></tr>
+  <tr><td class="c">HOST_KV_TOTAL_MAX</td><td>2048 bytes</td><td>Store total per application, including settings and storage overhead</td></tr>
+  <tr><td class="c">HOST_FILE_NAME_MAX</td><td>23 characters</td><td>File name</td></tr>
+  <tr><td class="c">HOST_FILES_MAX</td><td>64 KB</td><td>Packaged data files</td></tr>
+  <tr><td class="c">HOST_FILES_WRITER_MAX</td><td>32 KB</td><td>Files of an application that writes</td></tr>
+  <tr><td class="c">HOST_DATA_CHUNK_MAX</td><td>1024 bytes</td><td>One piece of a response</td></tr>
+  <tr><td class="c">HOST_ANSWER_MAX</td><td>256 KB</td><td>Response with extracted values</td></tr>
+  <tr><td class="c">HOST_ANSWER_PIECES_MAX</td><td>4 MB</td><td>Streamed response</td></tr>
   <tr><td class="c">HOST_VALUE_MAX</td><td>63 bytes</td><td>One extracted value</td></tr>
-  <tr><td class="c">HOST_HTTP_HEADERS_MAX / _BODY_MAX / _PENDING_MAX</td><td>1023 / 512 / 16</td><td>Request headers; body; waiting requests per application</td></tr>
-  <tr><td class="c">HOST_LIST_BYTES</td><td>8192</td><td>Elements of the list paths of one answer, as text</td></tr>
-  <tr><td class="c">MANIFEST_LIST_ITEM_MAX</td><td>63</td><td>An item of a list setting, in bytes</td></tr>
-  <tr><td class="c">MANIFEST_CERTIFICATES_MAX / _CERTIFICATE_MAX_BYTES</td><td>2 / 4 KB</td><td>Certificate authorities of an application; the size of one</td></tr>
-  <tr><td class="c">HOST_REQUEST_FIRST .. _LAST</td><td>16 .. 255</td><td>Tags for requests from code</td></tr>
-  <tr><td class="c">HOST_TIMER_COUNT / HOST_ALARM_COUNT</td><td>4 / 4</td><td>Timers and alarms per application</td></tr>
-  <tr><td class="c">HOST_ALARM_EVERY_MIN .. _MAX</td><td>60 .. 86400 s</td><td>Period of a repeating alarm</td></tr>
+  <tr><td class="c">HOST_HTTP_HEADERS_MAX</td><td>1023 bytes</td><td>Request header text</td></tr>
+  <tr><td class="c">HOST_HTTP_BODY_MAX</td><td>512 bytes</td><td>Request body</td></tr>
+  <tr><td class="c">HOST_HTTP_PENDING_MAX</td><td>16 requests</td><td>Waiting requests per application</td></tr>
+  <tr><td class="c">HOST_LIST_BYTES</td><td>8192 bytes</td><td>Elements of the list paths of one response, as text</td></tr>
+  <tr><td class="c">MANIFEST_LIST_ITEM_MAX</td><td>63 bytes</td><td>An item of a list setting, in bytes</td></tr>
+  <tr><td class="c">MANIFEST_CERTIFICATES_MAX</td><td>2 certificates</td><td>Certificate authorities per application</td></tr>
+  <tr><td class="c">MANIFEST_CERTIFICATE_MAX_BYTES</td><td>4 KB</td><td>One certificate file</td></tr>
+  <tr><td class="c">HOST_REQUEST_FIRST .. HOST_REQUEST_LAST</td><td>16 .. 255</td><td>Tags for requests from code</td></tr>
+  <tr><td class="c">HOST_TIMER_COUNT</td><td>4</td><td>Timers per application</td></tr>
+  <tr><td class="c">HOST_ALARM_COUNT</td><td>4</td><td>Alarm ids per application</td></tr>
+  <tr><td class="c">HOST_ALARM_EVERY_MIN .. HOST_ALARM_EVERY_MAX</td><td>60 .. 86400 s</td><td>Period of a repeating alarm</td></tr>
   <tr><td class="c">HOST_TEXT_ARGUMENTS_MAX</td><td>4</td><td>Arguments of <code>text_fill()</code></td></tr>
-  <tr><td class="c">HOST_QR_TEXT_MAX / HOST_LOG_TEXT_MAX</td><td>200 / 200</td><td>QR code text; log line</td></tr>
-  <tr><td class="c">HOST_ICON_CELLS / HOST_ICON_CELL_MAX</td><td>11 / 16</td><td>Icon grid; maximum cell size in pixels</td></tr>
+  <tr><td class="c">HOST_QR_TEXT_MAX</td><td>200 bytes</td><td>QR text</td></tr>
+  <tr><td class="c">HOST_LOG_TEXT_MAX</td><td>200 bytes</td><td>Log line</td></tr>
+  <tr><td class="c">HOST_ICON_CELLS</td><td>11</td><td>Icon grid in cells</td></tr>
+  <tr><td class="c">HOST_ICON_CELL_MAX</td><td>16</td><td>Icon cell size in pixels</td></tr>
   <tr><td class="c">HOST_ICON_COUNT</td><td>43</td><td>Built-in icons</td></tr>
   <tr><td class="c">String table of one language</td><td>8 KB</td><td>Loaded by the host</td></tr>
+  <tr><td class="c">Packaged manifest</td><td>8192 bytes</td><td>Formatting and firmware stamp included</td></tr>
 </table>
-<p><code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.</p>
+
 
 </body>
 </html>

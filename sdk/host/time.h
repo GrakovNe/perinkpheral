@@ -20,7 +20,7 @@
  * alarm_set():    relative, `seconds` from now, at least 1. Independent
  *                 of clock changes. 0 cancels the alarm.
  * alarm_set_at(): absolute, at `unix_time` as counted by time_now().
- *                 Follows clock changes.
+ *                 Accepts Unix seconds 1..253402300799. Follows clock changes.
  * Both return HOST_OK; HOST_ERR_ARGUMENT for an invalid number or time;
  * HOST_ERR_NO_SPACE if the device cannot hold another alarm.
  *
@@ -36,10 +36,14 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * `first_in` seconds from now; 0 means one full period. To align with the
  * minute, pass the seconds left in the current minute.
  * Period: HOST_ALARM_EVERY_MIN to HOST_ALARM_EVERY_MAX seconds. Every
- * call loads the application when it is not on the screen.
+ * call loads the application when it is not on the screen. first_in is
+ * 0..86400 independently of the period. A late alarm does not replay every
+ * missed period: if the following occurrence is already overdue, the next
+ * is scheduled one period from processing time.
  * Returns HOST_OK; HOST_ERR_ARGUMENT for an invalid number; HOST_ERR_NO_SPACE
- * when the device holds as many repeating alarms as it can - one for every
- * application it can hold. Say so in the log: a line in the header that
+ * when the device's shared pool of 24 repeating alarms is full. One
+ * application can use several slots; none are reserved per application.
+ * Say so in the log: a line in the header that
  * stops changing is otherwise taken for a hang.
  * Typical use: keeping a header_status() text current while the
  * application is off the screen. */
@@ -114,8 +118,9 @@ HOST_IMPORT(time_from_local, int64_t time_from_local(const host_local_time_t *pa
 /* Returns milliseconds since the device started. Always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));
 
-/* Returns an identifier of the current boot: different after every
- * restart, never 0. A stored time_uptime_ms() value is valid only within
+/* Returns a randomly generated nonzero 32-bit identifier, generated once
+ * per boot. Equality is a practical check, not a guarantee that no restart
+ * occurred. A stored time_uptime_ms() value is valid only within
  * the boot it was taken in. Store this identifier with it and discard the
  * value when the identifier differs. */
 HOST_IMPORT(time_boot_id, uint32_t time_boot_id(void));

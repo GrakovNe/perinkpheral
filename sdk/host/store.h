@@ -12,11 +12,14 @@
 
 /* Key-value store for small persistent values. Each application has a
  * private store. Writing wears the flash memory: write when data has
- * changed, for example in app_on_terminate(), not on every timer tick. */
+ * changed, for example in app_on_terminate(), not on every timer tick.
+ * Removal normally keeps the store for reinstall. The host may reclaim
+ * removed applications' stores when the partition is full. Removal with
+ * forget erases the store immediately. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~' */
 #define HOST_KV_VALUE_MAX 1024
 #define HOST_KV_TOTAL_MAX 2048 /* all values of one application, its settings among them, as
-                                  stored: 64 bytes for a value and its length rounded up to 32;
+                                  stored: 64 bytes for a value plus its length rounded up to a multiple of 32 bytes;
                                   guaranteed to every installed application */
 
 /* Reads a value into `value`. Returns its length. A setting of the manifest
@@ -42,7 +45,11 @@ HOST_IMPORT(kv_set, int32_t kv_set(const char *key, int32_t key_length, const vo
  * it free for it from the moment it is installed.
  * Writing wears the flash memory, like kv_set().
  * File name: 1-23 characters of a-z, 0-9, '.', '-' and '_'; the first
- * character is not a dot. */
+ * character is not a dot. Names ending in .new are reserved.
+ * file_write() also refuses app.wasm and manifest.json. A file supplied by
+ * an update replaces an existing file of the same name, including one
+ * written by the application. At catalog installation the writer quota
+ * counts the manifest too; runtime writes count data files only. */
 #define HOST_FILE_NAME_MAX    23
 #define HOST_FILES_MAX        (64 * 1024)
 #define HOST_FILES_WRITER_MAX (32 * 1024)

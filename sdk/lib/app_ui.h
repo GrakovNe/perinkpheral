@@ -22,7 +22,8 @@
  *
  * The application owns the state struct and can read it at any time.
  * Button meanings follow the host: UP and DOWN change the value, OK
- * confirms, BACK goes back. Only short presses are handled.
+ * confirms, BACK goes back. Lists and date editors also handle long UP
+ * and DOWN presses. Pickers handle short presses only.
  * BACK is delivered to an application through app_on_back(); pass it to
  * these functions as BTN_BACK_PRESSED.
  */
@@ -51,7 +52,10 @@ typedef host_list_t app_list_t;
  * Without a selection (`selected` = -1): UP and DOWN scroll by one row;
  * OK is ignored.
  * A long UP or DOWN moves a page - as many rows as the list showed - and
- * stops at the ends. BACK returns APP_UI_CANCELLED in both cases. */
+ * stops at the ends. It uses the most recently measured matching list
+ * from app_list_first(), or five rows before measurement or after another
+ * list was measured. List count is at most 10000.
+ * BACK returns APP_UI_CANCELLED in both cases. */
 app_ui_result_t app_list_button(app_list_t *list, int32_t event);
 
 /* Returns the first visible row and keeps it in `first`, so that the rows
@@ -105,6 +109,7 @@ app_ui_result_t app_date_button(app_date_t *date, int32_t event);
 
 void app_date_draw(const app_date_t *date);
 
-/* Returns the value as seconds since 1970 in local time. Subtract
- * time_zone_offset() for UTC. */
+/* Returns calendar seconds as if the selected fields were UTC. For actual
+ * Unix time, pass those fields in a host_local_time_t to time_from_local(),
+ * which uses the offset at the selected moment. */
 int64_t app_date_seconds(const app_date_t *date);

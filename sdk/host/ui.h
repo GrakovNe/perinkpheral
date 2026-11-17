@@ -32,7 +32,8 @@
  *
  *     static host_list_t list = { .count = 12 };
  *
- *     int32_t first = ui_list_first(&list);
+ *     list.first = ui_list_first(&list);
+ *     int32_t first = list.first;
  *     for (int32_t i = first; i < first + ui_list_visible(&list) && i < list.count; i++) {
  *         ui_list_row(&list, i, label, label_length, value, value_length, HOST_ICON_NONE);
  *     }
@@ -54,6 +55,8 @@
  * HOST_ICON_CHECK marks the active option. Rows outside the visible range
  * are not drawn. */
 #define HOST_ICON_NONE (-1)
+/* List count is at most 10000. ui_list_first() does not update first;
+ * keep the returned value in the list, or use app_list_first(). */
 typedef struct host_list {
     int32_t count;
     int32_t selected; /* or -1 */

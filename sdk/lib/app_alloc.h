@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-/* Returns `bytes` of memory, aligned for any type, or NULL if the arena
+/* Returns `bytes` of memory, aligned to eight bytes, or NULL if the arena
  * is too small. The memory is not zeroed. */
 void *app_alloc(int32_t bytes);
 

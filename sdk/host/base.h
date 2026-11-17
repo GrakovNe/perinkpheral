@@ -51,7 +51,7 @@
 #define HOST_ERR_ARGUMENT    -2 /* pointer outside the application memory; unknown font or timer */
 #define HOST_ERR_NOT_FOUND   -3 /* kv_get: key not stored; time_local: time not set */
 #define HOST_ERR_NO_SPACE    -4 /* kv_get: value larger than the buffer; kv_set: store full */
-#define HOST_ERR_FAILED      -5 /* storage failure; nothing was read or written */
+#define HOST_ERR_FAILED      -5 /* storage failure; a failed write may have changed storage; no rollback is promised */
 
 /* The calls of the system API: an application that imports one says "system": true in its
  * manifest (host/sys.h). */

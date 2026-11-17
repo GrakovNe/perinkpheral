@@ -23,7 +23,8 @@
  *              HOST_DATA_FAILED: a HOST_FAILED_* code.
  *
  * Delivery can stop without HOST_DATA_LAST and without HOST_DATA_FAILED:
- * a background instance is unloaded when the user presses a button. Only
+ * a background instance can be unloaded by a button press, screen switch,
+ * application-list reload or delivery to another application. Only
  * app_on_terminate() is called then. The next HOST_DATA_FIRST starts a
  * new answer. The host repeats an interrupted poll after one minute, or after
  * its interval when that is shorter; an
@@ -101,7 +102,10 @@ HOST_IMPORT(data_item, int32_t data_item(void));
 /* Response metadata. Valid inside app_on_data() and app_on_values(), for
  * the answer being delivered. The same for every piece of one answer.
  * A header that the server did not send is an empty string. A header
- * longer than its field is cut. */
+ * longer than its field is cut. A terminal HOST_DATA_FAILED callback may
+ * have no metadata: status is the failure code, length is -1 and header
+ * strings are empty. Invalid or incomplete picked JSON is reported as
+ * HOST_FAILED_NO_ANSWER even when an HTTP response arrived. */
 typedef struct host_response {
     int32_t status;            /* HTTP status, or a HOST_FAILED_* code */
     int32_t length;            /* Content-Length; -1 if absent */
@@ -125,10 +129,11 @@ APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
  * a network fails with HOST_FAILED_NO_NETWORK. The radio can be off
  * between requests. */
 
-/* Runs poll number `poll` of the manifest immediately. The answer is
- * delivered as usual. The host performs one request at a time, at most
- * one per second: one asked sooner is made when the second is up, and calls
- * made before the request starts are one. */
+/* Requests poll number `poll` through the shared queue without waiting for
+ * a response. Repeated pending requests are coalesced. The host performs
+ * one request at a time. Calls within a second of the last accepted
+ * poll_now() are delayed until that second has elapsed; this does not
+ * guarantee a one-second gap between request starts. */
 HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
 
 /* Queues a request from code.
@@ -151,9 +156,16 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  *
  * headers:     lines "Name: value" separated by '\n', at most four. The
  *              host sends "User-Agent: perinkpheral"; a User-Agent header
- *              given here replaces it. The same for polls.
+ *              given here replaces it. The same for polls. Each name is
+ *              at most 31 bytes and each raw value at most 255 bytes.
  * {{key}}      in the URL and in header values is replaced by the setting
- *              with that key, as in a poll.
+ *              with that key, as in a poll. URL substitution and the
+ *              initial host check happen before queuing: an unset URL
+ *              setting returns HOST_ERR_ARGUMENT with no callback. Header
+ *              substitution happens later and can give HOST_FAILED_NOT_READY.
+ *              Expanded URLs fit in 511 bytes; expanded header values fit
+ *              in 255 bytes. Expansion failure gives HOST_FAILED_NOT_READY,
+ *              except for the initial URL check.
  *
  * Redirects: a GET is followed up to three times; the application
  * receives the last answer only. A redirect to a host outside "hosts"
@@ -168,7 +180,9 @@ HOST_IMPORT(poll_now, int32_t poll_now(int32_t poll));
  * Returns HOST_OK; HOST_ERR_ARGUMENT for a URL outside the manifest hosts
  * or malformed arguments; HOST_ERR_NO_SPACE if HOST_HTTP_PENDING_MAX of the
  * application's requests are waiting, or the device has no memory for
- * another. */
+ * another. All queued requests share a 16 KB budget, including queue
+ * records, URLs, headers and bodies. The per-application ceiling reserves
+ * no slots; HOST_ERR_NO_SPACE can occur before sixteen requests wait. */
 #define HOST_HTTP_GET    0
 #define HOST_HTTP_POST   1
 #define HOST_HTTP_PUT    2
@@ -189,7 +203,9 @@ HOST_IMPORT(http_request,
                                  const void *body, int32_t body_length));
 
 /* Sets the interval of poll number `poll`, overriding the manifest:
- * 10 seconds to 1 day, counted from now. The interval persists across
- * restarts and updates until it is set again or the application is
- * removed. */
+ * Positive values are clamped to 10..86400 seconds; zero and negative
+ * values return HOST_ERR_ARGUMENT. A changed interval resets the deadline;
+ * the same interval does not. Kept across restarts and updates, but a
+ * manifest interval setting takes precedence after restart or a settings
+ * save. Persistence failures are not returned to the caller. */
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));

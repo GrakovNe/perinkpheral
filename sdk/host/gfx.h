@@ -16,7 +16,10 @@
 
 /* Surface size: 400 x 300 for a full-screen application, 400 x 260 below
  * the host header otherwise. The origin is the top left corner. The
- * default colour is black. Drawing is clipped to the surface. */
+ * default colour is black. Drawing is clipped to the surface. Drawing
+ * coordinates are bounded to -4096..4096. gfx_bitmap() and gfx_bitmap_file()
+ * require positive dimensions no larger than the surface, even when
+ * clipping would hide the excess. QR cell size is 0..16. */
 HOST_IMPORT(gfx_width, int32_t gfx_width(void));
 HOST_IMPORT(gfx_height, int32_t gfx_height(void));
 

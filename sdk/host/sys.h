@@ -116,8 +116,8 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
  *                   titles. Returns
  *                   the number of installed applications.
  * sys_app_title():  writes the title. Returns its length.
- * sys_app_remove(): removes the files of the application and keeps its
- *                   store - once the handler that asks has returned, so
+ * sys_app_remove(): requests deferred removal of the files and keeps its
+ *                   store. Processed after the handler returns, so
  *                   sys_app_list() lists it until then.
  * All return HOST_ERR_NOT_FOUND for an id that is not installed;
  * sys_app_remove() returns HOST_ERR_ARGUMENT for the application that calls
@@ -125,6 +125,9 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 #define SYS_APP_LIST_MAX 32 /* maximum `capacity`: more than a device holds */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
+/* HOST_OK means a deferred removal request was accepted, not completed.
+ * Only one pending removal is retained; a later call before processing
+ * replaces the earlier request. */
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 
 /* Default application: opened after a restart, after the menu idle time,

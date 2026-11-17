@@ -133,8 +133,9 @@ APP_EXPORT(app_strings_buffer, uint8_t *app_strings_buffer(void));
 /* Replaces "{0}", "{1}" ... in `pattern` with the arguments of those
  * numbers. Arguments can appear in any order.
  * An argument is a text; if `text` is NULL, it is a number.
- * Writes at most `capacity` bytes without a terminator, cut between
- * characters. Returns the length. */
+ * The pattern and each text argument are cut to HOST_TEXT_MAX bytes.
+ * The filled result is at most HOST_TEXT_MAX bytes, then cut to capacity,
+ * without a terminator, cut between characters. Returns the length. */
 typedef struct host_text_argument {
     int32_t     number;
     const char *text;
@@ -168,14 +169,16 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  *
  * When the panel shows the frame depends on the calling handler:
  *   app_on_button(), app_on_back():  immediately;
- *   app_on_timer(), app_on_data(), app_on_alarm(), app_on_intent(),
- *   app_on_settings():               when the refresh policy of the user
+ *   app_on_timer(), app_on_data(), app_on_alarm(), app_on_intent():
+ *                                    when the refresh policy of the user
  *                                    allows, by default once a minute.
+ * Settings changes and deliveries to that application for 30 seconds
+ * afterwards use the urgent refresh policy while it is on screen.
  *
  * Flags:
  *   HOST_REDRAW_NORMAL    Default. Use after a button press and for data
  *                         that can wait.
- *   HOST_REDRAW_SOON      Show immediately without a button press. Use
+ *   HOST_REDRAW_SOON      Bypass the data interval. Use
  *                         for data the user is waiting for.
  *   HOST_REDRAW_CLEAN     Full refresh: 2 - 3 s, one flash, removes
  *                         ghosting. Use for an image that must be clean.
@@ -184,7 +187,7 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  *                         refresh. Use for list navigation and for values
  *                         that change every second.
  *
- * SOON and CLEAN refreshes are at least one second apart.
+ * SOON and CLEAN wait until at least one second after the preceding refresh.
  *
  * Frame sequences (NO_BLINK). A partial refresh takes about 0.5 s plus
  * the time of app_on_draw(); the maximum rate is about three frames in
@@ -200,8 +203,12 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * application only when it was pressed after this picture reached the
  * panel: a press meant for the picture before, or made while the panel was
  * still drawing, is not an answer. The other buttons are not held back.
- * Every request with the flag is a new question; the next request without
- * it ends it. Use it when the question is opened, not for later redraws.
+ * Pending redraw flags are combined with OR. Each consumed redraw with
+ * QUESTION starts a new question; a consumed redraw without it ends it.
+ * NORMAL cannot clear a QUESTION still pending. Use QUESTION when opening
+ * a question, not for later redraws. OK KEYDOWN is consumed by the host;
+ * later OK events are delivered only if the press began after the question
+ * reached the panel.
  *
  * The host does not limit redraw requests. Every refresh uses battery
  * energy and wears the panel. */
@@ -214,7 +221,8 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 
 /* Sets application text in the host header. The header is shown above an
  * application that is not full-screen. Host defaults: left side empty
- * (next to the connection icon), right side the date.
+ * (next to the connection icon); right side the time by default, or the
+ * date when the user disables the header clock. Blank while time is unknown.
  * The text is drawn in the host font and size. A text that does not fit
  * is cut with "...". The two sides never overlap.
  * Length 0 returns the side to the host. A text of one space leaves the
@@ -228,7 +236,9 @@ HOST_IMPORT(request_redraw, void request_redraw(int32_t flags));
 HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int32_t length));
 
 /* Sets a status in the host header: an icon and a short text shown above
- * every screen with a header while the application is off the screen.
+ * screens with a header, including the owning application's screen.
+ * A screen's left text takes precedence over kept left status; kept right
+ * status takes precedence over the screen's right text.
  * Use for an activity the user started, such as a countdown.
  * Layout: icon text ... text icon. On HOST_HEADER_LEFT the icon replaces
  * the host icon and the text follows it. On HOST_HEADER_RIGHT the text
@@ -236,7 +246,7 @@ HOST_IMPORT(header_text, int32_t header_text(int32_t side, const char *text, int
  * A side belongs to the application that set it last. Length 0 with
  * HOST_ICON_NONE releases the side, if this application still owns it.
  * The side is also released when the application is removed and when the
- * device restarts.
+ * device restarts, or an update changes the application's id.
  * Callable from any handler, on and off the screen. A change is shown as
  * a data-driven redraw. */
 #define HOST_STATUS_TEXT_MAX 31
@@ -251,8 +261,9 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
  * opens the menu.
  *   - An application covered by another entry is unloaded and loaded
  *     again when it returns: app_on_blur() and app_on_terminate() before,
- *     app_init() and app_on_focus() after. Keep the state to restore in
- *     the store.
+ *     app_init() and app_on_focus() after. Keep persistent data in the
+ *     store; save navigation and unfinished edits to the session in
+ *     app_on_blur(), and restore them in app_on_focus().
  *   - request_exit() goes one step down the stack: to the entry the
  *     application was opened over, or to the menu.
  *   - An application that took the screen with request_focus() is placed
@@ -260,7 +271,9 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
 
 /* Requests the screen from a background handler (app_on_data(),
  * app_on_alarm() off the screen). The host decides whether to grant it.
- * Ignored on the screen. */
+ * Ignored on the screen. For a streamed background response, focus is
+ * considered only when delivery ends. A refused request is discarded, with
+ * no retry. A request in app_on_terminate() is too late for that decision. */
 HOST_IMPORT(request_focus, void request_focus(void));
 
 /* Closes the application: one step down the stack. Takes effect when
@@ -285,7 +298,10 @@ HOST_IMPORT(request_exit, void request_exit(void));
  *
  * session_get() copies them into `buffer` and returns their length; 0 when
  * there are none; HOST_ERR_NO_SPACE, copying nothing, when `capacity` is
- * smaller. sdk/lib/app_state.h keeps one struct this way. */
+ * smaller. The session is attached after app_init() returns: read it in
+ * app_on_focus() or a background delivery handler. session_set() in
+ * app_init() returns HOST_ERR_ARGUMENT. sdk/lib/app_state.h keeps one struct
+ * this way. */
 #define HOST_SESSION_MAX 128
 #define HOST_SINCE_session_set "0.1.21"
 #define HOST_SINCE_session_get "0.1.21"
