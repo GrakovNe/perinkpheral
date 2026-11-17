@@ -10,6 +10,8 @@ the device's page - without one, the notes are the commits since the release bef
   "Custom" takes a POSIX string. Detect finds the browser's city by its zone's name.
 - Firmware is a section of its own: what is installed, OTA with a newer release's notes on the
   screen, and Custom firmware. Device keeps what the device is, and restart and reset.
+- New defaults: fast refresh on, the clock in the header on, and no full refresh but when the
+  screen changes hands. A device keeps what was saved on it.
 - An application may say what it does: `description` in its manifest, a line of up to 95
   characters, translated as its title is. The catalog shows it with the title in the page's
   language, and so does what an application is; every official application has one, in

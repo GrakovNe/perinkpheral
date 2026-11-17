@@ -178,7 +178,8 @@ static void test_refresh_policy_settings(void)
     char err[128];
     appconf_defaults(&c, ID);
     CHECK(c.refresh_min_data_s == 60 && c.refresh_min_button_ms == 0);
-    CHECK(c.refresh_full_every == 5 && c.refresh_keepalive_h == 24);
+    CHECK(c.refresh_full_every == APPCONF_REFRESH_FULL_NEVER && c.refresh_keepalive_h == 24);
+    CHECK(c.refresh_fast == 1 && c.header_clock == 1);
     CHECK(appconf_validate(&c, err, sizeof err));
 
     /* each number has a range, and its ends are inside it */

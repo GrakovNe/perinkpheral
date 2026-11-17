@@ -149,6 +149,8 @@ void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]
     c->refresh_min_data_s = APPCONF_REFRESH_MIN_DATA_S_DEFAULT;
     c->refresh_min_button_ms = APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT;
     c->refresh_full_every = APPCONF_REFRESH_FULL_EVERY_DEFAULT;
+    c->refresh_fast = 1;
+    c->header_clock = 1;
     c->dither = 1;
     c->time_auto = 1;
     c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;

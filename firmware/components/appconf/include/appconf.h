@@ -35,7 +35,6 @@ extern "C" {
 #define APPCONF_REFRESH_MIN_DATA_S_MOST       3600
 #define APPCONF_REFRESH_MIN_BUTTON_MS_DEFAULT 0
 #define APPCONF_REFRESH_MIN_BUTTON_MS_MOST    10000
-#define APPCONF_REFRESH_FULL_EVERY_DEFAULT    5
 /* 0: every refresh is a full one - the cleanest picture, a blink every
  * time. APPCONF_REFRESH_FULL_NEVER: only when the application on the
  * screen changes - the quietest, and traces pile up. The way e-readers
@@ -43,6 +42,8 @@ extern "C" {
 #define APPCONF_REFRESH_FULL_EVERY_LEAST      0
 #define APPCONF_REFRESH_FULL_EVERY_MOST       50
 #define APPCONF_REFRESH_FULL_NEVER            255
+/* A full refresh only when the screen changes hands, as an e-reader does it (the owner, 2026-11-17). */
+#define APPCONF_REFRESH_FULL_EVERY_DEFAULT    APPCONF_REFRESH_FULL_NEVER
 #define APPCONF_REFRESH_KEEPALIVE_H_DEFAULT   24
 #define APPCONF_REFRESH_KEEPALIVE_H_LEAST     1
 #define APPCONF_REFRESH_KEEPALIVE_H_MOST      168
