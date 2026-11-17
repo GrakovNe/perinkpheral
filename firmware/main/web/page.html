@@ -19,6 +19,7 @@
   </a>
   <a href="#apps">Apps</a>
   <a href="#device">Device</a>
+  <a href="#firmware">Firmware</a>
   <a href="#log">Log</a>
   <a href="#control" id="nav-control" hidden>Control</a>
   <a href="#settings">Settings</a>
@@ -31,9 +32,15 @@
   <div class="head">
     <h2>Apps</h2>
     <span class="count" id="app-count"></span>
-    <button class="icon" id="open-sources" title="Sources"></button>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
+
+  <div class="head catalog-head">
+    <h2>Catalog</h2>
+    <span class="count" id="catalog-count"></span>
+    <button class="icon" id="open-sources" title="Sources"></button>
+  </div>
+  <div class="catalog" id="catalog-rows"><p class="note">Loading</p></div>
 </section>
 
 <section id="device">
@@ -41,26 +48,38 @@
     <div class="head"><h2>Device</h2></div>
     <div class="groups" id="status"><p class="note">Loading</p></div>
 
+    <h3>Reset</h3>
+    <div class="buttons">
+      <button class="quiet" id="restart">Restart</button>
+      <button class="quiet" id="reset">Factory reset</button>
+    </div>
+  </div>
+</section>
+
+<section id="firmware">
+  <div class="narrow">
+    <div class="head"><h2>Firmware</h2></div>
+    <dl class="ota">
+      <dt>Installed</dt><dd id="ota-installed"></dd>
+      <dt>Slot</dt><dd id="ota-slot"></dd>
+    </dl>
+
     <h3>OTA</h3>
-    <dl class="ota"><dt>Installed</dt><dd id="ota-installed"></dd></dl>
+    <dl class="ota" id="ota-latest-row" hidden><dt>Latest</dt><dd id="ota-latest"></dd></dl>
+    <pre class="notes" id="ota-notes" hidden></pre>
     <div class="buttons">
       <button class="quiet" id="check-release">Check for updates</button>
+      <button id="ota-update" hidden>Update</button>
     </div>
 
     <h3>Custom firmware</h3>
-    <form id="firmware">
+    <form id="custom-firmware">
       <label class="file"><input id="image" type="file" accept=".bin" required>
         <span class="button">Choose file</span><span class="name" id="image-name">No file chosen</span></label>
       <div class="buttons">
         <button>Install</button>
       </div>
     </form>
-
-    <h3>Reset</h3>
-    <div class="buttons">
-      <button class="quiet" id="restart">Restart</button>
-      <button class="quiet" id="reset">Factory reset</button>
-    </div>
   </div>
 </section>
 
@@ -226,11 +245,6 @@
   </form>
 </dialog>
 
-<dialog id="store-dialog">
-  <h2>Add app</h2>
-  <div class="offers" id="store-rows"></div>
-  <div class="buttons"><button type="button" class="quiet" data-close>Close</button></div>
-</dialog>
 
 <dialog id="updating" class="updating">
   <svg class="mark" viewBox="0 0 11 11" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor"><path d="M4 1h6v1H4zM9 2h1v5H9zM1 4h1v5H1zM1 9h6v1H1z"/></svg>

@@ -360,39 +360,34 @@ function openAppInfo(app) {
 
 /* ---- the tiles, and adding one ---- */
 
+/* Whether the sources were read: until then the catalog says it is loading. */
+let catalogsRead = false;
+
 /* What the catalogs have and the device does not. */
 const available = () => offered.filter(offer => !installed.some(have => have.name === offer.app.name));
 
-/* The last tile: a way to add an application, while there is a place for one. */
-function addTile() {
-  const add = make("button", { className: "tile add", title: "Add app" });
-  add.append(pixels(PLUS, 4));
-  add.disabled = installed.length >= SLOTS;
-  add.addEventListener("click", openStore);
-  return add;
-}
-
-function openStore() {
-  /* What was here before comes first: it returns with its settings. */
+/* The catalog: what the sources have and the device does not, in columns under the installed
+ * ones. What was here before comes first: it returns with its settings. */
+function drawCatalog() {
   const kept = offer => removed.includes(offer.app.name);
-  const rows = available().sort((a, b) => kept(b) - kept(a)).map(offer => {
-    const row = make("div", { className: "offer" }), text = make("div");
-    const needed = firmwareNeeded(offer.app);
-    text.append(make("b", { textContent: offer.app.title }),
-                make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
-                                              (needed ? " - " + t("needs firmware {0}", needed) : "") }));
-    const button = make("button", { textContent: "Install" });
-    button.disabled = Boolean(needed);
-    button.addEventListener("click", async () => {
-      await install(button, offer);
-      byId("store-dialog").close();
+  const isFull = installed.length >= SLOTS;
+  const rows = available().sort((a, b) => kept(b) - kept(a) || a.app.title.localeCompare(b.app.title))
+    .map(offer => {
+      const row = make("div", { className: "offer" }), text = make("div");
+      const needed = firmwareNeeded(offer.app);
+      text.append(make("b", { textContent: offer.app.title }),
+                  make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
+                                                (needed ? " - " + t("needs firmware {0}", needed) : "") }));
+      const button = make("button", { className: "quiet", textContent: "Install" });
+      button.disabled = Boolean(needed) || isFull;
+      button.addEventListener("click", () => install(button, offer));
+      row.append(picture(offer.app.icon, 3), text, button);
+      return row;
     });
-    row.append(picture(offer.app.icon, 3), text, button);
-    return row;
-  });
-  byId("store-rows").replaceChildren(...rows);
-  if (!rows.length) byId("store-rows").textContent = "No apps available.";
-  byId("store-dialog").showModal();
+  const view = byId("catalog-rows");
+  view.replaceChildren(...rows);
+  if (!rows.length && catalogsRead) view.append(make("p", { className: "note", textContent: "No apps available." }));
+  show("catalog-count", catalogsRead ? String(rows.length) : "");
 }
 
 /* The tiles stand as the device's menu does: in the order the user set on the device,
@@ -406,8 +401,9 @@ function inMenuOrder(apps) {
 
 function drawTiles() {
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
-  byId("tiles").replaceChildren(...tiles, addTile());
+  byId("tiles").replaceChildren(...tiles);
   show("app-count", t("{0} of {1}", installed.length, SLOTS));
+  drawCatalog();
 }
 
 async function loadApps() {
@@ -439,6 +435,7 @@ async function loadCatalogs() {
     }
   }
   offered = found;
+  catalogsRead = true;
   drawTiles();
   loadGlyphs();
   for (const source of silent) toast(t("Source unavailable: {0}", source), "error");

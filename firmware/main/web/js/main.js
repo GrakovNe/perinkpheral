@@ -14,6 +14,7 @@ async function loadAll() {
     await loadSources();
     /* the packs on offer are the official catalog's, on the internet */
     byId("glyph-rows").textContent = "Catalog unavailable.";
+    byId("catalog-rows").textContent = "Catalog unavailable.";
     if (!location.hash) location.hash = "#settings:network";
     return;
   }

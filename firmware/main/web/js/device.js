@@ -81,6 +81,7 @@ async function loadStatus() {
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
   show("ota-installed", status.firmware || "");
+  show("ota-slot", status.slot || "");
 }
 
 function drawStatus() {
@@ -208,7 +209,7 @@ async function updateFirmware(url, options) {
 
 byId("updating-reload").addEventListener("click", () => location.reload());
 
-byId("firmware").addEventListener("submit", event => {
+byId("custom-firmware").addEventListener("submit", event => {
   event.preventDefault();
   updateFirmware("/api/ota", { method: "POST", body: byId("image").files[0] });
 });
@@ -228,12 +229,25 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   const version = release ? release.tag_name.replace(/^v/, "") : "";
   const image = release ? release.assets.find(asset => asset.name === RELEASE_IMAGE) : null;
   if (!release || !image) return toast("No releases.");
-  if (!isNewer(releaseOf(version), releaseOf(status.firmware || ""))) return toast("Up to date.");
-  /* The release's notes are the version's section of CHANGES.md, the flasher's line after them. */
+  const isNewerOne = isNewer(releaseOf(version), releaseOf(status.firmware || ""));
+  /* The latest, and what it brings when it is newer: the version's section of CHANGES.md,
+   * the flasher's line after it. */
+  show("ota-latest", isNewerOne ? version : t("{0} - up to date", version));
+  byId("ota-latest-row").hidden = false;
   const notes = (release.body || "").split(/\n\s*\nA first flash/)[0].trim();
-  if (!await confirmed(t("Update to {0}?", version), "Update", notes)) return;
-  updateFirmware("/api/ota/release", post({ url: image.browser_download_url, size: image.size }));
+  show("ota-notes", isNewerOne ? notes : "");
+  byId("ota-notes").hidden = !isNewerOne || !notes;
+  byId("ota-update").hidden = !isNewerOne;
+  latestImage = isNewerOne ? image : null;
+  if (!isNewerOne) toast("Up to date.");
 }));
+
+/* The release found newer by the check above: the device asks on its own screen before it is
+ * written, so the page does not ask again. */
+let latestImage = null;
+byId("ota-update").addEventListener("click", () => {
+  if (latestImage) updateFirmware("/api/ota/release", post({ url: latestImage.browser_download_url, size: latestImage.size }));
+});
 
 /* ---- restart and reset ---- */
 

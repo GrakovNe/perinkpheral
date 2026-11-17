@@ -155,14 +155,15 @@ button.icon:hover:not(:disabled) { border-color: var(--ink); background: var(--p
 .tile button.action { width: 100%; margin: 0; }
 .tile .action + .action { margin-top: .6rem; }
 .tile .tools { position: absolute; top: .6rem; right: .6rem; display: flex; gap: .2rem; }
-/* The last tile adds one: a plus, drawn as the device draws it. */
-button.tile.add { margin: 0; height: auto; align-items: center; justify-content: center; color: var(--ink);
-                  background: transparent; border-style: dashed; }
-button.tile.add:hover:not(:disabled) { border-style: solid; }
-button.tile.add:disabled { color: var(--line); border-color: var(--line); opacity: 1; }
 .picture { flex: none; }
 .picture.none { border: 1px solid var(--line); }
-.offers { display: grid; margin: .5rem 0; max-height: 60vh; overflow: auto; }
+/* The catalog under the installed: a line above it, and what it offers in columns. */
+.catalog-head { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--ink); }
+.catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+           column-gap: 2.5rem; }
+.catalog > .note { grid-column: 1 / -1; }
+.catalog .offer button { margin: 0; flex: none; }
+#ota-notes { margin: 0 0 1rem; }
 .offer { display: flex; align-items: center; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--line); }
 .offer > div:not(.picture) { flex: 1; min-width: 0; }
 .offer b { display: block; font-weight: 400; }

@@ -16,7 +16,8 @@ const RUSSIAN = {
   "Credits": "Лицензии",
 
   /* apps */
-  "Add app": "Добавить приложение", "Sources": "Источники", "Default": "По умолчанию",
+  "Add app": "Добавить приложение", "Sources": "Источники", "Catalog": "Каталог",
+  "Latest": "Последняя", "{0} - up to date": "{0} - актуальна", "Default": "По умолчанию",
   "Install": "Установить", "Update": "Обновить", "Remove": "Удалить", "Set up": "Настроить",
   "Info": "Сведения", "Loading": "Загрузка", "No apps available.": "Нет доступных приложений.",
   "Update needs firmware {0}": "Для обновления нужна прошивка {0}",

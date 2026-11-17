@@ -8,6 +8,10 @@ the device's page - without one, the notes are the commits since the release bef
 
 - The time zone is chosen by a city on the device's page too, from the list the device has;
   "Custom" takes a POSIX string. Detect finds the browser's city by its zone's name.
+- Firmware is a section of its own: what is installed, OTA with a newer release's notes on the
+  screen, and Custom firmware. Device keeps what the device is, and restart and reset.
+- Apps and the catalog are one page: the installed apps, and under a line what the sources
+  have, in columns, with the sources' gear beside it.
 - The log is a section of its own: a window as tall as the screen, a line a row with its time
   of day, a search, warnings and errors marked.
 - The cities are in the device's language, on the device and on the page, sorted by the names
