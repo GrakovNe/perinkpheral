@@ -72,6 +72,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # the tools' libraries from a cache, not from Maven Central every run: it answers 429
+      - uses: gradle/actions/setup-gradle@v4
       - name: wasi-sdk
         run: |
           curl -sSL "$WASI_SDK_URL" | tar -xz -C "$RUNNER_TEMP"
@@ -105,6 +107,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # the tools' libraries from a cache, not from Maven Central every run: it answers 429
+      - uses: gradle/actions/setup-gradle@v4
       - name: wasi-sdk
         shell: bash
         run: |
