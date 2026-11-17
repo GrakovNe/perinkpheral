@@ -111,11 +111,16 @@ async function followLog() {
   clearTimeout(logTimer);
   if (currentSection() !== "log" || document.hidden) return;
   try { await readLog(false); } catch (error) { /* away for a moment: asked again */ }
-  if (byId("follow-log").checked) logTimer = setTimeout(followLog, LOG_EVERY_MS);
+  if (isFollowing()) logTimer = setTimeout(followLog, LOG_EVERY_MS);
 }
 
 byId("load-log").addEventListener("click", event => busy(event.target, () => readLog(true)));
-byId("follow-log").addEventListener("change", followLog);
+/* Follow is a button that stays down: pressed, in ink, while the log is followed. */
+const isFollowing = () => byId("follow-log").getAttribute("aria-pressed") === "true";
+byId("follow-log").addEventListener("click", () => {
+  byId("follow-log").setAttribute("aria-pressed", String(!isFollowing()));
+  followLog();
+});
 byId("clear-log").addEventListener("click", () => { logLines.length = 0; drawLog(); });
 byId("log-search").addEventListener("input", drawLog);
 byId("clear-search").addEventListener("click", () => { byId("log-search").value = ""; drawLog(); });

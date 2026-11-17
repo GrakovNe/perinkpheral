@@ -122,6 +122,8 @@ button:hover:not(:disabled) { transform: translate(calc(-1 * var(--lift)), calc(
                               box-shadow: var(--lift) var(--lift) 0 var(--ink); }
 button:active:not(:disabled) { transform: none; box-shadow: none; }
 button.quiet { color: var(--ink); background: var(--paper); }
+/* A button that stays down while what it names is on: in ink, as a chosen tab. */
+button.toggle[aria-pressed=true] { color: var(--paper); background: var(--ink); }
 button:disabled { opacity: .45; cursor: default; }
 button.busy, button.done { opacity: 1; }
 button.busy::after { content: ""; width: 1.9em; text-align: left; animation: dots 1.2s steps(1) infinite; }
@@ -193,7 +195,7 @@ html:lang(ru) pre:empty::before { content: "Пусто."; }
 .log-tools { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
 .log-tools h3 { flex: 1; margin: 0; padding: 0; border: none; font-size: .85rem; letter-spacing: .08em;
                 text-transform: uppercase; color: var(--dim); }
-.log-tools label.check, .log-tools button { margin: 0; }
+.log-tools button { margin: 0; }
 .log-view { height: max(20rem, calc(100vh - 21rem)); overflow: auto; border: 1px solid var(--ink);
             padding: .5rem 0; font-size: .8rem; line-height: 1.6; }
 .log-view .note { margin: 0; padding: 0 1rem; }
