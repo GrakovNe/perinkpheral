@@ -40,18 +40,7 @@ capture can watch a running device; `idf.py flash` resets it, and the
 port disappears for a moment while it does:
 
 ```bash
-python - "$PORT" <<'EOF'
-import serial, sys, time
-P = sys.argv[1]
-s = None; end = time.time() + 30; buf = b''
-while time.time() < end:
-    try:
-        if s is None: s = serial.Serial(P, 115200, timeout=0.2)
-        buf += s.read(4096)
-    except Exception:
-        s = None; time.sleep(0.3)
-print(buf.decode('utf-8', 'replace'))
-EOF
+tools/perinkpheral console "$PORT" --seconds 30
 ```
 
 Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`

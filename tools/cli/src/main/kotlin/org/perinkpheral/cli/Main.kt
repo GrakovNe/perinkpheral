@@ -70,6 +70,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral serve [app] [--port 8400]    a page with the live screen, the buttons, the log
   Over USB, for a device with no network:
     perinkpheral usb <port> [--keys 3,2] [--out shot.png] [--wait 2.5]
+    perinkpheral console <port> [--seconds 30] what the console says, through a reset too
 
   The checkout is found by the launcher (tools/perinkpheral) or PERINKPHERAL; wasi-sdk by
   WASI_SDK_PATH."""
@@ -321,6 +322,10 @@ private fun run(raw: Array<String>): Int {
                 }
             }.serve(arguments.option("port")?.toInt() ?: 8400)
             Thread.currentThread().join()
+        }
+        "console" -> UsbConsole.follow(arguments.word(1, "the port"), (arguments.option("seconds") ?: "30").toDouble()) {
+            print(it)
+            System.out.flush()
         }
         "usb" -> UsbConsole(arguments.word(1, "the port")).use { console ->
             val wait = ((arguments.option("wait") ?: "2.5").toDouble() * 1000).toLong()

@@ -82,5 +82,38 @@ class UsbConsole(private val port: String) : AutoCloseable {
     companion object {
         private const val DUMP_FRAME_KEY = 'p'
         private const val FRAME_TIMEOUT_MS = 10_000L
+        private const val REOPEN_PAUSE_MS = 300L
+        private const val IDLE_PAUSE_MS = 50L
+
+        /**
+         * What the console says for `seconds`, handed on as it comes. Opening the port does not
+         * reset the board, so a running device is watched as it runs; a flash resets it and the
+         * port is gone for a moment, and is opened again when it is back.
+         */
+        fun follow(port: String, seconds: Double, said: (String) -> Unit) {
+            val end = System.currentTimeMillis() + (seconds * 1000).toLong()
+            val buffer = ByteArray(4096)
+            val flag = if (System.getProperty("os.name").lowercase().contains("mac")) "-f" else "-F"
+            while (System.currentTimeMillis() < end) {
+                try {
+                    val stty = ProcessBuilder("stty", flag, port, "115200", "raw", "-echo").redirectErrorStream(true).start()
+                    stty.inputStream.readBytes()
+                    if (stty.waitFor() != 0) throw IOException("$port is not there")
+                    FileInputStream(File(port)).use { input ->
+                        while (System.currentTimeMillis() < end) {
+                            if (input.available() == 0) {
+                                Thread.sleep(IDLE_PAUSE_MS)
+                                continue
+                            }
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            said(String(buffer, 0, count, Charsets.UTF_8))
+                        }
+                    }
+                } catch (error: IOException) {
+                    Thread.sleep(REOPEN_PAUSE_MS)
+                }
+            }
+        }
     }
 }
