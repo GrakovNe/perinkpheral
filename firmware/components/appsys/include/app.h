@@ -55,8 +55,8 @@ typedef struct {
     bool (*poll_now)(const char *app_name, int poll);
     /* Queues the request. Returns HOST_OK or HOST_ERR_*. */
     int32_t (*http_request)(const char *app_name, const app_request_t *request);
-    /* Sets the interval of a poll. False: no such poll. */
-    bool (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
+    /* Sets or clears (0) the code override. Returns HOST_OK or HOST_ERR_*. */
+    int32_t (*poll_set_interval)(const char *app_name, int poll, uint32_t every_s);
     /* Sets alarm `alarm`. `when`: seconds from now (0: cancel), or unix
      * seconds when `is_absolute`. False: the alarm table is full. */
     bool (*alarm_set)(const char *app_name, int alarm, int64_t when, bool is_absolute);

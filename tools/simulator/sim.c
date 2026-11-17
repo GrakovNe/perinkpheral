@@ -175,6 +175,7 @@ static app_delivery_state_t s_delivery;
 static wm_t                 s_wm;
 static deadline_table_t     s_deadlines;
 static uint32_t             s_poll_every_s[APP_POLLS_MAX];
+static uint32_t             s_poll_override_s[APP_POLLS_MAX];
 static int32_t              s_alarm_every_s[HOST_ALARM_COUNT];
 static uint8_t              s_bits[FRAME_BYTES];
 static gfx_t                s_screen;
@@ -910,15 +911,58 @@ static bool services_poll_now(const char *app_name, int poll)
     return true;
 }
 
-static bool services_poll_interval(const char *app_name, int poll, uint32_t every_s)
+static uint32_t manifest_poll_seconds(int poll)
 {
-    (void)app_name;
-    if (poll < 0 || poll >= s_manifest.poll_count) {
-        return false;
+    char pace[32];
+    if (s_manifest.poll_every_key[poll][0] != '\0' &&
+        setting_of(NULL, s_manifest.poll_every_key[poll], pace, sizeof pace)) {
+        uint32_t chosen = app_manifest_interval_seconds(pace);
+        if (chosen > 0) {
+            return chosen;
+        }
     }
-    s_poll_every_s[poll] = every_s;
-    set_due(DUE_POLL, poll, (int64_t)every_s * MS_PER_SECOND);
-    return true;
+    return s_manifest.poll_every_s[poll];
+}
+
+/* Host records stay outside the application's store and its quota. */
+static void poll_override_path(char path[PATH_BYTES], const char *app_name, int poll)
+{
+    snprintf(path, PATH_BYTES, "%s/host/%s-poll-%d", s_options.state, app_name, poll);
+}
+
+static int32_t services_poll_interval(const char *app_name, int poll, uint32_t every_s)
+{
+    if (poll < 0 || poll >= s_manifest.poll_count ||
+        (every_s != 0 && (every_s < APP_POLL_EVERY_MIN_S || every_s > APP_POLL_EVERY_MAX_S))) {
+        return HOST_ERR_ARGUMENT;
+    }
+    if (every_s == 0 || s_poll_override_s[poll] != every_s) {
+        char path[PATH_BYTES], folder[PATH_BYTES];
+        poll_override_path(path, app_name, poll);
+        if (every_s == 0) {
+            if (remove(path) != 0 && errno != ENOENT) {
+                return HOST_ERR_FAILED;
+            }
+        } else {
+            snprintf(folder, sizeof folder, "%s/host", s_options.state);
+            make_folders(folder);
+            FILE *file = fopen(path, "wb");
+            if (file == NULL) {
+                return HOST_ERR_FAILED;
+            }
+            bool written = fwrite(&every_s, sizeof every_s, 1, file) == 1;
+            if (fclose(file) != 0 || !written) {
+                return HOST_ERR_FAILED;
+            }
+        }
+        s_poll_override_s[poll] = every_s;
+    }
+    uint32_t effective_s = every_s != 0 ? every_s : manifest_poll_seconds(poll);
+    if (s_poll_every_s[poll] != effective_s) {
+        s_poll_every_s[poll] = effective_s;
+        set_due(DUE_POLL, poll, (int64_t)effective_s * MS_PER_SECOND);
+    }
+    return HOST_OK;
 }
 
 static int32_t services_request(const char *app_name, const app_request_t *request)
@@ -1142,10 +1186,23 @@ static int32_t services_setting_set(const char *key, const char *value)
     return HOST_OK;
 }
 
+static int32_t services_time_set(int64_t unix_seconds)
+{
+    if (s_settings.time_auto != 0 || unix_seconds <= 0 || unix_seconds > 253402300799LL) {
+        return HOST_ERR_FAILED;
+    }
+    s_options.at = unix_seconds - s_forward_ms / MS_PER_SECOND;
+    s_at_started = (int64_t)time(NULL);
+    set_due(DUE_MINUTE, 0, (SECONDS_PER_MINUTE - unix_seconds % SECONDS_PER_MINUTE) * MS_PER_SECOND);
+    wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
+    return HOST_OK;
+}
+
 static const app_services_t SERVICES = {
     .system_setting_get = services_setting_get,
     .system_setting_set = services_setting_set,
     .system_setting_range = services_setting_range,
+    .system_time_set = services_time_set,
     .unix_time = services_unix_time,
     .time_zone_offset = services_offset,
     .time_zone_offset_at = offset_at,
@@ -1298,14 +1355,19 @@ static bool load_app(void)
     memset(s_alarm_every_s, 0, sizeof s_alarm_every_s);
     memset(&s_header_kept, 0, sizeof s_header_kept);
     for (int poll = 0; poll < s_manifest.poll_count; poll++) {
-        char pace[32];
-        uint32_t every = s_manifest.poll_every_s[poll];
-        if (s_manifest.poll_every_key[poll][0] != '\0' &&
-            setting_of(NULL, s_manifest.poll_every_key[poll], pace, sizeof pace)) {
-            uint32_t chosen = app_manifest_interval_seconds(pace);
-            every = chosen > 0 ? chosen : every;
+        char path[PATH_BYTES];
+        poll_override_path(path, s_options.app, poll);
+        FILE *file = fopen(path, "rb");
+        uint32_t kept_s = 0;
+        if (file != NULL) {
+            if (fread(&kept_s, sizeof kept_s, 1, file) != 1 ||
+                kept_s < APP_POLL_EVERY_MIN_S || kept_s > APP_POLL_EVERY_MAX_S) {
+                kept_s = 0;
+            }
+            fclose(file);
         }
-        s_poll_every_s[poll] = every;
+        s_poll_override_s[poll] = kept_s;
+        s_poll_every_s[poll] = kept_s != 0 ? kept_s : manifest_poll_seconds(poll);
         set_due(DUE_POLL, poll, FIRST_POLLS_MS);
     }
     set_due(DUE_MINUTE, 0, (SECONDS_PER_MINUTE - unix_now() % SECONDS_PER_MINUTE) * MS_PER_SECOND);
@@ -1593,6 +1655,9 @@ static void handle(int socket_fd, const request_t *request)
         app_delivery_t settings = { .kind = APP_DELIVERY_SETTINGS };
         deliver(&settings);
         for (int poll = 0; poll < s_manifest.poll_count; poll++) {
+            if (s_poll_override_s[poll] == 0) {
+                s_poll_every_s[poll] = manifest_poll_seconds(poll);
+            }
             set_due(DUE_POLL, poll, 0);
         }
         answer_text(socket_fd, stored == HOST_OK ? 200 : 400, stored == HOST_OK ? "stored" : "refused");

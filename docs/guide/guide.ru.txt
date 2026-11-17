@@ -1606,9 +1606,6 @@ Reads from an offset. Returns the number of bytes read; 0 at or past the end
 Writes at an offset within the file or at its end. Length 0 at offset 0 deletes the file. Needs <code>"writes_files": true</code>
 Записывает по смещению внутри файла или в его конец. Длина 0 по смещению 0 удаляет файл. Нужно <code>"writes_files": true</code>
 
-Inside a data handler: fills a <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
-Внутри обработчика данных: заполняет <code>host_response_t</code>: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
-
 21. Time
 21. Время
 
@@ -1620,9 +1617,6 @@ Offset of local time from UTC in seconds, daylight saving included
 
 Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sunday, hour, minute, second
 Заполняет <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = воскресенье, hour, minute, second
-
-Unix time of a local date and time. Out-of-range days carry into the next month
-Время Unix для местных даты и времени. Дни за пределами месяца переходят в следующий
 
 Milliseconds since device start; includes sleep time
 Миллисекунды с запуска устройства; включая время сна
@@ -1881,9 +1875,6 @@ Numbers are integers. <code>app_value_number()</code> returns the value scaled b
 
 Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new response.
 Заменяйте отображаемые данные только по <code>HOST_DATA_LAST</code>. Доставка может прекратиться без последнего фрагмента и без ошибки (раздел 3). <code>HOST_DATA_FIRST</code> всегда начинает новый ответ.
-
-Inside the handler, <code>data_response()</code> returns the response metadata: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After.
-Внутри обработчика <code>data_response()</code> возвращает метаданные ответа: статус, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After.
 
 Requests from code
 Запросы из кода
@@ -2533,9 +2524,6 @@ What the application does, in a line: shown in the catalog and on the web page. 
 A question that OK answers: removal, reset, anything that cannot be undone
 Вопрос, на который отвечает OK: удаление, сброс, всё, что нельзя отменить
 
-Requests the screen from a background handler. Granted by the host at most once per 30 s, not within 30 s of a button press, and not over a question waiting for an answer
-Запрашивает экран из фонового обработчика. Хост даёт его не чаще раза в 30 с, не раньше чем через 30 с после нажатия кнопки и не поверх вопроса, ждущего ответа
-
 Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen
 Хранит до <code>HOST_SESSION_MAX</code> (128) байт, пока приложение в стеке. Длина 0 очищает. <code>HOST_ERR_ARGUMENT</code> для экземпляра, загруженного вне экрана
 
@@ -2932,12 +2920,6 @@ The 16-request ceiling is per application, with no reserved slots. All queued re
 An icon and short text above every screen with a header, including the owning application's screen. A screen's left text takes precedence over kept left status; kept right status takes precedence over the screen's right text
 Иконка и короткий текст над экранами с заголовком, включая экран владельца. Собственный левый текст экрана важнее сохранённого левого статуса; сохранённый правый статус важнее правого текста экрана
 
-For a streamed background response, focus is considered when delivery ends. A refused focus request is discarded, with no retry. A request made in app_on_terminate() is too late for that decision.
-При потоковом фоновом ответе запрос экрана рассматривается по завершении доставки. Отклонённый запрос отбрасывается без повтора. Вызов из app_on_terminate() уже не влияет на это решение.
-
-The device has one shared pool of 24 repeating alarms. An application may use several slots; none are reserved per application. HOST_ALARM_COUNT still limits each application to four alarm ids.
-Устройство имеет один общий пул из 24 повторяющихся будильников. Приложение может занимать несколько мест; места на приложение не резервируются. HOST_ALARM_COUNT по-прежнему ограничивает каждое приложение четырьмя идентификаторами будильников.
-
 Application string keys match <code>[a-z][a-z0-9_]*</code>. Generated constants use <code>STR_</code> followed by the uppercase key.
 Ключи строк приложения соответствуют <code>[a-z][a-z0-9_]*</code>. Сгенерированные константы начинаются с <code>STR_</code>, затем идёт ключ в верхнем регистре.
 
@@ -3064,9 +3046,6 @@ Store and files
 Queues a manifest poll; repeated pending requests are coalesced. Does not wait for a response
 Ставит опрос манифеста в очередь; повторные ожидающие запросы объединяются. Ответа не ждёт
 
-Positive values are clamped to 10 - 86400 s. A changed value resets the deadline; the same value does not. A manifest interval setting takes precedence after restart or settings save. Persistence failures are not returned
-Положительные значения ограничиваются диапазоном 10 - 86400 с. Новое значение сбрасывает срок; прежнее - нет. Настройка интервала из манифеста важнее после перезапуска или сохранения настроек. Ошибки сохранения не возвращаются
-
 Queues a request; up to 16 of the application's wait. Methods: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Headers: "Name: value" lines
 Ставит запрос в очередь; до 16 ожидающих на приложение. Методы: <code>HOST_HTTP_GET</code>, <code>HOST_HTTP_POST</code>, <code>HOST_HTTP_PUT</code>, <code>HOST_HTTP_DELETE</code>, <code>HOST_HTTP_PATCH</code>, <code>HOST_HTTP_HEAD</code>, <code>HOST_HTTP_PROPFIND</code>, <code>HOST_HTTP_REPORT</code>. Заголовки - строки «Name: value»
 
@@ -3084,9 +3063,6 @@ Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</
 
 A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key
 Настройка хоста по ключу, как текст: ключи <code>/api/settings</code> страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> и остальные). Запись проверяется, сохраняется и действует сразу, кроме имени устройства, сервера времени и названий системных приложений: они меняются после перезапуска. Пароль Wi-Fi не читается; сеть по ключу не задаётся
-
-Installed applications by id, in the order of their titles: list, title, deferred removal. HOST_OK accepts a removal request; it does not confirm success. Only one pending removal is retained; a later call before processing replaces it. An application cannot remove itself
-Установленные приложения по идентификатору, в порядке названий: список, название, отложенное удаление. HOST_OK означает принятие запроса, а не успех удаления. Хранится один ожидающий запрос; следующий до обработки заменяет предыдущий. Приложение не может удалить само себя
 
 <code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen
 <code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Хост его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения
@@ -3208,14 +3184,8 @@ Formats a moment in the device's language (examples in section 11). Styles: <cod
 One-shot alarm at Unix seconds 1 - 253402300799
 Однократный будильник на время Unix от 1 до 253402300799 секунд
 
-Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds, 0 - 86400 (0: one period). Shared device pool: 24 repeating alarms
-Повторяющийся будильник с периодом 60 - 86400 с. Первый вызов через <code>first_in</code> секунд, 0 - 86400 (0: один период). Общий пул устройства - 24 повторяющихся будильника
-
 "-3.46", 1 -> -35; false: absent, not numeric, or outside -INT32_MAX..INT32_MAX
 "-3.46", 1 -> -35; false: значение отсутствует, не является числом или вне -INT32_MAX..INT32_MAX
-
-app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(), which uses the offset at the selected moment.
-app_date_seconds() возвращает календарные секунды, считая выбранные поля временем UTC. Для настоящего времени Unix передайте эти поля в host_local_time_t в time_from_local(): используется смещение на выбранный момент.
 
 json_pick_finish() returns false if the document did not end whole. Do not accept extracted values as a complete response in that case.
 json_pick_finish() возвращает false, если документ не завершён целиком. В таком случае не принимайте извлечённые значения за полный ответ.
@@ -3306,3 +3276,951 @@ From a button handler: immediate. Other handlers follow the refresh policy, norm
 
 A response chunk arrives. <code>request</code> is the poll number or request tag. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>HOST_DATA_LAST</code>, <code>HOST_DATA_FAILED</code>
 Пришла часть ответа. <code>request</code> - номер опроса или тег запроса. <code>flags</code>: <code>HOST_DATA_FIRST</code>, <code>HOST_DATA_LAST</code>, <code>HOST_DATA_FAILED</code>
+
+Sets a persistent code override of 10 - 86400 s; other nonzero values or an unknown poll give HOST_ERR_ARGUMENT. 0 forgets the override and resumes the manifest or interval setting. The code override takes precedence over that setting. A changed effective interval resets the deadline from now; the same interval does not. HOST_ERR_FAILED means the override could not be kept or forgotten
+Задаёт сохраняемый интервал из кода от 10 до 86400 с; другое ненулевое значение или неизвестный опрос дают HOST_ERR_ARGUMENT. 0 удаляет этот интервал и возвращает интервал манифеста или его настройки. Интервал из кода имеет приоритет над настройкой. Изменение действующего интервала отсчитывает срок заново от текущего момента; прежний интервал срок не меняет. HOST_ERR_FAILED означает, что интервал не удалось сохранить или удалить
+
+Inside a data handler: copies the first min(capacity, sizeof(host_response_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+В обработчике данных копирует первые min(capacity, sizeof(host_response_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+
+Returns HOST_OK and writes Unix seconds to int64_t *unix_time; an invalid pointer gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence
+Возвращает HOST_OK и записывает секунды Unix в int64_t *unix_time; неверный указатель даёт HOST_ERR_ARGUMENT и не меняет результат. Поля за пределами диапазона переносятся дальше. Пропущенное местное время сдвигается вперёд на величину перевода часов (02:30 становится 03:30 при часовом пропуске); для повторяющегося времени выбирается первое вхождение
+
+Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself
+Установленные приложения по id, в порядке названий: список, название, отложенное удаление. HOST_OK означает, что удаление поставлено в очередь до возврата из обработчика, а не завершено. Второе удаление в том же обработчике даёт HOST_ERR_NO_SPACE и сохраняет первый запрос. Приложение не может удалить само себя
+
+request_focus() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.
+request_focus() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.
+
+Requests the screen from a background handler; decided after delivery ends. Refused within 30 s of a press, over a question waiting for its answer, or within 30 s of the last grant. A refusal is discarded, with no retry
+Запрашивает экран из фонового обработчика; решение принимается после завершения доставки. Отклоняется в течение 30 с после нажатия, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешения. Отклонённый запрос отбрасывается без повтора
+
+HOST_ALARM_REPEATING_MAX is the device pool of 24 repeating alarms, shared by all applications. One application may take several slots; none are reserved per application. HOST_ALARM_COUNT still limits each application to four alarm ids.
+HOST_ALARM_REPEATING_MAX задаёт общий для всех приложений пул устройства из 24 повторяющихся будильников. Одно приложение может занять несколько мест; за отдельным приложением места не закреплены. HOST_ALARM_COUNT по-прежнему ограничивает каждое приложение четырьмя id будильников.
+
+Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds, 0 - 86400 (0: one period). HOST_ALARM_REPEATING_MAX: 24 shared slots; one application may take several
+Повторяющийся будильник с периодом 60 - 86400 с. Первый вызов через <code>first_in</code> секунд, 0 - 86400 (0: один период). HOST_ALARM_REPEATING_MAX: 24 общих места; одно приложение может занять несколько
+
+app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. The host applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.
+app_date_seconds() возвращает календарные секунды, считая выбранные поля временем UTC. Для настоящего времени Unix передайте поля в host_local_time_t в time_from_local(&amp;parts, &amp;unix_time) и проверьте HOST_OK. Хост учитывает местный часовой пояс, сдвигает пропущенное время вперёд на величину перевода часов и выбирает первое вхождение повторяющегося времени.
+
+Inside the handler, <code>data_response(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.
+В обработчике <code>data_response(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.
+
+Repeating alarm slots shared by all applications; one application may take several
+Общие для всех приложений места повторяющихся будильников; одно приложение может занять несколько
+
+400 x 300 px
+=
+
+400 x 260 px
+=
+
+HTTP, HTTPS
+=
+
+UTF-8
+=
+
+app_init, app_on_focus, app_on_draw ... app_on_blur, app_on_terminate
+=
+
+app_on_data / app_on_values / app_on_alarm / app_on_intent / app_on_settings
+=
+
+app_on_installed / app_on_updated
+=
+
+app_on_blur, app_on_terminate
+=
+
+module
+=
+
+code
+=
+
+memory
+=
+
+firmware
+=
+
+name
+=
+
+title
+=
+
+version
+=
+
+abi
+=
+
+fullscreen
+=
+
+icon
+=
+
+polls
+=
+
+hosts
+=
+
+intents
+=
+
+system
+=
+
+companion
+=
+
+certificates
+=
+
+url
+=
+
+every
+=
+
+headers
+=
+
+pick
+=
+
+each
+=
+
+prefix
+=
+
+text
+=
+
+number
+=
+
+choice
+=
+
+toggle
+=
+
+secret
+=
+
+place
+=
+
+link
+=
+
+list
+=
+
+HOST_FONT_SMALL
+=
+
+HOST_FONT_TEXT
+=
+
+HOST_FONT_MEDIUM
+=
+
+HOST_FONT_LARGE
+=
+
+HOST_FONT_DISPLAY
+=
+
+HOST_FONT_HUGE
+=
+
+HOST_ICON_SIGNAL
+=
+
+HOST_ICON_NO_SIGNAL
+=
+
+HOST_ICON_UP
+=
+
+HOST_ICON_DOWN
+=
+
+HOST_ICON_LEFT
+=
+
+HOST_ICON_RIGHT
+=
+
+HOST_ICON_CHECK
+=
+
+HOST_ICON_CROSS
+=
+
+HOST_ICON_PLUS
+=
+
+HOST_ICON_MINUS
+=
+
+HOST_ICON_TRASH
+=
+
+HOST_ICON_GEAR
+=
+
+HOST_ICON_CLOCK
+=
+
+HOST_ICON_HOURGLASS
+=
+
+HOST_ICON_BELL
+=
+
+HOST_ICON_INFO
+=
+
+HOST_ICON_WARNING
+=
+
+HOST_ICON_PLAY
+=
+
+HOST_ICON_PAUSE
+=
+
+HOST_ICON_UPDATE
+=
+
+HOST_ICON_SUN
+=
+
+HOST_ICON_PARTLY_CLOUDY
+=
+
+HOST_ICON_CLOUD
+=
+
+HOST_ICON_RAIN
+=
+
+HOST_ICON_SNOW
+=
+
+HOST_ICON_THUNDER
+=
+
+HOST_ICON_WIND
+=
+
+HOST_ICON_UMBRELLA
+=
+
+HOST_ICON_DROP
+=
+
+HOST_ICON_THERMOMETER
+=
+
+HOST_ICON_BOLT
+=
+
+HOST_ICON_PLUG
+=
+
+HOST_ICON_BATTERY
+=
+
+HOST_ICON_HOME
+=
+
+HOST_ICON_BULB
+=
+
+HOST_ICON_DOOR
+=
+
+HOST_ICON_MOON
+=
+
+HOST_ICON_CHIP
+=
+
+HOST_ICON_NETWORK
+=
+
+HOST_ICON_GAUGE
+=
+
+HOST_ICON_CO2
+=
+
+<span class="icon-sample"><img src="{{ROOT}}/docs/guide/screens/icons-more.png" style="left:-16px;top:-267px" alt=""></span>CO2
+=
+
+HOST_ICON_SUNRISE
+=
+
+HOST_ICON_SUNSET
+=
+
+pictures/things.txt
+=
+
+ui_list_row, ui_list_first, ui_list_visible
+=
+
+ui_cell, ui_cell_fit
+=
+
+ui_value
+=
+
+ui_notice
+=
+
+ui_reason
+=
+
+ui_actions, ui_button
+=
+
+ui_picker
+=
+
+ui_date
+=
+
+ui_frame
+=
+
+ui_bar
+=
+
+ui_chart
+=
+
+ui_title, ui_text, ui_text_lines, ui_icon
+=
+
+HOST_REDRAW_NORMAL
+=
+
+HOST_REDRAW_SOON
+=
+
+HOST_REDRAW_CLEAN
+=
+
+HOST_REDRAW_NO_BLINK
+=
+
+HOST_REDRAW_QUESTION
+=
+
+BACK
+=
+
+OK
+=
+
+UP, DOWN
+=
+
+files/russian-root-ca.pem
+=
+
+HOST_FAILED_NO_NETWORK (-1)
+=
+
+HOST_FAILED_NO_ANSWER (-2)
+=
+
+HOST_FAILED_NOT_READY (-3)
+=
+
+HOST_FAILED_NOT_ALLOWED (-4)
+=
+
+HOST_FAILED_TIMEOUT (-5)
+=
+
+HOST_FAILED_NOT_TRUSTED (-6)
+=
+
+HOST_FAILED_TOO_LARGE (-7)
+=
+
+HOST_FAILED_NO_MEMORY (-8)
+=
+
+HOST_FAILED_*
+=
+
+alarm_set, alarm_set_at, alarm_set_every
+=
+
+notify
+=
+
+request_focus
+=
+
+header_status
+=
+
+app_on_installed, app_on_updated
+=
+
+timer_set(id, milliseconds)
+=
+
+alarm_set(id, seconds)
+=
+
+alarm_set_at(id, unix_time)
+=
+
+alarm_set_every(id, seconds, first_in)
+=
+
+HOST_TIME_CLOCK
+=
+
+HOST_TIME_DATE
+=
+
+HOST_TIME_WEEKDAY
+=
+
+HOST_TIME_WEEKDAY_SHORT
+=
+
+HOST_TIME_LONG_DATE
+=
+
+HOST_TIME_NEAR
+=
+
+HOST_TIME_NEAR_DAY
+=
+
+strings/en.json
+=
+
+strings/ru.json
+=
+
+tools/perinkpheral build &lt;dir&gt; --out &lt;dir&gt;
+=
+
+tools/perinkpheral new &lt;dir&gt; [--title T]
+=
+
+tools/perinkpheral headers &lt;dir&gt; &lt;out&gt;
+=
+
+tools/perinkpheral flags compile|link
+=
+
+tools/perinkpheral run &lt;dir&gt; [--shot f.png]
+=
+
+tools/perinkpheral sim &lt;dir&gt; [--language ru] [--mocks m.json]
+=
+
+tools/perinkpheral serve [dir]
+=
+
+tools/perinkpheral shot [f.png]
+=
+
+tools/perinkpheral press 3 3 2L [--shot f.png]
+=
+
+tools/perinkpheral open &lt;name&gt;
+=
+
+tools/perinkpheral log [--follow] [--app]
+=
+
+tools/perinkpheral set &lt;app&gt; &lt;key&gt; &lt;value&gt;
+=
+
+tools/perinkpheral status
+=
+
+tools/perinkpheral pictures &lt;files&gt;
+=
+
+tools/perinkpheral video &lt;video&gt; --out &lt;bin&gt;
+=
+
+tools/perinkpheral catalog &lt;folder&gt; --out &lt;dir&gt;
+=
+
+/api/sim/background
+=
+
+/api/sim/foreground
+=
+
+/api/sim/intent?kind=started
+=
+
+/api/sim/alarm?id=N
+=
+
+/api/sim/forward?seconds=N
+=
+
+HOST_OK (0)
+=
+
+HOST_ERR_NOT_DRAWING (-1)
+=
+
+HOST_ERR_ARGUMENT (-2)
+=
+
+HOST_ERR_NOT_FOUND (-3)
+=
+
+HOST_ERR_NO_SPACE (-4)
+=
+
+HOST_ERR_FAILED (-5)
+=
+
+void app_init(void)
+=
+
+void app_on_focus(void)
+=
+
+void app_on_blur(void)
+=
+
+void app_on_terminate(void)
+=
+
+void app_on_draw(void)
+=
+
+void app_on_button(int32_t event)
+=
+
+void app_on_back(void)
+=
+
+void app_on_timer(int32_t id)
+=
+
+void app_on_alarm(int32_t id)
+=
+
+void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
+=
+
+void app_on_values(int32_t request, int32_t http_status)
+=
+
+void app_on_settings(void)
+=
+
+void app_on_intent(int32_t intent)
+=
+
+void app_on_installed(void)
+=
+
+void app_on_updated(void)
+=
+
+uint8_t *app_data_buffer(void)
+=
+
+uint8_t *app_strings_buffer(void)
+=
+
+gfx_width(void), gfx_height(void)
+=
+
+gfx_color(color)
+=
+
+gfx_text(x, y, font, text, length)
+=
+
+gfx_text_width(font, text, length)
+=
+
+gfx_text_ink(font, text, length, ink)
+=
+
+gfx_text_fit(font, text, length, max_width, fitted, capacity)
+=
+
+gfx_font_height(font), gfx_font_ascent(font), gfx_font_cap_height(font)
+=
+
+gfx_rect(x, y, w, h, fill)
+=
+
+gfx_line(x0, y0, x1, y1)
+=
+
+gfx_picture(x, y, picture, cell)
+=
+
+gfx_icon(x, y, icon, cell)
+=
+
+gfx_icon_ink(icon, cell, ink)
+=
+
+gfx_bitmap(x, y, w, h, bits)
+=
+
+gfx_bitmap_file(x, y, w, h, name, name_length, offset)
+=
+
+gfx_qr(x, y, cell, text, length)
+=
+
+void request_redraw(flags)
+=
+
+header_text(side, text, length)
+=
+
+ui_text(x, y, style, text, length, max_width)
+=
+
+ui_text_lines(x, y, style, text, length, width, max_lines)
+=
+
+ui_text_width(style, text, length), ui_text_height(style)
+=
+
+ui_title(text, length)
+=
+
+ui_icon(x, y, icon, size)
+=
+
+ui_actions(ok, ok_length, back, back_length)
+=
+
+ui_button(x, y, name, name_length, action, action_length, mirrored)
+=
+
+ui_list_visible(list), ui_list_first(list)
+=
+
+ui_list_row(list, index, label, label_length, value, value_length, icon)
+=
+
+ui_notice(notice)
+=
+
+ui_reason(status)
+=
+
+ui_value(x, y, font, value, value_length, unit, unit_length)
+=
+
+ui_value_width(font, value, value_length, unit, unit_length)
+=
+
+ui_cell(cell, picture, icon)
+=
+
+ui_cell_fit(cell, picture, icon)
+=
+
+ui_bar(x, y, width, value, maximum)
+=
+
+ui_chart(chart, values)
+=
+
+ui_frame(x, y, width, height, arrows)
+=
+
+ui_picker(picker)
+=
+
+ui_date(date)
+=
+
+x, y, width, height
+=
+
+kind
+=
+
+count
+=
+
+decimals
+=
+
+flags
+=
+
+HOST_CHART_AXIS
+=
+
+HOST_CHART_FROM_ZERO
+=
+
+HOST_CHART_RANGE
+=
+
+HOST_CHART_RANGE_RIGHT
+=
+
+HOST_CHART_MARK_LAST
+=
+
+void request_exit(void)
+=
+
+void request_focus(void)
+=
+
+int32_t session_set(data, length)
+=
+
+int32_t session_get(buffer, capacity)
+=
+
+notify(notice)
+=
+
+header_status(side, icon, text, length)
+=
+
+kv_get(key, key_length, value, capacity)
+=
+
+kv_set(key, key_length, value, length)
+=
+
+file_size(name, name_length)
+=
+
+file_read(name, name_length, offset, bytes, capacity)
+=
+
+file_write(name, name_length, offset, bytes, length)
+=
+
+poll_now(poll)
+=
+
+poll_set_interval(poll, seconds)
+=
+
+http_request(tag, method, url, url_length, headers, headers_length, body, body_length)
+=
+
+data_value(index, text, capacity)
+=
+
+data_count(index)
+=
+
+data_element(index, element, text, capacity)
+=
+
+data_item(void)
+=
+
+data_response(response, capacity)
+=
+
+text_fill(pattern, pattern_length, arguments, count, text, capacity)
+=
+
+void host_log(level, text, length)
+=
+
+int64_t time_now(void)
+=
+
+time_zone_offset(void)
+=
+
+time_local(parts), time_local_at(int64_t unix_time, parts)
+=
+
+int32_t time_from_local(parts, unix_time)
+=
+
+time_text(int64_t unix_time, style, text, capacity)
+=
+
+int64_t time_uptime_ms(void)
+=
+
+uint32_t time_boot_id(void)
+=
+
+alarm_set_at(id, int64_t unix_time)
+=
+
+sys_info(what, text, capacity)
+=
+
+sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)
+=
+
+sys_setting_range(key, key_length, number)
+=
+
+sys_time_set(int64_t unix_seconds)
+=
+
+sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)
+=
+
+sys_app_default(void), sys_app_set_default(id)
+=
+
+sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)
+=
+
+sys_do(action)
+=
+
+HOST_API_VERSION
+=
+
+MANIFEST_MODULE_MAX_BYTES
+=
+
+MANIFEST_NAME_MAX
+=
+
+MANIFEST_TITLE_MAX
+=
+
+MANIFEST_POLLS_MAX
+=
+
+MANIFEST_HOSTS_MAX
+=
+
+MANIFEST_SETTINGS_MAX
+=
+
+MANIFEST_URL_MAX
+=
+
+MANIFEST_SETTING_VALUE_MAX
+=
+
+HOST_TEXT_MAX
+=
+
+HOST_HEADER_TEXT_MAX
+=
+
+HOST_STATUS_TEXT_MAX
+=
+
+HOST_KV_KEY_MAX
+=
+
+HOST_KV_VALUE_MAX
+=
+
+HOST_KV_TOTAL_MAX
+=
+
+HOST_FILE_NAME_MAX
+=
+
+HOST_FILES_MAX
+=
+
+HOST_FILES_WRITER_MAX
+=
+
+HOST_DATA_CHUNK_MAX
+=
+
+HOST_ANSWER_MAX
+=
+
+HOST_ANSWER_PIECES_MAX
+=
+
+HOST_VALUE_MAX
+=
+
+HOST_HTTP_HEADERS_MAX
+=
+
+HOST_HTTP_BODY_MAX
+=
+
+HOST_HTTP_PENDING_MAX
+=
+
+HOST_LIST_BYTES
+=
+
+MANIFEST_LIST_ITEM_MAX
+=
+
+MANIFEST_CERTIFICATES_MAX
+=
+
+MANIFEST_CERTIFICATE_MAX_BYTES
+=
+
+HOST_REQUEST_FIRST .. HOST_REQUEST_LAST
+=
+
+HOST_TIMER_COUNT
+=
+
+HOST_ALARM_COUNT
+=
+
+HOST_ALARM_REPEATING_MAX
+=
+
+HOST_ALARM_EVERY_MIN .. HOST_ALARM_EVERY_MAX
+=
+
+HOST_TEXT_ARGUMENTS_MAX
+=
+
+HOST_QR_TEXT_MAX
+=
+
+HOST_LOG_TEXT_MAX
+=
+
+HOST_ICON_CELLS
+=
+
+HOST_ICON_CELL_MAX
+=
+
+HOST_ICON_COUNT
+=

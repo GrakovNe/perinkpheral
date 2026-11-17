@@ -110,6 +110,8 @@ app_ui_result_t app_date_button(app_date_t *date, int32_t event);
 void app_date_draw(const app_date_t *date);
 
 /* Returns calendar seconds as if the selected fields were UTC. For actual
- * Unix time, pass those fields in a host_local_time_t to time_from_local(),
- * which uses the offset at the selected moment. */
+ * Unix time, pass those fields in a host_local_time_t to
+ * time_from_local(&parts, &unix_time) and check for HOST_OK. The host
+ * applies the zone, moves skipped times forward by the gap and chooses
+ * the earlier occurrence of repeated times. */
 int64_t app_date_seconds(const app_date_t *date);

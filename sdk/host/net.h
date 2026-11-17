@@ -117,7 +117,14 @@ typedef struct host_response {
     char    link[192];         /* Link header: address of the next page */
 } host_response_t;
 HOST_LAYOUT(host_response_t, 476);
-HOST_IMPORT(data_response, int32_t data_response(host_response_t *response));
+/* Copies the first min(capacity, sizeof(host_response_t)) bytes of the
+ * host's struct, including zeroed absent fields. Returns bytes written,
+ * HOST_ERR_ARGUMENT for a negative capacity or invalid destination, or
+ * HOST_ERR_NOT_FOUND outside a data handler. Bytes beyond the host's
+ * struct are untouched; zero the destination first when accepting a
+ * shorter struct. Capacity 0 writes nothing and returns 0 in a handler. */
+#define HOST_SINCE_data_response "0.1.23"
+HOST_IMPORT(data_response, int32_t data_response(host_response_t *response, int32_t capacity));
 
 /* Returns the buffer for one piece of data: HOST_DATA_CHUNK_MAX bytes of
  * application memory. Provided by sdk/lib; applications do not define it. */
@@ -202,10 +209,13 @@ HOST_IMPORT(http_request,
                                  const char *headers, int32_t headers_length,
                                  const void *body, int32_t body_length));
 
-/* Sets the interval of poll number `poll`, overriding the manifest:
- * Positive values are clamped to 10..86400 seconds; zero and negative
- * values return HOST_ERR_ARGUMENT. A changed interval resets the deadline;
- * the same interval does not. Kept across restarts and updates, but a
- * manifest interval setting takes precedence after restart or a settings
- * save. Persistence failures are not returned to the caller. */
+/* Overrides the interval of poll number `poll`, in seconds, kept across
+ * restarts and updates. Positive values must be 10..86400; anything else
+ * except 0 returns HOST_ERR_ARGUMENT, as does an unknown poll. 0 forgets
+ * the stored code override and resumes the manifest's interval or its
+ * interval setting. A code override takes precedence over that setting.
+ * A changed effective interval restarts the deadline from now; setting
+ * the same interval does not. Returns HOST_OK, or HOST_ERR_FAILED if the
+ * override could not be kept or forgotten. */
+#define HOST_SINCE_poll_set_interval "0.1.23"
 HOST_IMPORT(poll_set_interval, int32_t poll_set_interval(int32_t poll, int32_t seconds));

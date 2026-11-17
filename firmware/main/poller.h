@@ -70,9 +70,9 @@ bool poller_poll_now(const char *app_name, int poll);
  * tag it carries: HOST_OK or a HOST_ERR_*. */
 int32_t poller_request(const char *app_name, const app_request_t *request);
 
-/* Another pace for a poll than its manifest says, until the device
- * restarts. False when there is no such poll. */
-bool poller_set_interval(const char *app_name, int poll, uint32_t every_s);
+/* Persistent code override, or 0 to forget it and resume the manifest or
+ * setting. Returns HOST_OK, HOST_ERR_ARGUMENT or HOST_ERR_FAILED. */
+int32_t poller_set_interval(const char *app_name, int poll, uint32_t every_s);
 
 
 /* Fetches `url` on the poller's task - the one with the stack for TLS -

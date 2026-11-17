@@ -77,10 +77,15 @@ HOST_FUNCTION(data_response)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, response_offset);
+    m3ApiGetArg(int32_t, capacity);
 
     app_t *app = APP_OF(runtime);
-    uint8_t *given = app_memory_to_fill(runtime, _mem, response_offset,
-                                           (int32_t)sizeof(host_response_t));
+    if (capacity < 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int32_t length = capacity < (int32_t)sizeof(host_response_t)
+                         ? capacity : (int32_t)sizeof(host_response_t);
+    uint8_t *given = app_memory_to_fill(runtime, _mem, response_offset, length);
     if (given == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -94,8 +99,8 @@ HOST_FUNCTION(data_response)
         response = *app->response;
     }
     response.status = app->response_status;
-    memcpy(given, &response, sizeof response);
-    m3ApiReturn(HOST_OK);
+    memcpy(given, &response, (size_t)length);
+    m3ApiReturn(length);
 }
 
 /* The key as a terminated string; false when it is not a key at all. */
@@ -316,9 +321,10 @@ HOST_FUNCTION(poll_set_interval)
     m3ApiGetArg(int32_t, poll);
     m3ApiGetArg(int32_t, seconds);
     app_t *app = APP_OF(runtime);
-    bool changed = seconds > 0 && app->services->poll_set_interval(app->name, poll,
-                                                                  (uint32_t)seconds);
-    m3ApiReturn(changed ? HOST_OK : HOST_ERR_ARGUMENT);
+    if (seconds != 0 && (seconds < APP_POLL_EVERY_MIN_S || seconds > APP_POLL_EVERY_MAX_S)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(app->services->poll_set_interval(app->name, poll, (uint32_t)seconds));
 }
 
 HOST_FUNCTION(alarm_set)

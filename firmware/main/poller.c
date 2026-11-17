@@ -737,9 +737,9 @@ static int schedule_installed(void)
             }
             /* The pace the application asked for before the restart, if it
              * asked for one: the first fetch is at once all the same. */
-            uint32_t kept_s = user_interval_seconds(&s_known[i], poll);
+            uint32_t kept_s = app_kv_poll_pace(s_known[i].name, poll);
             if (kept_s == 0) {
-                kept_s = app_kv_poll_pace(s_known[i].name, poll);
+                kept_s = user_interval_seconds(&s_known[i], poll);
             }
             if (kept_s != 0) {
                 bool is_another;
@@ -836,7 +836,8 @@ void poller_hurry(const char *app_name)
             continue;
         }
         for (int poll = 0; poll < s_known[i].poll_count; poll++) {
-            if (s_known[i].poll_every_key[poll][0] == '\0') {
+            if (s_known[i].poll_every_key[poll][0] == '\0' ||
+                app_kv_poll_pace(app_name, poll) != 0) {
                 continue;
             }
             uint32_t pace_s = user_interval_seconds(&s_known[i], poll);
@@ -887,22 +888,41 @@ bool poller_poll_now(const char *app_name, int poll)
     return found;
 }
 
-bool poller_set_interval(const char *app_name, int poll, uint32_t every_s)
+int32_t poller_set_interval(const char *app_name, int poll, uint32_t every_s)
 {
     int app = app_id_of(app_name);
-    if (app == NO_APP) {
-        return false;
+    if (app == NO_APP || poll < 0 ||
+        (every_s != 0 && (every_s < APP_POLL_EVERY_MIN_S || every_s > APP_POLL_EVERY_MAX_S))) {
+        return HOST_ERR_ARGUMENT;
+    }
+    lock();
+    bool found = poll_schedule_has(&s_schedule, app, poll);
+    unlock();
+    if (!found) {
+        return HOST_ERR_ARGUMENT;
+    }
+    uint32_t effective_s = every_s;
+    if (effective_s == 0) {
+        for (int i = 0; i < s_known_count; i++) {
+            if ((int)s_known[i].id == app) {
+                effective_s = user_interval_seconds(&s_known[i], poll);
+                if (effective_s == 0) {
+                    effective_s = s_known[i].poll_every_s[poll];
+                }
+                break;
+            }
+        }
+    }
+    if (!app_kv_set_poll_pace(app_name, poll, every_s)) {
+        return HOST_ERR_FAILED;
     }
     bool is_another = false;
     lock();
-    bool     found = poll_schedule_set_interval(&s_schedule, app, poll, every_s, &is_another);
+    poll_schedule_set_interval(&s_schedule, app, poll, effective_s, &is_another);
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
     unlock();
-    if (found && is_another) {
-        /* Counted from now, and kept: a restart does not bring the
-         * manifest's pace back. */
+    if (is_another) {
         deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, pace_ms);
-        app_kv_set_poll_pace(app_name, poll, every_s);
     }
-    return found;
+    return HOST_OK;
 }

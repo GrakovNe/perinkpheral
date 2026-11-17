@@ -84,10 +84,8 @@ uint32_t poll_schedule_pace_ms(const poll_schedule_t *schedule, int app, int pol
 bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,
                                 bool *is_another)
 {
-    if (every_s < APP_POLL_EVERY_MIN_S) {
-        every_s = APP_POLL_EVERY_MIN_S;
-    } else if (every_s > APP_POLL_EVERY_MAX_S) {
-        every_s = APP_POLL_EVERY_MAX_S;
+    if (every_s < APP_POLL_EVERY_MIN_S || every_s > APP_POLL_EVERY_MAX_S) {
+        return false;
     }
     poll_entry_t *entry = find(schedule, app, poll);
     if (entry == NULL) {

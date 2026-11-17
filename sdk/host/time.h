@@ -41,7 +41,7 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * missed period: if the following occurrence is already overdue, the next
  * is scheduled one period from processing time.
  * Returns HOST_OK; HOST_ERR_ARGUMENT for an invalid number; HOST_ERR_NO_SPACE
- * when the device's shared pool of 24 repeating alarms is full. One
+ * when the device's shared pool of HOST_ALARM_REPEATING_MAX alarms is full. One
  * application can use several slots; none are reserved per application.
  * Say so in the log: a line in the header that
  * stops changing is otherwise taken for a hang.
@@ -49,6 +49,7 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
  * application is off the screen. */
 #define HOST_ALARM_EVERY_MIN 60
 #define HOST_ALARM_EVERY_MAX 86400
+#define HOST_ALARM_REPEATING_MAX 24 /* shared by all applications, not reserved per application */
 HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds,
                                                      int32_t first_in));
 APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
@@ -112,8 +113,14 @@ HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char 
 
 /* Converts a local date and time to Unix time, for example for
  * alarm_set_at(). The weekday field is ignored. Out-of-range values carry
- * over: day 32 of January is 1 February. */
-HOST_IMPORT(time_from_local, int64_t time_from_local(const host_local_time_t *parts));
+ * over: day 32 of January is 1 February. A nonexistent local time in a
+ * forward clock change moves forward by the gap: 02:30 becomes 03:30
+ * for a one-hour change. A repeated local time uses its earlier occurrence.
+ * Returns HOST_OK and writes the moment to unix_time, or HOST_ERR_ARGUMENT
+ * for an invalid pointer. On error the output is untouched. */
+#define HOST_SINCE_time_from_local "0.1.23"
+HOST_IMPORT(time_from_local, int32_t time_from_local(const host_local_time_t *parts,
+                                                    int64_t *unix_time));
 
 /* Returns milliseconds since the device started. Always available. */
 HOST_IMPORT(time_uptime_ms, int64_t time_uptime_ms(void));

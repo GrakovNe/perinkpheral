@@ -287,8 +287,9 @@ static bool clock_save(void)
      * clock is set once, to what was meant. */
     host_local_time_t parts = { .year = clock.year, .month = clock.month, .day = clock.day,
                                 .hour = clock.hour, .minute = clock.minute };
-    int64_t moment = time_from_local(&parts);
-    return moment > 0 && sys_time_set(moment) == HOST_OK;
+    int64_t moment;
+    return time_from_local(&parts, &moment) == HOST_OK && moment > 0 &&
+           sys_time_set(moment) == HOST_OK;
 }
 
 /* ---- the rows of a page ---- */

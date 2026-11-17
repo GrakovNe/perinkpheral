@@ -176,10 +176,18 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     }
     if (request == REQUEST_WITH_HEADERS) {
         /* asks for the screen when the answer is described as the test sent it */
-        host_response_t response;
-        if (data_response(&response) == HOST_OK && response.status == 304 &&
-            response.length == -1 && response.retry_after == 30 &&
-            same_bytes(response.etag, "\"v7\"") && response.link[0] == '\0') {
+        struct { host_response_t response; int32_t guard; } output = { .guard = 12345 };
+        host_response_t prefix = { .length = 12345 };
+        int32_t prefix_bytes = data_response(&prefix, sizeof prefix.status);
+        if (data_response(&output.response, sizeof output) == sizeof output.response &&
+            output.guard == 12345 && prefix_bytes == sizeof prefix.status &&
+            prefix.status == 304 && prefix.length == 12345 &&
+            data_response(&prefix, 0) == 0 &&
+            data_response(&prefix, -1) == HOST_ERR_ARGUMENT &&
+            data_response((host_response_t *)65534, 4) == HOST_ERR_ARGUMENT &&
+            output.response.status == 304 &&
+            output.response.length == -1 && output.response.retry_after == 30 &&
+            same_bytes(output.response.etag, "\"v7\"") && output.response.link[0] == '\0') {
             request_focus();
         }
         return;
@@ -464,8 +472,12 @@ void app_on_draw(void)
         poll_now(-1) == HOST_ERR_ARGUMENT) {
         mark(12, ROW_VALUES);
     }
-    if (poll_set_interval(0, 3600) == HOST_OK && poll_set_interval(1, 60) == HOST_ERR_ARGUMENT &&
-        poll_set_interval(0, 0) == HOST_ERR_ARGUMENT && alarm_set(2, 120) == HOST_OK &&
+    if (poll_set_interval(0, 0) == HOST_OK && poll_set_interval(0, 3600) == HOST_OK &&
+        poll_set_interval(1, 60) == HOST_ERR_ARGUMENT &&
+        poll_set_interval(0, 9) == HOST_ERR_ARGUMENT &&
+        poll_set_interval(0, 86401) == HOST_ERR_ARGUMENT &&
+        poll_set_interval(0, -1) == HOST_ERR_ARGUMENT &&
+        poll_set_interval(0, 600) == HOST_ERR_FAILED && alarm_set(2, 120) == HOST_OK &&
         alarm_set(2, -1) == HOST_ERR_ARGUMENT && alarm_set(2, 0) == HOST_OK &&
         alarm_set(HOST_ALARM_COUNT, 5) == HOST_ERR_ARGUMENT && alarm_set(-1, 5) == HOST_ERR_ARGUMENT &&
         alarm_set_at(1, 1800000000) == HOST_OK && alarm_set_at(1, 0) == HOST_ERR_ARGUMENT &&
@@ -534,20 +546,41 @@ void app_on_draw(void)
         mark(6, ROW_LOCAL_TIME);
     }
     /* And back, to the second. */
-    if (time_from_local(&then) == 1700000000) {
+    int64_t moment;
+    if (time_from_local(&then, &moment) == HOST_OK && moment == 1700000000) {
         mark(8, ROW_LOCAL_TIME);
     }
     /* After the clocks moved an hour ahead - the test's zone does at the
      * start of 2030 - two in the morning is midnight UTC. */
     const host_local_time_t summer = { .year = 2030, .month = 1, .day = 1, .hour = 2 };
-    if (time_from_local(&summer) == 1893456000) {
+    if (time_from_local(&summer, &moment) == HOST_OK && moment == 1893456000) {
         mark(10, ROW_LOCAL_TIME);
     }
     /* A day past the end of its month counts on into the next. */
     const host_local_time_t day_32 = { .year = 2023, .month = 1, .day = 32 };
     const host_local_time_t february = { .year = 2023, .month = 2, .day = 1 };
-    if (time_from_local(&day_32) == time_from_local(&february)) {
+    int64_t next_month;
+    if (time_from_local(&day_32, &moment) == HOST_OK &&
+        time_from_local(&february, &next_month) == HOST_OK && moment == next_month) {
         mark(12, ROW_LOCAL_TIME);
+    }
+    /* Central Europe's 2026 spring gap and autumn fold. */
+    const host_local_time_t gap = { .year = 2026, .month = 3, .day = 29, .hour = 2, .minute = 30 };
+    const host_local_time_t fold = { .year = 2026, .month = 10, .day = 25, .hour = 2, .minute = 30 };
+    if (time_from_local(&gap, &moment) == HOST_OK && moment == 1774747800) {
+        mark(14, ROW_LOCAL_TIME);
+    }
+    if (time_from_local(&fold, &moment) == HOST_OK && moment == 1792888200) {
+        mark(16, ROW_LOCAL_TIME);
+    }
+    moment = 12345;
+    if (time_from_local((const host_local_time_t *)65534, &moment) == HOST_ERR_ARGUMENT &&
+        moment == 12345 && time_from_local(&then, (int64_t *)65534) == HOST_ERR_ARGUMENT) {
+        mark(18, ROW_LOCAL_TIME);
+    }
+    host_response_t outside;
+    if (data_response(&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {
+        mark(20, ROW_LOCAL_TIME);
     }
 
     /* Far beyond the surface: has to vanish, not land somewhere. */
@@ -555,11 +588,11 @@ void app_on_draw(void)
 
     /* The file is "0123456789": its first two bytes as a row of sixteen. */
     gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 0);
-    gfx_icon(HOST_ICON_PLUS, 0, ROW_PICTURE + 2, 1);
+    gfx_icon(0, ROW_PICTURE + 2, HOST_ICON_PLUS, 1);
     if (gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "none.bin", 8, 0) == HOST_ERR_NOT_FOUND &&
         gfx_bitmap_file(0, ROW_PICTURE, 16, 1, "data.bin", 8, 9) == HOST_ERR_NOT_FOUND &&
-        gfx_icon(99, 0, 0, 1) == HOST_ERR_ARGUMENT &&
-        gfx_icon(HOST_ICON_PLUS, 0, 0, 0) == HOST_ERR_ARGUMENT) {
+        gfx_icon(0, 0, 99, 1) == HOST_ERR_ARGUMENT &&
+        gfx_icon(0, 0, HOST_ICON_PLUS, 0) == HOST_ERR_ARGUMENT) {
         mark(30, ROW_PICTURE);
     }
 }

@@ -132,10 +132,14 @@ void host_reload_apps_later(void)
     s_reload_is_due = true;
 }
 
-void host_remove_app_later(const char *app_name)
+bool host_remove_app_later(const char *app_name)
 {
+    if (s_removing[0] != '\0') {
+        return false;
+    }
     snprintf(s_removing, sizeof s_removing, "%s", app_name);
     s_reload_is_due = true;
+    return true;
 }
 
 void host_apps_after_event(void)

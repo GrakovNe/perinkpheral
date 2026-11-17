@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include "host_api.h"
 #include "every_call_wasm.h"
@@ -62,8 +64,15 @@ static int32_t fake_time_zone_offset(void)
 /* A zone an hour east of UTC that moves its clocks another hour ahead at
  * the start of 2030: summer time, as an application meets it. */
 #define SUMMER_BEGINS 1893456000 /* 2030-01-01 00:00:00 UTC */
+static bool use_summer_zone;
 static int32_t fake_time_zone_offset_at(int64_t unix_time)
 {
+    if (use_summer_zone) {
+        time_t moment = (time_t)unix_time;
+        struct tm local;
+        localtime_r(&moment, &local);
+        return (int32_t)local.tm_gmtoff;
+    }
     return unix_time >= SUMMER_BEGINS - 3600 ? 7200 : 3600;
 }
 
@@ -207,14 +216,17 @@ static int32_t fake_http_request(const char *app_name, const app_request_t *requ
 }
 
 static uint32_t paced_seconds, alarm_seconds = 99;
-static bool fake_poll_set_interval(const char *app_name, int poll, uint32_t every_s)
+static int32_t fake_poll_set_interval(const char *app_name, int poll, uint32_t every_s)
 {
     (void)app_name;
     if (poll != 0) {
-        return false;
+        return HOST_ERR_ARGUMENT;
+    }
+    if (every_s == 600) {
+        return HOST_ERR_FAILED;
     }
     paced_seconds = every_s;
-    return true;
+    return HOST_OK;
 }
 
 static int     alarm_number = -1;
@@ -710,6 +722,23 @@ static void test_color_and_local_time(void)
     /* any moment taken apart, put together again, across a change of the clocks, past a month's end */
     CHECK(gfx_get(&surface, 6, ROW_LOCAL_TIME) && gfx_get(&surface, 8, ROW_LOCAL_TIME));
     CHECK(gfx_get(&surface, 10, ROW_LOCAL_TIME) && gfx_get(&surface, 12, ROW_LOCAL_TIME));
+    CHECK(gfx_get(&surface, 18, ROW_LOCAL_TIME) && gfx_get(&surface, 20, ROW_LOCAL_TIME));
+    const char *previous_zone = getenv("TZ");
+    char *kept_zone = previous_zone != NULL ? strdup(previous_zone) : NULL;
+    CHECK(setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1) == 0);
+    tzset();
+    use_summer_zone = true;
+    draw(app);
+    CHECK(gfx_get(&surface, 14, ROW_LOCAL_TIME)); /* gap: 02:30 becomes 03:30 */
+    CHECK(gfx_get(&surface, 16, ROW_LOCAL_TIME)); /* fold: earlier 02:30 */
+    use_summer_zone = false;
+    if (kept_zone != NULL) {
+        CHECK(setenv("TZ", kept_zone, 1) == 0);
+        free(kept_zone);
+    } else {
+        CHECK(unsetenv("TZ") == 0);
+    }
+    tzset();
     fake_now = 1794439815; /* 2026-11-11 23:30:15 UTC */
     draw(app);
     CHECK(!gfx_get(&surface, 0, ROW_LOCAL_TIME) && gfx_get(&surface, 2, ROW_LOCAL_TIME));

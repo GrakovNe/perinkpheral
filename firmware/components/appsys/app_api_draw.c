@@ -233,9 +233,9 @@ HOST_FUNCTION(gfx_bitmap)
 HOST_FUNCTION(gfx_icon)
 {
     m3ApiReturnType(int32_t);
-    m3ApiGetArg(int32_t, icon);
     m3ApiGetArg(int32_t, x);
     m3ApiGetArg(int32_t, y);
+    m3ApiGetArg(int32_t, icon);
     m3ApiGetArg(int32_t, cell);
 
     app_t *app = APP_OF(runtime);

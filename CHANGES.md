@@ -4,6 +4,23 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.23
+
+- The application contract is still ABI 2 before the first release; rebuild applications.
+- `data_response(response, capacity)` copies a bounded prefix and returns the bytes written.
+- `poll_set_interval` rejects values outside 10..86400 seconds; 0 forgets the code override
+  and restores the manifest or setting. Storage failures are reported; an unchanged pace
+  keeps its deadline. Code overrides remain in effect across restarts and settings saves.
+- `sys_app_remove` queues one removal until the handler returns and refuses a second with
+  `HOST_ERR_NO_SPACE`; success means queued, not completed.
+- `time_from_local(parts, unix_time)` returns a status separately from the moment. Skipped
+  local times move forward by the clock-change gap; repeated times use the earlier occurrence.
+- `gfx_icon` takes `(x, y, icon, cell)`, like the other drawing calls.
+- `HOST_ALARM_REPEATING_MAX` names the device's 24 shared repeating-alarm slots. One
+  application may use several; none are reserved per application.
+- `request_focus` remains void: decided after delivery, refused within 30 seconds of a press,
+  over a question, or within 30 seconds of the last grant. Refused requests are not retried.
+
 ## 0.1.21
 
 - An application keeps where the user was in it - the page, the row, a value half set - when

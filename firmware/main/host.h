@@ -79,7 +79,7 @@ void host_reload_apps_later(void);
 
 /* Removes an installed application, asked for from inside another one's handler: when the
  * handler has returned, and the list is read anew after it. */
-void host_remove_app_later(const char *app_name);
+bool host_remove_app_later(const char *app_name);
 
 /* The application the next start opens, before the default one: the development tools' run. */
 void host_start_once(const char *app_name);

@@ -41,7 +41,7 @@ static int32_t no_kv_set(const char *app, const char *key, const void *value, in
     return HOST_OK;
 }
 static bool no_poll_now(const char *app, int poll) { (void)app; (void)poll; return false; }
-static bool no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return false; }
+static int32_t no_interval(const char *app, int poll, uint32_t s) { (void)app; (void)poll; (void)s; return HOST_ERR_ARGUMENT; }
 static bool no_alarm(const char *app, int id, int64_t when, bool is_absolute)
 {
     (void)app;

@@ -360,15 +360,15 @@ uint32_t app_kv_poll_pace(const char *app_name, int poll)
     return poll >= 0 && poll < SETTINGS_APP_POLLS ? record.pace[poll] : 0;
 }
 
-void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s)
+bool app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s)
 {
     if (poll < 0 || poll >= SETTINGS_APP_POLLS) {
-        return;
+        return false;
     }
     settings_app_record_t record;
     settings_load_app_record(app_name, &record);
     record.pace[poll] = every_s;
-    settings_save_app_record(app_name, &record);
+    return settings_save_app_record(app_name, &record);
 }
 
 uint32_t app_kv_seen_id(const char *app_name)

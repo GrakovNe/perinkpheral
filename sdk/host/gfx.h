@@ -192,7 +192,8 @@ HOST_IMPORT(gfx_bitmap_file,
 #define HOST_ICON_COUNT          43
 #define HOST_ICON_CELLS          11
 #define HOST_ICON_CELL_MAX       16
-HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t icon, int32_t x, int32_t y, int32_t cell));
+#define HOST_SINCE_gfx_icon "0.1.23"
+HOST_IMPORT(gfx_icon, int32_t gfx_icon(int32_t x, int32_t y, int32_t icon, int32_t cell));
 
 /* Where an icon drawn at `cell` has ink, in pixels from its top left
  * corner: an icon does not fill its square, and one that stands beside

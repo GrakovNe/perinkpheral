@@ -241,27 +241,48 @@ HOST_FUNCTION(time_text)
     m3ApiReturn((int32_t)length);
 }
 
+#define LOCAL_TIME_OFFSET_MARGIN_DAYS 2
+
 HOST_FUNCTION(time_from_local)
 {
-    m3ApiReturnType(int64_t);
+    m3ApiReturnType(int32_t);
     m3ApiGetArg(uint32_t, parts_offset);
+    m3ApiGetArg(uint32_t, time_offset);
     const uint8_t *given = app_memory_at(runtime, _mem, parts_offset,
                                          (int32_t)sizeof(host_local_time_t));
-    if (given == NULL) {
-        m3ApiReturn(0);
+    uint8_t *output = app_memory_to_fill(runtime, _mem, time_offset, sizeof(int64_t));
+    if (given == NULL || output == NULL) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     host_local_time_t parts;
     memcpy(&parts, given, sizeof parts);
     app_t *app = APP_OF(runtime);
-    /* The date and time as if they were UTC; the moment is that less the
-     * zone's offset - the offset at the moment itself, which a second look
-     * finds when the clocks changed in between. */
     int64_t as_utc = days_from_civil(parts.year, parts.month, parts.day) * SECONDS_PER_DAY +
                      (int64_t)parts.hour * SECONDS_PER_HOUR + (int64_t)parts.minute * SECONDS_PER_MINUTE +
                      parts.second;
-    int64_t moment = as_utc - app->services->time_zone_offset_at(as_utc);
-    moment = as_utc - app->services->time_zone_offset_at(moment);
-    m3ApiReturn(moment);
+    /* Look on both sides of a possible clock change. Each offset offers
+     * a candidate: a fold has two exact matches, a gap has none. Keep the
+     * earlier exact match, or the nearest local time after the gap. The
+     * two-day margin covers the zone offset as well as the clock change. */
+    int64_t moment = 0;
+    int64_t forward = INT64_MAX;
+    bool found = false;
+    for (int day = -LOCAL_TIME_OFFSET_MARGIN_DAYS; day <= LOCAL_TIME_OFFSET_MARGIN_DAYS; day++) {
+        int32_t offset = app->services->time_zone_offset_at(as_utc + day * (int64_t)SECONDS_PER_DAY);
+        int64_t candidate = as_utc - offset;
+        int64_t local = candidate + app->services->time_zone_offset_at(candidate);
+        if (local == as_utc) {
+            if (!found || candidate < moment) {
+                moment = candidate;
+            }
+            found = true;
+        } else if (!found && local > as_utc && local < forward) {
+            forward = local;
+            moment = candidate;
+        }
+    }
+    memcpy(output, &moment, sizeof moment);
+    m3ApiReturn(HOST_OK);
 }
 
 HOST_FUNCTION(time_uptime_ms)

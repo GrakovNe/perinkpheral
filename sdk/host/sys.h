@@ -125,9 +125,10 @@ HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 #define SYS_APP_LIST_MAX 32 /* maximum `capacity`: more than a device holds */
 HOST_SYSTEM_IMPORT(sys_app_list, int32_t sys_app_list(uint32_t *ids, int32_t capacity));
 HOST_SYSTEM_IMPORT(sys_app_title, int32_t sys_app_title(uint32_t id, char *text, int32_t capacity));
-/* HOST_OK means a deferred removal request was accepted, not completed.
- * Only one pending removal is retained; a later call before processing
- * replaces the earlier request. */
+/* HOST_OK means removal is queued, not completed. It waits for the handler
+ * to return. Only one removal may wait; a second request in the same
+ * handler returns HOST_ERR_NO_SPACE and leaves the first queued. */
+#define HOST_SINCE_sys_app_remove "0.1.23"
 HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 
 /* Default application: opened after a restart, after the menu idle time,

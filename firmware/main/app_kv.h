@@ -38,9 +38,10 @@ int32_t app_kv_get_or_default(const char *app_name, const char *key, void *value
 int32_t app_kv_set(const char *app_name, const char *key, const void *value, int32_t value_length);
 
 /* The pace an application asked for one of its polls (poll_set_interval),
- * kept for it through a restart; 0: none, the manifest's. */
+ * kept for it through a restart; 0: none, the manifest's or its setting's.
+ * Setting 0 forgets it; false when persistence fails. */
 uint32_t app_kv_poll_pace(const char *app_name, int poll);
-void app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
+bool app_kv_set_poll_pace(const char *app_name, int poll, uint32_t every_s);
 
 /* The id of the version of an application that last ran here, for telling
  * an installation and an update apart; 0: none - it is new, or was

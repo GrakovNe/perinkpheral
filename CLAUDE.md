@@ -150,7 +150,7 @@ The host's own pages are applications too - written with the same SDK, run by th
 
 What stays native is what has to work when nothing else does: the menu, the message of an application that crashed, the question about a storage that cannot be read and the question a request from the network waits on. The screen that says how to give the device a network is a system application too (`setup`, not in the menu): without it the device starts at the menu, and About has the address. The splash at power-up is not among them: it is About's picture, and without it the device simply starts.
 
-They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (`sys_info`: the version, the name, the network and its state, the address, the slot, what is free of RAM, of the flash for applications and of their stores; `sys_setting_get` / `sys_setting_set` / `sys_setting_range`: the host's settings by key; `sys_time_set`; `sys_app_list`, `sys_app_title` / `sys_app_remove` (done once the handler that asked returns); `sys_app_default` / `sys_app_set_default`; `sys_do`: restart, forget the network, factory reset; `sys_logo`, `sys_logo_width` / `sys_logo_height`). It is not fenced off: the device is its owner's, and any application may have it. It has to ask - `"system": true` in its manifest - and the page says "<title> requests system access." before it installs one. A module that imports a `sys_*` call without having asked is refused by the build (`tools/perinkpheral build`) and by the host.
+They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (`sys_info`: the version, the name, the network and its state, the address, the slot, what is free of RAM, of the flash for applications and of their stores; `sys_setting_get` / `sys_setting_set` / `sys_setting_range`: the host's settings by key; `sys_time_set`; `sys_app_list`, `sys_app_title` / `sys_app_remove` (HOST_OK queues one removal after the handler returns; a second returns HOST_ERR_NO_SPACE); `sys_app_default` / `sys_app_set_default`; `sys_do`: restart, forget the network, factory reset; `sys_logo`, `sys_logo_width` / `sys_logo_height`). It is not fenced off: the device is its owner's, and any application may have it. It has to ask - `"system": true` in its manifest - and the page says "<title> requests system access." before it installs one. A module that imports a `sys_*` call without having asked is refused by the build (`tools/perinkpheral build`) and by the host.
 
 ### Execution model
 - **Scene** - one application, it owns the screen and the buttons.
@@ -165,7 +165,7 @@ They are written with the **system API**, the `sys_*` part of `sdk/host_api.h` (
 - **Buttons** - the layout is the same everywhere in the host: 1 up, 2 ok, 3 down, 4 back. Applications are encouraged to keep it.
 - **Moving about is a stack** (`components/ui/wm.c`, pure). The menu is under everything and is what shows when the stack is empty. A long press on BACK is the beginning again: the stack is emptied and the menu shows, and BACK in the menu does nothing - unless the user chose a default application, which BACK in the menu then opens. Whatever takes the screen goes on top - an application opened from the menu, a question the host asks, an application whose alarm came - and the one under it leaves and waits; when the top is done, what was under it enters again. BACK is one step down. Opening from the menu starts anew; a scene is in the stack once - opened again, it moves to the top from where it waited; six deep, the oldest forgotten. Only the top is loaded - there is room for one application - so a scene that waits enters again from what it stored. Nobody keeps a "where to return" of their own: the host's question and its work notice are entries like any other. **BACK is the way out and needs no code**: a short press of BACK leaves an application that does not export `app_on_back()` - to the menu, when it was opened there. One with pages of its own exports `app_on_back()`, gets the press there instead of in `app_on_button`, goes a page back and calls `request_exit()` from its first. An application counts on this: `request_exit()` is one step down, and one that took the screen with `request_focus()` returns the user to what they were looking at.
 - **Switching** - long press on button 4 → the host menu (list of applications, selection with buttons 1/3, confirmation with 2, button 4 opens the default application when there is one). A row of the menu is the application's icon and its title; the selected row is inverted, white on a black bar. **The menu's order is the user's** (the owner, 2026-11-16): a long press of OK takes the row to move - it stands in a frame, and along the bottom UP and DOWN at the sides and OK in the middle, the kit's own buttons with no words - UP and DOWN carry it a row and stop at the ends, OK keeps the order, and BACK, which the row does not name, puts the row back, as a long BACK does - in the menu the long press is the menu's own; whatever takes the screen meanwhile puts it back too. Every row moves, Settings and About among them. The order is kept by name in the host's settings (`menu_order`, `menu_order.c`, pure), an application installed since comes first - one removed forgets its place, so it comes first when it is back - and the page shows its tiles in the same order. All other button events go to the application on the scene.
-- **Preemption** - `request_focus()` from an application that received data in the background. Protection against a war for the screen: no more than one preemption per N seconds (30), whoever asks - there is no priority between applications; none within 30 seconds of a press of the user's, and none over a question waiting for its answer (what cannot wait is a `notify`); a long press on button 4 always returns control to the user, and the notices that wait show at the next press, not over the menu at once.
+- **Preemption** - `request_focus()` from an application that received data in the background. Protection against a war for the screen: no more than one preemption per N seconds (30), whoever asks - there is no priority between applications; none within 30 seconds of a press of the user's, and none over a question waiting for its answer (what cannot wait is a `notify`); the decision is made after delivery ends, after the last piece of a streamed answer, and a refused request is discarded without retry; a long press on button 4 always returns control to the user, and the notices that wait show at the next press, not over the menu at once.
 
 ### Host kernel
 The host is layers, and each knows only the ones under it:
@@ -268,7 +268,7 @@ gfx_qr(x, y, cell, str_ptr, len)       // a QR code of the text, up to 57 module
 gfx_bitmap_file(x, y, w, h, name, name_len, offset)  // the same picture read by the host from the application's file
 gfx_picture(x, y, picture_ptr, cell)   // a picture of the application's own: a byte of width, a byte of height, a bit a cell;
                                        // a cell so many pixels. the build makes them of PNGs and of rows of '#' and '.'
-gfx_icon(icon, x, y, cell)             // one of the host's icons, 11 cells square, a cell so many pixels; in the current colour
+gfx_icon(x, y, icon, cell)             // one of the host's icons, 11 cells square, a cell so many pixels; in the current colour
 gfx_icon_ink(icon, cell, ink_ptr)      // where it has ink, to place it by what is seen
 request_redraw(flags)                  // the picture is out of date; flags: SOON - show it now, CLEAN - a full refresh,
                                        // NO_BLINK - now, and never as a full refresh: one picture of a row
@@ -291,7 +291,7 @@ ui_reason(status)                      // why there is nothing to show, as every
 ui_picker(struct_ptr) / ui_date(struct_ptr)   // one of a row of values; a time, a date or both, a part framed
 request_exit()                         // done: one step down the stack, as BACK does in the host's pages
 header_text(side, str_ptr, len)        // its own line in the host's header, left or right; len 0 gives the side back
-request_focus()                        // from app_on_data off the screen: worth showing now; the host decides
+request_focus()                        // void request off the screen, decided after delivery ends; refused requests are not retried
 notify(notice_ptr)                     // something to tell the user wherever they are: the host shows the notice over
                                        // whatever has the screen until it is dismissed; the application is not loaded for it
 timer_set(id, ms)                      // one shot, 0 cancels; fires app_on_timer(id)
@@ -301,20 +301,25 @@ http_request(tag, method, url, headers, body)   // only to the manifest's "hosts
                                        // GET POST PUT DELETE PATCH HEAD, and PROPFIND REPORT for calendar servers
 data_count(i) / data_element(i, n, buf, cap)  // a list path of "pick" ("close[*]"): its elements; 8 KB of them an answer
 data_item()                            // the item of the list a poll with "each" asked this answer for; -1 otherwise
-data_response(struct_ptr)              // inside app_on_data / app_on_values: the status, Content-Length and -Type,
-                                       // ETag, Last-Modified, Location, Link, Retry-After of the answer in hand
+data_response(struct_ptr, capacity)    // copies the first capacity bytes, at most the host struct's size; returns bytes written
+                                       // inside app_on_data / app_on_values: status, Content-Length and -Type,
+                                       // ETag, Last-Modified, Location, Link, Retry-After; absent fields zero, absent length -1
 poll_now(n)                            // fetch poll n of the manifest now, not when it is due; once a second at most
-poll_set_interval(n, seconds)          // another pace for it, kept through a restart
+poll_set_interval(n, seconds)          // persistent code override, 10..86400 s; 0 forgets it and resumes the manifest or setting
+                                       // the code override takes precedence over the interval setting
+                                       // out of range: ARGUMENT; persistence failure: FAILED; an unchanged pace keeps its deadline
 alarm_set(id, seconds)                 // app_on_alarm(id) once, on the screen or off it; 0 takes it back; four an application
 alarm_set_at(id, unix_time)            // the same at a moment of the clock, and following the clock when it is set
 alarm_set_every(id, seconds, first_in) // the same again and again, from a minute to a day; the first in `first_in`
+                                       // HOST_ALARM_REPEATING_MAX = 24 shared slots; one application may take several
 header_status(side, icon, str_ptr, len) // an icon and a line that stay on a side of the header while the application is away
 file_size(name, name_len) -> bytes     // a file from the application's package (its `files` folder)
 file_read(name, name_len, offset, buf, cap) -> bytes read
 file_write(name, name_len, offset, buf, len)  // inside the file or at its end; len 0 at 0 removes it
 time_now() -> unix seconds             // 0 while the time is unknown
 time_zone_offset() -> seconds          // add to time_now() for the user's local time
-time_local_at(unix_time, struct_ptr) / time_from_local(struct_ptr)   // any moment taken apart, and put together again
+time_local_at(unix_time, struct_ptr) / time_from_local(struct_ptr, unix_time_ptr) // taken apart, put together: HOST_OK or ARGUMENT
+                                       // fields carry over; a skipped time moves forward by the gap, a repeated time uses the earlier one
 time_local(struct_ptr)                 // the local time taken apart: year, month, day, weekday, hour, minute, second
 time_text(unix_time, style, out, cap)  // a moment in words: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November",
                                        // and as near as it is: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov"

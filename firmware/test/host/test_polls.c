@@ -258,9 +258,12 @@ static void test_pace(void)
     /* saying it again moves nothing */
     CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 3600, &is_another) && !is_another);
     /* the limits of a manifest hold */
-    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 1, &is_another));
+    CHECK(!poll_schedule_set_interval(&schedule, 0xA, 0, 1, &is_another));
+    CHECK(!poll_schedule_set_interval(&schedule, 0xA, 0, 999999999, &is_another));
+    CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 3600000);
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, APP_POLL_EVERY_MIN_S, &is_another));
     CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 10000);
-    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, 999999999, &is_another));
+    CHECK(poll_schedule_set_interval(&schedule, 0xA, 0, APP_POLL_EVERY_MAX_S, &is_another));
     CHECK(poll_schedule_pace_ms(&schedule, 0xA, 0) == 86400000);
     CHECK(!poll_schedule_set_interval(&schedule, 0xA, 1, 60, &is_another));
     CHECK(!poll_schedule_set_interval(&schedule, 0xC, 0, 60, &is_another));

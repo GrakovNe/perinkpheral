@@ -159,20 +159,17 @@ void app_host_tell_started(void)
 /* The alarms that come again and again: how often each, and when it is
  * due next on the deadlines' own clock - so that a late call does not
  * make every one after it late. A restart forgets them with the alarms. */
-/* One for every application the device holds, on the average: an application that keeps a line
- * in the header needs one, and most need none. One past them is HOST_ERR_NO_SPACE. */
-#define RECURRING_MAX CATALOG_INSTALLED_MAX
 typedef struct {
     uint32_t app_id; /* 0: free */
     int      alarm;
     int32_t  every_s;
     int64_t  due_ms;
 } recurring_t;
-static recurring_t s_recurring[RECURRING_MAX];
+static recurring_t s_recurring[HOST_ALARM_REPEATING_MAX];
 
 static recurring_t *recurring_of(uint32_t app_id, int alarm)
 {
-    for (int i = 0; i < RECURRING_MAX; i++) {
+    for (int i = 0; i < HOST_ALARM_REPEATING_MAX; i++) {
         if (s_recurring[i].app_id == app_id && s_recurring[i].alarm == alarm) {
             return &s_recurring[i];
         }
@@ -202,7 +199,7 @@ static bool alarm_set_every(const char *app_name, int alarm, int32_t every_s, in
     }
     recurring_t *recurring = recurring_of(app_id, alarm);
     if (recurring == NULL) {
-        for (int i = 0; recurring == NULL && i < RECURRING_MAX; i++) {
+        for (int i = 0; recurring == NULL && i < HOST_ALARM_REPEATING_MAX; i++) {
             if (s_recurring[i].app_id == 0) {
                 recurring = &s_recurring[i];
             }
@@ -239,7 +236,7 @@ void app_host_alarm_rang(uint32_t app_id, int alarm)
 
 void app_host_keep_recurring_of(const uint32_t *app_ids, int count)
 {
-    for (int i = 0; i < RECURRING_MAX; i++) {
+    for (int i = 0; i < HOST_ALARM_REPEATING_MAX; i++) {
         bool is_kept = false;
         for (int kept = 0; kept < count; kept++) {
             is_kept = is_kept || s_recurring[i].app_id == app_ids[kept];

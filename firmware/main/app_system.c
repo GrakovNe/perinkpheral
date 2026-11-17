@@ -219,8 +219,7 @@ int32_t app_system_app_remove(const char *asking, uint32_t id)
     }
     /* Not from inside the handler that asked: closing the scene removed may enter another and
      * unload the application asking, still in its handler. Removed once it has returned. */
-    host_remove_app_later(app->name);
-    return HOST_OK;
+    return host_remove_app_later(app->name) ? HOST_OK : HOST_ERR_NO_SPACE;
 }
 
 uint32_t app_system_app_default(void)

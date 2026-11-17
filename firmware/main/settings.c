@@ -244,35 +244,45 @@ esp_err_t settings_save_menu_order(const char *order)
  * A record a name, in a namespace of its own: the name is the key. */
 #define APPS_NS "apps"
 
-void settings_load_app_record(const char *app_name, settings_app_record_t *record)
+static bool load_app_record(const char *app_name, settings_app_record_t *record)
 {
     memset(record, 0, sizeof *record);
     nvs_handle_t h;
-    if (nvs_open(APPS_NS, NVS_READONLY, &h) != ESP_OK) {
-        return;
+    esp_err_t err = nvs_open(APPS_NS, NVS_READONLY, &h);
+    if (err != ESP_OK) {
+        return err == ESP_ERR_NVS_NOT_FOUND;
     }
     size_t size = sizeof *record;
-    if (nvs_get_blob(h, app_name, record, &size) != ESP_OK || size != sizeof *record) {
+    err = nvs_get_blob(h, app_name, record, &size);
+    if (err != ESP_OK || size != sizeof *record) {
         memset(record, 0, sizeof *record);
     }
     nvs_close(h);
+    return err == ESP_ERR_NVS_NOT_FOUND || (err == ESP_OK && size == sizeof *record);
 }
 
-void settings_save_app_record(const char *app_name, const settings_app_record_t *record)
+void settings_load_app_record(const char *app_name, settings_app_record_t *record)
+{
+    load_app_record(app_name, record);
+}
+
+bool settings_save_app_record(const char *app_name, const settings_app_record_t *record)
 {
     settings_app_record_t stored;
-    settings_load_app_record(app_name, &stored);
+    if (!load_app_record(app_name, &stored)) {
+        return false;
+    }
     if (memcmp(&stored, record, sizeof stored) == 0) {
-        return; /* nothing to wear the flash for */
+        return true; /* nothing to wear the flash for */
     }
     nvs_handle_t h;
     if (nvs_open(APPS_NS, NVS_READWRITE, &h) != ESP_OK) {
-        return;
+        return false;
     }
-    if (nvs_set_blob(h, app_name, record, sizeof *record) == ESP_OK) {
-        nvs_commit(h);
-    }
+    bool saved = nvs_set_blob(h, app_name, record, sizeof *record) == ESP_OK &&
+                 nvs_commit(h) == ESP_OK;
     nvs_close(h);
+    return saved;
 }
 
 void settings_forget_app_record(const char *app_name)

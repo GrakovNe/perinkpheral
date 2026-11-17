@@ -65,7 +65,7 @@ void poll_schedule_set_floor(poll_schedule_t *schedule, uint32_t floor_s);
 /* The application wants its poll at another pace than its manifest says
  * - the server told it when to come again. The limits of a manifest hold
  * (APP_POLL_EVERY_MIN_S, APP_POLL_EVERY_MAX_S). False when there is no
- * such poll; `is_another` says whether the pace changed - asking for the
+ * such poll or the interval is out of range; `is_another` says whether the pace changed - asking for the
  * one it has moves nothing, an application says it every time it is
  * loaded. */
 bool poll_schedule_set_interval(poll_schedule_t *schedule, int app, int poll, uint32_t every_s,

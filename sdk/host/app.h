@@ -272,7 +272,9 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
 /* Requests the screen from a background handler (app_on_data(),
  * app_on_alarm() off the screen). The host decides whether to grant it.
  * Ignored on the screen. For a streamed background response, focus is
- * considered only when delivery ends. A refused request is discarded, with
+ * considered only when delivery ends. Refused within 30 seconds of a
+ * button press, over a question waiting for its answer, or within 30
+ * seconds of the last granted focus request. A refused request is discarded, with
  * no retry. A request in app_on_terminate() is too late for that decision. */
 HOST_IMPORT(request_focus, void request_focus(void));
 
