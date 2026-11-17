@@ -138,6 +138,7 @@ build/every_call_wasm.h: build/every_call/app.wasm
 	(echo "static const unsigned char every_call_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 build/frozen_probe_wasm.h: ../../../sdk/abi/3/probe/app.wasm
+	@mkdir -p build
 	(echo "static const unsigned char frozen_probe_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
 test_app: test_app.c tinytest.h build/frozen_probe_wasm.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
