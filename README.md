@@ -12,8 +12,8 @@ with four buttons. Applications are WebAssembly modules using ABI 3.
 [Firmware documentation](https://perinkpheral.dev/firmware) -
 [Developer documentation](https://perinkpheral.dev/sdk).
 
-Application guide (PDF): [English](docs/guide/perinkpheral-app-guide.pdf),
-[Russian](docs/guide/perinkpheral-app-guide.ru.pdf).
+Application guide (PDF): [English](https://github.com/GrakovNe/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf),
+[Russian](https://github.com/GrakovNe/perinkpheral/releases/latest/download/perinkpheral-app-guide.ru.pdf).
 Official applications and catalog: [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps).
 
 ## Build

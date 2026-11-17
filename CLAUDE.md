@@ -527,7 +527,8 @@ assets/
   mark/                the project's mark, two corners of an empty frame: SVG and PNG, bare and on paper
 docs/
   guide/               the application platform's datasheet and development guide: the PDFs that
-                       tools/perinkpheral guide prints with a Chromium browser, made of source/ - guide.html,
+                       tools/perinkpheral guide prints with a Chromium browser - CI attaches them to every
+                       release, git does not keep them - made of source/ - guide.html,
                        its Russian (guide.ru.txt) and the pictures of the screens
   api/                 the device's web API (openapi.yaml)
 hardware/              everything about the physical device

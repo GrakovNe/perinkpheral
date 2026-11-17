@@ -25,3 +25,4 @@ sdk/apps/*/*.wasm
 cmake-build-*/
 docs/guide/source/guide.*.html
 *.actual.png
+docs/guide/*.pdf

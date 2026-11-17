@@ -208,10 +208,6 @@ jobs:
           export CHROME="$RUNNER_TEMP/guide-chrome"
           tools/perinkpheral guide --out generated/perinkpheral-app-guide.pdf
           tools/perinkpheral guide --language ru --out generated/perinkpheral-app-guide.ru.pdf
-      - name: Committed guide PDFs
-        run: |
-          tools/perinkpheral check-pdf docs/guide/perinkpheral-app-guide.pdf generated/perinkpheral-app-guide.pdf
-          tools/perinkpheral check-pdf docs/guide/perinkpheral-app-guide.ru.pdf generated/perinkpheral-app-guide.ru.pdf
       - name: Guides, glyph packs and sheets
         if: always()
         uses: actions/upload-artifact@v4
