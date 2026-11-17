@@ -449,7 +449,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>2</code></td><td>Host API version of the build. A mismatch is rejected at install</td></tr>
-  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used. The manifest may specify that version or a later one. Older firmware refuses installation and startup with "Update the firmware."</td></tr>
+  <tr><td class="c">firmware</td><td><code>"0.1.8"</code></td><td>The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used, starting at 0.1.8. The manifest may specify that version or a later one. Firmware 0.1.8 and later refuses installation and startup of an application requiring a newer version with "Update the firmware." Earlier firmware ignores this field.</td></tr>
   <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
   <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
@@ -474,6 +474,7 @@ build/my-app/app.wasm: 811 bytes, 5 host calls
   <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>data_item()</code> gives the item a response is for</td></tr>
   <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>data_item()</code> is the position in the whole list</td></tr>
 </table>
+<p>A picked path has at most 63 bytes, each property name at most 31 ASCII bytes, and at most eight property or array-index levels. For example, <code>a.b[0]</code> uses three levels. The build and device reject paths beyond these limits.</p>
 <h2 id="package-placeholders">Setting placeholders</h2>
 <p><code>{{key}}</code> of any setting is replaced by the stored value, percent-encoded: every character except letters, digits and <code>- . _ ~</code> becomes <code>%XX</code>, <b>including <code>/</code></b>. One setting is one path segment: <code>owner/name</code> requires two settings, <code>/repos/{{owner}}/{{name}}</code>. A leading <code>url</code> setting and a <code>link</code> setting are inserted unchanged. A <code>list</code> setting is inserted as its items, each encoded, with commas between them: <code>symbols={{tickers}}</code> becomes <code>symbols=AAPL,MSFT</code>. A poll with an empty setting in its URL or headers fails with <code>HOST_FAILED_NOT_READY</code>; a token in a header is therefore required.</p>
 <pre>https://api.example.com/repos/{{owner}}/{{name}}
@@ -908,6 +909,7 @@ http_request(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeo
 </table>
 
 <p>request_focus() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
+<p>An application relying on <code>HOST_REDRAW_QUESTION</code> or on these focus rules writes <code>"firmware": "0.1.21"</code> in its manifest. The calls themselves do not raise the minimum firmware version.</p>
 <h2 id="background-notify">Notifications</h2>
 <pre>void app_on_alarm(int32_t id)                      /* the application is loaded for this call */
 {
@@ -1261,19 +1263,20 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">text_fill(pattern, pattern_length, arguments, count, text, capacity)</td><td>Replaces <code>{0}</code> .. <code>{3}</code> with <code>host_text_argument_t</code> values. Pattern, text arguments and filled result are each limited to HOST_TEXT_MAX bytes. The result is cut to capacity without a terminator; returns its byte length</td></tr>
   <tr><td class="c">void host_log(level, text, length)</td><td>Writes one log line of up to 200 bytes. Levels: <code>HOST_LOG_ERROR</code>, <code>HOST_LOG_WARN</code>, <code>HOST_LOG_INFO</code>, <code>HOST_LOG_DEBUG</code></td></tr>
 </table>
+<p>Time arguments to <code>time_local_at()</code>, <code>time_text()</code> and <code>alarm_set_at()</code> accept Unix seconds 1767225600 through 4102444800: 2026-01-01 through 2100-01-01 UTC, inclusive (<code>HOST_TIME_MIN</code> through <code>HOST_TIME_MAX</code>). Outside this range they return <code>HOST_ERR_ARGUMENT</code> and leave destinations unchanged. <code>time_from_local()</code> applies the same range to the Unix moment after normalizing the local fields; an out-of-range result leaves its destination unchanged.</p>
 <h1 id="ref-time">21. Time</h1>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">int64_t time_now(void)</td><td>Unix time in seconds; 0 while the time is unknown</td></tr>
   <tr><td class="c">time_zone_offset(void)</td><td>Offset of local time from UTC in seconds, daylight saving included</td></tr>
   <tr><td class="c">time_local(parts), time_local_at(int64_t unix_time, parts)</td><td>Fills a <code>host_local_time_t</code>: year, month 1 - 12, day, weekday 0 = Sunday, hour, minute, second</td></tr>
-  <tr><td class="c">int32_t time_from_local(parts, unix_time)</td><td>Returns HOST_OK and writes Unix seconds to int64_t *unix_time; an invalid pointer gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence</td></tr>
+  <tr><td class="c">int32_t time_from_local(parts, unix_time)</td><td>Returns HOST_OK and writes Unix seconds to int64_t *unix_time. An invalid pointer or a normalized moment outside HOST_TIME_MIN - HOST_TIME_MAX gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence</td></tr>
   <tr><td class="c">time_text(int64_t unix_time, style, text, capacity)</td><td>Formats a moment in the device's language (examples in section 11). Styles: <code>HOST_TIME_CLOCK</code>, <code>HOST_TIME_DATE</code>, <code>HOST_TIME_WEEKDAY</code>, <code>HOST_TIME_LONG_DATE</code>, <code>HOST_TIME_NEAR</code>, <code>HOST_TIME_NEAR_DAY</code>, <code>HOST_TIME_WEEKDAY_SHORT</code>. Returns the length</td></tr>
   <tr><td class="c">int64_t time_uptime_ms(void)</td><td>Milliseconds since device start; includes sleep time</td></tr>
   <tr><td class="c">uint32_t time_boot_id(void)</td><td>Random nonzero 32-bit boot identifier. Store it with saved uptime and discard uptime if it differs. Equality does not guarantee that no restart occurred</td></tr>
   <tr><td class="c">timer_set(id, milliseconds)</td><td>One-shot timer, id 0 - 3. 0 ms cancels. A new call restarts it</td></tr>
   <tr><td class="c">alarm_set(id, seconds)</td><td>One-shot alarm, id 0 - 3. 0 s cancels</td></tr>
-  <tr><td class="c">alarm_set_at(id, int64_t unix_time)</td><td>One-shot alarm at Unix seconds 1 - 253402300799</td></tr>
+  <tr><td class="c">alarm_set_at(id, int64_t unix_time)</td><td>One-shot alarm at Unix seconds HOST_TIME_MIN - HOST_TIME_MAX</td></tr>
   <tr><td class="c">alarm_set_every(id, seconds, first_in)</td><td>Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> seconds, 0 - 86400 (0: one period). HOST_ALARM_REPEATING_MAX: 24 shared slots; one application may take several</td></tr>
 </table>
 
@@ -1285,7 +1288,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">sys_info(what, text, capacity)</td><td>Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code></td></tr>
   <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>A numeric setting's value and its range</td></tr>
-  <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock. Fails while the time source is the network</td></tr>
+  <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock to Unix seconds 1767225600 - 4102444800 (2026-01-01 through 2100-01-01 UTC, inclusive). HOST_ERR_ARGUMENT outside this range; HOST_ERR_FAILED while the time source is the network. On failure the clock is unchanged</td></tr>
   <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself</td></tr>
   <tr><td class="c">sys_app_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
   <tr><td class="c">sys_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
@@ -1387,6 +1390,7 @@ int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals);
 void    app_text_add_fixed(app_text_t *text, int64_t value, int32_t decimals, int32_t flags);
                                                              /* 35627, 2 -> "356.27"; APP_FIXED_SIGN: "+" */</pre>
 <p>Rounding is half away from zero. Up to 9 decimals (<code>APP_FIXED_DECIMALS_MAX</code>).</p>
+<p><code>app_fixed_parse()</code> keeps up to 18 significant digits. It refuses a number if discarded digits would change the result at the requested decimals, including after exponent scaling, and leaves the destination unchanged. Digits below that precision still round half away from zero.</p>
 <h2 id="lib-ui">app_ui.h: what the buttons do on the kit's screens</h2>
 <pre>typedef enum { APP_UI_IGNORED, APP_UI_CHANGED, APP_UI_DONE, APP_UI_CANCELLED } app_ui_result_t;
 
@@ -1442,6 +1446,7 @@ const char *json_pick_element(json_pick_t *pick, int index, int element);   /* i
 bool        json_pick_is_cut(const json_pick_t *pick);
 </pre>
 <p>json_pick_finish() returns false if the document did not end whole. Do not accept extracted values as a complete response in that case.</p>
+<p>Paths have at most 63 bytes, property names at most 31 ASCII bytes, and extraction reaches at most eight containers; each property or array index uses one level. Deeper containers are skipped. Closing brackets must match their containers, and literals must be numbers, true, false or null. Validation keeps one bit per container and rejects nesting beyond 64. A broken document makes <code>json_pick_finish()</code> return false.</p>
 <h2 id="lib-generated">Generated headers: strings.h and pictures.h</h2>
 <pre>/* generated from strings/:  enum { STR_NO_EVENTS, ... };  const char *app_string(int32_t id); */
 #include "strings.h"

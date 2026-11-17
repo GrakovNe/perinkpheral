@@ -399,8 +399,50 @@ static void test_floor_and_removal(void)
     CHECK(next != NULL && next->app == 0xB);
 }
 
+static void test_pick_paths(void)
+{
+    static const char *const GOOD[] = {
+        "abcdefghijklmnopqrstuvwxyz12345", "a.b.c.d.e.f.g.h", "a[0][0][0][0][0][0][*]", "[0].a",
+    };
+    static const char *const BAD[] = {
+        "abcdefghijklmnopqrstuvwxyz123456", "a.b.c.d.e.f.g.h.i", "a[0][0][0][0][0][0][0].b",
+        "a..b", "a.", "a.[0]", "a[01]", "a[2147483648]", "a[*][*]", "a[0]b", "a]",
+    };
+    app_manifest_t manifest;
+    char json[512];
+    for (unsigned group = 0; group < 2; group++) {
+        const char *const *paths = group == 0 ? GOOD : BAD;
+        unsigned count = group == 0 ? sizeof GOOD / sizeof GOOD[0] : sizeof BAD / sizeof BAD[0];
+        for (unsigned i = 0; i < count; i++) {
+            snprintf(json, sizeof json, MANIFEST_START
+                     "[{\"url\":\"https://example.org\",\"every\":60,\"pick\":[\"%s\"]}]}", paths[i]);
+            CHECK(app_manifest_parse(json, &manifest) ==
+                  (group == 0 ? APP_MANIFEST_OK : APP_MANIFEST_BAD_POLL));
+        }
+    }
+}
+
+static void test_setting_interval_restored(void)
+{
+    poll_schedule_t schedule;
+    poll_schedule_init(&schedule);
+    uint32_t first_in_ms;
+    bool changed = false;
+    CHECK(poll_schedule_add(&schedule, 1, 0, 900, &first_in_ms));
+    CHECK(poll_schedule_set_interval(&schedule, 1, 0, 3600, &changed));
+    uint32_t restored = poll_schedule_normalize_interval(app_manifest_interval_seconds("1 s"));
+    CHECK(restored == APP_POLL_EVERY_MIN_S);
+    CHECK(poll_schedule_set_interval(&schedule, 1, 0, restored, &changed) && changed);
+    CHECK(poll_schedule_pace_ms(&schedule, 1, 0) == APP_POLL_EVERY_MIN_S * 1000);
+    CHECK(poll_schedule_normalize_interval(0) == 0);
+    CHECK(poll_schedule_normalize_interval(900) == 900);
+    CHECK(poll_schedule_normalize_interval(UINT32_MAX) == APP_POLL_EVERY_MAX_S);
+}
+
 int main(void)
 {
+    test_setting_interval_restored();
+    test_pick_paths();
     test_floor_and_removal();
     test_polls_in_the_manifest();
     test_bad_polls();

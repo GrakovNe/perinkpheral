@@ -38,6 +38,10 @@ typedef struct {
 
 void poll_schedule_init(poll_schedule_t *schedule);
 
+/* A pace read from a setting: 0 stays unset, positive values are clamped
+ * to the supported range before they enter the schedule. */
+uint32_t poll_schedule_normalize_interval(uint32_t every_s);
+
 /* A new poll. `first_in_ms` is how long until its first run: they are
  * spread out, so that a device with many applications does not ask for
  * everything at once. False when the schedule is full. */

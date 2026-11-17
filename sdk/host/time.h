@@ -9,6 +9,13 @@
 
 #include "base.h"
 
+/* Moments accepted by time_local_at(), time_text(), time_from_local() and
+ * alarm_set_at(): 2026-01-01 through 2100-01-01, inclusive, in UTC.
+ * Outside this range: HOST_ERR_ARGUMENT, with destinations unchanged.
+ * time_from_local() checks the moment after normalizing the local fields. */
+#define HOST_TIME_MIN 1767225600LL
+#define HOST_TIME_MAX 4102444800LL
+
 /* ---- Alarms ---- */
 
 /* An alarm calls app_on_alarm(id) once at its time, on or off the screen.
@@ -20,7 +27,7 @@
  * alarm_set():    relative, `seconds` from now, at least 1. Independent
  *                 of clock changes. 0 cancels the alarm.
  * alarm_set_at(): absolute, at `unix_time` as counted by time_now().
- *                 Accepts Unix seconds 1..253402300799. Follows clock changes.
+ *                 Accepts HOST_TIME_MIN..HOST_TIME_MAX. Follows clock changes.
  * Both return HOST_OK; HOST_ERR_ARGUMENT for an invalid number or time;
  * HOST_ERR_NO_SPACE if the device cannot hold another alarm.
  *
@@ -117,7 +124,8 @@ HOST_IMPORT(time_text, int32_t time_text(int64_t unix_time, int32_t style, char 
  * forward clock change moves forward by the gap: 02:30 becomes 03:30
  * for a one-hour change. A repeated local time uses its earlier occurrence.
  * Returns HOST_OK and writes the moment to unix_time, or HOST_ERR_ARGUMENT
- * for an invalid pointer. On error the output is untouched. */
+ * for an invalid pointer or a normalized moment outside the supported range.
+ * On error the output is untouched. */
 #define HOST_SINCE_time_from_local "0.1.23"
 HOST_IMPORT(time_from_local, int32_t time_from_local(const host_local_time_t *parts,
                                                     int64_t *unix_time));

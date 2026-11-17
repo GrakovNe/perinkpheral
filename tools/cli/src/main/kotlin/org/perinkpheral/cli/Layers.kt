@@ -222,7 +222,9 @@ class Layers(firmwareFolder: File) {
             "board" to listOf(), "appconf" to listOf(), "words" to listOf(), "qr" to listOf(),
             "wasm3" to listOf(), "gfx" to listOf(),
             "deadlines" to listOf("board"), "input" to listOf("board"),
-            "epd" to listOf("board", "deadlines"), "net" to listOf("board", "deadlines"),
+            "epd" to listOf("board", "deadlines"),
+            // The network clock uses the supported time range of the host contract.
+            "net" to listOf("board", "deadlines", "sdk"),
             "ui" to listOf("gfx", "words"),
             "appstore" to listOf("board", "sdk"),
             "appsys" to listOf("appstore", "board", "gfx", "ui", "words", "qr", "wasm3", "sdk"),

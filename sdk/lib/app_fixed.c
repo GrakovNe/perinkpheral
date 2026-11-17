@@ -65,7 +65,8 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
     /* The number is mantissa * 10^exponent. */
     uint64_t mantissa = 0;
     int32_t  exponent = 0, kept = 0;
-    bool     has_digits = false, in_fraction = false, is_inexact = false;
+    bool     has_digits = false, in_fraction = false;
+    int32_t  discarded = 0, first_nonzero_discarded = 0, first_nonzero_digit = 0;
     for (;; at++) {
         if (is_digit(*at)) {
             has_digits = true;
@@ -75,11 +76,17 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
                 }
                 mantissa = mantissa * DECIMAL_BASE + (uint64_t)(*at - '0');
                 exponent -= in_fraction;
-            } else if (!in_fraction) {
-                exponent++; /* a digit too many of the whole part: its place counts */
-                /* ...and its value would be lost: "1234567890123456789" is no number of 18 digits,
-                 * and one past INT64_MAX would pass for one under it. */
-                is_inexact = is_inexact || *at != '0';
+            } else {
+                if (!in_fraction) {
+                    exponent++;
+                }
+                if (discarded < EXPONENT_MAX) {
+                    discarded++;
+                }
+                if (*at != '0' && first_nonzero_discarded == 0) {
+                    first_nonzero_discarded = discarded;
+                    first_nonzero_digit = *at - '0';
+                }
             }
         } else if (*at == '.' && !in_fraction) {
             in_fraction = true;
@@ -87,7 +94,7 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
             break;
         }
     }
-    if (!has_digits || is_inexact) {
+    if (!has_digits) {
         return false;
     }
     if (*at == 'e' || *at == 'E') {
@@ -114,6 +121,10 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value)
         return false;
     }
     int32_t  shift = exponent + decimals;
+    if (first_nonzero_discarded != 0 && (first_nonzero_discarded <= shift ||
+         (first_nonzero_discarded == shift + 1 && first_nonzero_digit >= DECIMAL_BASE / 2))) {
+        return false;
+    }
     uint64_t magnitude;
     if (mantissa == 0) {
         magnitude = 0;

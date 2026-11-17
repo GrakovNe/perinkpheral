@@ -179,10 +179,19 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         struct { host_response_t response; int32_t guard; } output = { .guard = 12345 };
         host_response_t prefix = { .length = 12345 };
         int32_t prefix_bytes = data_response(&prefix, sizeof prefix.status);
+        unsigned char saved_prefix[sizeof prefix];
+        for (unsigned i = 0; i < sizeof prefix; i++) {
+            saved_prefix[i] = ((unsigned char *)&prefix)[i];
+        }
+        int32_t zero_bytes = data_response(&prefix, 0);
+        bool prefix_unchanged = true;
+        for (unsigned i = 0; i < sizeof prefix; i++) {
+            prefix_unchanged = prefix_unchanged && ((unsigned char *)&prefix)[i] == saved_prefix[i];
+        }
         if (data_response(&output.response, sizeof output) == sizeof output.response &&
             output.guard == 12345 && prefix_bytes == sizeof prefix.status &&
             prefix.status == 304 && prefix.length == 12345 &&
-            data_response(&prefix, 0) == 0 &&
+            zero_bytes == 0 && prefix_unchanged &&
             data_response(&prefix, -1) == HOST_ERR_ARGUMENT &&
             data_response((host_response_t *)65534, 4) == HOST_ERR_ARGUMENT &&
             output.response.status == 304 &&
@@ -538,16 +547,16 @@ void app_on_draw(void)
     if (time_local((host_local_time_t *)far_outside_memory) == HOST_ERR_ARGUMENT) {
         mark(4, ROW_LOCAL_TIME);
     }
-    /* Any moment, not only now: 2023-11-14 22:13:20 UTC, an hour east of it. */
+    /* Any moment, not only now: 2026-11-14 22:13:20 UTC, an hour east of it. */
     host_local_time_t then;
-    if (time_local_at(1700000000, &then) == HOST_OK && then.year == 2023 && then.month == 11 &&
-        then.day == 14 && then.weekday == 2 && then.hour == 23 && then.minute == 13 &&
+    if (time_local_at(1794694400, &then) == HOST_OK && then.year == 2026 && then.month == 11 &&
+        then.day == 14 && then.weekday == 6 && then.hour == 23 && then.minute == 13 &&
         then.second == 20) {
         mark(6, ROW_LOCAL_TIME);
     }
     /* And back, to the second. */
     int64_t moment;
-    if (time_from_local(&then, &moment) == HOST_OK && moment == 1700000000) {
+    if (time_from_local(&then, &moment) == HOST_OK && moment == 1794694400) {
         mark(8, ROW_LOCAL_TIME);
     }
     /* After the clocks moved an hour ahead - the test's zone does at the
@@ -557,8 +566,8 @@ void app_on_draw(void)
         mark(10, ROW_LOCAL_TIME);
     }
     /* A day past the end of its month counts on into the next. */
-    const host_local_time_t day_32 = { .year = 2023, .month = 1, .day = 32 };
-    const host_local_time_t february = { .year = 2023, .month = 2, .day = 1 };
+    const host_local_time_t day_32 = { .year = 2026, .month = 1, .day = 32 };
+    const host_local_time_t february = { .year = 2026, .month = 2, .day = 1 };
     int64_t next_month;
     if (time_from_local(&day_32, &moment) == HOST_OK &&
         time_from_local(&february, &next_month) == HOST_OK && moment == next_month) {
@@ -577,6 +586,51 @@ void app_on_draw(void)
     if (time_from_local((const host_local_time_t *)65534, &moment) == HOST_ERR_ARGUMENT &&
         moment == 12345 && time_from_local(&then, (int64_t *)65534) == HOST_ERR_ARGUMENT) {
         mark(18, ROW_LOCAL_TIME);
+    }
+    static const int64_t invalid_moments[] = {
+        INT64_MIN, INT64_MAX, 0, HOST_TIME_MIN - 1, HOST_TIME_MAX + 1,
+    };
+    bool range_checked = true;
+    for (unsigned i = 0; i < sizeof invalid_moments / sizeof invalid_moments[0]; i++) {
+        host_local_time_t untouched = { .year = 12345, .second = 54321 };
+        char text[2] = { 'x', 'y' };
+        range_checked = range_checked &&
+            time_local_at(invalid_moments[i], &untouched) == HOST_ERR_ARGUMENT &&
+            untouched.year == 12345 && untouched.month == 0 && untouched.day == 0 &&
+            untouched.weekday == 0 && untouched.hour == 0 && untouched.minute == 0 &&
+            untouched.second == 54321 &&
+            time_text(invalid_moments[i], HOST_TIME_CLOCK, text, sizeof text) == HOST_ERR_ARGUMENT &&
+            text[0] == 'x' && text[1] == 'y' &&
+            alarm_set_at(0, invalid_moments[i]) == HOST_ERR_ARGUMENT;
+    }
+    if (range_checked) {
+        mark(22, ROW_LOCAL_TIME);
+    }
+    static const host_local_time_t invalid_fields[] = {
+        { .year = INT32_MAX, .month = INT32_MIN, .day = INT32_MAX,
+          .hour = INT32_MAX, .minute = INT32_MIN, .second = INT32_MAX },
+        { .year = INT32_MIN }, { .year = 2025 }, { .year = 2101 },
+        { .year = 2026, .month = 1, .day = 1 }, /* before the UTC lower bound in this zone */
+    };
+    bool fields_checked = true;
+    for (unsigned i = 0; i < sizeof invalid_fields / sizeof invalid_fields[0]; i++) {
+        moment = 12345;
+        fields_checked = fields_checked &&
+            time_from_local(&invalid_fields[i], &moment) == HOST_ERR_ARGUMENT && moment == 12345;
+    }
+    if (fields_checked) {
+        mark(24, ROW_LOCAL_TIME);
+    }
+    bool boundaries_checked = true;
+    static const int64_t boundaries[] = { HOST_TIME_MIN, HOST_TIME_MAX };
+    for (unsigned i = 0; i < sizeof boundaries / sizeof boundaries[0]; i++) {
+        host_local_time_t parts;
+        boundaries_checked = boundaries_checked && time_local_at(boundaries[i], &parts) == HOST_OK &&
+            time_from_local(&parts, &moment) == HOST_OK && moment == boundaries[i];
+    }
+    const host_local_time_t carried_year = { .year = 2025, .month = 13, .day = 1, .hour = 1 };
+    if (boundaries_checked && time_from_local(&carried_year, &moment) == HOST_OK && moment == HOST_TIME_MIN) {
+        mark(26, ROW_LOCAL_TIME);
     }
     host_response_t outside;
     if (data_response(&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {

@@ -20,7 +20,8 @@
  * manifest), and an older firmware neither installs nor starts it. A call
  * added or changed gets a line, HOST_SINCE_<call>, beside its declaration in
  * the header of its subject, with the version it will be released in. */
-#define HOST_FIRMWARE_FIRST     "0.1.0" /* every call without a line of its own */
+/* Earlier firmwares do not read the manifest's "firmware" field. */
+#define HOST_FIRMWARE_FIRST     "0.1.8" /* every call without a line of its own */
 
 /* The host firmware includes this header for its constants. Outside a
  * wasm build the declarations expand to nothing, because the host defines

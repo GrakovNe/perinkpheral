@@ -105,8 +105,10 @@ HOST_SYSTEM_IMPORT(sys_setting_set, int32_t sys_setting_set(const char *key, int
 HOST_SYSTEM_IMPORT(sys_setting_range, int32_t sys_setting_range(const char *key, int32_t key_length,
                                                                 sys_number_t *number));
 
-/* Sets the clock, in Unix seconds. Returns HOST_ERR_FAILED while the time
- * source is the network. */
+/* Sets the clock, in Unix seconds, from HOST_TIME_MIN to HOST_TIME_MAX
+ * (2026-01-01 through 2100-01-01 UTC, inclusive). Returns HOST_ERR_ARGUMENT
+ * outside this range; HOST_ERR_FAILED while the time source is the network.
+ * On failure the clock is unchanged. */
 HOST_SYSTEM_IMPORT(sys_time_set, int32_t sys_time_set(int64_t unix_seconds));
 
 /* Installed applications.

@@ -742,8 +742,10 @@ static int schedule_installed(void)
                 kept_s = user_interval_seconds(&s_known[i], poll);
             }
             if (kept_s != 0) {
-                bool is_another;
-                poll_schedule_set_interval(&s_schedule, apps[i], poll, kept_s, &is_another);
+                bool is_another = false;
+                if (!poll_schedule_set_interval(&s_schedule, apps[i], poll, kept_s, &is_another)) {
+                    ESP_LOGW(TAG, "%s/%d: cannot restore poll interval", s_known[i].name, poll);
+                }
             }
             if (!deadlines_has(DEADLINE_POLL, owners[i], poll)) {
                 deadlines_set_in(DEADLINE_POLL, owners[i], poll, first_in_ms);
@@ -820,7 +822,7 @@ static uint32_t user_interval_seconds(const known_app_t *known, int poll)
         return 0;
     }
     chosen[length] = '\0';
-    return app_manifest_interval_seconds(chosen);
+    return poll_schedule_normalize_interval(app_manifest_interval_seconds(chosen));
 }
 
 /* The settings of an application were changed: its polls are fetched at
@@ -841,13 +843,15 @@ void poller_hurry(const char *app_name)
                 continue;
             }
             uint32_t pace_s = user_interval_seconds(&s_known[i], poll);
-            bool     is_another;
+            bool     is_another = false;
             lock();
-            poll_schedule_set_interval(&s_schedule, app, poll,
-                                       pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll],
-                                       &is_another);
+            bool updated = poll_schedule_set_interval(
+                &s_schedule, app, poll, pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll],
+                &is_another);
             unlock();
-            if (is_another) {
+            if (!updated) {
+                ESP_LOGW(TAG, "%s/%d: cannot apply poll setting", app_name, poll);
+            } else if (is_another) {
                 ESP_LOGI(TAG, "%s/%d: every %u s by its setting", app_name, poll,
                          (unsigned)(pace_s != 0 ? pace_s : s_known[i].poll_every_s[poll]));
             }
@@ -918,9 +922,12 @@ int32_t poller_set_interval(const char *app_name, int poll, uint32_t every_s)
     }
     bool is_another = false;
     lock();
-    poll_schedule_set_interval(&s_schedule, app, poll, effective_s, &is_another);
+    bool updated = poll_schedule_set_interval(&s_schedule, app, poll, effective_s, &is_another);
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
     unlock();
+    if (!updated) {
+        return HOST_ERR_ARGUMENT;
+    }
     if (is_another) {
         deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, pace_ms);
     }

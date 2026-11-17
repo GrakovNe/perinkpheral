@@ -723,6 +723,9 @@ static void test_color_and_local_time(void)
     CHECK(gfx_get(&surface, 6, ROW_LOCAL_TIME) && gfx_get(&surface, 8, ROW_LOCAL_TIME));
     CHECK(gfx_get(&surface, 10, ROW_LOCAL_TIME) && gfx_get(&surface, 12, ROW_LOCAL_TIME));
     CHECK(gfx_get(&surface, 18, ROW_LOCAL_TIME) && gfx_get(&surface, 20, ROW_LOCAL_TIME));
+    CHECK(gfx_get(&surface, 22, ROW_LOCAL_TIME)); /* invalid moments leave destinations intact */
+    CHECK(gfx_get(&surface, 24, ROW_LOCAL_TIME)); /* extreme normalized fields are refused */
+    CHECK(gfx_get(&surface, 26, ROW_LOCAL_TIME)); /* both bounds round-trip */
     const char *previous_zone = getenv("TZ");
     char *kept_zone = previous_zone != NULL ? strdup(previous_zone) : NULL;
     CHECK(setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1) == 0);

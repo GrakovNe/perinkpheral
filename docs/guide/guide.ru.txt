@@ -1633,8 +1633,8 @@ Any application can use the system API if its manifest contains <code>"system": 
 A numeric setting's value and its range
 Значение числовой настройки и её диапазон
 
-Sets the clock. Fails while the time source is the network
-Устанавливает часы. Завершается ошибкой, пока источник времени - сеть
+Sets the clock to Unix seconds 1767225600 - 4102444800 (2026-01-01 through 2100-01-01 UTC, inclusive). HOST_ERR_ARGUMENT outside this range; HOST_ERR_FAILED while the time source is the network. On failure the clock is unchanged
+Устанавливает часы на секунды Unix 1767225600 - 4102444800 (с 2026-01-01 до 2100-01-01 UTC включительно). HOST_ERR_ARGUMENT за пределами диапазона; HOST_ERR_FAILED при сетевом источнике времени. При ошибке часы не изменяются
 
 Default application id; 0: none
 id приложения по умолчанию; 0: нет
@@ -2785,8 +2785,8 @@ Call <code>app_alloc_mark()</code> before allocating temporary buffers with <cod
 A catalog package contains at most eight files: app.wasm, manifest.json and at most six other files. Generated string tables and manifest translations count towards this limit.
 Пакет каталога содержит не более восьми файлов: app.wasm, manifest.json и до шести остальных. Сгенерированные таблицы строк и переводы манифеста входят в этот лимит.
 
-The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used. The manifest may specify that version or a later one. Older firmware refuses installation and startup with "Update the firmware."
-Минимальная версия прошивки для приложения. Сборка выбирает наибольшую из минимальных версий, требуемых используемыми вызовами хоста. В манифесте можно указать эту версию или более позднюю. Более старая прошивка отказывает в установке и запуске с сообщением «Обновите прошивку.»
+The minimum firmware version required by the application. The build takes the greatest minimum version among the host calls used, starting at 0.1.8. The manifest may specify that version or a later one. Firmware 0.1.8 and later refuses installation and startup of an application requiring a newer version with "Update the firmware." Earlier firmware ignores this field.
+Минимальная версия прошивки, необходимая приложению. Сборка выбирает наибольшую минимальную версию среди используемых вызовов хоста, начиная с 0.1.8. Манифест может указывать эту или более позднюю версию. Прошивка 0.1.8 и новее отклоняет установку и запуск приложения, которому нужна более новая версия, с сообщением "Update the firmware." Более ранние прошивки игнорируют это поле.
 
 Enables <code>file_write()</code>. The device reserves 32 KB for the application's files from installation
 Разрешает <code>file_write()</code>. С момента установки устройство резервирует приложению 32 KB для файлов
@@ -3181,8 +3181,8 @@ Replaces <code>{0}</code> .. <code>{3}</code> with <code>host_text_argument_t</c
 Formats a moment in the device's language (examples in section 11). Styles: <code>HOST_TIME_CLOCK</code>, <code>HOST_TIME_DATE</code>, <code>HOST_TIME_WEEKDAY</code>, <code>HOST_TIME_LONG_DATE</code>, <code>HOST_TIME_NEAR</code>, <code>HOST_TIME_NEAR_DAY</code>, <code>HOST_TIME_WEEKDAY_SHORT</code>. Returns the length
 Форматирует момент на языке устройства (примеры в разделе 11). Стили: <code>HOST_TIME_CLOCK</code>, <code>HOST_TIME_DATE</code>, <code>HOST_TIME_WEEKDAY</code>, <code>HOST_TIME_LONG_DATE</code>, <code>HOST_TIME_NEAR</code>, <code>HOST_TIME_NEAR_DAY</code>, <code>HOST_TIME_WEEKDAY_SHORT</code>. Возвращает длину
 
-One-shot alarm at Unix seconds 1 - 253402300799
-Однократный будильник на время Unix от 1 до 253402300799 секунд
+One-shot alarm at Unix seconds HOST_TIME_MIN - HOST_TIME_MAX
+Однократный будильник на момент в секундах Unix от HOST_TIME_MIN до HOST_TIME_MAX
 
 "-3.46", 1 -> -35; false: absent, not numeric, or outside -INT32_MAX..INT32_MAX
 "-3.46", 1 -> -35; false: значение отсутствует, не является числом или вне -INT32_MAX..INT32_MAX
@@ -3283,8 +3283,8 @@ Sets a persistent code override of 10 - 86400 s; other nonzero values or an unkn
 Inside a data handler: copies the first min(capacity, sizeof(host_response_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 В обработчике данных копирует первые min(capacity, sizeof(host_response_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 
-Returns HOST_OK and writes Unix seconds to int64_t *unix_time; an invalid pointer gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence
-Возвращает HOST_OK и записывает секунды Unix в int64_t *unix_time; неверный указатель даёт HOST_ERR_ARGUMENT и не меняет результат. Поля за пределами диапазона переносятся дальше. Пропущенное местное время сдвигается вперёд на величину перевода часов (02:30 становится 03:30 при часовом пропуске); для повторяющегося времени выбирается первое вхождение
+Returns HOST_OK and writes Unix seconds to int64_t *unix_time. An invalid pointer or a normalized moment outside HOST_TIME_MIN - HOST_TIME_MAX gives HOST_ERR_ARGUMENT and leaves the output untouched. Out-of-range fields carry over. A skipped local time moves forward by the clock-change gap (02:30 becomes 03:30 for a one-hour gap); a repeated time uses its earlier occurrence
+Возвращает HOST_OK и записывает секунды Unix в int64_t *unix_time. Недопустимый указатель или нормализованный момент за пределами HOST_TIME_MIN - HOST_TIME_MAX дают HOST_ERR_ARGUMENT и не изменяют выходное значение. Значения полей за пределами обычных границ переносятся в следующие единицы. Пропущенное местное время сдвигается вперёд на величину перевода часов (02:30 становится 03:30 при часовом скачке); для повторяющегося времени используется более раннее вхождение
 
 Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself
 Установленные приложения по id, в порядке названий: список, название, отложенное удаление. HOST_OK означает, что удаление поставлено в очередь до возврата из обработчика, а не завершено. Второе удаление в том же обработчике даёт HOST_ERR_NO_SPACE и сохраняет первый запрос. Приложение не может удалить само себя
@@ -4224,3 +4224,18 @@ HOST_ICON_CELL_MAX
 
 HOST_ICON_COUNT
 =
+
+An application relying on <code>HOST_REDRAW_QUESTION</code> or on these focus rules writes <code>"firmware": "0.1.21"</code> in its manifest. The calls themselves do not raise the minimum firmware version.
+Приложение, которое полагается на <code>HOST_REDRAW_QUESTION</code> или на эти правила передачи экрана, указывает <code>"firmware": "0.1.21"</code> в манифесте. Сами вызовы не повышают минимальную версию прошивки.
+
+A picked path has at most 63 bytes, each property name at most 31 ASCII bytes, and at most eight property or array-index levels. For example, <code>a.b[0]</code> uses three levels. The build and device reject paths beyond these limits.
+Путь для извлечения содержит не более 63 байт, каждое имя свойства - не более 31 байта ASCII, а число уровней свойств и индексов массива не превышает восьми. Например, <code>a.b[0]</code> занимает три уровня. Сборка и устройство отклоняют пути, превышающие эти ограничения.
+
+Time arguments to <code>time_local_at()</code>, <code>time_text()</code> and <code>alarm_set_at()</code> accept Unix seconds 1767225600 through 4102444800: 2026-01-01 through 2100-01-01 UTC, inclusive (<code>HOST_TIME_MIN</code> through <code>HOST_TIME_MAX</code>). Outside this range they return <code>HOST_ERR_ARGUMENT</code> and leave destinations unchanged. <code>time_from_local()</code> applies the same range to the Unix moment after normalizing the local fields; an out-of-range result leaves its destination unchanged.
+Аргументы времени в <code>time_local_at()</code>, <code>time_text()</code> и <code>alarm_set_at()</code> принимают секунды Unix от 1767225600 до 4102444800: с 2026-01-01 до 2100-01-01 UTC включительно (от <code>HOST_TIME_MIN</code> до <code>HOST_TIME_MAX</code>). За пределами этого диапазона вызовы возвращают <code>HOST_ERR_ARGUMENT</code> и не изменяют выходные данные. <code>time_from_local()</code> проверяет тот же диапазон для момента Unix после нормализации полей местного времени; результат за пределами диапазона не изменяет выходное значение.
+
+Paths have at most 63 bytes, property names at most 31 ASCII bytes, and extraction reaches at most eight containers; each property or array index uses one level. Deeper containers are skipped. Closing brackets must match their containers, and literals must be numbers, true, false or null. Validation keeps one bit per container and rejects nesting beyond 64. A broken document makes <code>json_pick_finish()</code> return false.
+Пути содержат не более 63 байт, имена свойств - не более 31 байта ASCII, а извлечение охватывает не более восьми контейнеров; каждое свойство или индекс массива занимает один уровень. Более глубокие контейнеры пропускаются. Закрывающие скобки должны соответствовать контейнерам, а литералы должны быть числами, true, false или null. Проверка хранит один бит на контейнер и отклоняет вложенность свыше 64. Для повреждённого документа <code>json_pick_finish()</code> возвращает false.
+
+<code>app_fixed_parse()</code> keeps up to 18 significant digits. It refuses a number if discarded digits would change the result at the requested decimals, including after exponent scaling, and leaves the destination unchanged. Digits below that precision still round half away from zero.
+<code>app_fixed_parse()</code> сохраняет до 18 значащих цифр. Если отброшенные цифры изменили бы результат при запрошенном числе знаков после запятой, в том числе после применения экспоненты, функция отклоняет число и не изменяет выходное значение. Цифры ниже этой точности по-прежнему округляются от нуля при равенстве половине.

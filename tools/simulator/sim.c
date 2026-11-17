@@ -51,6 +51,7 @@
 #include "app.h"
 #include "app_delivery.h"
 #include "app_manifest.h"
+#include "poll_schedule.h"
 #include "app_scene.h"
 #include "app_store.h"
 #include "deadline_table.h"
@@ -177,6 +178,8 @@ static deadline_table_t     s_deadlines;
 static uint32_t             s_poll_every_s[APP_POLLS_MAX];
 static uint32_t             s_poll_override_s[APP_POLLS_MAX];
 static int32_t              s_alarm_every_s[HOST_ALARM_COUNT];
+static int64_t              s_alarm_at[HOST_ALARM_COUNT];
+static bool                 s_time_changed;
 static uint8_t              s_bits[FRAME_BYTES];
 static gfx_t                s_screen;
 static uint32_t             s_frames;
@@ -649,6 +652,11 @@ static void exchange(job_t *job, char *next, size_t next_size)
  * gave do not travel to another host than the one it named. */
 static void fetch(job_t *job)
 {
+    if (job->status < 0) {
+        job->response.status = job->status;
+        job->response.length = -1;
+        return;
+    }
     char first[APP_URL_MAX + 1];
     snprintf(first, sizeof first, "%s", job->url);
     for (int hop = 0;; hop++) {
@@ -826,7 +834,9 @@ static void start_poll_request(const app_poll_t *poll, int number, const list_it
         is_ready = text_template_fill(poll->headers[i].value, setting_of, (void *)each, value,
                                       sizeof value) &&
                    strpbrk(value, "\r\n") == NULL;
-        add_header(&job->headers, poll->headers[i].name, value);
+        if (is_ready) {
+            add_header(&job->headers, poll->headers[i].name, value);
+        }
     }
     if (!is_ready) {
         job->status = HOST_FAILED_NOT_READY;
@@ -868,13 +878,22 @@ static void start_poll(int number)
 
 /* ---- the services the application's host calls ---- */
 
-static int64_t services_unix_time(void) { return unix_now(); }
+static int64_t services_unix_time(void)
+{
+    int64_t now = unix_now();
+    return now >= HOST_TIME_MIN && now <= HOST_TIME_MAX ? now : 0;
+}
 
 static int32_t offset_at(int64_t unix_time)
 {
+    if (unix_time < HOST_TIME_MIN || unix_time > HOST_TIME_MAX) {
+        return 0;
+    }
     time_t    moment = (time_t)unix_time;
     struct tm local;
-    localtime_r(&moment, &local);
+    if (localtime_r(&moment, &local) == NULL) {
+        return 0;
+    }
     return (int32_t)local.tm_gmtoff;
 }
 
@@ -916,7 +935,7 @@ static uint32_t manifest_poll_seconds(int poll)
     char pace[32];
     if (s_manifest.poll_every_key[poll][0] != '\0' &&
         setting_of(NULL, s_manifest.poll_every_key[poll], pace, sizeof pace)) {
-        uint32_t chosen = app_manifest_interval_seconds(pace);
+        uint32_t chosen = poll_schedule_normalize_interval(app_manifest_interval_seconds(pace));
         if (chosen > 0) {
             return chosen;
         }
@@ -983,9 +1002,12 @@ static int32_t services_request(const char *app_name, const app_request_t *reque
     snprintf(job->url, sizeof job->url, "%s", url);
     for (int i = 0; i < request->header_count; i++) {
         char value[APP_HEADER_VALUE_MAX + 1];
-        if (text_template_fill(request->headers[i].value, setting_of, NULL, value, sizeof value)) {
-            add_header(&job->headers, request->headers[i].name, value);
+        if (!text_template_fill(request->headers[i].value, setting_of, NULL, value, sizeof value) ||
+            strpbrk(value, "\r\n") != NULL) {
+            job->status = HOST_FAILED_NOT_READY;
+            break;
         }
+        add_header(&job->headers, request->headers[i].name, value);
     }
     if (request->body_length > 0) {
         job->body = malloc((size_t)request->body_length);
@@ -1001,6 +1023,7 @@ static bool services_alarm(const char *app_name, int alarm, int64_t when, bool i
 {
     (void)app_name;
     s_alarm_every_s[alarm] = 0;
+    s_alarm_at[alarm] = is_absolute ? when : 0;
     if (!is_absolute && when == 0) {
         cancel_due(DUE_ALARM, alarm);
         return true;
@@ -1014,6 +1037,7 @@ static bool services_alarm_every(const char *app_name, int alarm, int32_t every_
 {
     (void)app_name;
     s_alarm_every_s[alarm] = every_s;
+    s_alarm_at[alarm] = 0;
     set_due(DUE_ALARM, alarm, (int64_t)first_in_s * MS_PER_SECOND);
     return true;
 }
@@ -1188,11 +1212,21 @@ static int32_t services_setting_set(const char *key, const char *value)
 
 static int32_t services_time_set(int64_t unix_seconds)
 {
-    if (s_settings.time_auto != 0 || unix_seconds <= 0 || unix_seconds > 253402300799LL) {
+    if (unix_seconds < HOST_TIME_MIN || unix_seconds > HOST_TIME_MAX) {
+        return HOST_ERR_ARGUMENT;
+    }
+    if (s_settings.time_auto != 0) {
         return HOST_ERR_FAILED;
     }
     s_options.at = unix_seconds - s_forward_ms / MS_PER_SECOND;
     s_at_started = (int64_t)time(NULL);
+    for (int alarm = 0; alarm < HOST_ALARM_COUNT; alarm++) {
+        if (s_alarm_at[alarm] != 0) {
+            int64_t left_s = s_alarm_at[alarm] - unix_seconds;
+            set_due(DUE_ALARM, alarm, left_s > 0 ? left_s * MS_PER_SECOND : 0);
+        }
+    }
+    s_time_changed = true;
     set_due(DUE_MINUTE, 0, (SECONDS_PER_MINUTE - unix_seconds % SECONDS_PER_MINUTE) * MS_PER_SECOND);
     wm_invalidate(&s_wm, WM_CHANGED_BY_DATA);
     return HOST_OK;
@@ -1353,6 +1387,8 @@ static bool load_app(void)
     }
     deadline_table_init(&s_deadlines);
     memset(s_alarm_every_s, 0, sizeof s_alarm_every_s);
+    memset(s_alarm_at, 0, sizeof s_alarm_at);
+    s_time_changed = false;
     memset(&s_header_kept, 0, sizeof s_header_kept);
     for (int poll = 0; poll < s_manifest.poll_count; poll++) {
         char path[PATH_BYTES];
@@ -1391,6 +1427,7 @@ static void answer_due(const deadline_id_t *id)
         wm_timer(&s_wm, id->number);
         break;
     case DUE_ALARM: {
+        s_alarm_at[id->number] = 0;
         if (s_alarm_every_s[id->number] > 0) {
             set_due(DUE_ALARM, id->number, (int64_t)s_alarm_every_s[id->number] * MS_PER_SECOND);
         }
@@ -1982,6 +2019,12 @@ int main(int argc, char **argv)
     say('I', "sim", "the device is at http://127.0.0.1:%d", s_options.port);
 
     while (!s_is_stopping) {
+        /* System calls can be made inside an application handler. Deliver
+         * the clock change after it returns, without reentering the module. */
+        if (s_time_changed) {
+            s_time_changed = false;
+            intent(HOST_INTENT_TIME_CHANGED);
+        }
         deadline_id_t due;
         while (deadline_table_take_due(&s_deadlines, monotonic_ms(), &due)) {
             answer_due(&due);

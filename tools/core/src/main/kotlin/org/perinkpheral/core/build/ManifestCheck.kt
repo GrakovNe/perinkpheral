@@ -24,6 +24,8 @@ class ManifestCheck(private val sdk: Sdk) {
     private val headerValueMax = sdk.limit("HEADER_VALUE_MAX")
     private val pickPathsMax = sdk.limit("PICK_PATHS_MAX")
     private val pickPathMax = sdk.limit("PICK_PATH_MAX")
+    private val pickKeyMax = sdk.contract.number("JSON_PICK_KEY_MAX")
+    private val pickDepthMax = sdk.contract.number("JSON_PICK_DEPTH_MAX")
     private val listItemMax = sdk.limit("LIST_ITEM_MAX")
     private val iconCells = sdk.limit("ICON_CELLS")
     private val hostsMax = sdk.limit("HOSTS_MAX")
@@ -192,9 +194,10 @@ class ManifestCheck(private val sdk: Sdk) {
         }
         for (picked in pick) {
             if (picked !is String || picked.toByteArray().size !in 1..pickPathMax ||
-                picked.windowed(3).count { it == "[*]" } > 1) {
+                !isPickPath(picked)) {
                 fail("$where: a path in \"pick\" must be a string of 1 to $pickPathMax bytes with \"[*]\" " +
-                    "once at most: $picked")
+                    "once at most, keys of at most $pickKeyMax ASCII bytes and at most $pickDepthMax " +
+                    "property or index levels: $picked")
             }
         }
         val each = poll["each"]
@@ -208,6 +211,30 @@ class ManifestCheck(private val sdk: Sdk) {
             fail("$where: \"prefix\" is of a poll with \"each\": 1-$eachPrefixMax printable characters " +
                 "without spaces, which the items it takes begin with")
         }
+    }
+
+    private fun isPickPath(path: String): Boolean {
+        val part = Regex("""([^.\[\]]+)|\[(\*|0|[1-9][0-9]*)\]""")
+        var at = 0
+        var depth = 0
+        var wildcards = 0
+        while (at < path.length) {
+            val found = part.find(path, at) ?: return false
+            if (found.range.first != at || ++depth > pickDepthMax) return false
+            val key = found.groupValues[1]
+            val index = found.groupValues[2]
+            if (key.isNotEmpty()) {
+                if (key.length > pickKeyMax || key.any { it < ' ' || it > '~' }) return false
+            } else if (index == "*") {
+                if (++wildcards > 1) return false
+            } else if (index.toIntOrNull() == null) return false
+            at = found.range.last + 1
+            if (at < path.length && path[at] == '.') {
+                at++
+                if (at == path.length || path[at] == '[') return false
+            } else if (at < path.length && path[at] != '[') return false
+        }
+        return depth > 0
     }
 
     private fun checkSettings(path: String, settings: Any?) {

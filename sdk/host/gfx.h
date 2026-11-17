@@ -9,9 +9,6 @@
 
 #include "base.h"
 
-#define HOST_SINCE_gfx_icon_ink "0.1.4"
-#define HOST_SINCE_gfx_text_ink "0.1.8"
-
 /* ---- Drawing (inside app_on_draw() only) ---- */
 
 /* Surface size: 400 x 300 for a full-screen application, 400 x 260 below

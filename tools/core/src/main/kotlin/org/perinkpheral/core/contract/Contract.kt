@@ -166,7 +166,7 @@ class Contract(private val text: String, private val defines: Map<String, String
         /** The contract of an SDK folder: its headers and lib/manifest_limits.h. */
         fun of(sdk: File): Contract {
             val contract = headers(sdk)
-            val headers = (contract + File(sdk, "lib/manifest_limits.h")).filter { it.isFile }
+            val headers = (contract + listOf(File(sdk, "lib/manifest_limits.h"), File(sdk, "lib/json_pick.h"))).filter { it.isFile }
             val defines = LinkedHashMap<String, String>()
             headers.forEach { file ->
                 val withoutComments = file.readText().replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), " ")

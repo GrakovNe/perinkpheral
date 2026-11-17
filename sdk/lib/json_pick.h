@@ -28,6 +28,11 @@ extern "C" {
  * as UTF-8, cut between characters if too long. A path that points to an
  * object, to an array or to nothing has no value.
  *
+ * A path is at most 63 bytes, each key at most 31 ASCII bytes, and a
+ * scalar is extracted through at most eight containers. Each property or
+ * array index consumes one level: a.b[0] uses three. Containers deeper
+ * than eight are skipped; nesting beyond 64 makes the document invalid.
+ *
  * A list path has one "[*]" in place of an index: every element of that
  * array, in order.
  *
@@ -46,11 +51,12 @@ extern "C" {
 #define JSON_PICK_VALUE_MAX 63 /* longer values are cut */
 #define JSON_PICK_DEPTH_MAX 8  /* deeper levels are not extracted */
 #define JSON_PICK_KEY_MAX   31 /* longer keys never match */
+#define JSON_PICK_NESTING_MAX 64 /* validation uses one bit per container */
 #define JSON_PICK_ANY       "[*]" /* in a path: every element of the array */
 
 typedef struct {
-    bool is_array;
     int  index;                      /* array: index of the current element */
+    bool is_array;
     bool expects_key;                /* object: the next string is a key */
     char key[JSON_PICK_KEY_MAX + 1]; /* key of the current member; empty if too long */
 } json_pick_level_t;
@@ -62,7 +68,11 @@ typedef struct {
     bool               found[JSON_PICK_PATHS_MAX];
 
     json_pick_level_t levels[JSON_PICK_DEPTH_MAX];
-    int               depth; /* can exceed DEPTH_MAX: deeper levels are counted only */
+    int               depth; /* beyond DEPTH_MAX only container kinds are kept */
+    uint64_t          arrays; /* one bit per open container, including unpicked levels */
+    uint8_t           literal_kind;
+    uint8_t           literal_at;
+    uint8_t           number_state;
     enum {
         JSON_PICK_BETWEEN, /* outside strings and literals */
         JSON_PICK_IN_KEY,
@@ -92,6 +102,9 @@ typedef struct {
     int      read_element;
     size_t   read_at;
 } json_pick_t;
+
+/* Whether a path fits the syntax, key, depth and one-wildcard limits. */
+bool json_pick_path_is_valid(const char *path);
 
 /* Initializes the extractor. `paths` must remain valid while it is used.
  * Paths beyond JSON_PICK_PATHS_MAX are ignored. */

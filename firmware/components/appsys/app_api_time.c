@@ -118,12 +118,17 @@ static int64_t days_from_civil(int64_t year, int64_t month, int64_t day)
 }
 
 /* The moment as the user's clock and calendar show it. */
-static void take_apart(const app_t *app, int64_t utc_seconds, host_local_time_t *parts_out)
+static bool take_apart(const app_t *app, int64_t utc_seconds, host_local_time_t *parts_out)
 {
+    if (utc_seconds < HOST_TIME_MIN || utc_seconds > HOST_TIME_MAX) {
+        return false;
+    }
     /* Local time is UTC moved by the offset, so the calendar of UTC reads it. */
     time_t local_seconds = (time_t)(utc_seconds + app->services->time_zone_offset_at(utc_seconds));
     struct tm parts;
-    gmtime_r(&local_seconds, &parts);
+    if (gmtime_r(&local_seconds, &parts) == NULL) {
+        return false;
+    }
     *parts_out = (host_local_time_t){
         .year = parts.tm_year + 1900,
         .month = parts.tm_mon + 1,
@@ -133,6 +138,7 @@ static void take_apart(const app_t *app, int64_t utc_seconds, host_local_time_t 
         .minute = parts.tm_min,
         .second = parts.tm_sec,
     };
+    return true;
 }
 
 static int32_t local_time_at(IM3Runtime runtime, void *memory, uint32_t parts_offset,
@@ -145,7 +151,9 @@ static int32_t local_time_at(IM3Runtime runtime, void *memory, uint32_t parts_of
     }
     /* The application's memory is not aligned for anybody: copy, do not assign. */
     host_local_time_t taken_apart;
-    take_apart(APP_OF(runtime), utc_seconds, &taken_apart);
+    if (!take_apart(APP_OF(runtime), utc_seconds, &taken_apart)) {
+        return HOST_ERR_ARGUMENT;
+    }
     memcpy(parts, &taken_apart, sizeof taken_apart);
     return HOST_OK;
 }
@@ -189,9 +197,14 @@ HOST_FUNCTION(time_text)
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     host_local_time_t at, today;
-    take_apart(app, unix_time, &at);
+    if (!take_apart(app, unix_time, &at)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
     int64_t now = app->services->unix_time();
-    take_apart(app, now, &today);
+    if (!take_apart(app, now, &today)) {
+        now = 0;
+        today = at;
+    }
     int64_t days = days_from_civil(at.year, at.month, at.day) -
                    days_from_civil(today.year, today.month, today.day);
     /* The names are the host's words, in the device's language. */
@@ -260,6 +273,10 @@ HOST_FUNCTION(time_from_local)
     int64_t as_utc = days_from_civil(parts.year, parts.month, parts.day) * SECONDS_PER_DAY +
                      (int64_t)parts.hour * SECONDS_PER_HOUR + (int64_t)parts.minute * SECONDS_PER_MINUTE +
                      parts.second;
+    const int64_t margin = LOCAL_TIME_OFFSET_MARGIN_DAYS * (int64_t)SECONDS_PER_DAY;
+    if (as_utc < HOST_TIME_MIN - margin || as_utc > HOST_TIME_MAX + margin) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
     /* Look on both sides of a possible clock change. Each offset offers
      * a candidate: a fold has two exact matches, a gap has none. Keep the
      * earlier exact match, or the nearest local time after the gap. The
@@ -268,8 +285,17 @@ HOST_FUNCTION(time_from_local)
     int64_t forward = INT64_MAX;
     bool found = false;
     for (int day = -LOCAL_TIME_OFFSET_MARGIN_DAYS; day <= LOCAL_TIME_OFFSET_MARGIN_DAYS; day++) {
-        int32_t offset = app->services->time_zone_offset_at(as_utc + day * (int64_t)SECONDS_PER_DAY);
+        int64_t sample = as_utc + day * (int64_t)SECONDS_PER_DAY;
+        if (sample < HOST_TIME_MIN) {
+            sample = HOST_TIME_MIN;
+        } else if (sample > HOST_TIME_MAX) {
+            sample = HOST_TIME_MAX;
+        }
+        int32_t offset = app->services->time_zone_offset_at(sample);
         int64_t candidate = as_utc - offset;
+        if (candidate < HOST_TIME_MIN || candidate > HOST_TIME_MAX) {
+            continue;
+        }
         int64_t local = candidate + app->services->time_zone_offset_at(candidate);
         if (local == as_utc) {
             if (!found || candidate < moment) {
@@ -280,6 +306,9 @@ HOST_FUNCTION(time_from_local)
             forward = local;
             moment = candidate;
         }
+    }
+    if ((!found && forward == INT64_MAX) || moment < HOST_TIME_MIN || moment > HOST_TIME_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     memcpy(output, &moment, sizeof moment);
     m3ApiReturn(HOST_OK);

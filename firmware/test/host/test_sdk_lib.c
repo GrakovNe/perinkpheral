@@ -179,6 +179,15 @@ static void test_fixed_numbers_at_the_edges(void)
     CHECK(!app_fixed_parse("1234567890123456789", 0, &value)); /* a 19th digit would be lost */
     CHECK(!app_fixed_parse("9223372036854775808", 0, &value));
     CHECK(value == 7);
+    CHECK(!app_fixed_parse("9.223372036854775808e18", 0, &value));
+    CHECK(!app_fixed_parse("-9.223372036854775808e18", 0, &value));
+    CHECK(!app_fixed_parse("1.234567890123456789e16", 2, &value));
+    CHECK(!app_fixed_parse("123456789012345678.6", 0, &value));
+    CHECK(value == 7);
+    CHECK(app_fixed_parse("9.223372036854775800e18", 0, &value) && value == 9223372036854775800LL);
+    CHECK(app_fixed_parse("123456789012345678.4", 0, &value) && value == 123456789012345678LL);
+    CHECK(app_fixed_parse("1.234567890123456789", 2, &value) && value == 123);
+    CHECK(app_fixed_parse("1.235000000000000009", 2, &value) && value == 124);
     CHECK(app_fixed_parse("123456789012345678", 0, &value) && value == 123456789012345678LL);
     CHECK(app_fixed_ratio(4000000000000000000LL, 8000000000000000000LL, 1) == 5);
     CHECK(app_fixed_ratio(1, 3, 2) == 33);

@@ -111,6 +111,9 @@ HOST_FUNCTION(sys_time_set)
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int64_t, unix_seconds);
     app_t *app = APP_OF(runtime);
+    if (unix_seconds < HOST_TIME_MIN || unix_seconds > HOST_TIME_MAX) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
     if (app->services->system_time_set == NULL) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }

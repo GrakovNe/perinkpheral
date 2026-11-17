@@ -208,7 +208,8 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * NORMAL cannot clear a QUESTION still pending. Use QUESTION when opening
  * a question, not for later redraws. OK KEYDOWN is consumed by the host;
  * later OK events are delivered only if the press began after the question
- * reached the panel.
+ * reached the panel. An application relying on HOST_REDRAW_QUESTION writes
+ * "firmware": "0.1.21" in its manifest.
  *
  * The host does not limit redraw requests. Every refresh uses battery
  * energy and wears the panel. */
@@ -275,7 +276,9 @@ HOST_IMPORT(header_status, int32_t header_status(int32_t side, int32_t icon, con
  * considered only when delivery ends. Refused within 30 seconds of a
  * button press, over a question waiting for its answer, or within 30
  * seconds of the last granted focus request. A refused request is discarded, with
- * no retry. A request in app_on_terminate() is too late for that decision. */
+ * no retry. A request in app_on_terminate() is too late for that decision.
+ * An application relying on these focus rules writes "firmware": "0.1.21"
+ * in its manifest. */
 HOST_IMPORT(request_focus, void request_focus(void));
 
 /* Closes the application: one step down the stack. Takes effect when

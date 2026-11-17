@@ -12,11 +12,7 @@
 #include "esp_sntp.h"
 
 #include "deadlines.h"
-
-/* A clock that was never set counts from 1970; anything before this is
- * that, not the time. */
-#define EARLIEST_REAL_TIME 1767225600 /* 2026-01-01 00:00:00 UTC */
-#define LATEST_TIME        4102444800LL /* 2100-01-01 00:00:00 UTC: by hand, no later */
+#include "host_api.h"
 
 #define SERVER_NAME_MAX 64
 
@@ -73,7 +69,7 @@ void net_time_set_automatic(bool automatic)
 
 bool net_time_set(int64_t unix_seconds)
 {
-    if (s_automatic || unix_seconds < EARLIEST_REAL_TIME || unix_seconds > LATEST_TIME) {
+    if (s_automatic || unix_seconds < HOST_TIME_MIN || unix_seconds > HOST_TIME_MAX) {
         return false;
     }
     struct timeval now = { .tv_sec = (time_t)unix_seconds };
@@ -106,7 +102,7 @@ void net_time_sync_now(void)
 int64_t net_time_now(void)
 {
     time_t now = time(NULL);
-    return now >= EARLIEST_REAL_TIME ? (int64_t)now : 0;
+    return now >= HOST_TIME_MIN && now <= HOST_TIME_MAX ? (int64_t)now : 0;
 }
 
 bool net_time_is_known(void)
@@ -116,12 +112,16 @@ bool net_time_is_known(void)
 
 int32_t net_time_zone_offset_at(int64_t unix_time)
 {
+    if (unix_time < HOST_TIME_MIN || unix_time > HOST_TIME_MAX) {
+        return 0;
+    }
     time_t moment = (time_t)unix_time;
     /* The same instant read as local time and as UTC: the difference of
      * the two as calendar times is the offset. */
     struct tm local, utc;
-    localtime_r(&moment, &local);
-    gmtime_r(&moment, &utc);
+    if (localtime_r(&moment, &local) == NULL || gmtime_r(&moment, &utc) == NULL) {
+        return 0;
+    }
     utc.tm_isdst = local.tm_isdst;
     return (int32_t)(mktime(&local) - mktime(&utc));
 }

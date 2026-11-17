@@ -149,6 +149,22 @@ static void test_limits(void)
     CHECK(json_pick_value(&pick, 0) == NULL);
     CHECK_STR(value(1), "9");
 
+    /* Container kinds are still checked beyond the extraction levels. */
+    char nested[JSON_PICK_NESTING_MAX * 2 + 3];
+    memset(nested, '[', JSON_PICK_NESTING_MAX);
+    memset(nested + JSON_PICK_NESTING_MAX, ']', JSON_PICK_NESTING_MAX);
+    nested[JSON_PICK_NESTING_MAX * 2] = '\0';
+    read_in_pieces(AFTER, 2, nested, 1);
+    CHECK(json_pick_finish(&pick));
+    nested[JSON_PICK_NESTING_MAX] = '}';
+    read_in_pieces(AFTER, 2, nested, 1);
+    CHECK(!json_pick_finish(&pick));
+    memset(nested, '[', JSON_PICK_NESTING_MAX + 1);
+    memset(nested + JSON_PICK_NESTING_MAX + 1, ']', JSON_PICK_NESTING_MAX + 1);
+    nested[JSON_PICK_NESTING_MAX * 2 + 2] = '\0';
+    read_in_pieces(AFTER, 2, nested, 1);
+    CHECK(!json_pick_finish(&pick));
+
     /* the first of two equal keys is the one */
     static const char *const TWICE[] = { "a" };
     read_in_pieces(TWICE, 1, "{\"a\":1,\"a\":2}", 3);
@@ -158,6 +174,22 @@ static void test_limits(void)
 static void test_broken_documents(void)
 {
     static const char *const PATHS[] = { "a", "b" };
+    static const char *const BROKEN[] = {
+        "{\"a\":123]", "[1}", "{\"a\":[{]}}", "{\"a\":tru}", "{\"a\":falsehood}",
+        "{\"a\":nul}", "{\"a\":NaN}", "{\"a\":01}", "{\"a\":1.}", "{\"a\":1e+}",
+        "[[[[[[[[[}]]]]]]]]", "truee", "fal", "-", "1e",
+    };
+    for (unsigned i = 0; i < sizeof BROKEN / sizeof BROKEN[0]; i++) {
+        for (size_t piece = 1; piece <= strlen(BROKEN[i]); piece++) {
+            read_in_pieces(PATHS, 2, BROKEN[i], piece);
+            CHECK(!json_pick_finish(&pick));
+        }
+    }
+    static const char *const WHOLE[] = { "true", "false", "null", "-1.2e+3", "0", "[null,true,false]" };
+    for (unsigned i = 0; i < sizeof WHOLE / sizeof WHOLE[0]; i++) {
+        read_in_pieces(PATHS, 2, WHOLE[i], 1);
+        CHECK(json_pick_finish(&pick));
+    }
     json_pick_init(&pick, PATHS, 2);
     CHECK(json_pick_feed(&pick, "{\"a\":1}", 7));
     CHECK(!json_pick_feed(&pick, "}", 1)); /* closes what was never opened */

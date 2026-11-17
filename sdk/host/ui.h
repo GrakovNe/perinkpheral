@@ -10,9 +10,6 @@
 #include "base.h"
 #include "gfx.h"
 
-#define HOST_SINCE_ui_cell      "0.1.4" /* an icon beside the picture */
-#define HOST_SINCE_ui_cell_fit  "0.1.4"
-
 /* ---- Kit: host interface parts ----
  *
  * The ui_* calls draw the parts that the host screens are built from. The

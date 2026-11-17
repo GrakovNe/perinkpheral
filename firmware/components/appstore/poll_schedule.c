@@ -16,6 +16,17 @@ void poll_schedule_init(poll_schedule_t *schedule)
     schedule->next_order = 0;
 }
 
+uint32_t poll_schedule_normalize_interval(uint32_t every_s)
+{
+    if (every_s == 0) {
+        return 0;
+    }
+    if (every_s < APP_POLL_EVERY_MIN_S) {
+        return APP_POLL_EVERY_MIN_S;
+    }
+    return every_s > APP_POLL_EVERY_MAX_S ? APP_POLL_EVERY_MAX_S : every_s;
+}
+
 static poll_entry_t *find(poll_schedule_t *schedule, int app, int poll)
 {
     for (int i = 0; i < schedule->count; i++) {

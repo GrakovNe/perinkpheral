@@ -94,11 +94,7 @@ static bool read_pick(const json_t *pick, app_poll_t *poll)
     const json_t *path;
     json_for_each(path, pick)
     {
-        /* One "[*]" at most: a list of lists would be one list. */
-        const char *any = json_is_string(path) ? strstr(path->text, JSON_PICK_ANY) : NULL;
-        if (!json_is_string(path) || path->text[0] == '\0' ||
-            strlen(path->text) > JSON_PICK_PATH_MAX ||
-            (any != NULL && strstr(any + 1, JSON_PICK_ANY) != NULL)) {
+        if (!json_is_string(path) || !json_pick_path_is_valid(path->text)) {
             return false;
         }
         strcpy(poll->pick[poll->pick_count++], path->text);

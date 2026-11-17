@@ -95,7 +95,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             val firmwareLine = when {
                 declared != null -> "  firmware $firmware or later, as the manifest says"
                 byCall != null -> "  firmware $firmware or later, for $byCall"
-                else -> "  firmware any"
+                else -> "  firmware $firmware or later"
             }
             val stamped = LinkedHashMap(manifest).apply { put("firmware", firmware) }
             File(outDir, MANIFEST).writeText(Json.pretty(stamped) + "\n")

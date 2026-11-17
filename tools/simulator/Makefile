@@ -35,7 +35,7 @@ SOURCES := sim.c \
            $(APPSYS)/app.c $(APPSYS)/app_api_draw.c $(APPSYS)/app_api_ui.c $(APPSYS)/app_api_data.c \
            $(APPSYS)/app_api_time.c $(APPSYS)/app_api_sys.c \
            $(APPSYS)/app_scene.c $(APPSYS)/app_delivery.c $(COMP)/appstore/app_store.c \
-           $(COMP)/appstore/app_manifest.c $(COMP)/appstore/json_tree.c $(COMP)/appstore/text_template.c \
+           $(COMP)/appstore/app_manifest.c $(COMP)/appstore/poll_schedule.c $(COMP)/appstore/json_tree.c $(COMP)/appstore/text_template.c \
            $(SDK)/lib/json_pick.c \
            $(UI)/wm.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(UI)/list.c \
            $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(COMP)/words/words.c $(GFX)/font_square.c \

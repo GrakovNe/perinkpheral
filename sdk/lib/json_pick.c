@@ -74,6 +74,68 @@ static bool path_matches(const char *pattern, const char *path)
     return *path == '\0';
 }
 
+bool json_pick_path_is_valid(const char *path)
+{
+    size_t length = 0;
+    int depth = 0, wildcards = 0;
+    while (path[length] != '\0') {
+        length++;
+    }
+    if (length == 0 || length > JSON_PICK_PATH_MAX) {
+        return false;
+    }
+    const char *at = path;
+    while (*at != '\0') {
+        if (++depth > JSON_PICK_DEPTH_MAX) {
+            return false;
+        }
+        if (*at == '[') {
+            at++;
+            if (*at == '*') {
+                if (++wildcards > 1) {
+                    return false;
+                }
+                at++;
+            } else {
+                if (!is_digit(*at) || (*at == '0' && is_digit(at[1]))) {
+                    return false;
+                }
+                uint32_t index = 0;
+                while (is_digit(*at)) {
+                    uint32_t digit = (uint32_t)(*at++ - '0');
+                    if (index > ((uint32_t)INT32_MAX - digit) / DECIMAL_BASE) {
+                        return false;
+                    }
+                    index = index * DECIMAL_BASE + digit;
+                }
+            }
+            if (*at++ != ']') {
+                return false;
+            }
+        } else {
+            int key_length = 0;
+            while (*at != '\0' && *at != '.' && *at != '[') {
+                if (*at < ' ' || *at > '~' || *at == ']' || ++key_length > JSON_PICK_KEY_MAX) {
+                    return false;
+                }
+                at++;
+            }
+            if (key_length == 0) {
+                return false;
+            }
+        }
+        if (*at == '.') {
+            at++;
+            if (*at == '\0' || *at == '[') {
+                return false;
+            }
+        } else if (*at != '\0' && *at != '[') {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool is_recorded(const json_pick_t *pick)
 {
     return pick->depth >= 1 && pick->depth <= JSON_PICK_DEPTH_MAX;
@@ -251,8 +313,85 @@ static void keep_element(json_pick_t *pick, int index)
     pick->counts[index]++;
 }
 
+enum {
+    NUMBER_START, NUMBER_SIGN, NUMBER_ZERO, NUMBER_INTEGER, NUMBER_POINT,
+    NUMBER_FRACTION, NUMBER_EXPONENT, NUMBER_EXPONENT_SIGN, NUMBER_EXPONENT_DIGITS,
+};
+
+static const char *const LITERALS[] = { "", "true", "false", "null" };
+
+static void literal_character(json_pick_t *pick, char character)
+{
+    if (pick->literal_kind != 0) {
+        const char *word = LITERALS[pick->literal_kind];
+        if (word[pick->literal_at] == '\0' || word[pick->literal_at] != character) {
+            pick->broken = true;
+        } else {
+            pick->literal_at++;
+        }
+        return;
+    }
+    bool digit = is_digit(character);
+    switch (pick->number_state) {
+    case NUMBER_START:
+        if (character == '-') {
+            pick->number_state = NUMBER_SIGN;
+            return;
+        }
+        /* fall through */
+    case NUMBER_SIGN:
+        pick->number_state = character == '0' ? NUMBER_ZERO : NUMBER_INTEGER;
+        pick->broken = !digit;
+        break;
+    case NUMBER_ZERO:
+    case NUMBER_INTEGER:
+        if (character == '.') {
+            pick->number_state = NUMBER_POINT;
+        } else if (character == 'e' || character == 'E') {
+            pick->number_state = NUMBER_EXPONENT;
+        } else if (!digit || pick->number_state == NUMBER_ZERO) {
+            pick->broken = true;
+        }
+        break;
+    case NUMBER_POINT:
+    case NUMBER_FRACTION:
+        if (digit) {
+            pick->number_state = NUMBER_FRACTION;
+        } else if (pick->number_state == NUMBER_FRACTION && (character == 'e' || character == 'E')) {
+            pick->number_state = NUMBER_EXPONENT;
+        } else {
+            pick->broken = true;
+        }
+        break;
+    case NUMBER_EXPONENT:
+        if (character == '+' || character == '-') {
+            pick->number_state = NUMBER_EXPONENT_SIGN;
+            break;
+        }
+        /* fall through */
+    case NUMBER_EXPONENT_SIGN:
+    case NUMBER_EXPONENT_DIGITS:
+        pick->broken = !digit;
+        pick->number_state = NUMBER_EXPONENT_DIGITS;
+        break;
+    }
+}
+
+static bool literal_is_whole(const json_pick_t *pick)
+{
+    if (pick->literal_kind != 0) {
+        return LITERALS[pick->literal_kind][pick->literal_at] == '\0';
+    }
+    return pick->number_state == NUMBER_ZERO || pick->number_state == NUMBER_INTEGER ||
+           pick->number_state == NUMBER_FRACTION || pick->number_state == NUMBER_EXPONENT_DIGITS;
+}
+
 static void value_ended(json_pick_t *pick)
 {
+    if (pick->state == JSON_PICK_IN_LITERAL && !literal_is_whole(pick)) {
+        pick->broken = true;
+        pick->target = NO_TARGET;
+    }
     if (pick->target != NO_TARGET) {
         pick->found[pick->target] = true;
         if (has_any(pick->paths[pick->target])) {
@@ -355,6 +494,12 @@ static void in_string(json_pick_t *pick, char character)
 
 static void open_level(json_pick_t *pick, bool is_array)
 {
+    if (pick->depth >= JSON_PICK_NESTING_MAX) {
+        pick->broken = true;
+        return;
+    }
+    uint64_t bit = UINT64_C(1) << pick->depth;
+    pick->arrays = is_array ? pick->arrays | bit : pick->arrays & ~bit;
     pick->depth++;
     if (is_recorded(pick)) {
         json_pick_level_t *level = innermost(pick);
@@ -379,7 +524,8 @@ static void between(json_pick_t *pick, char character)
         break;
     case '}':
     case ']':
-        if (pick->depth == 0) {
+        if (pick->depth == 0 ||
+            ((pick->arrays >> (pick->depth - 1)) & 1) != (character == ']')) {
             pick->broken = true;
             break;
         }
@@ -418,6 +564,12 @@ static void between(json_pick_t *pick, char character)
     default:
         aim(pick);
         pick->state = JSON_PICK_IN_LITERAL;
+        pick->literal_kind = character == 't' ? 1 : character == 'f' ? 2 : character == 'n' ? 3 : 0;
+        pick->literal_at = pick->literal_kind != 0 ? 1 : 0;
+        pick->number_state = NUMBER_START;
+        if (pick->literal_kind == 0) {
+            literal_character(pick, character);
+        }
         collect(pick, character);
         break;
     }
@@ -443,6 +595,7 @@ bool json_pick_feed(json_pick_t *pick, const char *bytes, size_t length)
                 value_ended(pick);
                 between(pick, character);
             } else {
+                literal_character(pick, character);
                 collect(pick, character);
             }
             break;

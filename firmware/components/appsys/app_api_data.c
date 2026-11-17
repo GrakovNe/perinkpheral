@@ -360,17 +360,13 @@ HOST_FUNCTION(alarm_set_every)
                     : HOST_ERR_NO_SPACE);
 }
 
-#define LAST_SECOND_OF_9999 253402300799LL
-
 HOST_FUNCTION(alarm_set_at)
 {
     m3ApiReturnType(int32_t);
     m3ApiGetArg(int32_t, id);
     m3ApiGetArg(int64_t, unix_time);
     app_t *app = APP_OF(runtime);
-    /* Up to the end of the year 9999: beyond it the milliseconds the host
-     * counts in would not fit their 64 bits. */
-    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time <= 0 || unix_time > LAST_SECOND_OF_9999) {
+    if (id < 0 || id >= HOST_ALARM_COUNT || unix_time < HOST_TIME_MIN || unix_time > HOST_TIME_MAX) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
     m3ApiReturn(app->services->alarm_set(app->name, id, unix_time, true) ? HOST_OK
