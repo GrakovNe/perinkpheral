@@ -77,6 +77,9 @@ CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
 CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y
 # Nothing on the device speaks IPv6, and no source of data needs it.
 CONFIG_LWIP_IPV6=n
+# The page gets what the web server, the setup name server and the poller leave
+# of them: seven connections (web_server.c)
+CONFIG_LWIP_MAX_SOCKETS=12
 
 # The way out of a device that has stopped answering counts its ten seconds
 # in an interrupt (components/input/buttons.c).

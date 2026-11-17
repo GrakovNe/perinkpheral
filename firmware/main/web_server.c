@@ -780,6 +780,19 @@ static const web_route_t ROUTES[] = {
     { "/api/settings", HTTP_POST, handle_set_settings, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
 };
 
+/* The device's sockets (CONFIG_LWIP_MAX_SOCKETS) and who holds them: the
+ * server three - the one it listens on, the one it is told through and the
+ * one it tells itself with (seen in /api/dev/sockets) -, the setup access
+ * point's name server one for as long as the device runs, and the poller
+ * the one request it makes at a time. The page's connections are what is
+ * left. */
+#define WEB_SERVER_OWN_SOCKETS 3
+#define NAME_SERVER_SOCKETS    1
+#define POLLER_SOCKETS         1
+#define WEB_PAGE_SOCKETS                                                                           \
+    (CONFIG_LWIP_MAX_SOCKETS - WEB_SERVER_OWN_SOCKETS - NAME_SERVER_SOCKETS - POLLER_SOCKETS)
+_Static_assert(WEB_PAGE_SOCKETS >= 6, "a browser opens six to a host at once: give lwIP more sockets");
+
 void web_server_start(void)
 {
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
@@ -792,6 +805,13 @@ void web_server_start(void)
      * with all the server's sockets taken, the next one waits for nothing.
      * The oldest one is closed instead. */
     server_config.lru_purge_enable = true;
+    /* But the oldest is closed only when the server holds as many as it may,
+     * and the device's sockets are shared: if it may hold more than are left
+     * for it, the next connection finds none - "error in accept (23)" - while
+     * the server still has room, nothing is closed, and the page is dead until
+     * a browser lets one go. Seen on 2026-11-17: seven promised where five were
+     * left. So it may hold what the others leave. */
+    server_config.max_open_sockets = WEB_PAGE_SOCKETS;
     server_config.max_uri_handlers = WEB_ROUTE_COUNT(ROUTES) + WEB_APPS_ROUTE_COUNT;
 #ifdef CONFIG_APP_DEV_CONSOLE
     server_config.max_uri_handlers += DEVTOOLS_ROUTE_COUNT;

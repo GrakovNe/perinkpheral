@@ -4,6 +4,14 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.16
+
+- The device's page no longer stops answering after a while. The web server was promised
+  seven connections of the device's ten sockets, where its own three, the setup name server's
+  and a poll's left five: a browser that kept a few open left none for the next, and the
+  oldest was never let go. The device has twelve sockets now and the page seven, the oldest
+  closed for the next.
+
 ## 0.1.14
 
 - The device's page shows what a release brings when it offers the update.

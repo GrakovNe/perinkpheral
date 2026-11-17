@@ -645,6 +645,13 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Text" }
 
+  /api/dev/sockets:
+    get:
+      tags: [Development]
+      summary: Every socket of the device - its kind, the port here and the other end
+      responses:
+        "200": { $ref: "#/components/responses/Text" }
+
   /api/dev/crash:
     post:
       tags: [Development]

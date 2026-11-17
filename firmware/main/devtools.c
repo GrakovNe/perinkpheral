@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "lwip/sockets.h"
 #include "freertos/FreeRTOS.h"
 
 #include "app_delivery.h"
@@ -364,6 +365,41 @@ static esp_err_t handle_restart(httpd_req_t *http)
     return err;
 }
 
+/* Every socket of the device, as lwIP has them: what kind, the port here
+ * and who is on the other end - for a page that stops answering because
+ * somebody holds them all ("error in accept (23)"). */
+static esp_err_t handle_sockets(httpd_req_t *http)
+{
+    static char text[1024];
+    size_t      at = 0;
+    int         open = 0;
+    for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; fd++) {
+        int       type = 0;
+        socklen_t size = sizeof type;
+        if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &size) != 0) {
+            continue;
+        }
+        open++;
+        struct sockaddr_in here = { 0 }, there = { 0 };
+        socklen_t          here_size = sizeof here, there_size = sizeof there;
+        getsockname(fd, (struct sockaddr *)&here, &here_size);
+        bool has_peer = getpeername(fd, (struct sockaddr *)&there, &there_size) == 0;
+        char peer[24] = "-";
+        if (has_peer) {
+            inet_ntoa_r(there.sin_addr, peer, sizeof peer);
+        }
+        at += (size_t)snprintf(text + at, sizeof text - at, "%d %s :%d %s:%d\n", fd,
+                               type == SOCK_STREAM ? "tcp" : type == SOCK_DGRAM ? "udp" : "raw",
+                               ntohs(here.sin_port), peer, has_peer ? ntohs(there.sin_port) : 0);
+        if (at >= sizeof text) {
+            at = sizeof text - 1;
+            break;
+        }
+    }
+    at += (size_t)snprintf(text + at, sizeof text - at, "%d of %d open\n", open, CONFIG_LWIP_MAX_SOCKETS);
+    return web_send_text(http, "200 OK", text);
+}
+
 const web_route_t DEVTOOLS_ROUTES[] = {
     { "/api/dev/screen", HTTP_GET, handle_screen, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     { "/api/dev/button", HTTP_POST, handle_button, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
@@ -374,5 +410,6 @@ const web_route_t DEVTOOLS_ROUTES[] = {
     { "/api/dev/restart", HTTP_POST, handle_restart, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     { "/api/dev/kv", HTTP_POST, handle_kv, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
     { "/api/dev/crash", HTTP_POST, handle_crash, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
+    { "/api/dev/sockets", HTTP_GET, handle_sockets, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE },
 };
 const size_t DEVTOOLS_ROUTE_COUNT = WEB_ROUTE_COUNT(DEVTOOLS_ROUTES);
