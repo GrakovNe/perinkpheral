@@ -67,8 +67,8 @@ Part I. Datasheet
 perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.
 perINKpheral - настольный дисплей: чёрно-белая панель E-Ink 4,2" с четырьмя кнопками на базе ESP32-C6. Отображается информация, рассчитанная на чтение с одного взгляда: время, погода, ближайшая встреча, состояние дома.
 
-The firmware is called the <i>host</i>. The menu and the settings are provided by the host. All other screens are provided by <i>applications</i>. Applications are installed from a catalog; the firmware is not reflashed.
-Прошивка называется <i>хостом</i>. Меню и настройки предоставляются хостом. Все остальные экраны предоставляются <i>приложениями</i>. Приложения устанавливаются из каталога; прошивка при этом не перезаписывается.
+The firmware is called the <i>host</i>. The host draws the menu and its own notices. Every other screen is an <i>application</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.
+Прошивка называется <i>хостом</i>. Хост рисует меню и свои уведомления. Все остальные экраны - <i>приложения</i>, в том числе Настройки и О системе: это системные приложения, встроенные в прошивку. Приложения устанавливаются из каталога; прошивка при этом не перезаписывается.
 
 An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.
 Приложение состоит из модуля WebAssembly и манифеста. Модуль пишется на C с одним заголовочным файлом, <code>sdk/host_api.h</code>, и исполняется интерпретатором (wasm3) внутри хоста.
