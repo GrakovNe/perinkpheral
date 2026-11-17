@@ -193,8 +193,14 @@ static void probation_task(void *arg)
             ESP_LOGE(TAG, "nothing to roll back to, keeping this image");
         }
         esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
-        ESP_LOGI(TAG, "image confirmed after %" PRIu32 " s: %s", input.uptime_s,
-                 esp_err_to_name(err));
+        /* By its number: a release build has no names for errors, and would
+         * say "UNKNOWN ERROR" of ESP_OK. */
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "image confirmed after %" PRIu32 " s", input.uptime_s);
+        } else {
+            ESP_LOGE(TAG, "image not confirmed after %" PRIu32 " s: error 0x%x", input.uptime_s,
+                     (unsigned)err);
+        }
         s_on_probation = false;
         vTaskDelete(NULL);
     }
