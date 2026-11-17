@@ -374,13 +374,17 @@ let catalogsRead = false;
 /* What the catalogs have and the device does not. */
 const available = () => offered.filter(offer => !installed.some(have => have.name === offer.app.name));
 
-/* The catalog: what the sources have and the device does not, in columns under the installed
- * ones. What was here before comes first: it returns with its settings. */
+/* What the catalogs have another version of, that this firmware can run. */
+const updates = () => offered.filter(offer => !firmwareNeeded(offer.app) &&
+  installed.some(have => have.name === offer.app.name && have.version !== offer.app.version));
+
+/* The catalog: everything the sources have, the installed among it - Installed, or Update when
+ * the source has another version. What was here before comes first: it returns with its settings. */
 function drawCatalog() {
   const kept = offer => removed.includes(offer.app.name);
   const isFull = installed.length >= CATALOG_INSTALLED_MAX;
   const wanted = byId("catalog-search").value.trim().toLowerCase();
-  const offers = available();
+  const offers = offered;
   const found = offers.filter(offer => !wanted ||
     [offerSays(offer, "title"), offerSays(offer, "description"), offer.app.name].join(" ").toLowerCase().includes(wanted));
   const rows = found.sort((a, b) => kept(b) - kept(a) || offerSays(a, "title").localeCompare(offerSays(b, "title"), pageLanguage))
@@ -393,9 +397,11 @@ function drawCatalog() {
         text.append(make("span", { className: "about", textContent: offerSays(offer, "description"), translate: false }));
       text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
                                                 (needed ? " - " + t("needs firmware {0}", needed) : "") }));
-      const button = make("button", { className: "quiet", textContent: "Install" });
-      button.disabled = Boolean(needed) || isFull;
-      button.addEventListener("click", () => install(button, offer));
+      const have = installed.find(app => app.name === offer.app.name);
+      const isUpdate = have && have.version !== offer.app.version;
+      const button = make("button", { className: "quiet", textContent: !have ? "Install" : isUpdate ? "Update" : "Installed" });
+      button.disabled = Boolean(needed) || (have ? !isUpdate : isFull);
+      if (!have || isUpdate) button.addEventListener("click", () => install(button, offer));
       row.append(picture(offer.app.icon, 3), text, button);
       return row;
     });
@@ -422,8 +428,22 @@ function drawTiles() {
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles);
   show("app-count", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
+  byId("update-all").hidden = updates().length < 2; /* one is its tile's Update */
   drawCatalog();
 }
+
+/* Every application a source has another version of, one after another; the first that fails
+ * stops it, and says why. */
+byId("update-all").addEventListener("click", async () => {
+  const button = byId("update-all");
+  await busy(button, async () => {
+    for (const offer of updates()) {
+      const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
+      await ask(url, post({ files: offer.app.files }));
+    }
+  });
+  await loadApps();
+});
 
 async function loadApps() {
   installed = await ask("/api/apps");

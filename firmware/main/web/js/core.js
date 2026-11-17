@@ -79,6 +79,7 @@ function toast(text, kind, stays) {
 /* How a button reads while its work is under way and right after it. */
 const WORDS = { Save: ["Saving", "Saved"], Install: ["Installing", "Installed"],
                 Remove: ["Removing", "Removed"], Update: ["Updating", "Updated"],
+                "Update all": ["Updating", "Updated"],
                 Connect: ["Connecting", "Connected"], Restart: ["Restarting", "Restarting"],
                 "Factory reset": ["Resetting", "Reset"], Refresh: ["Loading", "Refresh"],
                 Set: ["Setting", "Set"], "Check for updates": ["Checking", "Check for updates"] };

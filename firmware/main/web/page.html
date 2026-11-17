@@ -35,6 +35,7 @@
   <div class="head">
     <h2>Installed apps</h2>
     <span class="count" id="app-count"></span>
+    <button class="quiet" id="update-all" hidden>Update all</button>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
 </section>
@@ -72,7 +73,7 @@
   <div class="narrow">
     <div class="head"><h2>Firmware</h2></div>
     <dl class="ota">
-      <dt>Installed</dt><dd id="ota-installed"></dd>
+      <dt>Version</dt><dd id="ota-installed"></dd>
       <dt>Slot</dt><dd id="ota-slot"></dd>
     </dl>
 
@@ -165,6 +166,11 @@
 
   <div class="pane" id="time">
     <form id="time-zone">
+      <label for="clock-value">Date and time</label>
+      <div class="rows"><div>
+        <input id="clock-value" type="datetime-local" step="60">
+        <button type="button" class="quiet toggle" id="time_auto" aria-pressed="true">Network time</button>
+      </div></div>
       <label for="tz-city">Time zone</label>
       <div class="rows"><div>
         <select id="tz-city"></select>
@@ -174,18 +180,9 @@
         <label for="tz">POSIX TZ</label>
         <input id="tz" maxlength="47" autocomplete="off" spellcheck="false">
       </div>
-      <label class="check"><input id="time_auto" type="checkbox">Set time automatically</label>
       <label for="ntp_server">NTP server</label>
       <input id="ntp_server" maxlength="64" autocomplete="off" required>
       <button>Save</button>
-    </form>
-    <form id="clock" hidden>
-      <h3>Date and time</h3>
-      <input id="clock-value" type="datetime-local" step="60" required>
-      <div class="buttons">
-        <button>Set</button>
-        <button type="button" class="quiet" id="clock-now">Now</button>
-      </div>
     </form>
   </div>
 

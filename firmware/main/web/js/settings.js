@@ -66,7 +66,7 @@ async function loadSettings() {
   byId("font").value = settings.font;
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("header_clock").checked = settings.header_clock;
-  byId("time_auto").checked = settings.time_auto;
+  byId("time_auto").setAttribute("aria-pressed", String(Boolean(settings.time_auto)));
   byId("power_saving").value = settings.power_saving;
   const idle = byId("menu_idle_min");
   if (![...idle.options].some(option => Number(option.value) === settings.menu_idle_min))
@@ -110,8 +110,22 @@ saveSettings("general", () => ({ device_name: byId("device_name").value,
                                  default_app: byId("default_app").value,
                                  menu_idle_min: Number(byId("menu_idle_min").value),
                                  power_saving: Number(byId("power_saving").value) }));
-saveSettings("time-zone", () => ({ ...chosenZone(), ntp_server: byId("ntp_server").value,
-                                   time_auto: byId("time_auto").checked }));
+/* The time pane is saved whole: the zone, the time server, whether the network's time is taken,
+ * and - when it is not - the date and time typed, which the device takes only then. */
+const isNetworkTime = () => byId("time_auto").getAttribute("aria-pressed") === "true";
+byId("time-zone").addEventListener("submit", async event => {
+  event.preventDefault();
+  const moment = new Date(byId("clock-value").value).getTime();
+  const isSaved = await busy(event.submitter, async () => {
+    await ask("/api/settings", post({ ...chosenZone(), ntp_server: byId("ntp_server").value,
+                                      time_auto: isNetworkTime() }));
+    if (!isNetworkTime() && !isNaN(moment)) await ask("/api/clock", post({ unix: Math.round(moment / 1000) }));
+  });
+  if (isSaved) {
+    await loadSettings();
+    loadStatus();
+  }
+});
 saveSettings("display", () => ({
   refresh_full_every: Number(byId("refresh_full_every").value),
   refresh_min_data_s: Number(byId("refresh_min_data_s").value),
@@ -174,18 +188,16 @@ function localNow() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+/* The date and time are always there; taken from the network, they are the device's to keep and
+ * cannot be typed. Typed, they are this computer's wall time, and the moment goes to the device. */
 function drawClock() {
-  byId("clock").hidden = settings.time_auto;
-  if (!byId("clock-value").value) byId("clock-value").value = localNow();
+  byId("clock-value").disabled = isNetworkTime();
+  if (!byId("clock-value").value || isNetworkTime()) byId("clock-value").value = localNow();
 }
 
-byId("clock-now").addEventListener("click", () => { byId("clock-value").value = localNow(); });
-
-/* What was typed is this computer's wall time: the moment it is goes to the device. */
-byId("clock").addEventListener("submit", async event => {
-  event.preventDefault();
-  const moment = new Date(byId("clock-value").value).getTime();
-  if (await send(event.submitter, "/api/clock", post({ unix: Math.round(moment / 1000) }))) loadStatus();
+byId("time_auto").addEventListener("click", () => {
+  byId("time_auto").setAttribute("aria-pressed", String(!isNetworkTime()));
+  drawClock();
 });
 
 /* ---- the network: where the device is, and another to join ---- */

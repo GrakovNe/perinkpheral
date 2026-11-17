@@ -4,6 +4,14 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+
+## 0.1.25
+
+- The Catalog shows the installed applications too: Installed, or Update when a source has
+  another version. Installed apps has Update all when there is more than one update.
+- Time: the date and time are always there, with Network time beside them - pressed, they are the
+  network's; released, they are typed - then the time zone and the time server, and one Save.
+- "Factory reset" in Russian is "Сбросить к заводским настройкам".
 ## 0.1.23
 
 - The application contract is still ABI 2 before the first release; rebuild applications.

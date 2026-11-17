@@ -35,6 +35,7 @@ section.current { display: block; }
 /* A section's head: its name, and on the right what belongs to all of it. */
 .head { display: flex; align-items: center; gap: 1rem; min-height: 2.75rem; margin-bottom: 1.5rem; }
 .head h2 { font-size: 1.75rem; flex: 1; }
+.head button { margin: 0; } /* in the line of the title, not under it */
 h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bottom: 1px solid var(--ink); }
 .count { color: var(--dim); }
 .note { color: var(--dim); margin: .5rem 0 0; }
@@ -112,9 +113,15 @@ label.file .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis;
 .place li { padding: .5rem .7rem; cursor: pointer; }
 .place li:hover, .place li.current { background: var(--ink); color: var(--paper); }
 /* Lines a person adds and takes away: a field and its button a line. */
-.rows { display: grid; gap: .6rem; margin-top: .75rem; }
+.rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; margin-top: .75rem; }
 label + .rows { margin-top: 0; } /* under its label as an input is */
 .rows div { display: flex; gap: .6rem; }
+.rows div > input, .rows div > select { flex: 1; min-width: 0; } /* the field gives way, its button stays whole */
+/* A date and time is never cut: without room for both, its button goes under it. */
+.rows div:has(> input[type=datetime-local]) { flex-wrap: wrap; }
+.rows div > input[type=datetime-local] { min-width: 13.5rem; }
+/* The time pane's buttons stand in one column: Network time over Detect. */
+@media (min-width: 40rem) { #time-zone .rows div > button { width: 10.5rem; } } /* a phone puts it under the field */
 .rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; flex: none; }
 .rows button.add { width: 100%; }
 
