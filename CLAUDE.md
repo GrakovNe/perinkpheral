@@ -1,6 +1,6 @@
 # perINKpheral
 
-A desk e-paper display built on ESP32-C6, with four buttons. The host runs WebAssembly applications installed from a catalog without reflashing the firmware.
+A desk e-paper display built on ESP32-C6, with four buttons. Its software is a specialized operating system for e-paper, built on FreeRTOS/ESP-IDF. The host runs WebAssembly applications installed from a catalog without reflashing the firmware.
 
 The name is written `perinkpheral` in code, the repository and the domain; `perINKpheral` in the README, the logo and headings. The pun: peripheral vision + peripheral device + ink.
 
@@ -98,6 +98,11 @@ The wiring is fixed and done - do not change it. Battery voltage and USB supply 
 - Two frames of 400×300×1 bit = 15 KB each: the back buffer the host draws into and the display service's copy of what the panel shows.
 
 ## Architecture
+
+FreeRTOS/ESP-IDF provides the native task scheduler and low-level system services.
+perINKpheral manages applications and their shared API, screen, storage and network
+access. One WebAssembly instance runs at a time; background responses load their
+owning application and then restore the scene.
 
 ### Application
 **ABI 3 is the application contract; its first firmware is 0.1.30.** The supported set is explicitly `{3}`; ABI 2 is refused with "Update the app.", with no adapters. The manifest's ABI is retained through parsing into `app_load()`, which selects the supported contract before running code. Firmware releases and ABI generations are independent. An existing name, signature, privilege, binary layout, constant, accepted input or observable meaning cannot change within ABI 3. A changed signature or meaning requires a new ABI while the host retains the frozen generations it supports; additions after the 0.1.30 ABI floor carry permanent `HOST_SINCE_<name>` introduction stamps. New flags, exports or manifest behaviour that cannot be inferred from imports require an explicit firmware minimum. A new fixed struct layout needs a new call/type; `answer_info` alone permits extension after its unchanged prefix.

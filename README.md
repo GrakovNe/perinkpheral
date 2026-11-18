@@ -2,8 +2,10 @@
 
 # perINKpheral
 
-Firmware, SDK and tools for perINKpheral, an ESP32-C6 desk E-Ink display
-with four buttons. Applications are WebAssembly modules using ABI 3.
+A specialized operating system for e-paper, built on FreeRTOS/ESP-IDF.
+This repository contains the firmware, SDK and tools for perINKpheral,
+an ESP32-C6 desk display with four buttons. Applications are WebAssembly
+modules using ABI 3.
 
 [Project](https://perinkpheral.dev) -
 [Getting started](https://perinkpheral.dev/start) -
