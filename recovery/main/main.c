@@ -320,7 +320,9 @@ void app_main(void)
         }
         bool connected = atomic_load(&online);
         if (shown != current_state || shown_online != connected || shown_generation != generation) {
-            if (draw(current_state) == DISPLAY_SHOWN) {
+            display_result_t result = draw(current_state);
+            /* A new request may have the same visible version as the last one. */
+            if (result == DISPLAY_SHOWN || result == DISPLAY_UNCHANGED) {
                 shown = current_state;
                 shown_generation = generation;
                 shown_online = connected;
