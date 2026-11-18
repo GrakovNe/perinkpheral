@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.52
+
+- Use Perinkpheral OS consistently in the SDK guide, architecture documentation
+  and developer tools.
+
 ## 0.1.51
 
 - Let applications read HTTP response headers for authentication with local services.
@@ -265,7 +270,7 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 ## 0.1.13 - 2026-11-17
 
-- The host's settings are a store by key. Settings on the device and the device's page write the
+- Perinkpheral OS's settings are a store by key. Settings on the device and the device's page write the
   same keys by the same rules, and any application with system access may too
   (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`).
 - An application cannot remove itself.

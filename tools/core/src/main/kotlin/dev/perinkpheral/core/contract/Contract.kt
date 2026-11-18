@@ -8,7 +8,7 @@ import java.io.File
  * The contract, sdk/host_api.h, read once for every tool: the calls an application may
  * import and the signature of each as the interpreter types it, the handlers it may export,
  * and the numbers the header and sdk/lib/manifest_limits.h define. The header is the one place
- * a call's signature is written; the host's table of imports, the build's checks, the test
+ * a call's signature is written; Perinkpheral OS's table of imports, the build's checks, the test
  * that imports every call and the guide's table of limits are all made from what is read here.
  */
 class Contract(internal val text: String, private val defines: Map<String, String>) {
@@ -18,7 +18,7 @@ class Contract(internal val text: String, private val defines: Map<String, Strin
      * 32 bits or a pointer, I one of 64, v no result. */
     data class Call(val name: String, val declared: String, val signature: String, val isSystem: Boolean)
 
-    /** A function an application may export and the host calls. */
+    /** A function an application may export and Perinkpheral OS calls. */
     data class Export(val name: String, val arguments: Int, val hasResult: Boolean, val signature: String)
 
     val calls: List<Call> by lazy {
@@ -85,7 +85,7 @@ class Contract(internal val text: String, private val defines: Map<String, Strin
         return when (first) {
             in WIDE -> "I"
             in NARROW -> "i"
-            else -> throw BuildError("sdk/host_api.h: $where: the type \"$type\" has no place in a call of the host")
+            else -> throw BuildError("sdk/host_api.h: $where: the type \"$type\" has no place in a call of Perinkpheral OS")
         }
     }
 

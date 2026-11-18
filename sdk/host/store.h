@@ -13,7 +13,7 @@
 /* Key-value store for small persistent values. Each application has a
  * private store. Writing wears the flash memory: write when data has
  * changed, for example in app_on_terminate(), not on every timer tick.
- * Removal normally keeps the store for reinstall. The host may reclaim
+ * Removal normally keeps the store for reinstall. Perinkpheral OS may reclaim
  * removed applications' stores when the partition is full. Removal with
  * forget erases the store immediately. */
 #define HOST_KV_KEY_MAX   15  /* 1..15 characters from '!' to '~' */
@@ -71,7 +71,7 @@ HOST_IMPORT(file_read, int32_t file_read(const char *name, int32_t name_length, 
  * or at its end: a file is extended piece by piece, and existing data can
  * be overwritten. Length 0 at offset 0 deletes the file.
  * Only for an application whose manifest says "writes_files": true; the
- * build and the host refuse a module that imports this without it.
+ * build and Perinkpheral OS refuse a module that imports this without it.
  * Returns HOST_ERR_NO_SPACE if the files of the application would exceed
  * HOST_FILES_WRITER_MAX. */
 HOST_IMPORT(file_write, int32_t file_write(const char *name, int32_t name_length, int32_t offset,

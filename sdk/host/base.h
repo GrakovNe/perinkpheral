@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * The base of the host API: the ABI version, the import and export macros,
+ * The base of Perinkpheral OS API: the ABI version, the import and export macros,
  * the return codes every subject shares, and the log. Included by every
  * header of host/.
  */
@@ -21,8 +21,8 @@
 #define HOST_ABI_3_FIRMWARE_FIRST "0.1.30"
 #define HOST_FIRMWARE_FIRST     "0.1.30" /* entries without an introduction stamp */
 
-/* The host firmware includes this header for its constants. Outside a
- * wasm build the declarations expand to nothing, because the host defines
+/* Perinkpheral OS includes this header for its constants. Outside a
+ * wasm build the declarations expand to nothing, because Perinkpheral OS defines
  * functions with some of the same names. */
 #ifdef __wasm__
 #define HOST_IMPORT(name, ...) \
@@ -39,9 +39,9 @@
 #endif
 #endif
 
-/* The size of a struct that crosses between the application and the host, as both sides must
+/* The size of a struct that crosses between the application and Perinkpheral OS, as both sides must
  * lay it out: a change of one is a change of the contract, and the compiler of either side says
- * so. The host reads these structs as a 32-bit wasm module lays them out. */
+ * so. Perinkpheral OS reads these structs as a 32-bit wasm module lays them out. */
 #define HOST_LAYOUT(type, size) _Static_assert(sizeof(type) == (size), #type " is laid out as the contract says")
 
 /* Binary representation: wasm32, little endian, two's complement signed
@@ -54,7 +54,7 @@
  * 32-bit integers to wasm i32, and 64-bit integers to wasm i64.
  *
  * Ordinary input bytes are consumed or copied before an import returns;
- * the host does not retain application pointers. app_data_buffer() and
+ * Perinkpheral OS does not retain application pointers. app_data_buffer() and
  * app_strings_buffer() instead return storage valid for the entire loaded
  * instance: do not move or release it. Data passed to a handler is valid
  * only until that handler returns. String-table words are little-endian

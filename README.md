@@ -2,7 +2,7 @@
 
 # perINKpheral
 
-A specialized operating system for e-paper, built on FreeRTOS/ESP-IDF.
+**Perinkpheral OS** is a specialized operating system for e-paper, built on FreeRTOS/ESP-IDF.
 This repository contains the firmware, SDK and tools for perINKpheral,
 an ESP32-C6 desk display with four buttons. Applications are WebAssembly
 modules using ABI 3.
@@ -63,7 +63,7 @@ install the matching main firmware separately when the change needs both.
 
 - `firmware/` - ESP-IDF project, components, system applications and host tests.
 - `recovery/` - independent firmware updater, built with the main firmware.
-- `sdk/` - host API, application library, CMake support and Hello sample.
+- `sdk/` - Perinkpheral OS API, application library, CMake support and Hello sample.
 - `tools/` - command line, shared Kotlin core, simulator and screen preview.
 - [docs/](docs/README.md) - documentation index, application guide and web API reference.
 - [hardware/](hardware/README.md) - panel notes, case model, print files and separate design studies.

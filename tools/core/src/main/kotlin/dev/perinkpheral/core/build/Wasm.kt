@@ -36,7 +36,7 @@ class Wasm(file: File) {
     fun checkTypes(contract: Contract) {
         imports.forEachIndexed { index, (module, name) ->
             val call = contract.calls.firstOrNull { it.name == name }
-            if (module != "host" || call == null) throw BuildError("the module imports $module.$name, which the host does not offer")
+            if (module != "host" || call == null) throw BuildError("the module imports $module.$name, which Perinkpheral OS does not offer")
             checkType("import $module.$name", importedTypes[index], call.signature)
         }
         for (export in contract.exports) {

@@ -9,7 +9,7 @@
 
 #include "base.h"
 
-/* One piece of the answer to a poll or to http_send(). The host does
+/* One piece of the answer to a poll or to http_send(). Perinkpheral OS does
  * not hold a complete response in memory.
  *
  * request:     poll number in the manifest, or the tag of http_send().
@@ -29,7 +29,7 @@
  * a background instance can be unloaded by a button press, screen switch,
  * application-list reload or delivery to another application. Only
  * app_on_terminate() is called then. The next HOST_DATA_FIRST starts a
- * new answer. The host repeats an interrupted poll after one minute, or after
+ * new answer. Perinkpheral OS repeats an interrupted poll after one minute, or after
  * its interval when that is shorter; an
  * interrupted answer to http_send() is dropped, and the application
  * asks again if it still needs it. Discard partially read data.
@@ -66,7 +66,7 @@ APP_EXPORT(app_on_data, void app_on_data(int32_t request, const uint8_t *data, i
 
 /* The answer to a poll with "pick" in the manifest. "pick" is a list of
  * JSON paths, for example "current.temperature_2m" or
- * "daily.weather_code[0]". The host reads the answer and extracts the
+ * "daily.weather_code[0]". Perinkpheral OS reads the answer and extracts the
  * values. The application receives this single call instead of pieces.
  *
  * request:     poll number in the manifest.
@@ -121,9 +121,9 @@ typedef struct host_answer_info {
 } host_answer_info_t;
 HOST_LAYOUT(host_answer_info_t, 476);
 /* Copies the first min(capacity, sizeof(host_answer_info_t)) bytes of the
- * host's struct, including zeroed absent fields. Returns bytes written,
+ * Perinkpheral OS's struct, including zeroed absent fields. Returns bytes written,
  * HOST_ERR_ARGUMENT for a negative capacity or invalid destination, or
- * HOST_ERR_NOT_FOUND outside a data handler. Bytes beyond the host's
+ * HOST_ERR_NOT_FOUND outside a data handler. Bytes beyond Perinkpheral OS's
  * struct are untouched; zero the destination first when accepting a
  * shorter struct. Capacity 0 writes nothing and returns 0 in a handler. */
 HOST_IMPORT(answer_info, int32_t answer_info(host_answer_info_t *response, int32_t capacity));
@@ -159,7 +159,7 @@ APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));
  * between requests. */
 
 /* Requests poll number `poll` through the shared queue without waiting for
- * a response. Repeated pending requests are coalesced. The host performs
+ * a response. Repeated pending requests are coalesced. Perinkpheral OS performs
  * one request at a time. Calls within a second of the last accepted
  * poll_run() are delayed until that second has elapsed; this does not
  * guarantee a one-second gap between request starts. */
@@ -168,7 +168,7 @@ HOST_IMPORT(poll_run, int32_t poll_run(int32_t poll));
 /* Queues a request from code.
  *
  * Destination: only hosts listed under "hosts" in the manifest.
- * Queue:       the host performs one request at a time for the whole
+ * Queue:       Perinkpheral OS performs one request at a time for the whole
  *              device. An application has at most HOST_HTTP_PENDING_MAX
  *              requests waiting; with more to ask, it queues the next
  *              ones as answers arrive. The applications take turns, and
@@ -184,7 +184,7 @@ HOST_IMPORT(poll_run, int32_t poll_run(int32_t poll));
  *                  enum { REQUEST_TOKEN = HOST_REQUEST_FIRST, REQUEST_EVENTS };
  *
  * headers:     lines "Name: value" separated by '\n', at most four. The
- *              host sends "User-Agent: perinkpheral"; a User-Agent header
+ *              Perinkpheral OS sends "User-Agent: perinkpheral"; a User-Agent header
  *              given here replaces it. The same for polls. Each name is
  *              at most 31 bytes and each raw value at most 255 bytes.
  * {{key}}      reads the application's KV store, including keys not

@@ -11,7 +11,7 @@ class Built(val name: String, val manifest: Map<*, *>, val dir: File)
 
 /**
  * Builds a perINKpheral application: C sources -> app.wasm and its package, checked by the
- * rules the host applies and measured against what the device has. The compiler is clang of
+ * rules Perinkpheral OS applies and measured against what the device has. The compiler is clang of
  * wasi-sdk, with BuildFlags.
  */
 class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val say: (String) -> Unit) {
@@ -213,7 +213,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                     "\"writes_files\": true in its manifest, and the device keeps ${writerFilesMax / 1024} KB free for it")
             }
             if (moduleName != HOST_MODULE || name !in offered + system) {
-                throw BuildError("the module imports $moduleName.$name, which the host does not offer")
+                throw BuildError("the module imports $moduleName.$name, which Perinkpheral OS does not offer")
             }
         }
         if (module.memory != (1L to 1L)) {
@@ -239,7 +239,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             for (match in Regex("""\b(app_on_\w+)\s*\([^;{}()]*\)\s*\{""").findAll(file.readText())) {
                 val name = match.groupValues[1]
                 if (name !in known) {
-                    throw BuildError("${file.path}: $name() is not a handler the host calls. Its handlers: " +
+                    throw BuildError("${file.path}: $name() is not a handler Perinkpheral OS calls. Its handlers: " +
                         known.sorted().joinToString(", "))
                 }
             }
@@ -252,7 +252,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         val known = sdk.knownHandlers
         for (name in exports.sorted()) {
             if (name.startsWith("app_") && name !in known && name != "app_strings_buffer") {
-                throw BuildError("${wasm.path} exports $name(), which the host never calls: its handlers are " +
+                throw BuildError("${wasm.path} exports $name(), which Perinkpheral OS never calls: its handlers are " +
                     known.sorted().joinToString(", "))
             }
         }
@@ -303,7 +303,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         return total
     }
 
-    /** What the settings take of the application's store at their longest, as the host counts a
+    /** What the settings take of the application's store at their longest, as Perinkpheral OS counts a
      * value: two entries of 32 bytes and the value in whole entries. */
     private fun settingsStoreBytes(manifest: Map<*, *>): Long {
         fun taken(length: Long) = (2 + (length + 31) / 32) * 32
@@ -328,7 +328,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         val moduleBytes = wasm.length()
         val code = module.codeBytes
         val running = INTERPRETER_BASE_BYTES + INTERPRETER_BYTES_PER_CODE_BYTE * code
-        say("${wasm.path}: $moduleBytes bytes, ${module.imports.size} host calls")
+        say("${wasm.path}: $moduleBytes bytes, ${module.imports.size} Perinkpheral OS calls")
         say("  module  ${kb(moduleBytes)} of ${kb(moduleMax)}")
         say("  code    ${kb(code)}; running it takes about ${kb(running)} of the interpreter's ${kb(INTERPRETER_ROOM_BYTES)}")
         if (memoryEnd > 0) {
@@ -364,7 +364,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
         private const val HOST_MODULE = "host"
         private const val FILE_WRITE = "file_write"
         // What a number setting is counted at: a sign, the digits of 64 bits and a point - a number
-        // as a person writes one, not the 255 bytes the host would take of any text.
+        // as a person writes one, not the 255 bytes Perinkpheral OS would take of any text.
         private const val NUMBER_TEXT_COUNTED = 21L
         // What an application's code costs when it runs, as measured on the device: about this much
         // for any application, and about four bytes for every byte of the code section.

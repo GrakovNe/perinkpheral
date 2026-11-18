@@ -3,7 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  *
  * Drawing, inside app_on_draw(): the surface, text and fonts, shapes,
- * bitmaps, QR codes, the host's icons and the application's pictures.
+ * bitmaps, QR codes, Perinkpheral OS's icons and the application's pictures.
  */
 #pragma once
 
@@ -12,7 +12,7 @@
 /* ---- Drawing (inside app_on_draw() only) ---- */
 
 /* Surface size: 400 x 300 for a full-screen application, 400 x 260 below
- * the host header otherwise. The origin is the top left corner. The
+ * Perinkpheral OS header otherwise. The origin is the top left corner. The
  * default colour is black. Drawing is clipped to the surface. Drawing
  * coordinates are bounded to -4096..4096. gfx_draw_bitmap() and gfx_draw_bitmap_file()
  * require positive dimensions no larger than the surface, even when
@@ -45,7 +45,7 @@ HOST_IMPORT(gfx_height, int32_t gfx_height(void));
  *   HOST_FONT_LARGE     32 / 30    60 / 56    14 / 16
  *   HOST_FONT_DISPLAY   48 / 50    90 / 86     9 / 10
  *   HOST_FONT_HUGE      80 / 80   150 / 140    5 / 6   */
-#define HOST_FONT_TEXT    0 /* body text; the host's own text */
+#define HOST_FONT_TEXT    0 /* body text; Perinkpheral OS's own text */
 #define HOST_FONT_MEDIUM  1
 #define HOST_FONT_LARGE   2
 #define HOST_FONT_DISPLAY 3
@@ -130,7 +130,7 @@ HOST_IMPORT(gfx_draw_bitmap, int32_t gfx_draw_bitmap(int32_t x, int32_t y, int32
 HOST_IMPORT(gfx_draw_qr, int32_t gfx_draw_qr(int32_t x, int32_t y, int32_t cell, const char *text,
                                    int32_t length));
 
-/* Draws a bitmap that the host reads from an application file, starting
+/* Draws a bitmap that Perinkpheral OS reads from an application file, starting
  * at `offset`. The format is that of gfx_draw_bitmap(). A file can hold
  * several bitmaps. The bitmap does not use application memory.
  * Returns HOST_ERR_NOT_FOUND if the file does not exist or ends before
@@ -141,7 +141,7 @@ HOST_IMPORT(gfx_draw_bitmap_file,
 
 /* Draws a built-in icon in the current colour. An icon is 11 x 11 cells;
  * (x, y) is its top left corner; `cell` is the cell size in pixels, 1 to
- * HOST_ICON_CELL_MAX. Cell size 2 matches the host text size. Many are
+ * HOST_ICON_CELL_MAX. Cell size 2 matches Perinkpheral OS text size. Many are
  * drawn finer too, on 22 and 44 cells: a large one is as smooth as its
  * size allows, with no work of the application's. The weather, the
  * things of a house and the sky are here, for a dashboard to name

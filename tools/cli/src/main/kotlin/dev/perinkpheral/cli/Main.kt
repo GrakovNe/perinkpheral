@@ -39,7 +39,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral sim <app> [--port 8401] [--language en] [--font departure|jersey]
                      [--glyphs <dir>] [--mocks <file>] [--clock] [--at <unix>] [--state <dir>] [--binary <file>]
                                               run the application in the simulator; Ctrl-C stops it
-    perinkpheral preview [dir] [--font jersey] the host's screens as PNGs, rendered on this computer
+    perinkpheral preview [dir] [--font jersey] Perinkpheral OS's screens as PNGs, rendered on this computer
     perinkpheral sim-test <dir> [--update]    applications in the simulator, their screens against kept pictures
 
   What the project makes of its sources:
@@ -48,14 +48,14 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral check-pdf <kept> <made>       compare guide text, ignoring PDF metadata and pagination
     perinkpheral contract snapshot|check      record or check the frozen ABI (wasi-sdk required)
     perinkpheral check-wasm <file>            check import/export wasm types against the contract
-    perinkpheral imports <dir>                the host's table of imports from sdk/host_api.h
+    perinkpheral imports <dir>                Perinkpheral OS's table of imports from sdk/host_api.h
     perinkpheral every-call <dir>             an application that imports every call, for the tests
     perinkpheral check-limits <guide.html>    the guide's table of limits against the headers
     perinkpheral guide [--language ru] [--out <pdf>]
                                               the application guide into a PDF (Chromium, poppler)
     perinkpheral guide-units list|missing <language>|apply <language>
                                               the guide's pieces: what a translation is made of
-    perinkpheral icons                        the host's icons into gfx_icon_art.c
+    perinkpheral icons                        Perinkpheral OS's icons into gfx_icon_art.c
     perinkpheral video <video> --out frames.bin [--width 200] [--height 150] [--fps 1.5] [--threshold 128]
                                               a video into a 1-bit stream an application plays
     perinkpheral spelling --out <header>      how letters with no glyph are spelled in ASCII

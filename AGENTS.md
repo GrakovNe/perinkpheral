@@ -89,7 +89,7 @@ The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,
 refuses a module that imports anything `sdk/host_api.h` does not
-declare, and checks `manifest.json` by the host's rules. Everything in
+declare, and checks `manifest.json` by Perinkpheral OS's rules. Everything in
 `sdk/apps` is built this way by the firmware build and packed into the
 image of the `apps` partition; `idf.py flash` writes it with the
 firmware.
@@ -247,18 +247,18 @@ Code:
   `tools/perinkpheral check-layers` lists as pure. `display.c` and
   `buttons.c` only move it onto GPIO and tasks.
 - `settings_start()` falls back to defaults for invalid stored values and `reset_early_init()` runs before anything opens
-  NVS. Main's `settings.c` owns the host's settings; recovery's `settings.c`
+  NVS. Main's `settings.c` owns Perinkpheral OS's settings; recovery's `settings.c`
   reads them through a read-only partition descriptor. A factory
   reset erases it whole (`reset.c`), and `app_kv.c` moves what an old
   firmware kept there;
-  applications get their own namespaces through the host API `kv_*`.
-- `sdk/host_api.h` is the only contract between host and applications; it
+  applications get their own namespaces through Perinkpheral OS API `kv_*`.
+- `sdk/host_api.h` is the only contract between Perinkpheral OS and applications; it
   includes the declarations split by subject in `sdk/host/*.h`.
   An import is added in three places and nowhere else: the appropriate
   subject header, its `HOST_FUNCTION` in the `appsys/app_api_<area>.c` of its kind (the table
   that links it is made from the header), and a case in
-  `test/host/apps/probe` with its check in `test_app.c`. An export the
-  host calls is added to the header and called in `appsys/app.c`, whose
+  `test/host/apps/probe` with its check in `test_app.c`. An export
+  Perinkpheral OS calls is added to the header and called in `appsys/app.c`, whose
   count of them stops the build until it is. ABI 3 is already frozen:
   changing an existing signature, meaning, privilege, layout or constant
   requires a new ABI, not just a firmware version. Commands use subject
@@ -307,7 +307,7 @@ Display:
 - The first image after boot is full: it fills the RAM 0x26 that
   partial updates compare against. `epd.c` sleeps the panel at the end
   of a full show, mode 1 so that RAM is kept; after a partial one a
-  deadline of the host loop does it 1.5 s later (`display_rest()`), and
+  deadline of the main event loop does it 1.5 s later (`display_rest()`), and
   another makes the 24 h keep-alive refresh (`display_keepalive()`).
 
 Board and system:
