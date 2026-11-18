@@ -47,7 +47,7 @@ void recovery_screen_draw(gfx_t *graphics, recovery_state_t state, const char *v
                 heading = word(WORD_RECOVERY);
                 notice.first = word(WORD_CONNECTING);
                 notice.second = word(WORD_TO_WIFI);
-                notice.back = word(WORD_TRY_INSTALLED);
+                notice.back = word(WORD_EXIT_RECOVERY);
                 break;
             }
             /* Network instructions are a fallback, not a step in a normal update. */
@@ -57,7 +57,7 @@ void recovery_screen_draw(gfx_t *graphics, recovery_state_t state, const char *v
             notice.first = word(address[0] ? WORD_OPEN : WORD_JOIN_WIFI);
             notice.second = address[0] ? word(WORD_DEVICE_PAGE) : access_point;
             notice.detail = address[0] ? address : "192.168.4.1";
-            notice.back = word(WORD_TRY_INSTALLED);
+            notice.back = word(WORD_EXIT_RECOVERY);
             break;
         case CONFIRM:
             notice.first = word(WORD_UPDATE);
