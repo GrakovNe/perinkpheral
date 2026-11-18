@@ -579,10 +579,12 @@ void app_draw(app_t *app, gfx_t *surface)
     app->exit_requested = false;
 }
 
-void app_answer_begins(app_t *app, const host_answer_info_t *response, int http_status, int item)
+void app_answer_begins(app_t *app, const host_answer_info_t *response,
+                       const struct answer_headers *headers, int http_status, int item)
 {
     app->is_in_answer = true;
     app->response = response;
+    app->headers = headers;
     app->response_status = http_status;
     app->answer_item = item;
 }
@@ -591,6 +593,7 @@ void app_answer_ends(app_t *app)
 {
     app->is_in_answer = false;
     app->response = NULL;
+    app->headers = NULL;
 }
 
 void app_data(app_t *app, int request, const uint8_t *data, size_t length, int flags,

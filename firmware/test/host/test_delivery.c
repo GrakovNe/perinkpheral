@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "app_delivery.h"
+#include "answer_headers.h"
 #include "app_scene.h"
 #include "app_store.h"
 #include "host_api.h"
@@ -544,6 +545,60 @@ static void test_frozen_settings_translation(void)
     app_scene_destroy(settings);
 }
 
+static char auth_cookie[32];
+static int auth_checked;
+static int32_t auth_get(const char *app, const char *key, void *value, int32_t capacity)
+{
+    if (strcmp(app, "probe") == 0 && strcmp(key, "auth_cookie") == 0 && auth_cookie[0] && capacity >= 7) {
+        memcpy(value, auth_cookie, 7);
+        return 7;
+    }
+    return HOST_ERR_NOT_FOUND;
+}
+static int32_t auth_set(const char *app, const char *key, const void *value, int32_t length)
+{
+    CHECK(strcmp(app, "probe") == 0);
+    if (strcmp(key, "auth_cookie") == 0 && length == 7) { memcpy(auth_cookie, value, 7); }
+    if (strcmp(key, "auth_checked") == 0 && length == 7 && memcmp(value, "sid=one", 7) == 0) {
+        auth_checked++;
+    }
+    return HOST_OK;
+}
+static const char *current_firmware(void) { return "0.1.51"; }
+static void test_headers_across_background_unloads(void)
+{
+    start_on(&menu.scene);
+    char *text = app_store_read_manifest("build", "probe");
+    app_manifest_t manifest;
+    CHECK(text != NULL && app_manifest_parse(text, &manifest) == APP_MANIFEST_OK);
+    free(text);
+    app_services_t services = SERVICES;
+    services.firmware_version = current_firmware;
+    services.kv_get = auth_get;
+    services.kv_set = auth_set;
+    scene_t *owner = app_scene_create(&manifest, "build", &services);
+    CHECK(owner != NULL);
+    answer_headers_t headers;
+    answer_headers_reset(&headers);
+    answer_headers_add(&headers, "Set-Cookie", "sid=one");
+    app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = 31, .http_status = 401,
+        .headers = &headers, .flags = HOST_DATA_FIRST | HOST_DATA_LAST };
+    app_deliver(&state, &wm, owner, &delivery, 0);
+    CHECK(app_scene_app(owner) == NULL && wm.current == &menu.scene);
+    CHECK(memcmp(auth_cookie, "sid=one", 7) == 0);
+    /* Another owner never sees the completed response's headers. */
+    delivery.request = 30;
+    delivery.headers = NULL;
+    app_deliver(&state, &wm, probe, &delivery, 1);
+    CHECK(wm.current == &menu.scene && app_scene_app(probe) == NULL);
+    delivery.request = 32;
+    delivery.http_status = 200;
+    app_deliver(&state, &wm, owner, &delivery, 2);
+    CHECK(auth_checked == 1);
+    CHECK(app_scene_app(owner) == NULL && wm.current == &menu.scene);
+    app_scene_destroy(owner);
+}
+
 int main(void)
 {
     install_probe();
@@ -561,5 +616,6 @@ int main(void)
     test_opened_while_taking_an_answer();
     test_a_scene_that_is_not_an_application();
     test_scene_state_lifetime();
+    test_headers_across_background_unloads();
     REPORT();
 }

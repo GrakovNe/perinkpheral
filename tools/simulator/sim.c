@@ -50,6 +50,7 @@
 
 #include "app.h"
 #include "app_delivery.h"
+#include "answer_headers.h"
 #include "app_manifest.h"
 #include "poll_schedule.h"
 #include "app_scene.h"
@@ -381,6 +382,7 @@ typedef struct job {
     uint8_t        *answer;
     size_t          answer_length;
     host_answer_info_t response;
+    answer_headers_t response_headers;
 } job_t;
 
 static bool            s_last_use_failed; /* what the header's icon says */
@@ -408,6 +410,25 @@ static const json_t *mock_for(const char *url)
         }
     }
     return NULL;
+}
+
+static void keep_answer_headers(answer_headers_t *kept, const json_t *headers)
+{
+    for (const json_t *field = headers != NULL ? headers->child : NULL;
+         field != NULL; field = field->next) {
+        if (field->name == NULL) {
+            continue;
+        }
+        if (json_is_string(field)) {
+            answer_headers_add(kept, field->name, field->text);
+        } else if (json_is_array(field)) {
+            for (const json_t *value = field->child; value != NULL; value = value->next) {
+                if (json_is_string(value)) {
+                    answer_headers_add(kept, field->name, value->text);
+                }
+            }
+        }
+    }
 }
 
 static void answer_from_mock(job_t *job, const json_t *mock)
@@ -440,6 +461,7 @@ static void answer_from_mock(job_t *job, const json_t *mock)
         memcpy(job->answer, body->text, job->answer_length);
     }
     job->response.length = (int32_t)job->answer_length;
+    keep_answer_headers(&job->response_headers, json_get(mock, "headers"));
 }
 
 /* ---- base64, for bodies on their way to the network and back ---- */
@@ -529,6 +551,7 @@ static void stop_fetcher(void)
 static void copy_answer_header(const json_t *headers, const char *name, char *to, size_t size)
 {
     const json_t *value = json_get(headers, name);
+    if (json_is_array(value)) { value = json_at(value, 0); }
     if (json_is_string(value)) {
         snprintf(to, size, "%s", value->text);
     }
@@ -616,19 +639,23 @@ static void exchange(job_t *job, char *next, size_t next_size)
     host_answer_info_t *response = &job->response;
     response->status = job->status;
     const json_t *got_headers = json_get(answer, "headers");
-    copy_answer_header(got_headers, "content-type", response->content_type, sizeof response->content_type);
-    copy_answer_header(got_headers, "etag", response->etag, sizeof response->etag);
-    copy_answer_header(got_headers, "last-modified", response->last_modified,
+    keep_answer_headers(&job->response_headers, got_headers);
+    const json_t *metadata_headers = json_get(answer, "metadata");
+    if (metadata_headers == NULL) { metadata_headers = got_headers; }
+    if (json_is_true(json_get(answer, "headers_overflow"))) { job->response_headers.overflow = true; }
+    copy_answer_header(metadata_headers, "content-type", response->content_type, sizeof response->content_type);
+    copy_answer_header(metadata_headers, "etag", response->etag, sizeof response->etag);
+    copy_answer_header(metadata_headers, "last-modified", response->last_modified,
                        sizeof response->last_modified);
-    copy_answer_header(got_headers, "location", response->location, sizeof response->location);
-    copy_answer_header(got_headers, "link", response->link, sizeof response->link);
+    copy_answer_header(metadata_headers, "location", response->location, sizeof response->location);
+    copy_answer_header(metadata_headers, "link", response->link, sizeof response->link);
     char number[24] = "";
-    copy_answer_header(got_headers, "content-length", number, sizeof number);
+    copy_answer_header(metadata_headers, "content-length", number, sizeof number);
     if (number[0] != '\0') {
         response->length = atoi(number);
     }
     number[0] = '\0';
-    copy_answer_header(got_headers, "retry-after", number, sizeof number);
+    copy_answer_header(metadata_headers, "retry-after", number, sizeof number);
     if (number[0] >= '0' && number[0] <= '9') {
         response->retry_after = atoi(number);
     }
@@ -677,6 +704,7 @@ static void fetch(job_t *job)
         job->answer = NULL;
         job->answer_length = 0;
         memset(&job->response, 0, sizeof job->response);
+        answer_headers_reset(&job->response_headers);
         if (is_refused) {
             /* Said in the log by hand_over(), on the thread the log belongs to. */
             job->status = HOST_FAILED_NOT_ALLOWED;
@@ -780,7 +808,7 @@ static void hand_over(job_t *job)
         app_delivery_t delivery = {
             .kind = APP_DELIVERY_VALUES, .request = job->number,
             .http_status = is_json ? job->status : HOST_FAILED_NO_ANSWER,
-            .response = &job->response, .picked = &pick,
+            .response = &job->response, .headers = &job->response_headers, .picked = &pick,
             .has_item = job->item >= 0, .item = job->item,
         };
         deliver(&delivery);
@@ -796,7 +824,7 @@ static void hand_over(job_t *job)
                     (at + piece == job->answer_length ? HOST_DATA_LAST : 0);
         app_delivery_t delivery = {
             .kind = APP_DELIVERY_PIECE, .request = job->number, .http_status = job->status,
-            .response = &job->response, .data = job->answer + at, .length = piece, .flags = flags,
+            .response = &job->response, .headers = &job->response_headers, .data = job->answer + at, .length = piece, .flags = flags,
             .has_item = job->item >= 0, .item = job->item,
         };
         deliver(&delivery);

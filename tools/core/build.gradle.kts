@@ -49,3 +49,10 @@ val manifestAuthorTest by tasks.registering(JavaExec::class) {
     mainClass.set("dev.perinkpheral.core.ManifestAuthorTest")
 }
 tasks.check { dependsOn(manifestAuthorTest) }
+
+val simulatorHeadersTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.simulator.SimulatorHeadersTest")
+}
+tasks.check { dependsOn(simulatorHeadersTest) }

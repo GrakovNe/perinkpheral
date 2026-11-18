@@ -2,7 +2,7 @@
 # application as a scene, the delivery of answers. What an application is
 # apart from running it is appstore's.
 idf_component_register(SRCS "app.c" "app_api_draw.c" "app_api_ui.c" "app_api_data.c" "app_api_time.c" "app_api_sys.c"
-                            "app_scene.c" "app_delivery.c"
+                            "app_scene.c" "app_delivery.c" "answer_headers.c"
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "../../../sdk"
                        REQUIRES appstore gfx ui words board

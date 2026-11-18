@@ -17,6 +17,7 @@
 #include "mbedtls/x509_crt.h"
 
 #include "app_kv.h"
+#include "answer_headers.h"
 #include "events.h"
 #include "app_manifest.h"
 #include "app_store.h"
@@ -66,20 +67,22 @@ static void note_network_use(bool worked)
 static int s_item = -1;
 
 static void hand_over_values(const char *app_name, int request, int http_status,
-                             const host_answer_info_t *response, json_pick_t *picked)
+                             const host_answer_info_t *response, const answer_headers_t *headers,
+                             json_pick_t *picked)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_VALUES, .request = request,
-                                .http_status = http_status, .response = response,
+                                .http_status = http_status, .response = response, .headers = headers,
                                 .picked = picked, .has_item = s_item >= 0, .item = s_item };
     hand_over(app_name, &delivery);
 }
 
 static void hand_over_piece(const char *app_name, int request, int http_status,
-                            const host_answer_info_t *response, const uint8_t *data, size_t length,
+                            const host_answer_info_t *response, const answer_headers_t *headers,
+                            const uint8_t *data, size_t length,
                             int flags)
 {
     app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = request,
-                                .http_status = http_status, .response = response,
+                                .http_status = http_status, .response = response, .headers = headers,
                                 .data = data, .length = length, .flags = flags,
                                 .has_item = s_item >= 0, .item = s_item };
     hand_over(app_name, &delivery);
@@ -103,6 +106,7 @@ typedef struct {
     app_poll_t poll;
     char       url[APP_URL_MAX + 1];
     host_answer_info_t response; /* what the headers of the answer said */
+    answer_headers_t headers;
     const char *paths[JSON_PICK_PATHS_MAX];
     json_pick_t pick;
     uint8_t     piece[HOST_DATA_CHUNK_MAX];
@@ -174,12 +178,11 @@ static void note_header(host_answer_info_t *response, const char *name, const ch
 
 static esp_err_t on_http_event(esp_http_client_event_t *event)
 {
-    host_answer_info_t *response = event->user_data;
-    if (event->event_id == HTTP_EVENT_ON_CONNECTED) {
-        /* A new answer begins: of the one that sent us here nothing is kept. */
-        memset(response, 0, sizeof *response);
-    } else if (event->event_id == HTTP_EVENT_ON_HEADER) {
+    request_t *request = event->user_data;
+    host_answer_info_t *response = &request->response;
+    if (event->event_id == HTTP_EVENT_ON_HEADER) {
         note_header(response, event->header_key, event->header_value);
+        answer_headers_add(&request->headers, event->header_key, event->header_value);
     }
     return ESP_OK;
 }
@@ -299,7 +302,7 @@ static int prepare(request_t *request, const char *app_name, int method,
         .user_agent = USER_AGENT,
         .buffer_size = HOST_DATA_CHUNK_MAX,
         .event_handler = on_http_event,
-        .user_data = &request->response,
+        .user_data = request,
     };
     *client = esp_http_client_init(&config);
     if (*client == NULL) {
@@ -368,7 +371,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     if (wants_lists && list == NULL) {
         /* Without the room every list would come empty, and pass for an answer. */
         esp_http_client_close(client);
-        hand_over_values(app_name, poll_number, HOST_FAILED_NO_MEMORY, &request->response, &request->pick);
+        hand_over_values(app_name, poll_number, HOST_FAILED_NO_MEMORY, &request->response, &request->headers, &request->pick);
         return;
     }
     json_pick_lists(&request->pick, list, HOST_LIST_BYTES);
@@ -403,7 +406,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
         ESP_LOGW(TAG, "%s/%d: list elements beyond %d bytes were dropped", app_name, poll_number,
                  HOST_LIST_BYTES);
     }
-    hand_over_values(app_name, poll_number, http_status, &request->response, &request->pick);
+    hand_over_values(app_name, poll_number, http_status, &request->response, &request->headers, &request->pick);
     free(list);
 }
 
@@ -427,7 +430,7 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
         if (next_length == 0) {
             flags |= HOST_DATA_LAST;
         }
-        hand_over_piece(app_name, poll_number, http_status, &request->response, piece,
+        hand_over_piece(app_name, poll_number, http_status, &request->response, &request->headers, piece,
                         (size_t)length, flags);
         if (flags & HOST_DATA_LAST) {
             return;
@@ -447,7 +450,7 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
                     total > HOST_ANSWER_PIECES_MAX ? HOST_FAILED_TOO_LARGE
                     : is_too_long                  ? HOST_FAILED_TIMEOUT
                                                    : HOST_FAILED_NO_ANSWER,
-                    NULL, NULL, 0, HOST_DATA_FAILED);
+                    NULL, NULL, NULL, 0, HOST_DATA_FAILED);
 }
 
 /* `why` is a HOST_FAILED_*, where the HTTP status would have been.
@@ -529,8 +532,11 @@ static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t c
 
 /* Waits for the answer's headers. A server that takes the connection and
  * then says nothing is a timeout, which the client reports as "again". */
-static esp_err_t headers_or_why_not(esp_http_client_handle_t client)
+static esp_err_t headers_or_why_not(esp_http_client_handle_t client, request_t *request)
 {
+    /* Redirects may reuse a connection: reset per response, not per connection. */
+    memset(&request->response, 0, sizeof request->response);
+    answer_headers_reset(&request->headers);
     int64_t length = esp_http_client_fetch_headers(client);
     if (length == -ESP_ERR_HTTP_EAGAIN) {
         return ESP_ERR_TIMEOUT;
@@ -604,7 +610,7 @@ static void ask_network(request_t *request, const char *app_name, int number, in
     }
     int http_status = 0;
     if (err == ESP_OK) {
-        err = headers_or_why_not(client);
+        err = headers_or_why_not(client, request);
         http_status = esp_http_client_get_status_code(client);
     }
     /* Only what can be asked again as it was: a body is not sent twice. */
@@ -632,7 +638,7 @@ static void ask_network(request_t *request, const char *app_name, int number, in
         err = esp_http_client_open(client, 0);
         http_status = 0;
         if (err == ESP_OK) {
-            err = headers_or_why_not(client);
+            err = headers_or_why_not(client, request);
             http_status = esp_http_client_get_status_code(client);
         }
     }
@@ -651,7 +657,7 @@ static void ask_network(request_t *request, const char *app_name, int number, in
                                        : (int32_t)esp_http_client_get_content_length(client);
         if (method == HOST_HTTP_HEAD) {
             /* There is no body to wait for: the headers are the answer. */
-            hand_over_piece(app_name, number, http_status, &request->response, request->piece,
+            hand_over_piece(app_name, number, http_status, &request->response, &request->headers, request->piece,
                             0, HOST_DATA_FIRST | HOST_DATA_LAST);
         } else if (wants_values) {
             fetch_values(request, client, app_name, number, http_status);

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "app.h"
+#include "answer_headers.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -469,6 +470,44 @@ static void test_store(void)
     app_unload(app);
 }
 
+static void test_response_headers(void)
+{
+    app_t *app = load_probe();
+    answer_headers_t headers;
+    answer_headers_reset(&headers);
+    answer_headers_add(&headers, "Set-Cookie", "sid=one");
+    answer_headers_add(&headers, "Set-Cookie", "sid=two");
+    answer_headers_add(&headers, "X-NDM-Realm", "router");
+    answer_headers_add(&headers, "empty", "");
+    app_answer_begins(app, NULL, &headers, 401, -1);
+    app_data(app, 30, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 401);
+    app_answer_ends(app);
+    CHECK(app_take_focus_request(app));
+    app_answer_begins(app, NULL, &headers, 401, -1);
+    app_values(app, 30, 401, NULL);
+    app_answer_ends(app);
+    CHECK(app_take_focus_request(app));
+    app_data(app, 30, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
+    CHECK(!app_take_focus_request(app));
+
+    char too_large[ANSWER_HEADERS_BYTES + 1];
+    memset(too_large, 'x', sizeof too_large - 1);
+    too_large[sizeof too_large - 1] = 0;
+    answer_headers_add(&headers, "overflow", too_large);
+    host_answer_info_t metadata = { .etag = "kept" };
+    app_answer_begins(app, &metadata, &headers, 200, -1);
+    app_data(app, 34, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
+    app_answer_ends(app);
+    CHECK(app_take_focus_request(app));
+    app_unload(app);
+    app = load_probe_as("other");
+    app_answer_begins(app, NULL, NULL, 200, -1);
+    app_data(app, 33, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
+    app_answer_ends(app);
+    CHECK(app_take_focus_request(app));
+    app_unload(app);
+}
+
 static void test_data(void)
 {
     app_t *app = load_probe();
@@ -494,7 +533,7 @@ static void test_data(void)
 
     /* what the headers said is there for the handler to ask, and only then */
     host_answer_info_t described = { .length = -1, .retry_after = 30, .etag = "\"v7\"" };
-    app_answer_begins(app, &described, 304, -1);
+    app_answer_begins(app, &described, NULL, 304, -1);
     app_data(app, 3, response, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 304);
     app_answer_ends(app);
     CHECK(app_take_focus_request(app));
@@ -834,6 +873,7 @@ int main(void)
 {
     test_probe_contract();
     test_scene_state();
+    test_response_headers();
     probe_bytes = frozen_probe_wasm;
     probe_size = sizeof frozen_probe_wasm;
     test_probe_contract();

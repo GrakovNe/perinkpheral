@@ -242,7 +242,7 @@ class Layers(firmwareFolder: File) {
             "components/net/wifi_plan.c", "components/net/wifi_credentials.c", "components/net/wifi_networks.c",
             "components/net/ota_stream.c", "components/net/ota_health.c", "components/net/captive_portal.c",
             "components/qr/wifi_qr.c",
-            "components/appsys/app.c", "components/appsys/app_api_data.c", "components/appsys/app_api_draw.c",
+            "components/appsys/answer_headers.c", "components/appsys/app.c", "components/appsys/app_api_data.c", "components/appsys/app_api_draw.c",
             "components/appsys/app_api_sys.c", "components/appsys/app_api_time.c", "components/appsys/app_api_ui.c",
             "components/appsys/app_delivery.c", "components/appsys/app_scene.c",
             "components/appstore/app_manifest.c", "components/appstore/app_store.c", "components/appstore/app_room.c",

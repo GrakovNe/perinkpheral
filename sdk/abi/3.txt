@@ -174,6 +174,7 @@ constant HOST_REQUEST_FIRST	16
 constant HOST_REQUEST_LAST	255
 constant HOST_SCENE_STATE_MAX	1024
 constant HOST_SESSION_MAX	128
+constant HOST_SINCE_answer_header	"0.1.51"
 constant HOST_SINCE_scene_state_get	"0.1.34"
 constant HOST_SINCE_scene_state_set	"0.1.34"
 constant HOST_STATUS_TEXT_MAX	31
@@ -502,6 +503,7 @@ import alarm_set_at	i(iI) grant=none
 import alarm_set_every	i(iii) grant=none
 import answer_count	i(i) grant=none
 import answer_element	i(iiii) grant=none
+import answer_header	i(iiiii) grant=none
 import answer_info	i(ii) grant=none
 import answer_item	i() grant=none
 import answer_value	i(iii) grant=none
@@ -591,6 +593,7 @@ import ui_value_width	i(iiiii) grant=none
 macro BTN_ACTION_OF	(event) ((event) & 3)
 macro BTN_EVENT	(button, action) ((button) << 2 | (action))
 macro BTN_OF	(event) ((event) >> 2)
+since answer_header	0.1.51
 since scene_state_get	0.1.34
 since scene_state_set	0.1.34
 struct host_answer_info_t align	4

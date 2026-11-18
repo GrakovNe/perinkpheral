@@ -219,6 +219,63 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         data_failed = request;
         return;
     }
+    if (request == 30) {
+        char cookie[16] = { 0 }, realm[16] = { 0 }, second[16] = { 0 };
+        char guard[5] = "keep";
+        if (answer_header("SeT-cOoKiE", 10, 0, cookie, sizeof cookie) == 7 &&
+            same_bytes(cookie, "sid=one") &&
+            answer_header("set-cookie", 10, 1, second, sizeof second) == 7 &&
+            same_bytes(second, "sid=two") &&
+            answer_header("X-NDM-Realm", 11, 0, realm, sizeof realm) == 6 &&
+            same_bytes(realm, "router") &&
+            answer_header("set-cookie", 10, 2, second, sizeof second) == HOST_ERR_NOT_FOUND &&
+            answer_header("empty", 5, 0, second, 0) == 0 &&
+            answer_header("empty", 5, 0, (char *)65536, 0) == 0 &&
+            answer_header("set-cookie", 10, 0, guard, sizeof guard) == HOST_ERR_NO_SPACE &&
+            guard[0] == 'k' && guard[3] == 'p' &&
+            answer_header("set-cookie", 10, -1, second, sizeof second) == HOST_ERR_ARGUMENT &&
+            answer_header("set-cookie", 10, 0, second, -1) == HOST_ERR_ARGUMENT &&
+            answer_header("set-cookie", -1, 0, second, sizeof second) == HOST_ERR_ARGUMENT &&
+            answer_header("bad name", 8, 0, second, sizeof second) == HOST_ERR_ARGUMENT &&
+            answer_header((char *)65534, 10, 0, second, sizeof second) == HOST_ERR_ARGUMENT &&
+            answer_header("set-cookie", 10, 0, (char *)65534, 7) == HOST_ERR_ARGUMENT) {
+            screen_request();
+        }
+        return;
+    }
+    if (request == 34) {
+        char cookie[32] = "unchanged";
+        host_answer_info_t info;
+        if (answer_header("set-cookie", 10, 0, cookie, sizeof cookie) == HOST_ERR_NO_SPACE &&
+            answer_header("not-present", 11, 0, cookie, sizeof cookie) == HOST_ERR_NO_SPACE &&
+            same_bytes(cookie, "unchanged") &&
+            answer_info(&info, sizeof info) == sizeof info && same_bytes(info.etag, "kept")) {
+            screen_request();
+        }
+        return;
+    }
+    if (request == 33) {
+        char cookie[32];
+        if (answer_header("set-cookie", 10, 0, cookie, sizeof cookie) == HOST_ERR_NOT_FOUND) {
+            screen_request();
+        }
+        return;
+    }
+    if (request == 31) {
+        /* A background response can keep authentication through instance unloading. */
+        char cookie[32];
+        int length = answer_header("set-cookie", 10, 0, cookie, sizeof cookie);
+        if (length == 7) { kv_set("auth_cookie", 11, cookie, length); }
+        return;
+    }
+    if (request == 32) {
+        char cookie[32];
+        if (answer_header("set-cookie", 10, 0, cookie, sizeof cookie) == HOST_ERR_NOT_FOUND &&
+            kv_get("auth_cookie", 11, cookie, sizeof cookie) == 7) {
+            kv_set("auth_checked", 12, cookie, 7);
+        }
+        return;
+    }
     if (request == REQUEST_WITH_HEADERS) {
         /* asks for the screen when the answer is described as the test sent it */
         struct { host_answer_info_t response; int32_t guard; } output = { .guard = 12345 };
@@ -296,6 +353,10 @@ static bool same_text(const char *left, const char *right)
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
+    if (request == 30) {
+        app_on_data(request, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, http_status);
+        return;
+    }
     if (http_status == 0) {
         values_failed = request;
         return;
@@ -682,7 +743,8 @@ void app_on_draw(void)
         mark(26, ROW_LOCAL_TIME);
     }
     host_answer_info_t outside;
-    if (answer_info(&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {
+    if (answer_info(&outside, sizeof outside) == HOST_ERR_NOT_FOUND &&
+        answer_header("set-cookie", 10, 0, (char *)&outside, sizeof outside) == HOST_ERR_NOT_FOUND) {
         mark(20, ROW_LOCAL_TIME);
     }
 

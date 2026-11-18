@@ -55,6 +55,7 @@ struct app {
      * answer_item() say. */
     bool                   is_in_answer;
     const host_answer_info_t *response;
+    const struct answer_headers *headers;
     int                    response_status;
     int                    answer_item;
     uint32_t    data_buffer_offset; /* where in its memory the application takes data */
