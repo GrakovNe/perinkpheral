@@ -76,7 +76,7 @@ const RUSSIAN = {
 
   /* the device */
   "Firmware": "Прошивка", "Built": "Сборка", "Time": "Время", "Uptime": "Время работы",
-  "Last start": "Последний запуск", "Last fault": "Последний сбой", "Language": "Язык",
+  "Reset reason": "Причина перезапуска", "Last fault": "Последний сбой", "Language": "Язык",
   "Network": "Сеть", "IP address": "IP-адрес", "Hostname": "Имя хоста",
   "Memory": "Память", "Free": "Свободно", "Lowest": "Минимум", "Largest block": "Наибольший блок",
   "Errors": "Ошибки", "App area": "Область приложений", "Storage": "Хранилище", "Error": "Ошибка",

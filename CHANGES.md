@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.49
+
+- Do not offer older stable app versions from a stale catalog as updates.
+- Label the last restart cause as Reset reason.
+
 ## 0.1.48
 
 - Show Update all whenever at least one app update is available.

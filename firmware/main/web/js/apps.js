@@ -246,6 +246,8 @@ window.addEventListener("message", event => {
 
 /* Installs the application from its source, or installs it over itself: an update. */
 async function install(button, offer) {
+  const have = installed.find(app => app.name === offer.app.name);
+  if (have && !appUpdateAvailable(have.version, offer.app.version)) return;
   const problem = compatibilityProblem(offer.app);
   if (problem) { toast(problem); return; }
   /* The system API is the owner's to give: the page asks, once, in so many words. */
@@ -258,7 +260,7 @@ async function install(button, offer) {
                                            : "{0} trusts its own certificate authority: {1}.",
                          offerSays(offer, "title"), trusts.join(", ")), "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-  const isUpdate = installed.some(app => app.name === offer.app.name);
+  const isUpdate = Boolean(have);
   if (await busy(button, async () => {
     try {
       await askForApp(url, post({ files: offer.app.files, version: offer.app.version }));
@@ -303,7 +305,7 @@ function tile(have, offer) {
     tools.append(iconButton(GEAR, "Settings", () => openAppSettings(have)));
   tools.append(iconButton(INFO, "Info", () => openAppInfo(have)));
   box.append(tools);
-  if (offer && offer.app.version !== have.version) {
+  if (offer && appUpdateAvailable(have.version, offer.app.version)) {
     /* An update this firmware is too old for is not offered: the tile says
      * what it needs instead, where it can be read. */
     const needed = compatibilityProblem(offer.app);
@@ -400,7 +402,7 @@ const available = () => offered.filter(offer => !installed.some(have => have.nam
 
 /* What the catalogs have another version of, that this firmware can run. */
 const updates = () => offered.filter(offer => !compatibilityProblem(offer.app) &&
-  installed.some(have => have.name === offer.app.name && have.version !== offer.app.version));
+  installed.some(have => have.name === offer.app.name && appUpdateAvailable(have.version, offer.app.version)));
 
 /* The catalog: everything the sources have, the installed among it - Installed, or Update when
  * the source has another version. What was here before comes first: it returns with its settings. */
@@ -424,7 +426,7 @@ function drawCatalog() {
       text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
                                                 (needed ? " - " + needed : "") }));
       const have = installed.find(app => app.name === offer.app.name);
-      const isUpdate = have && have.version !== offer.app.version;
+      const isUpdate = have && appUpdateAvailable(have.version, offer.app.version);
       const button = make("button", { className: "quiet", textContent: !have ? "Install" : isUpdate ? "Update" : "Installed" });
       button.disabled = Boolean(needed) || (have ? !isUpdate : isFull);
       if (!have || isUpdate) button.addEventListener("click", () => install(button, offer));
