@@ -131,6 +131,8 @@ label + .rows { margin-top: 0; } /* under its label as an input is */
 @media (min-width: 40rem) { #time-zone .rows div > button { width: 10.5rem; } } /* a phone puts it under the field */
 .rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; flex: none; }
 .rows button.add { width: 100%; }
+#logging .rows select { min-width: min(11rem, 45%); }
+#logging .rows button { flex: 0 1 auto; min-width: 0; white-space: normal; }
 
 /* ---- buttons: ink, or quiet on paper; one lifts when the pointer is over it ---- */
 button { margin-top: 1.25rem; height: 2.75rem; padding: 0 1.1rem; font: inherit; cursor: pointer;

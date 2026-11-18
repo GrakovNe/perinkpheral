@@ -166,13 +166,15 @@
   </form>
 
   <form class="pane" id="logging">
-    <button type="button" class="quiet toggle" id="log_enabled" aria-pressed="true">Logging enabled</button>
     <label for="log_level">Log level</label>
-    <select id="log_level">
-      <option value="1">Errors</option>
-      <option value="2">Warnings</option>
-      <option value="3">Information</option>
-    </select>
+    <div class="rows"><div>
+      <select id="log_level">
+        <option value="1">Errors</option>
+        <option value="2">Warnings</option>
+        <option value="3">Information</option>
+      </select>
+      <button type="button" class="quiet toggle" id="log_enabled" aria-pressed="true">Logging enabled</button>
+    </div></div>
     <button>Save</button>
   </form>
 

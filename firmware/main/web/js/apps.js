@@ -479,7 +479,7 @@ byId("update-all").addEventListener("click", async () => {
 
 byId("auto-update-apps").addEventListener("click", async () => {
   const button = byId("auto-update-apps");
-  const enabled = settings.app_auto_update ? 0 : 1;
+  const enabled = !settings.app_auto_update;
   if (await send(button, "/api/settings", post({ app_auto_update: enabled }))) {
     settings.app_auto_update = enabled;
     button.setAttribute("aria-pressed", String(Boolean(enabled)));

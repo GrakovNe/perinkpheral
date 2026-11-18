@@ -66,29 +66,47 @@ async function run(replies, action = "install", options = {}) {
 
 async function testAutoUpdateSetting() {
   let click, saved = true;
-  const sent = [], attributes = {};
+  const sent = [], attributes = {}, messages = [];
   const button = {
+    textContent: "Auto-update", style: {}, offsetWidth: 90, disabled: false,
+    classList: { add() {}, remove() {} },
     addEventListener: (event, handler) => { assert.equal(event, "click"); click = handler; },
     setAttribute: (key, value) => { attributes[key] = value; },
   };
   const context = vm.createContext({
-    settings: { app_auto_update: 0 }, byId: () => button, post: value => value,
-    send: async (_, url, body) => { sent.push({ url, body }); return saved; },
+    settings: { app_auto_update: false }, document: { getElementById: () => button },
+    t: text => text, setTimeout: callback => callback(),
+    fetch: async (url, request) => {
+      const body = JSON.parse(request.body);
+      sent.push({ url, method: request.method, body });
+      // /api/settings value_of(APPCONF_FLAG) accepts JSON booleans only.
+      const valid = typeof body.app_auto_update === "boolean";
+      const status = !valid ? 400 : saved ? 200 : 500;
+      return { ok: status === 200, status, json: async () => status === 200 ?
+        { ok: "Saved." } : { error: valid ? "Storage error." : "Invalid value." } };
+    },
   });
+  vm.runInContext(core.slice(0, core.indexOf('const CONFIRM_ON_DEVICE')), context);
+  context.toast = text => messages.push(text);
   vm.runInContext(apps.slice(apps.indexOf('byId("auto-update-apps").addEventListener'), apps.indexOf("async function loadApps()")), context);
   await click();
-  assert.equal(context.settings.app_auto_update, 1);
+  assert.equal(context.settings.app_auto_update, true);
   assert.equal(attributes["aria-pressed"], "true");
   assert.equal(sent[0].url, "/api/settings");
-  assert.equal(sent[0].body.app_auto_update, 1);
+  assert.equal(sent[0].method, "POST");
+  assert.equal(sent[0].body.app_auto_update, true);
+  assert.deepEqual(messages, []);
   saved = false;
   await click();
-  assert.equal(context.settings.app_auto_update, 1);
+  assert.equal(context.settings.app_auto_update, true);
   assert.equal(attributes["aria-pressed"], "true");
+  assert.deepEqual(messages, ["Storage error."]);
   saved = true;
   await click();
-  assert.equal(context.settings.app_auto_update, 0);
+  assert.equal(context.settings.app_auto_update, false);
   assert.equal(attributes["aria-pressed"], "false");
+  assert.deepEqual(sent.map(request => request.body.app_auto_update), [true, false, false]);
+  assert.equal(button.disabled, false);
 }
 
 async function testAuthors() {
