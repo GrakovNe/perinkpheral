@@ -5,14 +5,6 @@
   "wifi": "Wi-Fi",
   "restart": "Restart",
   "reset": "Reset",
-  "buttons": "Buttons",
-  "hold_back": "Hold BACK",
-  "menu": "Menu",
-  "hold_ok": "Hold OK in menu",
-  "move": "Move",
-  "hold_up_down": "Hold UP or DOWN",
-  "page": "Page",
-  "up_back": "UP + BACK 10 s",
   "date_time": "Date & time",
   "time_zone": "Time zone",
   "power_saving": "Power saving",
@@ -58,5 +50,6 @@
   "factory": "Factory",
   "factory_what": "reset?",
   "reset_action": "Reset",
-  "restart_what": "device?"
+  "restart_what": "device?",
+  "appearance": "Appearance"
 }

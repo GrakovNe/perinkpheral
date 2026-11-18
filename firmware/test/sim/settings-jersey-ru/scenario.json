@@ -4,5 +4,17 @@
   "tz": "Europe/Moscow",
   "font": "jersey",
   "language": "ru",
-  "steps": ["shot root", "press 3 3 2", "shot display"]
+  "steps": [
+    "shot root",
+    "press 3 3 2",
+    "shot appearance",
+    "press 2",
+    "shot font",
+    "press 4 4 3 2",
+    "shot display",
+    "press 4 3 3 2",
+    "shot restart",
+    "press 4 3 2",
+    "shot reset"
+  ]
 }

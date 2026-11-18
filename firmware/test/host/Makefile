@@ -23,6 +23,9 @@ TOOLS   := ../../../tools/perinkpheral
 MKAPP   := $(TOOLS) build
 MAIN    := ../../main
 
+MANIFEST_SRCS := $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c $(SDK_LIB)/json_pick.c
+MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
+
 # Whatever draws is rebuilt when the drawing code changes.
 GFX_SRCS := $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(GFX)/font_square.c
 GFX_DEPS := $(GFX_SRCS) $(wildcard $(GFX)/include/*.h $(GFX)/*.h $(GFX)/fonts/*.h)
@@ -35,6 +38,25 @@ TESTS   := test_sdk_lib test_json_tree test_appconf test_gfx test_btn_core test_
 TESTS   += test_recovery_screen
 TESTS   += test_poll_round test_wifi_credentials test_memory
 TESTS   += test_app_storage test_app_kv
+TESTS   += test_wifi_networks
+TESTS   += test_catalog_stream
+TESTS   += test_app_update_policy
+TESTS   += test_app_update_schedule
+TESTS   += test_app_install test_system_settings
+
+SETTINGS_APP := ../../system/settings
+SETTINGS_HEADERS := build/settings-headers
+$(SETTINGS_HEADERS)/strings.h: $(wildcard $(SETTINGS_APP)/strings/*.json) $(SETTINGS_APP)/manifest.json
+	$(TOOLS) headers $(SETTINGS_APP) $(SETTINGS_HEADERS)
+
+test_system_settings: test_system_settings.c tinytest.h $(SETTINGS_APP)/settings.c $(SETTINGS_HEADERS)/strings.h $(wildcard $(SDK_LIB)/*.c $(SDK_LIB)/*.h $(SDK)/host/*.h) $(SDK)/host_api.h
+	$(CC) $(CFLAGS) -Wno-attributes -I$(SDK) -I$(SDK_LIB) -I$(SETTINGS_HEADERS) -o $@ test_system_settings.c $(SETTINGS_HEADERS)/strings.c
+
+test_app_install: test_app_install.c tinytest.h $(MAIN)/app_install.c $(MAIN)/app_install.h $(MANIFEST_SRCS) $(APPSTORE)/app_update_policy.c $(APPSTORE)/app_room.c $(APPSTORE)/catalog.c $(wildcard install_stubs/*.h install_stubs/*/*.h persistence_stubs/*.h)
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -Iinstall_stubs -Ipersistence_stubs -I$(APPCONF)/include -I$(GFX)/include -I$(UI)/include -I$(MAIN) -o $@ test_app_install.c $(MANIFEST_SRCS) $(APPSTORE)/app_update_policy.c $(APPSTORE)/app_room.c $(APPSTORE)/catalog.c -lm
+
+test_app_update_schedule: test_app_update_schedule.c tinytest.h $(APPSTORE)/app_update_schedule.c $(APPSTORE)/include/app_update_schedule.h
+	$(CC) $(CFLAGS) -o $@ test_app_update_schedule.c $(APPSTORE)/app_update_schedule.c
 
 .DEFAULT_GOAL := test
 PERSISTENCE_STUBS := $(wildcard persistence_stubs/*.h)
@@ -50,6 +72,9 @@ test_poll_round: test_poll_round.c tinytest.h $(APPSTORE)/poll_round.c $(APPSTOR
 
 test_wifi_credentials: test_wifi_credentials.c tinytest.h $(NET)/wifi_credentials.c $(NET)/include/wifi_credentials.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_credentials.c $(NET)/wifi_credentials.c
+
+test_wifi_networks: test_wifi_networks.c tinytest.h $(NET)/wifi_networks.c $(NET)/include/wifi_networks.h
+	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_networks.c $(NET)/wifi_networks.c
 
 test_memory: test_memory.c tinytest.h $(MAIN)/memory.c $(MAIN)/memory.h $(wildcard memory_stubs/*.h)
 	$(CC) $(CFLAGS) -Imemory_stubs -I$(MAIN) -I$(DEADLINES)/include -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(SDK_LIB) -o $@ test_memory.c $(MAIN)/memory.c
@@ -169,8 +194,8 @@ test_app: test_app.c tinytest.h build/frozen_probe_wasm.h build/host_imports.inc
 test_wifi_plan: test_wifi_plan.c tinytest.h $(NET)/wifi_plan.c $(NET)/include/wifi_plan.h
 	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_plan.c $(NET)/wifi_plan.c
 
-test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_dns.h $(QR_SRCS) $(QR)/include/wifi_qr.h
-	$(CC) $(CFLAGS) -I$(NET)/include $(QR_INCS) -o $@ test_setup.c $(NET)/captive_dns.c $(QR_SRCS)
+test_setup: test_setup.c tinytest.h $(NET)/captive_dns.c $(NET)/include/captive_dns.h $(NET)/captive_portal.c $(NET)/include/captive_portal.h $(QR_SRCS) $(QR)/include/wifi_qr.h
+	$(CC) $(CFLAGS) -I$(NET)/include $(QR_INCS) -o $@ test_setup.c $(NET)/captive_dns.c $(NET)/captive_portal.c $(QR_SRCS)
 
 test_sdk_lib: test_sdk_lib.c tinytest.h $(wildcard $(SDK_LIB)/*.c) $(wildcard $(SDK_LIB)/*.h) $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	$(CC) $(CFLAGS) -I$(SDK) -I$(SDK_LIB) -o $@ test_sdk_lib.c
@@ -196,11 +221,11 @@ test_recovery_settings: test_recovery_settings.c tinytest.h ../../../recovery/ma
 test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
 
-MANIFEST_SRCS := $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c $(SDK_LIB)/json_pick.c
-MANIFEST_FLAGS := -I$(APPSYS)/include -I$(SDK) -I$(SDK_LIB)
-
 test_app_manifest: test_app_manifest.c tinytest.h $(MANIFEST_SRCS) $(APPSTORE)/include/app_manifest.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_manifest.c $(MANIFEST_SRCS) -lm
+
+test_app_update_policy: test_app_update_policy.c tinytest.h $(MANIFEST_SRCS) $(APPSTORE)/app_update_policy.c $(APPSTORE)/include/app_update_policy.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_update_policy.c $(APPSTORE)/app_update_policy.c $(MANIFEST_SRCS) -lm
 
 test_app_room: test_app_room.c tinytest.h $(APPSTORE)/app_room.c $(APPSTORE)/include/app_room.h
 	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_app_room.c $(APPSTORE)/app_room.c
@@ -243,3 +268,6 @@ check-abi: build/probe/app.wasm build/wrongarg/app.wasm build/wrongret/app.wasm 
 build/wrongimport/app.wasm: apps/wrongimport/wrongimport.c $(TOOLS)
 	@mkdir -p build/wrongimport
 	$(WASI_SDK_PATH)/bin/clang $(subst ;, ,$(shell $(TOOLS) flags compile)) $(subst ;, ,$(shell $(TOOLS) flags link)) $< -o $@
+
+test_catalog_stream: test_catalog_stream.c tinytest.h $(APPSTORE)/catalog_stream.c $(APPSTORE)/include/catalog_stream.h
+	$(CC) $(CFLAGS) -I$(SDK)/lib -o $@ test_catalog_stream.c $(APPSTORE)/catalog_stream.c

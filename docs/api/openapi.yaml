@@ -135,6 +135,9 @@ components:
         font: { type: integer, description: "0 Departure Mono, 1 Jersey" }
         refresh_fast: { type: boolean }
         header_clock: { type: boolean, description: Time instead of the date in the header }
+        app_auto_update: { type: boolean, default: false, description: Check installed applications for updates daily without an open browser }
+        log_enabled: { type: boolean, description: Enable ordinary logs; retains the chosen level while disabled }
+        log_level: { type: integer, enum: [1, 2, 3], description: "1 errors, 2 warnings, 3 information; applied immediately" }
         time_auto: { type: boolean, description: Time from the network }
         power_saving: { type: integer, enum: [0, 1, 2], description: "0 off, 1 always, 2 auto" }
         default_app: { type: string }
@@ -161,6 +164,7 @@ components:
       properties:
         name: { type: string }
         title: { type: string }
+        author: { type: string, description: "Author from the manifest; absent in legacy packages" }
         version: { type: string }
         description: { type: string, description: "Translated description, when provided" }
         icon: { type: array, items: { type: string }, description: 11 rows of 11 characters }
@@ -311,6 +315,29 @@ paths:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }
 
+  /api/wifi/scan:
+    get:
+      tags: [Settings]
+      summary: Scan nearby Wi-Fi networks without changing the saved connection
+      responses:
+        "200":
+          description: Up to 16 distinct visible network names, strongest signal first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  networks:
+                    type: array
+                    maxItems: 16
+                    items:
+                      type: object
+                      properties:
+                        ssid: { type: string }
+                        rssi: { type: integer, description: Signal strength in dBm }
+                        secured: { type: boolean }
+        "503": { $ref: "#/components/responses/Error" }
+
   /api/wifi:
     post:
       tags: [Settings]
@@ -429,6 +456,7 @@ paths:
             schema:
               type: object
               properties:
+                version: { type: string, description: Expected catalog version; a changed downloaded version is refused }
                 files:
                   type: array
                   minItems: 2

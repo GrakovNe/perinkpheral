@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #include "wifi_plan.h"
+#include "wifi_networks.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,8 +16,6 @@ extern "C" {
 /* The radio. It joins the stored network and keeps it, or puts up an open
  * access point for setting the device up; which and when is decided by
  * wifi_plan, this file only carries it out. */
-
-#define WIFI_SSID_MAX 32
 
 /* The device's own address on its setup access point: where its page is
  * before it has a network. */
@@ -55,6 +54,18 @@ void wifi_retry_is_due(void);
  * network. Off is not taken while the device has no network or its setup
  * access point is up: then it has to be found. From any task. */
 void wifi_set_radio(bool on);
+
+typedef enum {
+    WIFI_SCAN_OK,
+    WIFI_SCAN_BUSY,
+    WIFI_SCAN_FAILED,
+} wifi_scan_result_t;
+
+/* Scan without disconnecting, returning at most WIFI_SCAN_NETWORKS_MAX distinct
+ * networks. Waits up to eight seconds; call from a worker with the radio held on.
+ * Connecting, radio-off and concurrent scans return BUSY. */
+wifi_scan_result_t wifi_scan_networks(wifi_network_t *records, uint16_t capacity,
+                                      uint16_t *count);
 
 #ifdef __cplusplus
 }

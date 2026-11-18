@@ -43,6 +43,10 @@ extern "C" {
  * most CATALOG_SOURCE_URL_MAX; an empty text is "no sources". */
 bool catalog_sources_are_valid(const char *sources);
 
+/* Legacy packages may omit the author. The project name belongs only to
+ * packages downloaded from the fixed official source. */
+bool catalog_author_is_allowed(const char *author, int source_index);
+
 /* How many sources the text holds. */
 int catalog_source_count(const char *sources);
 

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "captive_dns.h"
+#include "captive_portal.h"
 #include "qrcodegen.h"
 #include "wifi_qr.h"
 
@@ -120,8 +121,36 @@ static void test_dns_refuses_garbage(void)
     CHECK(captive_dns_answer(query, query_length, DEVICE, answer, sizeof answer) == 0);
 }
 
+static void test_portal_redirect(void)
+{
+    static const struct { const char *host; const char *path; } probes[] = {
+        { "captive.apple.com", "/hotspot-detect.html" },
+        { "connectivitycheck.gstatic.com", "/generate_204" },
+        { "www.msftconnecttest.com", "/connecttest.txt" },
+        { "example.com", "/" },
+    };
+    for (unsigned index = 0; index < sizeof probes / sizeof probes[0]; index++) {
+        CHECK(captive_portal_redirect(true, probes[index].host, probes[index].path,
+                                       "192.168.1.70", "perinkpheral"));
+        CHECK(!captive_portal_redirect(false, probes[index].host, probes[index].path,
+                                        "192.168.1.70", "perinkpheral"));
+    }
+    static const char *const local[] = {
+        "192.168.4.1", "192.168.4.1:80", "192.168.1.70", "perinkpheral",
+        "PERINKPHERAL.local:80",
+    };
+    for (unsigned index = 0; index < sizeof local / sizeof local[0]; index++) {
+        CHECK(!captive_portal_redirect(true, local[index], "/", "192.168.1.70", "perinkpheral"));
+    }
+    CHECK(!captive_portal_redirect(true, "foreign.test", "/api/status", NULL, NULL));
+    CHECK(!captive_portal_redirect(true, NULL, "/", NULL, NULL));
+    CHECK(!captive_portal_redirect(true, "", "/", NULL, NULL));
+    CHECK(captive_portal_redirect(true, "perinkpheral.local.evil.test", "/", NULL, "perinkpheral"));
+}
+
 int main(void)
 {
+    test_portal_redirect();
     test_wifi_qr_text();
     test_device_name_fits_the_code();
     test_dns_address_question();

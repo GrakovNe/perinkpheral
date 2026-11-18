@@ -6,6 +6,19 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 ## 0.1.45
 
+- New app installations open on the device. Updates keep the current screen.
+  Manual updates report each app and its installed version.
+- Optional daily app updates run on the device without an open browser.
+- App catalogs display authors. Perinkpheral is reserved for the official source.
+- Network settings can scan nearby Wi-Fi networks. Recovery now serves a captive portal.
+- Logging has its own settings tab, with an enable switch and a saved severity level.
+- Device-page layout, language choices, file selection and dependency credits are corrected.
+- Device Settings groups appearance options, wraps lists, and confirms restart and reset.
+  About links to the project portal.
+
+- Hide the OTA partition slot from the device page and About screen. The last-fault
+  field shows only its cause.
+
 - Limit Wi-Fi transmit power to 15 dBm for the next stability experiment. This is
   a mitigation under test, not a confirmed fix for the observed watchdog resets.
 - Interrupted application updates stay hidden until their files are consistent.

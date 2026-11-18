@@ -6,7 +6,7 @@
  * is the mark, the version of the firmware, where the project lives - as a
  * code a phone reads - and whose it is; it is the splash at power-up too.
  * The second is the device's state: its name, its network and address, the
- * firmware and its slot, what is free of RAM, of the flash for applications
+ * firmware, what is free of RAM, of the flash for applications
  * and of their stores, and uptime, all asked of the host with
  * sys_info(). A system application: part of the firmware, written with the
  * same SDK as any other.
@@ -18,7 +18,7 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
-#define PROJECT_ADDRESS "https://github.com/GrakovNe/perinkpheral"
+#define PROJECT_ADDRESS "https://perinkpheral.dev"
 
 #define LOGO_SCALE    5
 #define LOGO_TOP      24
@@ -30,7 +30,7 @@
 #define CREDITS_STEP  16
 
 #define MARGIN            16
-#define ROW_HEIGHT        31 /* from one baseline to the next; the first is one row down */
+#define ROW_HEIGHT        34 /* from one baseline to the next; the first is one row down */
 #define VALUE_MAX         47
 #define MS_PER_MINUTE     60000
 #define MINUTES_PER_HOUR  60
@@ -136,8 +136,6 @@ static void draw_state_page(void)
 
     read_info(SYS_INFO_VERSION, value);
     draw_row(row++, app_string(STR_FIRMWARE), value);
-    read_info(SYS_INFO_SLOT, value);
-    draw_row(row++, app_string(STR_SLOT), value);
 
     draw_free(row++, STR_RAM, SYS_INFO_FREE_MEMORY);
     draw_free(row++, STR_FLASH, SYS_INFO_FREE_FLASH);

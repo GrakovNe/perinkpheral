@@ -5,6 +5,7 @@ import dev.perinkpheral.core.BuildError
 import dev.perinkpheral.core.Json
 import dev.perinkpheral.core.build.AppBuilder
 import dev.perinkpheral.core.build.Sdk
+import dev.perinkpheral.core.build.ManifestAuthor
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -13,6 +14,10 @@ object PublisherTest {
     private val system = Publisher.CommandRunner.SYSTEM
     private lateinit var scratch: File
     private var fixtures = 0
+    private val sdk by lazy {
+        Sdk(generateSequence(File(System.getProperty("user.dir")).canonicalFile) { it.parentFile }
+            .first { File(it, "sdk/host_api.h").isFile })
+    }
 
     @JvmStatic fun main(args: Array<String>) {
         scratch = Files.createTempDirectory("perinkpheral-publisher-test-").toFile()
@@ -26,17 +31,19 @@ object PublisherTest {
             invalidBuildOutput()
             changedByAttributes()
             ignoredCatalog()
+            authorPolicy()
             System.getenv("WASI_SDK_PATH")?.let(::realApplicationBuild)
         } finally { scratch.deleteRecursively() }
         println("Publisher checks passed: real Git publication, preservation, empty/default branches, idempotence, refusals and races")
     }
 
-    private class Fixture(initial: Boolean = true, val branch: String = "releases/apps") {
+    private class Fixture(initial: Boolean = true, val branch: String = "releases/apps", val repository: String = "test-user/my-apps") {
         val directory = File(scratch, "case-${fixtures++}").apply { mkdir() }
         val remote = File(directory, "remote.git")
         val source = File(directory, "apps").apply { mkdir() }
-        var metadata: Map<String, Any?> = linkedMapOf("full_name" to "test-user/my-apps", "private" to false,
+        var metadata: Map<String, Any?> = linkedMapOf("full_name" to repository, "private" to false,
             "permissions" to mapOf("push" to true), "default_branch" to branch)
+        var author: String? = "Test Author"
         var builds = 0
         var pushes = 0
         var requests = 0
@@ -71,17 +78,17 @@ object PublisherTest {
                     beforePush?.invoke()
                     check(command.takeLast(3) == listOf("push", "origin", "HEAD:refs/heads/$branch"))
                 }
-                system.run(command.map { if (it == "https://github.com/test-user/my-apps.git") remote.path else it }, directory)
+                system.run(command.map { if (it == "https://github.com/$repository.git") remote.path else it }, directory)
             }
         }
 
         fun publisher(build: ((List<File>, File) -> Int)? = null) = Publisher(build ?: { folders, out ->
             builds++
             check(folders == listOf(source.canonicalFile))
-            writeCatalog(out, apps)
-        }, runner)
+            writeCatalog(out, apps, author)
+        }, ManifestAuthor(sdk), runner)
 
-        fun publish() = publisher().publish(listOf(source), "test-user/my-apps")
+        fun publish() = publisher().publish(listOf(source), repository)
 
         fun editRemote(edit: (File) -> Unit) {
             val clone = Files.createTempDirectory(directory.toPath(), "other-").toFile()
@@ -218,11 +225,34 @@ object PublisherTest {
         check(fixture.paths().contains("catalog/clock/app.wasm"))
     }
 
+    private fun authorPolicy() {
+        for (author in listOf(null, "Perinkpheral", "pERINKPHERAL")) {
+            val fixture = Fixture()
+            fixture.author = author
+            val head = fixture.head()
+            fails { fixture.publish() }
+            check(fixture.pushes == 0 && fixture.head() == head)
+        }
+        val official = Fixture(repository = ManifestAuthor.OFFICIAL_REPOSITORY)
+        official.author = ManifestAuthor.OFFICIAL
+        check(official.publish().changed)
+        check(official.file("catalog/clock/manifest.json").contains(ManifestAuthor.OFFICIAL))
+        val legacy = Fixture()
+        legacy.editRemote { writeCatalog(File(it, "catalog"), mapOf("clock" to "old"), author = null) }
+        check(legacy.publish().changed)
+        check(legacy.file("catalog/catalog.json").contains("Test Author"))
+    }
+
     private fun realApplicationBuild(wasi: String) {
         val root = generateSequence(File(System.getProperty("user.dir")).canonicalFile) { it.parentFile }
             .first { File(it, "sdk/host_api.h").isFile }
         val fixture = Fixture()
         File(root, "sdk/apps/hello").copyRecursively(File(fixture.source, "hello"))
+        val manifestFile = File(fixture.source, "hello/manifest.json")
+        @Suppress("UNCHECKED_CAST")
+        val manifest = LinkedHashMap(Json.parse(manifestFile.readText()) as Map<String, Any?>)
+        manifest["author"] = "Test Author"
+        manifestFile.writeText(Json.pretty(manifest))
         val builder = AppBuilder(Sdk(root), File(wasi)) {}
         val publisher = fixture.publisher { folders, out -> Catalog.make(builder, folders, out) }
         check(publisher.publish(listOf(fixture.source), "test-user/my-apps").changed)
@@ -230,17 +260,19 @@ object PublisherTest {
         check(!publisher.publish(listOf(fixture.source), "test-user/my-apps").changed)
     }
 
-    private fun writeCatalog(out: File, apps: Map<String, String>): Int {
+    private fun writeCatalog(out: File, apps: Map<String, String>, author: String? = "Test Author"): Int {
         out.mkdirs()
         val entries = apps.map { (name, body) ->
             val folder = File(out, name).apply { mkdirs() }
-            val files = mapOf("app.wasm" to body, "manifest.json" to "{\"name\":\"$name\",\"abi\":3}").map { (filename, content) ->
+            val manifest = linkedMapOf<String, Any?>("name" to name, "abi" to 3)
+            if (author != null) manifest["author"] = author
+            val files = mapOf("app.wasm" to body, "manifest.json" to Json.pretty(manifest)).map { (filename, content) ->
                 val bytes = content.toByteArray()
                 File(folder, filename).writeBytes(bytes)
                 mapOf("name" to filename, "size" to bytes.size,
                     "sha256" to MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) })
             }
-            mapOf("name" to name, "files" to files)
+            linkedMapOf<String, Any?>("name" to name, "files" to files).apply { if (author != null) put("author", author) }
         }
         File(out, Catalog.INDEX_NAME).writeText(Json.pretty(mapOf("catalog" to 1, "apps" to entries)) + "\n")
         return entries.size

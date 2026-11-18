@@ -2719,7 +2719,7 @@ tools/perinkpheral build &lt;dir&gt; --out &lt;dir&gt;
 Builds one application: compile, link with the SDK library, check, measure
 Собирает одно приложение: компиляция, компоновка с библиотекой SDK, проверка, измерение
 
-tools/perinkpheral new &lt;dir&gt; [--title T]
+tools/perinkpheral new &lt;dir&gt; --author NAME [--title T]
 =
 
 Creates a new application folder from the SDK sample
@@ -4365,3 +4365,12 @@ Other hosting
 
 To host the catalog elsewhere, build it locally and upload the output folder to an HTTPS server:
 Для размещения на другом хостинге соберите каталог локально и загрузите выходную папку на HTTPS-сервер:
+
+1 - 63 UTF-8 bytes
+1 - 63 байта UTF-8
+
+Author shown in the catalog. Required for publishing. Perinkpheral is reserved for the official catalog
+Автор, указанный в каталоге. Обязателен для публикации. Имя Perinkpheral зарезервировано для официального каталога
+
+author
+author

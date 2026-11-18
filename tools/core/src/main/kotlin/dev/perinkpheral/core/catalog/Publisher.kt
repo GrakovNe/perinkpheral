@@ -3,6 +3,7 @@ package dev.perinkpheral.core.catalog
 
 import dev.perinkpheral.core.BuildError
 import dev.perinkpheral.core.Json
+import dev.perinkpheral.core.build.ManifestAuthor
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -11,6 +12,7 @@ import java.security.MessageDigest
 /** Builds locally, then replaces only a repository's generated catalog on its default branch. */
 class Publisher(
     private val buildCatalog: (List<File>, File) -> Int,
+    private val authors: ManifestAuthor,
     private val runner: CommandRunner = CommandRunner.SYSTEM,
 ) {
     data class Result(val repositoryUrl: String, val applications: Int, val changed: Boolean)
@@ -62,7 +64,7 @@ class Publisher(
 
             val generated = File(temporary, "generated")
             val count = buildCatalog(sources, generated)
-            validateCatalog(generated, verifyHashes = true)
+            validateCatalog(generated, verifyHashes = true, official = repository.equals(ManifestAuthor.OFFICIAL_REPOSITORY, ignoreCase = true))
 
             val checkout = File(temporary, "checkout").apply { mkdir() }
             val hooks = File(temporary, "hooks").apply { mkdir() }
@@ -132,7 +134,7 @@ class Publisher(
     }
 
     /** Only files declared by the index may be replaced; source trees and links are never removed. */
-    private fun validateCatalog(folder: File, verifyHashes: Boolean, allowEmpty: Boolean = false) {
+    private fun validateCatalog(folder: File, verifyHashes: Boolean, allowEmpty: Boolean = false, official: Boolean = false) {
         if (Files.isSymbolicLink(folder.toPath()) || !folder.isDirectory) throw BuildError("catalog target must be a directory, not a file or symlink")
         val paths = Files.walk(folder.toPath()).use { it.toList() }
         if (paths.any { Files.isSymbolicLink(it) }) throw BuildError("catalog contains a symlink; refusing to replace it")
@@ -173,6 +175,13 @@ class Publisher(
                 }
             }
             if (!filenames.containsAll(listOf("app.wasm", "manifest.json"))) throw BuildError("$name: incomplete application package")
+            if (verifyHashes) {
+                val manifest = try { Json.parse(File(folder, "$name/manifest.json").readText()) as? Map<*, *> }
+                    catch (_: Exception) { null }
+                val author = authors.check(manifest?.get("author"), required = true)!!
+                if (app["author"] != author) throw BuildError("$name: catalog author differs from its manifest")
+                if (!official) authors.checkPersonal(author)
+            }
         }
         if (paths.drop(1).any { folder.toPath().relativize(it).joinToString("/") !in allowed }) {
             throw BuildError("catalog contains files outside its index; move them before publishing")

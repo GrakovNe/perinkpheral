@@ -332,10 +332,49 @@ static void test_application_surface(void)
     CHECK(appconf_application_field("refresh_min_button_ms", 21) == NULL);
     CHECK(appconf_application_field("hostname", 8) == NULL);
     CHECK(appconf_application_field("future", 6) == NULL);
+    const appconf_field_t *updates = appconf_field("app_auto_update", 15);
+    CHECK(updates != NULL);
+    CHECK(appconf_application_field("app_auto_update", 15) == NULL);
+    appconf_t config;
+    appconf_defaults(&config, "1234");
+    CHECK(config.app_auto_update == 0);
+    CHECK(appconf_put(&config, updates, "1"));
+    CHECK(config.app_auto_update == 1);
+    CHECK(!appconf_put(&config, updates, "2"));
+}
+
+static void test_log_level(void)
+{
+    appconf_t config;
+    appconf_defaults(&config, ID);
+    CHECK(config.log_enabled == 1);
+    CHECK(config.log_level == APPCONF_LOG_INFO);
+    const appconf_field_t *enabled = appconf_field("log_enabled", 11);
+    CHECK(enabled != NULL);
+    CHECK(appconf_application_field("log_enabled", 11) == NULL);
+    CHECK(appconf_put_number(&config, enabled, 0));
+    CHECK(config.log_level == APPCONF_LOG_INFO);
+    CHECK(!appconf_put_number(&config, enabled, 2));
+    const appconf_field_t *field = appconf_field("log_level", 9);
+    CHECK(field != NULL);
+    CHECK(appconf_application_field("log_level", 9) == NULL);
+    for (int level = APPCONF_LOG_ERROR; level <= APPCONF_LOG_INFO; level++) {
+        appconf_t before = config;
+        char why[APPCONF_PROBLEM_MAX];
+        CHECK(appconf_put_number(&config, field, level));
+        CHECK(appconf_validate(&config, why, sizeof why));
+        CHECK(!appconf_needs_restart(&before, &config));
+    }
+    CHECK(!appconf_put_number(&config, field, -1));
+    CHECK(!appconf_put_number(&config, field, APPCONF_LOG_INFO + 1));
+    config.log_level = APPCONF_LOG_INFO + 1;
+    char why[APPCONF_PROBLEM_MAX];
+    CHECK(!appconf_validate(&config, why, sizeof why));
 }
 
 int main(void)
 {
+    test_log_level();
     test_application_surface();
     test_fields();
     test_refresh_policy_settings();

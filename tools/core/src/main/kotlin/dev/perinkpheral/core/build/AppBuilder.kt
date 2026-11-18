@@ -23,6 +23,8 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     private val settingValueMax = sdk.limit("SETTING_VALUE_MAX")
     private val fileBlock = sdk.limit("FILE_BLOCK_BYTES")
 
+    internal fun checkManifest(appDir: File): Map<*, *> = check.check(appDir)
+
     /** What a file of so many bytes takes on the device: whole blocks. */
     private fun takenBy(size: Long): Long = (size + fileBlock - 1) / fileBlock * fileBlock
 

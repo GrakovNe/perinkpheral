@@ -67,6 +67,7 @@ class ManifestCheck(private val sdk: Sdk) {
         if ("description" in manifest && !isWords(manifest["description"], 1, descriptionMax)) {
             fail("$path: \"description\" must be 1-$descriptionMax characters")
         }
+        ManifestAuthor(sdk).check(manifest["author"], required = "author" in manifest)
         val version = manifest["version"] ?: ""
         if (version !is String || version.toByteArray().size > versionMax) {
             fail("$path: \"version\" must be a string of at most $versionMax bytes")

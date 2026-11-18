@@ -5,6 +5,7 @@ import dev.perinkpheral.core.BuildError
 import dev.perinkpheral.core.Json
 import dev.perinkpheral.core.build.AppBuilder
 import dev.perinkpheral.core.build.Sdk
+import dev.perinkpheral.core.build.ManifestAuthor
 import dev.perinkpheral.core.device.DeviceClient
 import java.io.File
 import java.nio.file.Files
@@ -84,7 +85,12 @@ object Applications {
 
     /** A new application in `folder`: the SDK's sample under its name, a manifest of its own and
      * `cmakeLists`. Returns its source file. */
-    fun create(sdkRoot: File, folder: File, title: String, cmakeLists: (String) -> String): File {
+    @Suppress("UNUSED_PARAMETER")
+    fun create(sdkRoot: File, folder: File, title: String, cmakeLists: (String) -> String): File =
+        throw BuildError("an author is required for a new application; use --author or update the IDE plugin")
+
+    fun create(sdkRoot: File, folder: File, title: String, author: String, cmakeLists: (String) -> String): File {
+        val checkedAuthor = ManifestAuthor(Sdk(sdkRoot)).checkPersonal(author)
         val name = folder.absoluteFile.normalize().name
         val most = Sdk(sdkRoot).limit("NAME_MAX")
         if (!Regex("[a-z0-9_-]{1,$most}").matches(name)) {
@@ -96,6 +102,7 @@ object Applications {
         val manifest = LinkedHashMap(Json.parse(File(sample, AppBuilder.MANIFEST).readText()) as Map<String, Any?>)
         manifest["name"] = name
         manifest["title"] = title.ifBlank { name.replace('-', ' ').replace('_', ' ').replaceFirstChar { it.uppercase() } }
+        manifest["author"] = checkedAuthor
         manifest["version"] = "0.1.0" // a new application's, not the sample's
         folder.mkdirs()
         File(folder, AppBuilder.MANIFEST).writeText(Json.pretty(manifest, ensureAscii = true) + "\n")

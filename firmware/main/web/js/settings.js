@@ -67,16 +67,21 @@ async function loadSettings() {
   byId("refresh_fast").checked = settings.refresh_fast;
   byId("header_clock").checked = settings.header_clock;
   byId("time_auto").setAttribute("aria-pressed", String(Boolean(settings.time_auto)));
+  byId("auto-update-apps").setAttribute("aria-pressed", String(Boolean(settings.app_auto_update)));
+  byId("log_enabled").setAttribute("aria-pressed", String(Boolean(settings.log_enabled)));
+  byId("log_level").value = settings.log_level;
+  byId("log_level").disabled = !settings.log_enabled;
   byId("power_saving").value = settings.power_saving;
   const idle = byId("menu_idle_min");
   if (![...idle.options].some(option => Number(option.value) === settings.menu_idle_min))
     idle.append(make("option", { value: settings.menu_idle_min, textContent: t("{0} min", settings.menu_idle_min) }));
   idle.value = settings.menu_idle_min;
   byId("ssid").value = settings.wifi_ssid;
+  showWifiNetworks([], settings.wifi_ssid);
   byId("hostname").value = settings.hostname ? settings.hostname + ".local" : "";
-  byId("language-choice").replaceChildren(...(settings.languages || []).map(
+  byId("language-choice").replaceChildren(...(settings.languages || []).filter(language => ["en", "ru"].includes(language.code)).map(
     language => make("option", { value: language.code, textContent: language.name })));
-  byId("language-choice").value = settings.language;
+  byId("language-choice").value = ["en", "ru"].includes(settings.language) ? settings.language : "en";
   drawClock();
   drawDefaultApp();
   drawStatus();
@@ -134,6 +139,15 @@ saveSettings("display", () => ({
   font: Number(byId("font").value),
   refresh_fast: byId("refresh_fast").checked,
   header_clock: byId("header_clock").checked,
+}));
+byId("log_enabled").addEventListener("click", () => {
+  const enabled = byId("log_enabled").getAttribute("aria-pressed") !== "true";
+  byId("log_enabled").setAttribute("aria-pressed", String(enabled));
+  byId("log_level").disabled = !enabled;
+});
+saveSettings("logging", () => ({
+  log_enabled: byId("log_enabled").getAttribute("aria-pressed") === "true",
+  log_level: Number(byId("log_level").value),
 }));
 saveSettings("language-form", () => ({ language: byId("language-choice").value }));
 
@@ -206,6 +220,36 @@ function drawNetworkNow() {
   const network = statusFacts().find(([name]) => name === "Network");
   byId("network-now").replaceChildren(...factList(network ? network[1] : []));
 }
+
+function chooseWifiNetwork() {
+  const option = byId("wifi-networks").selectedOptions[0];
+  const manual = option?.value === "manual";
+  byId("wifi-manual").hidden = !manual;
+  byId("ssid").required = manual;
+  if (option?.dataset.ssid !== undefined) byId("ssid").value = option.dataset.ssid;
+}
+
+function showWifiNetworks(networks, selected = byId("ssid").value) {
+  const select = byId("wifi-networks");
+  const names = [...new Set(networks.map(network => network.ssid).filter(Boolean))];
+  if (selected && !names.includes(selected)) names.unshift(selected);
+  const options = names.map((ssid, index) => {
+    const option = make("option", { value: String(index), textContent: ssid, translate: false });
+    option.dataset.ssid = ssid;
+    return option;
+  });
+  select.replaceChildren(make("option", { value: "", textContent: t("Choose a network") }),
+                         ...options, make("option", { value: "manual", textContent: t("Enter network name") }));
+  select.value = selected ? String(names.indexOf(selected)) : "";
+  chooseWifiNetwork();
+}
+
+byId("wifi-networks").addEventListener("change", chooseWifiNetwork);
+byId("scan-networks").addEventListener("click", event => busy(event.target, async () => {
+  const result = await ask("/api/wifi/scan");
+  showWifiNetworks(result.networks);
+  if (!result.networks.length) toast("No networks found.");
+}));
 
 byId("wifi").addEventListener("submit", async event => {
   event.preventDefault();

@@ -310,7 +310,7 @@
 <h2 id="start-new">Create, build, run</h2>
 <p>Run these commands from the repository root.</p>
 <h3>Create</h3>
-<pre>tools/perinkpheral new my-app --title "My app"</pre>
+<pre>tools/perinkpheral new my-app --author "Your name" --title "My app"</pre>
 <h3>Run on a device</h3>
 <pre>tools/perinkpheral run my-app</pre>
 <h3>Run in the simulator</h3>
@@ -418,6 +418,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
 <pre>{
   "name": "plex",
   "title": "Plex Now Playing",
+  "author": "Your name",
   "description": "What is playing on your Plex server.",
   "version": "0.1.0",
   "abi": 3,
@@ -441,6 +442,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
   <tr><th style="width:13%">Field</th><th style="width:25%">Format</th><th>Description</th></tr>
   <tr><td class="c">name</td><td>1 - 13 of <code>a-z 0-9 - _</code>; equal to the folder name</td><td>Identifier: device folder, catalog key, store namespace. A changed name is a different application</td></tr>
   <tr><td class="c">title</td><td>1 - 23 characters</td><td>Display name in the menu and on the web page. Translatable</td></tr>
+  <tr><td class="c">author</td><td>1 - 63 UTF-8 bytes</td><td>Author shown in the catalog. Required for publishing. Perinkpheral is reserved for the official catalog</td></tr>
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
   <tr><td class="c">abi</td><td><code>3</code></td><td>Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."</td></tr>
@@ -1023,7 +1025,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <table>
   <tr><th style="width:44%">Command</th><th>Function</th></tr>
   <tr><td class="c">tools/perinkpheral build &lt;dir&gt; --out &lt;dir&gt;</td><td>Builds one application: compile, link with the SDK library, check, measure</td></tr>
-  <tr><td class="c">tools/perinkpheral new &lt;dir&gt; [--title T]</td><td>Creates a new application folder from the SDK sample</td></tr>
+  <tr><td class="c">tools/perinkpheral new &lt;dir&gt; --author NAME [--title T]</td><td>Creates a new application folder from the SDK sample</td></tr>
   <tr><td class="c">tools/perinkpheral headers &lt;dir&gt; &lt;out&gt;</td><td>Writes <code>strings.h</code>, <code>strings.c</code> and <code>pictures.h</code> for an editor or another build system</td></tr>
   <tr><td class="c">tools/perinkpheral flags compile|link</td><td>Prints the compiler and linker flags of the build as a CMake list</td></tr>
   <tr><td class="c">tools/perinkpheral run &lt;dir&gt; [--shot f.png]</td><td>Builds, uploads, restarts the device and opens the application</td></tr>

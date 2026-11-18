@@ -19,20 +19,19 @@ const kb = bytes => t("{0} KB", Math.round(bytes / 1024));
 const STARTS = { 1: "Power on", 2: "Reset pin", 3: "Restarted", 4: "Fault", 5: "Interrupt watchdog",
                  6: "Task watchdog", 7: "Watchdog", 8: "Wake from sleep", 9: "Brownout" };
 
-/* The record of the last fault: "6 \"Interrupt wdt timeout o\" wifi pc ...": so many starts ago,
- * why, in which task, and where - the rest for whoever has the firmware's symbols. */
+/* Extract the cause from the diagnostic record; task and addresses remain in the API. */
 const FAULTS = { "Interrupt wdt": "Interrupt watchdog", "Task watchdog": "Task watchdog", "abort()": "Abort",
                  "Load access fault": "Memory fault", "Store access fault": "Memory fault",
                  "Illegal instruction": "Illegal instruction", "Breakpoint": "Breakpoint",
                  "Stack protection": "Stack overflow", "Unhandled debug exception": "Stack overflow" };
 
 function lastFault(record) {
-  const found = (record || "").match(/^(\d+) "([^"]*)" (\S+)/);
+  const found = (record || "").match(/^\d+ "([^"]*)"/);
   if (!found) return null;
-  const [, ago, said, task] = found;
+  const [, said] = found;
   /* The chip's words, cut to the record's room: said as a person names the fault. */
   const why = Object.entries(FAULTS).find(([start]) => said.startsWith(start))?.[1] || said.trim();
-  return t(ago === "1" ? "{0}, {1} - {2} start ago" : "{0}, {1} - {2} starts ago", why.trim(), task, ago);
+  return t(why.trim());
 }
 
 /* When the firmware was built ("Nov 17 2026 12:04:05", as the compiler says it), in the page's language. */
@@ -61,7 +60,6 @@ function statusFacts() {
       ["Application ABIs", (status.supported_abis || []).join(", ")],
       ["Built", builtOn(status.built)],
       ["ESP-IDF", status.idf],
-      ["Slot", status.slot],
       ["Time", status.time],
       ["Uptime", has(status.uptime_s) && duration(status.uptime_s)],
       ["Last start", STARTS[status.reset_reason] || (status.reset_reason && t("Code {0}", status.reset_reason))],
@@ -76,8 +74,6 @@ function statusFacts() {
     ]],
     ["Memory", [
       ["Free", has(status.free_memory) && kb(status.free_memory)],
-      ["Lowest", has(status.least_free_memory) && kb(status.least_free_memory)],
-      ["Largest block", has(status.largest_free_block) && kb(status.largest_free_block)],
       ["Errors", faults.join(", ")],
       ["App area", status.app_area && t("{0} of {1}", kb(status.app_area_used), kb(status.app_area))],
       ["Storage", status.storage_ok === false ? "Error"
@@ -99,8 +95,10 @@ async function loadStatus() {
   drawStatus();
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
+  const release = (status.firmware || "").match(/^(\d+\.\d+\.\d+)(?:-debug)?$/);
+  byId("nav-firmware").href = "https://github.com/GrakovNe/perinkpheral/releases" +
+    (release ? "/tag/v" + release[1] : "");
   show("ota-installed", status.firmware || "");
-  show("ota-slot", status.slot || "");
 }
 
 function drawStatus() {
@@ -345,6 +343,7 @@ byId("ota-update").addEventListener("click", () => {
 /* ---- restart and reset ---- */
 
 byId("restart").addEventListener("click", async event => {
+  if (!await confirmed("Restart device?", "Restart")) return;
   if (await send(event.target, "/api/restart", { method: "POST" })) afterRestart();
 });
 

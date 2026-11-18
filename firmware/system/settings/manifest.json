@@ -1,7 +1,8 @@
 {
   "name": "settings",
   "title": "Settings",
-  "version": "1.0.1",
+  "author": "Perinkpheral",
+  "version": "1.0.2",
   "abi": 3,
   "system": true,
   "icon": [

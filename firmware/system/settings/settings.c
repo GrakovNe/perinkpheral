@@ -33,13 +33,13 @@ typedef enum {
     PAGE_APPS,
     PAGE_REMOVE_APP, /* "are you sure" */
     PAGE_DISPLAY,
+    PAGE_APPEARANCE,
     PAGE_VALUE,      /* one of a few values of a display setting */
     PAGE_WIFI,
     PAGE_FORGET,     /* "are you sure" */
     PAGE_RESTART,    /* "are you sure" */
     PAGE_RESET,      /* "are you sure" */
     PAGE_DEFAULT_APP, /* None and the installed applications */
-    PAGE_BUTTONS,    /* what holding a button does: nothing on the screen says it */
     PAGE_NOTICE,     /* what came of it: "Restarting." */
 } page_t;
 
@@ -108,7 +108,7 @@ static const char *const FONT_NAMES[] = { "Departure Mono", "Jersey" };
 static const int32_t POWER_SAVING_CHOICES[] = { 0, 1, 2 };
 static const int32_t IDLE_MINUTES_CHOICES[] = { 1, 5, 15, 30, 60 };
 
-/* Every value chosen from a few on a page of its own: the display's, then two of General's. */
+/* Every value chosen from a few on a page of its own. */
 static const display_setting_t VALUE_SETTINGS[] = {
     { STR_FONT, SYS_KEY_FONT, SAY_FONT, FONT_CHOICES, COUNT_OF(FONT_CHOICES) },
     { STR_FULL_REFRESH, SYS_KEY_REFRESH_FULL_EVERY, SAY_FULL_EVERY, FULL_EVERY_CHOICES,
@@ -125,9 +125,11 @@ static const display_setting_t VALUE_SETTINGS[] = {
     { STR_IDLE_TIMEOUT, SYS_KEY_MENU_IDLE_MINUTES, SAY_MINUTES, IDLE_MINUTES_CHOICES,
       COUNT_OF(IDLE_MINUTES_CHOICES) },
 };
-#define DISPLAY_ROWS       6 /* the display's, at the top of the table */
+#define VALUE_FONT         0
+#define VALUE_HEADER_CLOCK 5
 #define VALUE_POWER_SAVING 6
 #define VALUE_IDLE_MINUTES 7
+static const int32_t DISPLAY_SETTINGS[] = { 1, 2, 3, 4 };
 
 #define ROOT_ROWS 7
 
@@ -387,7 +389,9 @@ static int32_t row_count(page_t page)
     case PAGE_ROOT:
         return ROOT_ROWS;
     case PAGE_GENERAL:
-        return 5;
+        return 3;
+    case PAGE_APPEARANCE:
+        return 4;
     case PAGE_DATE_TIME:
         return is_automatic() ? 1 : 2; /* by hand only when not from the network */
     case PAGE_ZONE:
@@ -397,11 +401,9 @@ static int32_t row_count(page_t page)
         return apps > 0 ? apps : 1; /* or a row that says there are none */
     }
     case PAGE_DISPLAY:
-        return DISPLAY_ROWS;
+        return COUNT_OF(DISPLAY_SETTINGS);
     case PAGE_DEFAULT_APP:
         return 1 + app_count();
-    case PAGE_BUTTONS:
-        return 4;
     case PAGE_WIFI:
         return has_network() ? 4 : 3; /* nothing to forget without a network */
     default:
@@ -414,15 +416,10 @@ static int32_t row_count(page_t page)
 static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
                          char value[TEXT_MAX + 1])
 {
-    static const int32_t ROOT[ROOT_ROWS] = { STR_GENERAL, STR_APPS,    STR_DISPLAY, STR_WIFI,
-                                             STR_BUTTONS, STR_RESTART, STR_RESET };
-    /* The press, and what it does. */
-    static const int32_t BUTTONS[][2] = { { STR_HOLD_BACK, STR_MENU },
-                                          { STR_HOLD_OK, STR_MOVE },
-                                          { STR_HOLD_UP_DOWN, STR_PAGE },
-                                          { STR_UP_BACK, STR_RESTART } };
-    static const int32_t GENERAL[] = { STR_DATE_TIME, STR_TIME_ZONE, STR_POWER_SAVING,
-                                       STR_DEFAULT_APP, STR_IDLE_TIMEOUT };
+    static const int32_t ROOT[ROOT_ROWS] = { STR_GENERAL, STR_APPS, STR_APPEARANCE, STR_DISPLAY,
+                                             STR_WIFI, STR_RESTART, STR_RESET };
+    static const int32_t GENERAL[] = { STR_DATE_TIME, STR_TIME_ZONE, STR_POWER_SAVING };
+    static const int32_t APPEARANCE[] = { STR_FONT, STR_CLOCK_IN_HEADER, STR_DEFAULT_APP, STR_IDLE_TIMEOUT };
     static const int32_t WIFI[] = { STR_NETWORK, STR_IP_ADDRESS, STR_STATUS, STR_FORGET_NETWORK };
     label[0] = '\0';
     value[0] = '\0';
@@ -438,12 +435,19 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         } else if (row == 2) {
             copy_text(value, TEXT_MAX + 1,
                       app_string(POWER_SAVING_NAMES[read_number(SYS_KEY_POWER_SAVING) % POWER_SAVINGS]));
-        } else if (row == 3) {
+        }
+        break;
+    case PAGE_APPEARANCE:
+        copy_text(label, TEXT_MAX + 1, app_string(APPEARANCE[row]));
+        if (row < 2) {
+            const display_setting_t *setting = &VALUE_SETTINGS[row == 0 ? VALUE_FONT : VALUE_HEADER_CLOCK];
+            format_choice(setting, read_number(setting->key), value);
+        } else if (row == 2) {
             int32_t chosen = default_app_row();
             if (chosen < 0 || !app_title_at(chosen, value)) {
                 copy_text(value, TEXT_MAX + 1, app_string(STR_NONE));
             }
-        } else if (row == 4) {
+        } else {
             app_text_t out;
             app_text_start(&out, value, TEXT_MAX + 1);
             app_text_add_number(&out, read_number(SYS_KEY_MENU_IDLE_MINUTES));
@@ -461,10 +465,6 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
     case PAGE_ZONE:
         copy_text(label, TEXT_MAX + 1, city_name(city_order[row]));
         break;
-    case PAGE_BUTTONS:
-        copy_text(label, TEXT_MAX + 1, app_string(BUTTONS[row][0]));
-        copy_text(value, TEXT_MAX + 1, app_string(BUTTONS[row][1]));
-        break;
     case PAGE_DEFAULT_APP:
         if (row == 0 || !app_title_at(row - 1, label)) {
             copy_text(label, TEXT_MAX + 1, app_string(STR_NONE));
@@ -476,10 +476,12 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         }
         break;
     }
-    case PAGE_DISPLAY:
-        copy_text(label, TEXT_MAX + 1, app_string(VALUE_SETTINGS[row].label));
-        format_choice(&VALUE_SETTINGS[row], read_number(VALUE_SETTINGS[row].key), value);
+    case PAGE_DISPLAY: {
+        const display_setting_t *setting = &VALUE_SETTINGS[DISPLAY_SETTINGS[row]];
+        copy_text(label, TEXT_MAX + 1, app_string(setting->label));
+        format_choice(setting, read_number(setting->key), value);
         break;
+    }
     case PAGE_WIFI:
         copy_text(label, TEXT_MAX + 1, app_string(WIFI[row]));
         if (row == 0) {
@@ -514,8 +516,8 @@ static const char *page_title(page_t page)
         return app_string(STR_TIME_ZONE);
     case PAGE_DEFAULT_APP:
         return app_string(STR_DEFAULT_APP);
-    case PAGE_BUTTONS:
-        return app_string(STR_BUTTONS);
+    case PAGE_APPEARANCE:
+        return app_string(STR_APPEARANCE);
     case PAGE_APPS:
     case PAGE_REMOVE_APP:
         return app_string(STR_APPS);
@@ -605,7 +607,7 @@ static void edit_value(const display_setting_t *setting)
      * that is not below it. */
     int32_t value = read_number(edited->key);
     edited_choice = (app_picker_t){ .count = edited->choice_count,
-                                    .chosen = edited->choice_count - 1 };
+                                    .chosen = edited->choice_count - 1, .wraps = true };
     for (int32_t choice = 0; choice < edited->choice_count; choice++) {
         if (edited->choices[choice] >= value) {
             edited_choice.chosen = choice;
@@ -619,8 +621,8 @@ static void activate(page_t page, int32_t row)
 {
     switch (page) {
     case PAGE_ROOT: {
-        static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS,    PAGE_DISPLAY,
-                                                    PAGE_WIFI,    PAGE_BUTTONS, PAGE_RESTART,
+        static const page_t SECTIONS[ROOT_ROWS] = { PAGE_GENERAL, PAGE_APPS, PAGE_APPEARANCE,
+                                                    PAGE_DISPLAY, PAGE_WIFI, PAGE_RESTART,
                                                     PAGE_RESET };
         open(SECTIONS[row], 0);
         break;
@@ -633,7 +635,12 @@ static void activate(page_t page, int32_t row)
             open(PAGE_ZONE, city >= 0 ? position_of(city) : 0);
         } else if (row == 2) {
             edit_value(&VALUE_SETTINGS[VALUE_POWER_SAVING]);
-        } else if (row == 3) {
+        }
+        break;
+    case PAGE_APPEARANCE:
+        if (row < 2) {
+            edit_value(&VALUE_SETTINGS[row == 0 ? VALUE_FONT : VALUE_HEADER_CLOCK]);
+        } else if (row == 2) {
             open(PAGE_DEFAULT_APP, default_app_row() + 1); /* None is the first row */
         } else {
             edit_value(&VALUE_SETTINGS[VALUE_IDLE_MINUTES]);
@@ -683,7 +690,7 @@ static void activate(page_t page, int32_t row)
         break;
     }
     case PAGE_DISPLAY:
-        edit_value(&VALUE_SETTINGS[row]);
+        edit_value(&VALUE_SETTINGS[DISPLAY_SETTINGS[row]]);
         break;
     case PAGE_WIFI:
         if (row == 3) {
@@ -735,7 +742,6 @@ static void press_up_or_down(int32_t by)
 {
     page_t page = HERE.page;
     if (page == PAGE_VALUE) {
-        /* The ends are ends: no wrapping from "Never" to "Always". */
         if (app_picker_button(&edited_choice, by < 0 ? BTN_UP_PRESSED : BTN_DOWN_PRESSED) !=
             APP_UI_CHANGED) {
             return;
@@ -750,16 +756,20 @@ static void press_up_or_down(int32_t by)
     screen_redraw(REDRAW);
 }
 
-/* A long UP or DOWN on a list: a page of rows, to the ends and no further. */
+/* Long presses page through lists and wrap at either edge. */
 static void page_up_or_down(int32_t by)
 {
     page_t page = HERE.page;
-    if (page == PAGE_VALUE || !is_list(page)) {
+    if (page == PAGE_VALUE) {
+        press_up_or_down(by);
+        return;
+    }
+    if (!is_list(page)) {
         return;
     }
     int32_t last = row_count(page) - 1;
     int32_t to = HERE.selected + by * shown_rows;
-    to = to < 0 ? 0 : to > last ? last : to;
+    to = wrapped(to, 0, last);
     if (to != HERE.selected) {
         HERE.first += to - HERE.selected; /* the page moves with it */
         HERE.selected = to;

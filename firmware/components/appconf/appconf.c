@@ -153,6 +153,8 @@ void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]
     c->header_clock = 1;
     c->dither = 1;
     c->time_auto = 1;
+    c->log_enabled = 1;
+    c->log_level = APPCONF_LOG_INFO;
     c->refresh_keepalive_h = APPCONF_REFRESH_KEEPALIVE_H_DEFAULT;
     c->menu_idle_min = APPCONF_MENU_IDLE_MIN_DEFAULT;
     strcpy(c->language, "en");
@@ -273,6 +275,15 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     if (c->time_auto > 1) {
         BAD("Automatic time must be 0 or 1.");
     }
+    if (c->log_enabled > 1) {
+        BAD("Logging must be 0 or 1.");
+    }
+    if (c->log_level < APPCONF_LOG_ERROR || c->log_level > APPCONF_LOG_INFO) {
+        BAD("Unknown log level.");
+    }
+    if (c->app_auto_update > 1) {
+        BAD("Automatic app updates must be 0 or 1.");
+    }
     if (c->power_saving > APPCONF_POWER_AUTO) {
         BAD("Power saving must be 0, 1 or 2.");
     }
@@ -325,6 +336,9 @@ static const appconf_field_t FIELDS[] = {
     FLAG("dither", "dither", dither),
     NUMBER("font", "font", font, 0, APPCONF_FONT_COUNT - 1, APPCONF_NO_ALSO),
     FLAG("time_auto", "time_auto", time_auto),
+    FLAG("log_enabled", "log_enabled", log_enabled),
+    NUMBER("log_level", "log_level", log_level, APPCONF_LOG_ERROR, APPCONF_LOG_INFO, APPCONF_NO_ALSO),
+    FLAG("app_auto_update", "app_auto_update", app_auto_update),
     NUMBER("power_saving", "power_saving", power_saving, APPCONF_POWER_PLUGGED, APPCONF_POWER_AUTO,
            APPCONF_NO_ALSO),
     TEXT("default_app", "default_app", default_app, 0),

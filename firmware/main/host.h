@@ -97,6 +97,8 @@ void host_close_app(const char *app_name);
  * which tells a new picture from one already seen; and whether a newer
  * frame waits for the panel. */
 void     host_open_from_menu(scene_t *scene);
+/* After commit and installed callbacks; opens only a ready installed app. */
+void host_open_installed_app(const char *app_name);
 uint32_t host_frames_shown(void);
 bool     host_frame_is_pending(void);
 

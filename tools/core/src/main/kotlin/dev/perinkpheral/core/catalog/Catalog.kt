@@ -44,6 +44,12 @@ object Catalog {
                 "$name (${folders.joinToString(", ") { it.path }})"
             })
         }
+        // Missing metadata must not replace an earlier catalog or leave a partial new one.
+        for (appDir in appDirs) {
+            if (builder.checkManifest(appDir)["author"] !is String) {
+                throw BuildError("${appDir.name}: author is required when publishing a catalog; add it to manifest.json")
+            }
+        }
         refuseToRemove(out, appsDirs + appDirs)
         // Whatever the catalog held before is gone: an application that was taken out of the
         // folder must not stay in the catalog.
@@ -80,6 +86,9 @@ object Catalog {
         }
         val entry = linkedMapOf<String, Any?>("name" to manifest["name"], "title" to manifest["title"],
             "version" to (manifest["version"] ?: ""), "abi" to manifest["abi"], "files" to files)
+        val author = manifest["author"] as? String
+            ?: throw BuildError("${built.name}: author is required when publishing a catalog; add it to manifest.json")
+        entry["author"] = author
         // The least firmware it runs on, as the build stamped it: the page offers it to no other.
         manifest["firmware"]?.let { entry["firmware"] = it }
         // The page asks before it installs an application with the system API, or one that

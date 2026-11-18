@@ -32,6 +32,7 @@
 #include "scenes.h"
 #include "screens.h"
 #include "settings.h"
+#include "app_update.h"
 #include "app_code.h"
 #include "storage.h"
 #include "status.h"
@@ -522,6 +523,9 @@ static void answer_deadlines(void)
             break;
         case DEADLINE_MENU_IDLE:
             on_menu_idle_timeout();
+            break;
+        case DEADLINE_APP_UPDATE:
+            app_update_is_due();
             break;
         case DEADLINE_STOP:
             stop(s_stop_reason);

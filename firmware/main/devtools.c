@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "devtools.h"
+#include "app_install.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -236,7 +237,11 @@ static esp_err_t handle_app_file(httpd_req_t *http)
         return refuse(http, "the file is empty or too large for an application");
     }
     char path[APP_STORE_PATH_MAX];
+    if (!app_install_begin(name)) {
+        return web_send_text(http, "503 Service Unavailable", "the device is busy");
+    }
     if (!app_store_begin_file(STORAGE_APPS_ROOT, name, file, path)) {
+        app_install_end();
         return refuse(http, "not an application's name, or the storage refused");
     }
     FILE *incoming = fopen(path, "wb");
@@ -245,12 +250,15 @@ static esp_err_t handle_app_file(httpd_req_t *http)
     commit_command_t command = { .app_name = name, .file = file };
     if (stored && !events_call(commit_file, &command)) {
         remove(path);
+        app_install_end();
         return web_send_text(http, "503 Service Unavailable", "the device is busy");
     }
     if (!stored || !command.is_committed) {
         remove(path);
+        app_install_end();
         return web_send_text(http, "500 Internal Server Error", "the file could not be stored");
     }
+    app_install_end();
     ESP_LOGI(TAG, "%s of \"%s\" replaced, %u bytes", file_name, name, (unsigned)http->content_len);
     return web_send_text(http, "200 OK", "stored");
 }

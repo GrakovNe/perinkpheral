@@ -912,6 +912,20 @@ static app_manifest_result_t read_fields(const json_t *root, app_manifest_t *man
     if (!read_string(root, "version", manifest->version, sizeof manifest->version)) {
         return APP_MANIFEST_BAD_FIELD;
     }
+    if (!read_string(root, "author", manifest->author, sizeof manifest->author)) {
+        return APP_MANIFEST_BAD_FIELD;
+    }
+    if (json_get(root, "author") != NULL) {
+        size_t length = strlen(manifest->author);
+        if (length == 0 || manifest->author[0] == ' ' || manifest->author[length - 1] == ' ') {
+            return APP_MANIFEST_BAD_FIELD;
+        }
+        for (const unsigned char *at = (const unsigned char *)manifest->author; *at; at++) {
+            if (*at < 0x20 || *at == 0x7f) {
+                return APP_MANIFEST_BAD_FIELD;
+            }
+        }
+    }
 
     const json_t *companion = json_get(root, "companion");
     if (companion != NULL && !is_companion_url(companion)) {

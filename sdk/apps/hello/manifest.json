@@ -1,6 +1,7 @@
 {
   "name": "hello",
   "title": "Hello",
+  "author": "Perinkpheral",
   "description": "A sample app of the SDK.",
   "version": "0.1.4",
   "abi": 3,

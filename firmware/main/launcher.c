@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "launcher.h"
+#include "app_install.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -227,6 +228,9 @@ void launcher_keep_order(const menu_entry_t *entries, int count)
 
 bool launcher_remove(const char *app_name, bool forgets)
 {
+    if (app_install_app_is_busy(app_name)) {
+        return false;
+    }
     if (!app_store_remove(STORAGE_APPS_ROOT, app_name)) {
         return false;
     }

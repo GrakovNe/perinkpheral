@@ -7,6 +7,24 @@
 #include <stdio.h>
 #include <string.h>
 
+bool catalog_author_is_allowed(const char *author, int source_index)
+{
+    static const char RESERVED[] = "perinkpheral";
+    if (author == NULL || strlen(author) != sizeof RESERVED - 1) {
+        return true;
+    }
+    for (size_t i = 0; i < sizeof RESERVED - 1; i++) {
+        char character = author[i];
+        if (character >= 'A' && character <= 'Z') {
+            character += 'a' - 'A';
+        }
+        if (character != RESERVED[i]) {
+            return true;
+        }
+    }
+    return source_index == 0;
+}
+
 /* HTTPS and nothing else: it is what vouches for an application, and the
  * checksums of an index that came in the clear vouch for nothing. */
 static bool is_web_address(const char *line, size_t length)

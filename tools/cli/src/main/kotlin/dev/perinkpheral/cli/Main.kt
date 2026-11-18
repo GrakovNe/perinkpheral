@@ -9,6 +9,7 @@ import dev.perinkpheral.core.app.StringsTable
 import dev.perinkpheral.core.build.AppBuilder
 import dev.perinkpheral.core.build.BuildFlags
 import dev.perinkpheral.core.build.Sdk
+import dev.perinkpheral.core.build.ManifestAuthor
 import dev.perinkpheral.core.catalog.Catalog
 import dev.perinkpheral.core.catalog.Publisher
 import dev.perinkpheral.core.device.Bmp
@@ -26,7 +27,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral build <app> --out <dir>      build and check an application: app.wasm and its package
     perinkpheral headers <app> <dir>          strings.h, strings.c and pictures.h, for an editor
     perinkpheral flags compile|link           the compiler's flags of the build, as a CMake list
-    perinkpheral new <dir> [--title T]        an application to start from: the SDK's sample
+    perinkpheral new <dir> --author NAME [--title T]        an application to start from: the SDK's sample
     perinkpheral pictures <file or folder>... the drawings as the build reads them
     perinkpheral catalog <folder>... --out <dir>
                                               build a folder of applications into a catalog
@@ -263,7 +264,8 @@ private fun run(raw: Array<String>): Int {
         }
         "new" -> {
             val folder = File(arguments.word(1, "the folder"))
-            Applications.create(root(), folder, arguments.option("title").orEmpty(), ::cmakeLists)
+            Applications.create(root(), folder, arguments.option("title").orEmpty(),
+                arguments.option("author") ?: fail("--author is required for a new application"), ::cmakeLists)
             println("${folder.absolutePath}: build it and put it on the device with `perinkpheral run ${folder.path}`")
         }
         "pictures" -> print(dev.perinkpheral.core.build.Pictures.show(arguments.words.drop(1).map { File(it) }))
@@ -274,7 +276,7 @@ private fun run(raw: Array<String>): Int {
         }
         "publish" -> {
             val repository = arguments.option("repo") ?: fail("--repo owner/repository is required")
-            val publisher = Publisher({ folders, out -> Catalog.make(builder(), folders, out) })
+            val publisher = Publisher({ folders, out -> Catalog.make(builder(), folders, out) }, ManifestAuthor(Sdk(root())))
             val result = publisher.publish(arguments.words.drop(1).map { File(it) }, repository)
             println(if (result.changed) "Published ${result.applications} applications." else "Catalog is already up to date.")
             println("Add this source on the device page: ${result.repositoryUrl}")

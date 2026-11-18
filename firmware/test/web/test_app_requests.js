@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const read = name => fs.readFileSync(path.join(__dirname, "../../main/web/js", name), "utf8");
 const core = read("core.js");
 const apps = read("apps.js");
-const offer = { source: 0, app: { name: "iss", files: [{ name: "app.wasm" }] } };
+const offer = { source: 0, app: { name: "iss", version: "1.2.3", files: [{ name: "app.wasm" }] } };
 
 async function run(replies, action = "install", options = {}) {
   const requests = [], messages = [], delays = [], listeners = {};
@@ -17,13 +17,14 @@ async function run(replies, action = "install", options = {}) {
     addEventListener: (name, handler) => { listeners[name] = handler; } };
   let reloads = 0;
   const context = vm.createContext({
-    button, offer, Error, encodeURIComponent,
-    t: text => text,
+    button, offer, Error, encodeURIComponent, TextEncoder, MANIFEST_AUTHOR_MAX: 63,
+    t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
+    installed: [{ name: "iss", version: "1.0.0" }],
     document: { getElementById: () => button },
     compatibilityProblem: () => options.incompatible ? "Update the firmware." : null,
     confirmed: async () => false,
-    offerSays: () => "ISS",
-    updates: () => [offer, { source: 0, app: { name: "clock", files: [] } }],
+    offerSays: offer => offer.app.name === "clock" ? "Clock" : "ISS",
+    updates: () => [offer, { source: 0, app: { name: "clock", version: "2.0.0", files: [] } }],
     loadApps: async () => { reloads++; },
     loadSources: async () => {}, sources: ["https://example.test/catalog"],
     offered: [], catalogsRead: false, drawTiles() {}, loadGlyphs() {},
@@ -51,8 +52,8 @@ async function run(replies, action = "install", options = {}) {
   };
   vm.runInContext(apps.slice(apps.indexOf("async function install("), apps.indexOf("/* An icon is")), context);
   const updateStart = apps.indexOf('byId("update-all").addEventListener');
-  vm.runInContext(apps.slice(updateStart, apps.indexOf("async function loadApps()", updateStart)), context);
-  vm.runInContext(apps.slice(apps.indexOf("async function loadCatalogs()"), apps.indexOf("/* ---- sources ---- */")), context);
+  vm.runInContext(apps.slice(updateStart, apps.indexOf('byId("auto-update-apps").addEventListener', updateStart)), context);
+  vm.runInContext(apps.slice(apps.indexOf("function catalogAuthorIsAllowed("), apps.indexOf("/* ---- sources ---- */")), context);
   if (action === "update-all") await listeners.click();
   else if (action === "catalog") await context.loadCatalogs();
   else if (action === "save") await vm.runInContext('send(button, "/api/settings", post({font: "jersey"}))', context);
@@ -63,7 +64,83 @@ async function run(replies, action = "install", options = {}) {
   return { requests, messages, delays, reloads };
 }
 
+async function testAutoUpdateSetting() {
+  let click, saved = true;
+  const sent = [], attributes = {};
+  const button = {
+    addEventListener: (event, handler) => { assert.equal(event, "click"); click = handler; },
+    setAttribute: (key, value) => { attributes[key] = value; },
+  };
+  const context = vm.createContext({
+    settings: { app_auto_update: 0 }, byId: () => button, post: value => value,
+    send: async (_, url, body) => { sent.push({ url, body }); return saved; },
+  });
+  vm.runInContext(apps.slice(apps.indexOf('byId("auto-update-apps").addEventListener'), apps.indexOf("async function loadApps()")), context);
+  await click();
+  assert.equal(context.settings.app_auto_update, 1);
+  assert.equal(attributes["aria-pressed"], "true");
+  assert.equal(sent[0].url, "/api/settings");
+  assert.equal(sent[0].body.app_auto_update, 1);
+  saved = false;
+  await click();
+  assert.equal(context.settings.app_auto_update, 1);
+  assert.equal(attributes["aria-pressed"], "true");
+  saved = true;
+  await click();
+  assert.equal(context.settings.app_auto_update, 0);
+  assert.equal(attributes["aria-pressed"], "false");
+}
+
+async function testAuthors() {
+  const messages = [], rendered = [];
+  const catalogs = [
+    { apps: [{ name: "official", title: "Official", author: "Perinkpheral", version: "1" }] },
+    { apps: [{ name: "personal", title: "Personal", author: "Иван", version: "1" }] },
+  ];
+  const view = { replaceChildren() {}, append() {} };
+  const context = vm.createContext({
+    TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24,
+    sources: ["official", "personal"], offered: [], installed: [], removed: [], pageLanguage: "en",
+    loadSources: async () => {}, loadGlyphs() {}, drawTiles() {},
+    askForApp: async url => catalogs[Number(url.split("=")[1])],
+    t: (text, value) => text.replace("{0}", value),
+    toast: text => messages.push(text),
+    byId: id => id === "catalog-search" ? { value: "" } : view,
+    compatibilityProblem: () => "", picture: () => ({}),
+    offerSays: (offer, field) => offer.app[field] || "",
+    make: (tag, attributes = {}) => {
+      rendered.push({ tag, ...attributes });
+      return { append() {}, addEventListener() {} };
+    },
+  });
+  vm.runInContext(apps.slice(apps.indexOf("function catalogAuthorIsAllowed("), apps.indexOf("/* ---- sources ---- */")), context);
+  for (const author of [undefined, "Ada", "Иван", "a".repeat(63)])
+    assert(context.catalogAuthorIsAllowed(author, 1));
+  for (const author of [null, 42, "", " Ada", "Ada ", "Ada\n", "a".repeat(64), "Я".repeat(32)])
+    assert(!context.catalogAuthorIsAllowed(author, 1));
+  for (const author of ["Perinkpheral", "PERINKPHERAL", "pErInKpHeRaL"]) {
+    assert(context.catalogAuthorIsAllowed(author, 0));
+    assert(!context.catalogAuthorIsAllowed(author, 1));
+  }
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 2);
+  vm.runInContext(apps.slice(apps.indexOf("function drawCatalog()"), apps.indexOf('byId("catalog-search").addEventListener')), context);
+  context.drawCatalog();
+  assert(rendered.some(node => node.tag === "small" && node.textContent === "Perinkpheral" && node.translate === false));
+  assert(rendered.some(node => node.tag === "small" && node.textContent === "Иван" && node.translate === false));
+  catalogs[1].apps[0].author = "PERINKPHERAL";
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 1);
+  assert.equal(context.offered[0].app.name, "official");
+  assert.deepEqual(messages, ["Source unavailable: personal"]);
+  delete catalogs[1].apps[0].author;
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 2); // Old catalogs remain installable.
+}
+
 (async () => {
+  await testAutoUpdateSetting();
+  await testAuthors();
   const memory = [503, "Not enough memory."];
   const occupied = [503, "Device busy."];
   const interrupted = [502, "Download failed."];
@@ -75,6 +152,7 @@ async function run(replies, action = "install", options = {}) {
   assert.equal(result.messages[0].text, "Device busy. Retrying");
   assert(!result.messages.some(message => message.kind === "error"));
   assert.deepEqual(result.requests[0], result.requests[1]);
+  assert.equal(result.messages.at(-1).text, "ISS updated to 1.2.3.");
 
   result = await run([occupied, interrupted, success], "update-all");
   assert.equal(result.requests.length, 4);
@@ -82,12 +160,14 @@ async function run(replies, action = "install", options = {}) {
   assert(result.requests[3].url.endsWith("app=clock"));
   assert.equal(result.messages[1].text, "Download interrupted. Retrying");
   assert.equal(result.reloads, 1);
+  assert.deepEqual(result.messages.filter(message => message.kind === undefined).map(message => message.text),
+    ["ISS updated to 1.2.3.", "Clock updated to 2.0.0."]);
 
   result = await run([memory]);
   assert.equal(result.requests.length, 4);
   assert.deepEqual(result.delays, [2000, 4000, 8000]);
   assert.equal(result.reloads, 0);
-  assert.equal(result.messages.at(-1).text, "Device busy. Try again shortly.");
+  assert.equal(result.messages.at(-1).text, "ISS: Device busy. Try again shortly.");
   assert.equal(result.messages.at(-1).kind, "error");
 
   for (const refusal of [[502, "Checksum mismatch."], [409, "Not enough storage."],
@@ -97,6 +177,7 @@ async function run(replies, action = "install", options = {}) {
     assert.equal(result.requests.length, 1);
     assert.equal(result.delays.length, 0);
     assert.equal(result.reloads, 0);
+    assert(!result.messages.some(message => message.text.includes("updated to")));
   }
   result = await run([memory], "save");
   assert.equal(result.requests.length, 1);
@@ -109,7 +190,7 @@ async function run(replies, action = "install", options = {}) {
   assert.equal(result.messages.at(-1).text, "Device busy. Try again shortly.");
   result = await run([interrupted]);
   assert.equal(result.requests.length, 4);
-  assert.equal(result.messages.at(-1).text, "Download failed.");
+  assert.equal(result.messages.at(-1).text, "ISS: Download failed.");
   result = await run([memory], "update-all");
   assert.equal(result.requests.length, 4);
   assert(result.requests.every(request => request.url.endsWith("app=iss")));
