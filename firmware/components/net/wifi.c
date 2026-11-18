@@ -3,6 +3,7 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "priorities.h"
+#include "board.h"
 #include "wifi.h"
 #include "wifi_credentials.h"
 
@@ -136,6 +137,10 @@ static void on_station_started(void *arg, esp_event_base_t base, int32_t id, voi
     (void)base;
     (void)id;
     (void)data;
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(BOARD_WIFI_TX_POWER_DBM * 4));
+    int8_t power;
+    ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&power));
+    ESP_LOGI(TAG, "TX power limit: %d quarter-dBm", power);
     post(WIFI_EVENT_STARTED);
 }
 

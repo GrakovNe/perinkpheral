@@ -7,7 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
 }
 
-group = "org.perinkpheral"
+group = "dev.perinkpheral"
 version = "0.1.0"
 
 kotlin {
@@ -15,7 +15,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("org.perinkpheral:perinkpheral-core:0.1.0")
+    implementation("dev.perinkpheral:perinkpheral-core:0.1.0")
     // The fonts' outlines, TrueType and CFF, for the generators of the firmware's fonts and
     // glyph packs (Apache 2.0, Java alone). The core does not take it: the CLion plugin has no
     // use for it.
@@ -26,7 +26,7 @@ dependencies {
 tasks.register<Jar>("cli") {
     archiveFileName.set("perinkpheral.jar")
     manifest {
-        attributes("Main-Class" to "org.perinkpheral.cli.MainKt")
+        attributes("Main-Class" to "dev.perinkpheral.cli.MainKt")
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets.main.get().output)

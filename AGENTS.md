@@ -15,10 +15,9 @@ imports and its page.
 
 The board is on its native USB-Serial/JTAG (VID 0x303A PID 0x1001):
 `/dev/ttyACM*` on Linux, `/dev/cu.usbmodem*` on macOS. The name changes
-with the USB socket, so look it up; the recipes call it `$PORT`. When
-the port is gone the board is unplugged, or asleep: light sleep takes
-the USB away, and the firmware brings it back and enumerates it again
-when it wakes.
+with the USB socket, so look it up; the recipes call it `$PORT`. The port can
+disappear during unplugging, reset or light sleep. Discover it again after
+the board enumerates; firmware restores USB when it wakes.
 
 Build (the IDF project is `firmware/`):
 
@@ -64,7 +63,7 @@ Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`
 set they include the ABI 3 snapshot and frozen package checks, `test_app`,
 which builds a real module (`firmware/test/host/apps/probe`, from the repository root)
 and runs it in the real interpreter, and
-`test_delivery`, the whole way of an answer to an application. ESP-IDF is
+`test_delivery`, which checks response delivery to an application. ESP-IDF is
 not needed; Java 21 or later is, even without wasi-sdk, because `make test`
 also runs the tools' language, layer and city-table checks.
 
@@ -83,7 +82,8 @@ part of `make test`. The firmware's simulator cases are separate too:
 `tools/perinkpheral sim-test firmware/test/sim`.
 
 `tools/cli/gradlew -p tools/core check` also runs the builder safety and endurance
-observer tests. They use temporary files and simulated endpoints, not a device.
+observer tests, plus catalog publishing against local Git repositories. They use
+temporary files and simulated endpoints, not a device or live GitHub writes.
 
 The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
@@ -94,9 +94,15 @@ declare, and checks `manifest.json` by the host's rules. Everything in
 image of the `apps` partition; `idf.py flash` writes it with the
 firmware.
 
+Publish applications to a user-owned public GitHub repository:
+`tools/perinkpheral publish apps --repo owner/repository`. The repository must
+already exist and `gh auth login` must have write access. This replaces only
+`catalog/` on its default branch; include every application to keep published.
+The printed repository URL can be added under Catalog > Sources on the device page.
+
 Views before flashing, from the repository root: `tools/perinkpheral preview [dir]` compiles
 `gfx`, the window manager, `firmware/main/screens.c` and `recovery/main/screen.c` natively
-(`tools/preview/Makefile`) and writes a PNG per screen. Look at them; the panel shows exactly that.
+(`tools/preview/Makefile`) and writes a PNG per screen. Inspect the rendered frames, then verify them on the panel.
 
 Generated files, from the repository root:
 
@@ -129,7 +135,7 @@ them to make a failing compatibility check pass.
 For glyph sheets in a shell without a graphics session, set
 `JAVA_TOOL_OPTIONS=-Djava.awt.headless=true`; CI sets it for the generators.
 
-The device without hands on it, over the network: `tools/perinkpheral`
+Network development tools: `tools/perinkpheral`
 with `PERINKPHERAL_HOST` set to the device's address (the second page of About
 shows it).
 Screen capture, injected presses, opening/running apps and USB control require a
@@ -149,7 +155,7 @@ development build. Status, log and firmware OTA also work in release builds.
   development build. Compatible ABI 3 additions do not require reinstalling
   existing applications; rebuild and reinstall an application when it needs
   the new API. Catalog applications are installed from the page.
-  `status` and `log` print what the names say.
+  `status` prints device status; `log` prints device logs.
 
 Verify a change on the real device this way, not only in the preview.
 With no network, `tools/perinkpheral usb $PORT --keys 3,2 --out
@@ -240,8 +246,7 @@ Code:
   `btn_core`, `refresh_policy`, `appconf` and the rest that
   `tools/perinkpheral check-layers` lists as pure. `display.c` and
   `buttons.c` only move it onto GPIO and tasks.
-- `settings_start()` never fails - what is stored and does not check
-  is the default - and `reset_early_init()` runs before anything opens
+- `settings_start()` falls back to defaults for invalid stored values and `reset_early_init()` runs before anything opens
   NVS. Main's `settings.c` owns the host's settings; recovery's `settings.c`
   reads them through a read-only partition descriptor. A factory
   reset erases it whole (`reset.c`), and `app_kv.c` moves what an old
@@ -278,9 +283,9 @@ Code:
 
 Display:
 
-- `components/epd/epd.c` follows Waveshare's `epd4in2_V2` byte for
-  byte. Three things in it were found the hard way and must stay (the
-  full story is in `hardware/README.md`):
+- `components/epd/epd.c` follows Waveshare's `epd4in2_V2` command sequence
+  with the adaptations recorded in `hardware/README.md`. Preserve these three measured constraints
+  (details in `hardware/README.md`):
   - CS is toggled per byte by GPIO. CS held low over a block of data
     starts a refresh that never ends: BUSY stays high for 30 s and more
     and the image fades to grey.
@@ -294,8 +299,8 @@ Display:
     sleep (`0x10`) BUSY stays high for good; the next show always
     starts with a hardware reset, which is also how the panel wakes.
 - A byte takes about 8 microseconds, a frame 0.12 s.
-- Only `display.c` touches the panel. Whoever draws owns a buffer of its
-  own and hands the whole frame to `display_show(frame, reason)`; the
+- Only `display.c` touches the panel. Each drawing component owns its framebuffer
+  and submits complete frames to `display_show(frame, reason)`; the
   service keeps a copy of what the panel shows, leaves the panel alone
   when the frame is the same, and may answer "deferred" - then offer
   the frame again later.

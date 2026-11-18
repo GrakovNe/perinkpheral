@@ -12,21 +12,23 @@
 typedef enum {
     FAIL_NONE, FAIL_SOURCE_OPEN, FAIL_DESTINATION_OPEN, FAIL_SOURCE_GET, FAIL_DESTINATION_GET,
     FAIL_SET, FAIL_COMMIT, FAIL_FIND, FAIL_NEXT, FAIL_ERASE, FAIL_ERASE_COMMIT, FAIL_GET_MISSING,
+    FAIL_MARKER_READ_OPEN, FAIL_MARKER_OPEN, FAIL_MARKER_GET, FAIL_MARKER_SET, FAIL_MARKER_COMMIT,
 } failure_t;
 static failure_t failure;
-static int durable[2][2], pending[2][2];
+static int durable[3][2], pending[3][2];
 static int open_handles, iterators, erases, destination_commits;
 static const char *keys[] = { "first", "second" };
-struct nvs_opaque_iterator_t { int partition; int key; };
+struct nvs_opaque_iterator_t { int partition; int key; bool all; };
 
 esp_err_t nvs_open_from_partition(const char *partition, const char *name, nvs_open_mode_t mode,
                                  nvs_handle_t *handle)
 {
-    (void)mode;
-    CHECK_STR(name, "a.clock");
-    int index = strcmp(partition, "nvs") == 0 ? 0 : 1;
+    CHECK(strcmp(name, "a.clock") == 0 || strcmp(name, "migration") == 0);
+    int index = strcmp(partition, "nvs") == 0 ? 0 : strcmp(name, "migration") == 0 ? 2 : 1;
     if ((index == 0 && failure == FAIL_SOURCE_OPEN) ||
-        (index == 1 && failure == FAIL_DESTINATION_OPEN)) {
+        (index == 1 && failure == FAIL_DESTINATION_OPEN) ||
+        (index == 2 && failure == FAIL_MARKER_OPEN && mode == NVS_READWRITE) ||
+        (index == 2 && failure == FAIL_MARKER_READ_OPEN && mode == NVS_READONLY)) {
         return ESP_FAIL;
     }
     *handle = (nvs_handle_t)index;
@@ -53,6 +55,15 @@ static int key_index(const char *key)
 
 esp_err_t nvs_get_blob(nvs_handle_t handle, const char *key, void *value, size_t *length)
 {
+    if (handle == 2) {
+        CHECK_STR(key, "a.clock");
+        if (failure == FAIL_MARKER_GET) return ESP_FAIL;
+        if (pending[2][0] == 0) return ESP_ERR_NVS_NOT_FOUND;
+        CHECK(*length >= 1);
+        if (value != NULL) *(uint8_t *)value = (uint8_t)pending[2][0];
+        *length = 1;
+        return ESP_OK;
+    }
     int index = key_index(key);
     if (handle == 0 && index == 1 && failure == FAIL_GET_MISSING) {
         return ESP_ERR_NVS_NOT_FOUND;
@@ -74,6 +85,13 @@ esp_err_t nvs_get_blob(nvs_handle_t handle, const char *key, void *value, size_t
 
 esp_err_t nvs_set_blob(nvs_handle_t handle, const char *key, const void *value, size_t length)
 {
+    if (handle == 2) {
+        CHECK_STR(key, "a.clock");
+        CHECK(length == 1);
+        if (failure == FAIL_MARKER_SET) return ESP_FAIL;
+        pending[2][0] = *(const uint8_t *)value;
+        return ESP_OK;
+    }
     CHECK(length == sizeof(int));
     int index = key_index(key);
     if (index == 1 && failure == FAIL_SET) {
@@ -86,7 +104,8 @@ esp_err_t nvs_set_blob(nvs_handle_t handle, const char *key, const void *value, 
 esp_err_t nvs_commit(nvs_handle_t handle)
 {
     if ((handle == 1 && failure == FAIL_COMMIT) ||
-        (handle == 0 && failure == FAIL_ERASE_COMMIT)) {
+        (handle == 0 && failure == FAIL_ERASE_COMMIT) ||
+        (handle == 2 && failure == FAIL_MARKER_COMMIT)) {
         return ESP_FAIL;
     }
     memcpy(durable[handle], pending[handle], sizeof durable[handle]);
@@ -96,7 +115,9 @@ esp_err_t nvs_commit(nvs_handle_t handle)
 
 esp_err_t nvs_erase_all(nvs_handle_t handle)
 {
-    CHECK(handle == 0 && destination_commits > 0);
+    CHECK(handle < 2);
+    if (handle == 0) CHECK(destination_commits > 0 && durable[2][0] == 1);
+    if (handle == 1 && (durable[0][0] != 0 || durable[0][1] != 0)) CHECK(durable[2][0] == 1);
     erases++;
     if (failure == FAIL_ERASE) {
         return ESP_FAIL;
@@ -117,13 +138,14 @@ esp_err_t nvs_entry_find(const char *partition, const char *name, nvs_type_t typ
     if (name != NULL && failure == FAIL_FIND) {
         return ESP_FAIL;
     }
-    int index = strcmp(partition, "nvs") == 0 ? 0 : 1;
+    int index = strcmp(partition, "nvs") == 0 ? 0 : name != NULL && strcmp(name, "migration") == 0 ? 2 : 1;
+    if (index == 1 && name == NULL && durable[1][0] == 0 && durable[1][1] == 0) index = 2;
     if (durable[index][0] == 0 && durable[index][1] == 0) {
         *entry = NULL;
         return ESP_ERR_NVS_NOT_FOUND;
     }
     *entry = malloc(sizeof **entry);
-    **entry = (struct nvs_opaque_iterator_t){ index, durable[index][0] == 0 ? 1 : 0 };
+    **entry = (struct nvs_opaque_iterator_t){ index, durable[index][0] == 0 ? 1 : 0, name == NULL };
     iterators++;
     return ESP_OK;
 }
@@ -136,6 +158,11 @@ esp_err_t nvs_entry_next(nvs_iterator_t *entry)
         return ESP_FAIL;
     }
     if (++(*entry)->key == 2 || durable[(*entry)->partition][(*entry)->key] == 0) {
+        if ((*entry)->all && (*entry)->partition == 1 && durable[2][0] != 0) {
+            (*entry)->partition = 2;
+            (*entry)->key = 0;
+            return ESP_OK;
+        }
         nvs_release_iterator(*entry);
         *entry = NULL;
         return ESP_ERR_NVS_NOT_FOUND;
@@ -145,8 +172,8 @@ esp_err_t nvs_entry_next(nvs_iterator_t *entry)
 
 esp_err_t nvs_entry_info(nvs_iterator_t entry, nvs_entry_info_t *info)
 {
-    strcpy(info->namespace_name, "a.clock");
-    strcpy(info->key, keys[entry->key]);
+    strcpy(info->namespace_name, entry->partition == 2 ? "migration" : "a.clock");
+    strcpy(info->key, entry->partition == 2 ? "a.clock" : keys[entry->key]);
     return ESP_OK;
 }
 
@@ -187,7 +214,7 @@ char *app_store_read_manifest(const char *root, const char *name)
 
 int main(void)
 {
-    for (failure = FAIL_SOURCE_OPEN; failure <= FAIL_GET_MISSING; failure++) {
+    for (failure = FAIL_SOURCE_OPEN; failure <= FAIL_MARKER_COMMIT; failure++) {
         memset(durable, 0, sizeof durable);
         durable[0][0] = 11;
         durable[0][1] = 22;
@@ -211,5 +238,60 @@ int main(void)
         CHECK(open_handles == 0 && iterators == 0);
         failure = saved;
     }
+    /* Once copying is durable, interrupted cleanup must not resurrect deletions. */
+    for (failure_t failed = FAIL_ERASE; failed <= FAIL_ERASE_COMMIT; failed++) {
+        memset(durable, 0, sizeof durable);
+        durable[0][0] = 11;
+        durable[0][1] = 22;
+        failure = failed;
+        migrate_from_settings_partition();
+        CHECK(durable[2][0] == 1 && durable[0][0] == 11);
+        failure = FAIL_NONE;
+        CHECK(app_kv_set("clock", "first", NULL, 0) == HOST_OK);
+        CHECK(durable[1][0] == 0);
+        forget_host_namespaces();
+        CHECK(durable[2][0] == 1);
+        migrate_from_settings_partition();
+        CHECK(durable[1][0] == 0 && durable[1][1] == 22);
+        CHECK(durable[0][0] == 0 && durable[0][1] == 0);
+    }
+    /* A failed marker write cannot expose successful deletes to a copy retry. */
+    const failure_t marker_failures[] = { FAIL_MARKER_OPEN, FAIL_MARKER_SET, FAIL_MARKER_COMMIT };
+    for (size_t index = 0; index < sizeof marker_failures / sizeof marker_failures[0]; index++) {
+        failure_t failed = marker_failures[index];
+        memset(durable, 0, sizeof durable);
+        durable[0][0] = 11;
+        durable[0][1] = 22;
+        failure = failed;
+        migrate_from_settings_partition();
+        CHECK(durable[1][0] == 11 && durable[2][0] == 0 && durable[0][0] == 11);
+        CHECK(app_kv_set("clock", "first", NULL, 0) == HOST_ERR_FAILED);
+        CHECK(durable[1][0] == 11);
+        failure = FAIL_NONE;
+        migrate_from_settings_partition();
+        CHECK(app_kv_set("clock", "first", NULL, 0) == HOST_OK);
+        migrate_from_settings_partition();
+        CHECK(durable[1][0] == 0);
+    }
+    /* Explicitly forgetting a store cancels even an incomplete migration. */
+    memset(durable, 0, sizeof durable);
+    durable[0][0] = 11;
+    durable[0][1] = 22;
+    failure = FAIL_SET;
+    migrate_from_settings_partition();
+    failure = FAIL_NONE;
+    app_kv_erase("clock");
+    migrate_from_settings_partition();
+    CHECK(durable[1][0] == 0 && durable[1][1] == 0);
+    CHECK(durable[0][0] == 0 && durable[0][1] == 0);
+    /* Ordinary stores need no migration marker, including after legacy cleanup. */
+    memset(durable, 0, sizeof durable);
+    failure = FAIL_MARKER_READ_OPEN;
+    int value = 44;
+    CHECK(app_kv_set("clock", "first", &value, sizeof value) == HOST_OK);
+    CHECK(durable[1][0] == 44);
+    app_kv_erase("clock");
+    CHECK(durable[1][0] == 0 && durable[2][0] == 0);
+    CHECK(open_handles == 0 && iterators == 0);
     REPORT();
 }

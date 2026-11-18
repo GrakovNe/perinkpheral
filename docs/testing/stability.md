@@ -191,6 +191,37 @@ The 2026-11-15 device soak recorded backward `esp_timer` jumps and interrupt-wat
 faults inside ESP-IDF modem sleep. This is a historical fault observation, not a passing
 endurance result. No completed run of the protocol above is recorded here.
 
+On 2026-11-18 the owner stopped the 0.1.44 observation run for audit fixes; it must
+not resume without a new instruction. A later status read on the unchanged release
+reported reset reason 5 and an interrupt-watchdog panic in the Wi-Fi task
+(`pc 40017606`, `ra 40807bd6`). The last observation before stopping had reset reason
+3 and no panic. The firmware image was
+`2a1b813cedeccf96be593d93158e84170d9565506e0f8971fd9d90753b95d770`.
+This remains an unresolved device failure; passing host tests does not close it.
+
+### 15 dBm Wi-Fi experiment
+
+The owner approved a 15 dBm transmit-power limit on 2026-11-18 for the next run.
+Reports in [ESP-IDF issue 19036](https://github.com/espressif/esp-idf/issues/19036)
+describe backward timer jumps and watchdog faults on ESP32-C6 v0.2 boards. Several
+participants reported no further timer faults after reducing Wi-Fi transmit power
+from 20 to 15 dBm. Espressif is still investigating. The symptoms resemble ours;
+we have not established that they have the same cause.
+
+Main and recovery request 15 dBm through `esp_wifi_set_max_tx_power(60)`; the API
+uses quarter-dBm units. Main reapplies it whenever the station starts, including
+after a radio power cycle. PHY defaults also cap startup power at 15 dBm. The
+startup log reports the limit read back from the driver. OTA replaces main only;
+updating the installed recovery image requires USB.
+
+For the next owner-started run, record the firmware image ID and the reported
+power limit. Keep the board, antenna, network, power profile and app workload
+unchanged. Record resets, timer regressions, lost connectivity and request failures.
+Check that the lower power still reaches the access point reliably. A completed
+run without faults supports this mitigation but does not prove the cause or a
+permanent fix. Other audit fixes are included in this image, so it is not a
+controlled comparison of transmit power alone. Do not restart the run automatically.
+
 [heap]: https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32c6/api-reference/system/heap_debug.html
 
 ## Recovery qualification

@@ -1,11 +1,13 @@
 # Changes
 
-What each release of the firmware brings, newest first. Every push to `main` is a release; the
-section of its version, when written, is the release's notes on GitHub, in the web flasher and on
-the device's page - without one, the notes are the commits since the release before.
+Firmware release notes, newest first. Each successful push to `main` publishes a release.
+CI uses the matching version section for its notes; otherwise it lists commits since
+the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
 ## 0.1.45
 
+- Limit Wi-Fi transmit power to 15 dBm for the next stability experiment. This is
+  a mitigation under test, not a confirmed fix for the observed watchdog resets.
 - Interrupted application updates stay hidden until their files are consistent.
   Storage failures preserve cached modules and settings awaiting migration.
 - Concurrent list polls finish every item. Temporary memory pressure no longer
@@ -13,6 +15,8 @@ the device's page - without one, the notes are the commits since the release bef
 - Wi-Fi accepts full-length network names and 64-character hexadecimal keys.
 - Application builds refuse source folders as output; catalogs reject duplicate
   application names. IDE-generated headers are isolated by application path.
+- SDK tools can publish an application catalog to the developer's own public
+  GitHub repository with `publish <folder> --repo owner/repository`.
 - Releases include enclosure files and the exact firmware symbols for crash reports.
 
 ## 0.1.38
@@ -91,8 +95,8 @@ the device's page - without one, the notes are the commits since the release bef
 
 - The Catalog shows the installed applications too: Installed, or Update when a source has
   another version. Installed apps has Update all when there is more than one update.
-- Time: the date and time are always there, with Network time beside them - pressed, they are the
-  network's; released, they are typed - then the time zone and the time server, and one Save.
+- Time: date and time follow synchronization while Network time is enabled; otherwise
+  the fields are editable. The same form includes the time zone, time server and Save.
 - "Factory reset" in Russian is "Сбросить к заводским настройкам".
 
 ## 0.1.23
@@ -136,8 +140,8 @@ the device's page - without one, the notes are the commits since the release bef
 - Fixes found by a review of the whole project. An application with system access that
   removes the one waiting under it no longer brings the device down; the removal takes effect
   once its handler returns.
-- Data: an answer that never closes its JSON is no answer; a slow server is cut off at the
-  deadline however it trickles; a list the device has no memory for says so. `poll_run` is
+- Data: incomplete JSON responses are rejected. Slow responses time out even while
+  bytes continue arriving; lists that cannot fit return a memory error. `poll_run` is
   held to once a second, and a long list of one application lets the others' polls in.
 - An alarm of another application in the middle of an answer taken in pieces ends it as a
   press does, and the poll is asked again soon.
@@ -192,8 +196,7 @@ the device's page - without one, the notes are the commits since the release bef
 - A server that sends its answer a byte at a time no longer keeps the device's one connection:
   values are read within a minute, an answer in pieces within five, or the application is told
   of a timeout.
-- A heap left in pieces too small for a request is put back together: after ten minutes of
-  every request refused for memory, the device restarts.
+- The device restarts after ten minutes of continuous memory refusals for requests.
 
 ## 0.1.16
 

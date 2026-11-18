@@ -27,10 +27,12 @@ static const char *TAG = "app_kv";
 #define PARTITION        "appkv"
 #define NAMESPACE_PREFIX "a."
 #define SYSTEM_PREFIX    NAMESPACE_PREFIX "sys."
+#define MIGRATION_STORE  "migration"
 
 _Static_assert(sizeof NAMESPACE_PREFIX - 1 + APP_NAME_MAX <= NVS_NS_NAME_MAX_SIZE - 1,
                "an application's namespace has to fit NVS");
 _Static_assert(HOST_KV_KEY_MAX <= NVS_KEY_NAME_MAX_SIZE - 1, "a key has to fit NVS");
+_Static_assert(NVS_NS_NAME_MAX_SIZE <= NVS_KEY_NAME_MAX_SIZE, "migration keys are namespace names");
 
 static int32_t storage_failed(const char *app_name, const char *key, esp_err_t err)
 {
@@ -124,13 +126,86 @@ int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity)
     return count;
 }
 
+/* Separate from application keys: a deleted value is still absent when an
+ * interrupted source cleanup is retried on the next boot. */
+static esp_err_t migration_complete(const char *namespace, bool *complete)
+{
+    *complete = false;
+    nvs_handle_t store;
+    esp_err_t err = nvs_open_from_partition(PARTITION, MIGRATION_STORE, NVS_READONLY, &store);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint8_t marker = 0;
+    size_t size = sizeof marker;
+    err = nvs_get_blob(store, namespace, &marker, &size);
+    nvs_close(store);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err == ESP_OK && (size != sizeof marker || marker != 1)) {
+        return ESP_FAIL;
+    }
+    *complete = err == ESP_OK;
+    return err;
+}
+
+static esp_err_t mark_migration_complete(const char *namespace)
+{
+    nvs_handle_t store;
+    esp_err_t err = nvs_open_from_partition(PARTITION, MIGRATION_STORE, NVS_READWRITE, &store);
+    if (err != ESP_OK) {
+        return err;
+    }
+    const uint8_t marker = 1;
+    err = nvs_set_blob(store, namespace, &marker, sizeof marker);
+    if (err == ESP_OK) {
+        err = nvs_commit(store);
+    }
+    nvs_close(store);
+    return err;
+}
+
+static esp_err_t has_legacy_values(const char *namespace, bool *has_values)
+{
+    nvs_iterator_t entry = NULL;
+    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, namespace, NVS_TYPE_BLOB, &entry);
+    nvs_release_iterator(entry);
+    *has_values = err == ESP_OK;
+    return err == ESP_ERR_NVS_NOT_FOUND ? ESP_OK : err;
+}
+
+/* Until the completion marker is durable, a retry still copies missing keys.
+ * Mutations must wait, or a successful deletion would look like a missing copy. */
+static esp_err_t namespace_write_ready(const char *app_name)
+{
+    char namespace[NVS_NS_NAME_MAX_SIZE];
+    snprintf(namespace, sizeof namespace, NAMESPACE_PREFIX "%s", app_name);
+    bool has_values;
+    esp_err_t err = has_legacy_values(namespace, &has_values);
+    if (err != ESP_OK || !has_values) {
+        return err;
+    }
+    bool complete;
+    err = migration_complete(namespace, &complete);
+    return err == ESP_OK && !complete ? ESP_FAIL : err;
+}
+
 /* A retry must not overwrite values saved in appkv after an earlier,
  * incomplete migration. The old namespace stays until the copy is durable. */
 static esp_err_t migrate_namespace(const char *namespace)
 {
+    bool complete;
+    esp_err_t err = migration_complete(namespace, &complete);
+    if (err != ESP_OK || complete) {
+        return err;
+    }
     static uint8_t value[HOST_KV_VALUE_MAX];
     nvs_handle_t from, to;
-    esp_err_t err = nvs_open(namespace, NVS_READONLY, &from);
+    err = nvs_open(namespace, NVS_READONLY, &from);
     if (err != ESP_OK) {
         return err;
     }
@@ -166,7 +241,7 @@ static esp_err_t migrate_namespace(const char *namespace)
     }
     nvs_close(to);
     nvs_close(from);
-    return err;
+    return err == ESP_OK ? mark_migration_complete(namespace) : err;
 }
 
 static void migrate_from_settings_partition(void)
@@ -329,7 +404,10 @@ static bool is_full(esp_err_t err)
 static int32_t write_value(const char *app_name, const char *key, const void *value,
                            int32_t value_length, bool keep_empty, esp_err_t *storage_error)
 {
-    *storage_error = ESP_OK;
+    *storage_error = namespace_write_ready(app_name);
+    if (*storage_error != ESP_OK) {
+        return HOST_ERR_FAILED;
+    }
     nvs_handle_t store;
     esp_err_t err = open_store(app_name, NVS_READWRITE, &store);
     if (err != ESP_OK) {
@@ -435,6 +513,17 @@ void app_kv_forget_host_record(const char *app_name)
 
 void app_kv_erase(const char *app_name)
 {
+    char namespace[NVS_NS_NAME_MAX_SIZE];
+    snprintf(namespace, sizeof namespace, NAMESPACE_PREFIX "%s", app_name);
+    bool has_values;
+    esp_err_t marked = has_legacy_values(namespace, &has_values);
+    if (marked == ESP_OK && has_values) {
+        marked = mark_migration_complete(namespace);
+    }
+    if (marked != ESP_OK) {
+        ESP_LOGW(TAG, "%s: the store could not be emptied: %s", app_name, esp_err_to_name(marked));
+        return;
+    }
     settings_forget_app_record(app_name);
 
     nvs_handle_t store;

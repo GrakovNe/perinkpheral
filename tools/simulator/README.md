@@ -1,8 +1,7 @@
 # Simulator
 
-The device without the device: one application, run by the firmware's own
-interpreter, host API, kit and window manager on a computer. A frame here is
-the frame the panel shows.
+Runs one application on a computer using the firmware's interpreter, host API,
+UI kit and window manager. It exposes the rendered framebuffer and simulated input.
 
     tools/perinkpheral sim <application folder> [--language ru] [--mocks mocks.json]
 
@@ -36,8 +35,9 @@ every address that begins with the rest.
       "https://example.com/api/state": { "status": 401, "body": "{}" }
     }
 
-Not simulated: the menu of several applications, the system API but the
-host's settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`), e-paper
+Not simulated: the menu of several applications, the system API except
+host settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`) and
+`sys_time_set`, e-paper
 refresh timing, sleep, the battery or firmware/recovery updates. The device's
 128 KB application area (64 KB Wasm memory and 64 KB interpreter space) is not
 enforced as a combined arena; the module's 64 KB linear-memory limit still applies.

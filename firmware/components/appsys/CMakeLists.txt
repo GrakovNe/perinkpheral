@@ -15,8 +15,8 @@ set(tools "${CMAKE_CURRENT_LIST_DIR}/../../../tools/perinkpheral")
 set(imports_dir "${CMAKE_CURRENT_BINARY_DIR}/imports")
 # Made again when the header changes, or the tools' reading of it.
 file(GLOB_RECURSE contract_reader CONFIGURE_DEPENDS
-     "${CMAKE_CURRENT_LIST_DIR}/../../../tools/core/src/main/kotlin/org/perinkpheral/core/contract/*"
-     "${CMAKE_CURRENT_LIST_DIR}/../../../tools/cli/src/main/kotlin/org/perinkpheral/cli/ContractTools.kt")
+     "${CMAKE_CURRENT_LIST_DIR}/../../../tools/core/src/main/kotlin/dev/perinkpheral/core/contract/*"
+     "${CMAKE_CURRENT_LIST_DIR}/../../../tools/cli/src/main/kotlin/dev/perinkpheral/cli/ContractTools.kt")
 add_custom_command(OUTPUT "${imports_dir}/host_imports.inc" "${imports_dir}/system_imports.inc"
                           "${imports_dir}/host_exports.inc"
                    COMMAND "${tools}" imports "${imports_dir}"

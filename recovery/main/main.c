@@ -248,6 +248,10 @@ static void start_network(void)
         }
     }
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(BOARD_WIFI_TX_POWER_DBM * 4));
+    int8_t tx_power;
+    ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&tx_power));
+    ESP_LOGI("recovery", "TX power limit: %d quarter-dBm", tx_power);
     boot_id = esp_random();
     if (mdns_init() == ESP_OK) {
         if (mdns_hostname_set(settings.hostname) != ESP_OK ||

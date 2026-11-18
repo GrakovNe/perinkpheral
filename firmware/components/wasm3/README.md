@@ -16,8 +16,6 @@ over or check whether upstream has closed its own TODO at that spot.
 
 `wasm3/m3_core.c`, the allocator: with `d_m3ApplicationArea` defined the
 interpreter's `calloc`, `free` and `realloc` are those of `m3_area.c`,
-which is ours - a heap of its own inside one block of memory taken at
-start. Nothing an application needs comes from the heap of the host, so
-an application can neither fragment nor exhaust it, and the area is made
-whole again every time an application is unloaded. The lines are marked
-`perinkpheral`.
+which uses a preallocated application arena. Unloading the application resets
+the arena. Host-side storage and network services have separate allocations;
+this isolation applies to interpreter memory. The lines are marked `perinkpheral`.

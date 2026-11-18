@@ -2,6 +2,9 @@ CONFIG_IDF_TARGET="esp32c6"
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 
+# Radio stability experiment: docs/testing/stability.md.
+CONFIG_ESP_PHY_MAX_WIFI_TX_POWER=15
+
 # GPIO16/17 are UART0 TX/RX on the C6 and here they are the display's
 # BUSY and CS. Nothing but the ROM may print there.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
