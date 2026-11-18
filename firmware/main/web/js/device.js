@@ -191,7 +191,7 @@ async function firmwarePost(path, body, timeout) {
   }
 }
 
-async function updateFirmware(imageSource) {
+async function updateFirmware(imageSource, expectedSize = null) {
   const dialog = byId("updating");
   const started = Date.now();
   const step = (title, text) => { show("updating-title", title); show("updating-step", text); };
@@ -219,6 +219,9 @@ async function updateFirmware(imageSource) {
       image = await response.blob();
     }
     if (!image || image.size < 304 || image.size > 2 * 1024 * 1024) throw Error("Invalid image size.");
+    if (expectedSize !== null && image.size !== expectedSize) {
+      throw Error("Firmware download size does not match the release. Try again.");
+    }
     const header = new Uint8Array(await image.slice(0, 304).arrayBuffer());
     const view = new DataView(header.buffer);
     const field = offset => new TextDecoder().decode(header.slice(offset, offset + 32)).split("\0")[0];
@@ -314,18 +317,20 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   const notes = (release.body || "").split(/\n\s*\nA first flash/)[0].trim();
   show("ota-notes", isNewerOne ? notes : "");
   byId("ota-notes").hidden = !isNewerOne || !notes;
-  byId("ota-update").hidden = !isNewerOne;
+  byId("ota-update").hidden = true;
   latestImage = null;
   if (isNewerOne) {
     const mirror = "https://grakovne.github.io/perinkpheral/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
-    let published = false;
+    let mirrored;
     try {
-      const mirrored = await fetch(mirror, { method: "HEAD", signal: AbortSignal.timeout(10000) });
-      published = mirrored.ok && Number(mirrored.headers.get("Content-Length")) === image.size;
-    } catch (error) { /* Release assets can precede their browser-accessible mirror. */ }
-    byId("ota-update").hidden = !published;
-    if (published) latestImage = mirror;
-    else toast("Firmware is being published. Check again shortly.");
+      mirrored = await fetch(mirror, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(10000) });
+    } catch (error) { throw Error("Could not check the firmware download. Try again."); }
+    if (mirrored.status === 404) return toast("Firmware is being published. Check again shortly.");
+    if (!mirrored.ok) throw Error("Could not check the firmware download. Try again.");
+    /* Content-Length describes the encoded transfer, which Pages may gzip.
+     * Check the decoded blob's size before entering recovery instead. */
+    latestImage = { url: mirror, size: image.size };
+    byId("ota-update").hidden = false;
   }
   if (!isNewerOne) toast("Up to date.");
 }));
@@ -334,7 +339,7 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
  * written, so the page does not ask again. */
 let latestImage = null;
 byId("ota-update").addEventListener("click", () => {
-  if (latestImage) updateFirmware(latestImage);
+  if (latestImage) updateFirmware(latestImage.url, latestImage.size);
 });
 
 /* ---- restart and reset ---- */

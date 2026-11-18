@@ -26,6 +26,8 @@ const RUSSIAN = {
   "A different firmware started. The uploaded image was not confirmed.": "Запустилась другая прошивка. Загруженный образ не был подтверждён.",
   "Device not found. Check its screen and reconnect to its Wi-Fi if needed.": "Устройство не найдено. Проверьте его экран и при необходимости подключитесь к его Wi-Fi.",
   "Firmware is being published. Check again shortly.": "Прошивка публикуется. Проверьте ещё раз чуть позже.",
+  "Firmware download size does not match the release. Try again.": "Размер скачанной прошивки не совпадает с релизом. Повторите загрузку.",
+  "Could not check the firmware download. Try again.": "Не удалось проверить доступность прошивки. Повторите попытку.",
   /* the menu and the sections */
   "Apps": "Приложения", "Device": "Устройство", "Control": "Управление", "Settings": "Настройки",
   "Credits": "Лицензии",
