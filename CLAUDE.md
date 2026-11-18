@@ -34,7 +34,7 @@ What follows from this: no backend of our own, no accounts, no telemetry; a stat
 | Power | USB-C | charging + operation; VBUS on the 5V pin only with USB plugged in |
 | Battery | Li-Ion 1S 3.7 V with a protection board (PCM), 4000 mAh | **connected**; on the BAT+/BAT- pads under the XIAO; the protection is mandatory - the board does not cut off over-discharge; the charge current is not documented by Seeed |
 
-The page with the hardware, assembly and case renders is `hardware/bom/index.html`; the case model is `hardware/step/perinkpheral.step`; the renders are in `hardware/render/` (not in git).
+The page with the hardware, assembly and case renders is `hardware/bom/index.html`; the case model is `hardware/step/rev1/perinkpheral.step`; the renders are in `hardware/render/` (not in git).
 
 ### Wiring
 ```
@@ -542,7 +542,7 @@ docs/
 hardware/              everything about the physical device
   README.md            panel, datasheet, bench notes
   bom/                 the hardware and assembly page (STEP model and published renders)
-  step/                the STEP model of the case
+  step/rev1/            the STEP model and print-oriented 3MF files of the case
   render/              case renders from Blender (not in git)
 ```
 
