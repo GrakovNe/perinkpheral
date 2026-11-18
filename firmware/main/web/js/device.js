@@ -62,7 +62,7 @@ function statusFacts() {
       ["ESP-IDF", status.idf],
       ["Time", status.time],
       ["Uptime", has(status.uptime_s) && duration(status.uptime_s)],
-      ["Last start", STARTS[status.reset_reason] || (status.reset_reason && t("Code {0}", status.reset_reason))],
+      ["Reset reason", STARTS[status.reset_reason] || (status.reset_reason && t("Code {0}", status.reset_reason))],
       ["Last fault", lastFault(status.last_panic)],
       ["Language", language && language.name],
     ]],

@@ -17,9 +17,10 @@ async function run(replies, action = "install", options = {}) {
     addEventListener: (name, handler) => { listeners[name] = handler; } };
   let reloads = 0;
   const context = vm.createContext({
-    button, offer, Error, encodeURIComponent, TextEncoder, MANIFEST_AUTHOR_MAX: 63,
+    button, offer: { ...offer, app: { ...offer.app, version: options.offeredVersion || offer.app.version } },
+    Error, encodeURIComponent, TextEncoder, MANIFEST_AUTHOR_MAX: 63,
     t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
-    installed: [{ name: "iss", version: "1.0.0" }],
+    installed: options.fresh ? [] : [{ name: "iss", version: options.installedVersion || "1.0.0" }],
     document: { getElementById: () => button },
     compatibilityProblem: () => options.incompatible ? "Update the firmware." : null,
     confirmed: async () => false,
@@ -45,6 +46,7 @@ async function run(replies, action = "install", options = {}) {
     },
   });
   vm.runInContext(core.slice(0, core.indexOf('const CONFIRM_ON_DEVICE')), context);
+  vm.runInContext(read("compatibility.js"), context);
   context.toast = (text, kind, stays) => {
     const message = { text, kind, stays, dismissed: false };
     messages.push(message);
@@ -57,11 +59,97 @@ async function run(replies, action = "install", options = {}) {
   if (action === "update-all") await listeners.click();
   else if (action === "catalog") await context.loadCatalogs();
   else if (action === "save") await vm.runInContext('send(button, "/api/settings", post({font: "jersey"}))', context);
-  else await context.install(button, offer);
+  else await context.install(button, context.offer);
   assert.equal(button.disabled, false);
   assert.equal(classes.has("busy"), false);
   assert(messages.filter(message => message.stays).every(message => message.dismissed));
   return { requests, messages, delays, reloads };
+}
+
+async function testVersionOrdering() {
+  const context = vm.createContext({});
+  vm.runInContext(read("compatibility.js"), context);
+  const cases = [
+    ["0.1.3", "0.1.2", false], ["0.1.3", "0.1.3", false], ["0.1.3", "0.1.4", true],
+    ["0.1.9", "0.1.10", true], ["0.1.10", "0.1.9", false],
+    ["0.2.0", "0.1.999", false], ["0.999.999", "1.0.0", true],
+    ["999.999.999", "0.0.0", false], ["0.0.0", "0.0.1", true],
+    // No new ordering is imposed on labels outside the existing stable-version contract.
+    ["0.1.3-beta", "0.1.3", true], ["0.1.3", "0.1.3-beta", true],
+    ["0.1.3-beta", "0.1.3-beta", false], ["0.1.3+build", "0.1.3", true],
+    ["nightly", "custom", true], ["custom", "custom", false],
+    ["01.2.3", "1.2.3", true], ["1000.0.0", "999.0.0", true],
+  ];
+  for (const [installedVersion, offeredVersion, expected] of cases)
+    assert.equal(context.appUpdateAvailable(installedVersion, offeredVersion), expected,
+      `${installedVersion} -> ${offeredVersion}`);
+
+  // A click saved before another refresh must not reinstall an equal or older package.
+  for (const offeredVersion of ["0.1.2", "0.1.3"]) {
+    const result = await run([[200]], "install", { installedVersion: "0.1.3", offeredVersion });
+    assert.equal(result.requests.length, 0);
+    assert.equal(result.reloads, 0);
+    assert.equal(result.messages.length, 0);
+  }
+  for (const offeredVersion of ["0.1.4", "nightly", "0.1.4-beta"]) {
+    const result = await run([[200]], "install", { installedVersion: "0.1.3", offeredVersion });
+    assert.equal(result.requests.length, 1);
+    assert.equal(JSON.parse(result.requests[0].request.body).version, offeredVersion);
+  }
+  const fresh = await run([[200]], "install", { fresh: true, offeredVersion: "0.1.2" });
+  assert.equal(fresh.requests.length, 1, "first installation has no older installed version to compare");
+}
+
+async function testCachedCatalogOffers() {
+  const rendered = [], requests = [], elements = new Map();
+  const make = (tag, attributes = {}) => {
+    const node = { tag, ...attributes, children: [], listeners: {},
+      append(...children) { this.children.push(...children); },
+      replaceChildren(...children) { this.children = children; },
+      addEventListener(event, handler) { this.listeners[event] = handler; },
+    };
+    rendered.push(node);
+    return node;
+  };
+  const byId = id => {
+    if (!elements.has(id)) elements.set(id, make("div", { value: "" }));
+    return elements.get(id);
+  };
+  const context = vm.createContext({
+    installed: [{ name: "air", title: "Air quality", version: "0.1.3", settings: [] }],
+    offered: [], removed: [], settings: {}, pageLanguage: "en", catalogsRead: true,
+    CATALOG_INSTALLED_MAX: 24, GEAR: [], INFO: [], byId, make,
+    isIcon: () => false, picture: () => ({}), iconButton: () => ({}),
+    compatibilityProblem: () => "", offerSays: (offer, field) => offer.app[field] || "",
+    t: text => text, toast() {}, loadApps: async () => {}, post: body => body,
+    busy: async (_, work) => { await work(); return true; },
+    askForApp: async (url, body) => { requests.push({ url, body }); },
+  });
+  vm.runInContext(read("compatibility.js"), context);
+  vm.runInContext(apps.slice(apps.indexOf("function tile("), apps.indexOf("/* ---- what an application is")), context);
+  const updatesStart = apps.indexOf("const updates = () =>");
+  vm.runInContext(apps.slice(updatesStart, apps.indexOf('byId("catalog-search").addEventListener')), context);
+  const bulkStart = apps.indexOf('byId("update-all").addEventListener');
+  vm.runInContext(apps.slice(bulkStart, apps.indexOf('byId("auto-update-apps").addEventListener', bulkStart)), context);
+  for (const version of ["0.1.2", "0.1.3", "0.1.4"]) {
+    const expected = version === "0.1.4";
+    context.offered = [{ source: 0, app: { name: "air", title: "Air quality", version, files: [] } }];
+    rendered.length = 0;
+    context.tile(context.installed[0], context.offered[0]);
+    assert.equal(rendered.some(node => node.tag === "button" && node.textContent === "Update"), expected,
+      `installed tile with cached/catalog ${version}`);
+    rendered.length = 0;
+    context.drawCatalog();
+    const button = rendered.find(node => node.tag === "button");
+    assert.equal(button.textContent, expected ? "Update" : "Installed");
+    assert.equal(button.disabled, !expected);
+    assert.equal(typeof button.listeners.click, expected ? "function" : "undefined");
+    assert.equal(vm.runInContext("updates().length", context), expected ? 1 : 0);
+    requests.length = 0;
+    await byId("update-all").listeners.click();
+    assert.equal(requests.length, expected ? 1 : 0, `bulk update with catalog ${version}`);
+    if (expected) assert.equal(requests[0].body.version, version);
+  }
 }
 
 async function testAutoUpdateSetting() {
@@ -89,6 +177,7 @@ async function testAutoUpdateSetting() {
     },
   });
   vm.runInContext(core.slice(0, core.indexOf('const CONFIRM_ON_DEVICE')), context);
+  vm.runInContext(read("compatibility.js"), context);
   context.toast = text => messages.push(text);
   vm.runInContext(apps.slice(apps.indexOf('byId("auto-update-apps").addEventListener'), apps.indexOf("async function loadApps()")), context);
   await click();
@@ -129,6 +218,7 @@ function testUpdateAllVisibility() {
     compatibilityProblem: app => app.incompatible ? "Update the firmware." : "",
     t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
   });
+  vm.runInContext(read("compatibility.js"), context);
   const updatesStart = apps.indexOf("const updates = () =>");
   vm.runInContext(apps.slice(updatesStart, apps.indexOf("/* The catalog:", updatesStart)), context);
   vm.runInContext(apps.slice(apps.indexOf("function drawTiles()"),
@@ -187,6 +277,7 @@ async function testAuthors() {
   await context.loadCatalogs();
   assert.equal(context.offered.length, 2);
   vm.runInContext(apps.slice(apps.indexOf("function drawCatalog()"), apps.indexOf('byId("catalog-search").addEventListener')), context);
+  vm.runInContext(read("compatibility.js"), context);
   context.drawCatalog();
   assert(rendered.some(node => node.tag === "small" && node.textContent === "Perinkpheral" && node.translate === false));
   assert(rendered.some(node => node.tag === "small" && node.textContent === "Иван" && node.translate === false));
@@ -201,6 +292,8 @@ async function testAuthors() {
 }
 
 (async () => {
+  await testVersionOrdering();
+  await testCachedCatalogOffers();
   testUpdateAllVisibility();
   await testAutoUpdateSetting();
   await testAuthors();
