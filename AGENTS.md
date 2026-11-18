@@ -82,6 +82,9 @@ catalog and app-install retries, their limits and permanent refusals. None is
 part of `make test`. The firmware's simulator cases are separate too:
 `tools/perinkpheral sim-test firmware/test/sim`.
 
+`tools/cli/gradlew -p tools/core check` also runs the builder safety and endurance
+observer tests. They use temporary files and simulated endpoints, not a device.
+
 The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,

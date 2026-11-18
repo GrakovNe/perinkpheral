@@ -84,7 +84,7 @@ jobs:
         run: make -C firmware/test/host test
       - name: Firmware and application update clients
         run: |
-          tools/cli/gradlew -p tools/core firmwareUpdateTest
+          tools/cli/gradlew -p tools/core check
           node firmware/test/web/test_firmware_update.js
           node firmware/test/web/test_app_requests.js
       - name: The applications in the simulator
@@ -182,6 +182,15 @@ jobs:
         with:
           name: firmware-${{ matrix.flavor }}
           path: flash
+      - name: Keep exact crash symbols
+        run: |
+          mkdir symbols
+          tar -czf "symbols/symbols-${{ matrix.flavor }}.tar.gz" -C "firmware/build-${{ matrix.flavor }}" \
+            perinkpheral.elf perinkpheral.map recovery/perink_recovery.elf recovery/perink_recovery.map
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-${{ matrix.flavor }}
+          path: symbols
       - uses: actions/upload-artifact@v4
         with:
           name: size-${{ matrix.flavor }}
@@ -317,8 +326,10 @@ jobs:
           printf '\nA first flash, for release or for debugging: https://perinkpheral.dev/flash. A device on its network updates itself from Firmware, Check for updates.\n' >> notes.md
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'firmware-*' --dir builds
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name documentation --dir documentation
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'symbols-*' --dir symbols
           gh release create "v$VERSION" builds/firmware-release/* builds/firmware-debug/* \
             documentation/*.pdf documentation/glyphs/*.glyphs \
+            symbols/*/*.tar.gz hardware/step/rev1/*.step hardware/step/rev1/*.3mf hardware/step/rev1/*.zip \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md
 
   flasher:

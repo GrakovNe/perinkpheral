@@ -33,17 +33,23 @@ object Catalog {
     fun make(builder: AppBuilder, appsDirs: List<File>, out: File): Int {
         val appDirs = appsDirs.flatMap { folder ->
             folder.listFiles().orEmpty().filter { File(it, "manifest.json").isFile }
-        }.sortedBy { it.name }
+        }.map { it.canonicalFile }.sortedBy { it.name }
         if (appDirs.isEmpty()) {
             throw BuildError("no applications in ${appsDirs.joinToString(", ") { it.path }}: an application is a " +
                 "folder with a manifest.json")
         }
-        refuseToRemove(out, appsDirs)
+        val duplicates = appDirs.groupBy { it.name }.filterValues { it.size > 1 }
+        if (duplicates.isNotEmpty()) {
+            throw BuildError("duplicate application names: " + duplicates.entries.joinToString("; ") { (name, folders) ->
+                "$name (${folders.joinToString(", ") { it.path }})"
+            })
+        }
+        refuseToRemove(out, appsDirs + appDirs)
         // Whatever the catalog held before is gone: an application that was taken out of the
         // folder must not stay in the catalog.
         out.deleteRecursively()
         out.mkdirs()
-        val apps = appDirs.map { appDir -> entryOf(builder.build(appDir, File(out, appDir.absoluteFile.normalize().name))) }
+        val apps = appDirs.map { appDir -> entryOf(builder.build(appDir, File(out, appDir.name))) }
         File(out, INDEX_NAME).writeText(Json.pretty(linkedMapOf("catalog" to VERSION, "apps" to apps), ensureAscii = true) + "\n")
         return apps.size
     }
@@ -100,6 +106,7 @@ object Catalog {
             if (words.isNotEmpty()) translations[file.name.substringAfter('.')] = words
         }
         if (translations.isNotEmpty()) entry["translations"] = translations
+        File(built.dir, AppBuilder.OUTPUT_MARK).delete()
         return entry
     }
 }

@@ -26,6 +26,7 @@
 #include "request_queue.h"
 #include "memory.h"
 #include "poll_schedule.h"
+#include "poll_round.h"
 #include "poller_net.h"
 #include "power.h"
 #include "status.h"
@@ -546,29 +547,15 @@ static bool has_waited_for_memory_enough(void)
     return true;
 }
 
-/* A poll with "each" is a round of requests, an item of the list each,
- * made one at a time between the others: the one under way. The task's
- * alone. */
-typedef struct {
-    bool is_on;
-    int  app;
-    int  poll;
-    int  item; /* the next to ask */
-} round_t;
-static round_t s_round;
-/* After an item of the round, another poll that waits goes first: a long list does not keep
- * every other application's data back until it is through. */
-static bool s_round_gives_way;
-/* A poll with a list of its own that went between the items of the round under way: the rest
- * of its items, as the round after it. */
-static round_t s_next_round;
+/* List continuations belong to the task alone. */
+static poll_rounds_t s_rounds;
 
 /* Whether anything is waiting for the network now. */
 static bool wants_network(void)
 {
     lock();
     bool wanted = s_fetch_job != NULL || poll_schedule_next_wanted(&s_schedule) != NULL ||
-                  s_round.is_on || s_next_round.is_on;
+                  poll_rounds_pending(&s_rounds);
     unlock();
     return wanted || has_pending_request();
 }
@@ -617,24 +604,21 @@ static bool run_wanted_poll(void)
      * list of applications read anew while the request runs: what is needed
      * of both is taken now. */
     char name[APP_NAME_MAX + 1] = "";
-    if (!s_round.is_on && s_next_round.is_on) {
-        s_round = s_next_round; /* the round that waited for the one before */
-        s_next_round.is_on = false;
-    }
+    poll_turn_t turn = { 0 };
     lock();
     const poll_entry_t *wanted = poll_schedule_next_wanted(&s_schedule);
-    bool is_round = s_round.is_on && (wanted == NULL || !s_round_gives_way);
-    bool is_between = s_round.is_on && !is_round; /* a poll that waited, between two items */
-    int  app = is_round ? s_round.app : wanted != NULL ? wanted->app : NO_APP;
-    int  poll = is_round ? s_round.poll : wanted != NULL ? wanted->poll : 0;
-    int  item = is_round ? s_round.item : 0;
-    bool is_installed = (is_round || wanted != NULL) && name_of(app, name);
+    bool has_turn = poll_rounds_next(&s_rounds, wanted, &turn);
+    int  app = turn.app;
+    int  poll = turn.poll;
+    int  item = turn.item;
+    bool is_round = turn.is_continuation;
+    bool is_installed = has_turn && name_of(app, name);
     unlock();
-    if (!is_round && wanted == NULL) {
+    if (!has_turn) {
         return false;
     }
     if (is_round && !is_installed) {
-        s_round.is_on = false; /* removed meanwhile, its round with it */
+        poll_rounds_answered(&s_rounds, &turn, 0); /* removed meanwhile, its round with it */
         return true;
     }
     bool has_network = wifi_is_online();
@@ -672,23 +656,8 @@ static bool run_wanted_poll(void)
         }
     }
     /* More items to ask: the round goes on, between whatever else waits. */
-    round_t rest = { .is_on = item + 1 < items, .app = app, .poll = poll, .item = item + 1 };
-    if (is_between) {
-        s_round_gives_way = false;
-        if (rest.is_on && !s_next_round.is_on) {
-            s_next_round = rest; /* its own round comes after the one under way */
-            return true;
-        }
-    } else {
-        s_round = rest;
-        s_round_gives_way = rest.is_on;
-        if (!rest.is_on && s_next_round.is_on) {
-            s_round = s_next_round;
-            s_next_round.is_on = false;
-        }
-        if (rest.is_on) {
-            return true;
-        }
+    if (!poll_rounds_answered(&s_rounds, &turn, items)) {
+        return true;
     }
     /* By id: if the application is gone meanwhile, so is its poll. */
     lock();

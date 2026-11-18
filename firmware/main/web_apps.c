@@ -800,6 +800,17 @@ static void commit_install(void *argument)
     host_reload_apps();
 }
 
+static void settle_install(void *argument)
+{
+    install_command_t *command = argument;
+    bool was_ready = app_store_is_ready(STORAGE_APPS_ROOT, command->app_name);
+    command->is_done = app_store_drop_incoming(STORAGE_APPS_ROOT, command->app_name);
+    /* Recovery can replace a package too: its scenes and metadata change together. */
+    if (!was_ready) {
+        host_reload_apps();
+    }
+}
+
 typedef struct {
     const char *app_name;
     bool        forgets; /* what it stored goes too */
@@ -910,13 +921,6 @@ static esp_err_t handle_install(httpd_req_t *request)
         !app_manifest_is_valid_name(app_name)) {
         return web_send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
-    int             count;
-    app_manifest_t *installed = read_installed(&count);
-    if (installed == NULL) {
-        return web_send_message(request, "503 Service Unavailable", "error", "Not enough memory.");
-    }
-    free(installed);
-    bool was_installed = is_installed(app_name);
     char  *body = web_read_body_alloc(request, BODY_MAX);
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
@@ -926,6 +930,23 @@ static esp_err_t handle_install(httpd_req_t *request)
         return web_send_message(request, "400 Bad Request", "error",
                             "Invalid request.");
     }
+    install_command_t previous = { .app_name = app_name };
+    if (!events_call(settle_install, &previous)) {
+        json_free(json);
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
+    }
+    if (!previous.is_done) {
+        json_free(json);
+        return web_send_message(request, "500 Internal Server Error", "error", "Storage error.");
+    }
+    int             count;
+    app_manifest_t *installed = read_installed(&count);
+    if (installed == NULL) {
+        json_free(json);
+        return web_send_message(request, "503 Service Unavailable", "error", "Not enough memory.");
+    }
+    free(installed);
+    bool was_installed = is_installed(app_name);
     /* Room, before a byte is fetched: a store for one more (every one has
      * its store's share kept), its code, and its files beside what is
      * promised to those that write. Whether it writes itself is known
@@ -933,8 +954,6 @@ static esp_err_t handle_install(httpd_req_t *request)
     long module_bytes = (long)json_get(json_at(files, 0), "size")->number;
     long files_bytes = data_files_bytes(files);
     long manifest_bytes = bytes_in_blocks(json_get(json_at(files, json_count(files) - 1), "size")->number);
-    /* What an install that failed left behind is not this one's, and is not counted against it. */
-    app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
     if ((!was_installed && count >= CATALOG_INSTALLED_MAX) ||
         !app_code_has_room(app_name, (size_t)module_bytes) ||
         !files_room_holds(app_name, false, files_bytes,
@@ -981,14 +1000,10 @@ static esp_err_t handle_install(httpd_req_t *request)
     }
     json_free(json);
     if (problem != NULL) {
-        /* What was fetched and not put in place is nothing: a new
-         * application's folder goes, an installed one stays as it was. */
-        if (!was_installed) {
-            remove_command_t undo = { .app_name = app_name };
-            events_call(remove_command, &undo);
-        } else {
-            app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
-        }
+        /* Preserve a marked commit for retry; settlement and scene reload must
+         * share the host loop even when the HTTP request reports a failure. */
+        install_command_t cleanup = { .app_name = app_name };
+        events_call(settle_install, &cleanup);
         ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
         /* Whose fault: the device's being busy, its storage's, its firmware's
          * being older than the application, or the source's, which sent

@@ -60,16 +60,14 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     /** Builds `appDir` into `outDir`: app.wasm, manifest.json, the files and the tables of the
      * languages. Throws BuildError with the reason when it fails. */
     fun build(given: File, givenOut: File): Built {
-        val appDir = given.absoluteFile
-        val outDir = givenOut.absoluteFile
+        val appDir = given.canonicalFile
+        val outDir = givenOut.canonicalFile
         val manifest = check.check(appDir)
-        outDir.mkdirs()
+        prepareOutput(appDir, outDir, manifest["name"] as String)
         val wasm = File(outDir, MODULE)
         // Whatever an earlier build left: a build that fails must not look done, and a file the
         // application no longer has must not travel in its package.
-        if (outDir != appDir) {
-            for (name in packageFiles(outDir)) File(outDir, name).takeIf { it.isFile }?.delete()
-        }
+        for (name in packageFiles(outDir)) File(outDir, name).takeIf { it.isFile }?.delete()
         wasm.delete()
         val strings = Strings(sdk, check)
         val memoryEnd = compile(appDir, wasm, strings, manifest)
@@ -123,6 +121,29 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             throw error
         }
         return Built(manifest["name"] as String, manifest, outDir)
+    }
+
+    private fun prepareOutput(appDir: File, outDir: File, name: String) {
+        if (appDir.toPath().startsWith(outDir.toPath())) {
+            throw BuildError("${outDir.path}: output must not be the source folder or contain it")
+        }
+        val entries = outDir.listFiles().orEmpty()
+        val marker = File(outDir, OUTPUT_MARK)
+        if (entries.isNotEmpty() && !marker.isFile) {
+            // Older packages predate the ownership mark. Source trees and unrelated
+            // directories must never be adopted as disposable build output.
+            val oldManifest = runCatching { Json.parse(File(outDir, MANIFEST).readText()) as? Map<*, *> }.getOrNull()
+            val module = File(outDir, MODULE)
+            val wasmMagic = module.isFile && module.inputStream().use {
+                it.readNBytes(4).contentEquals(byteArrayOf(0, 97, 115, 109))
+            }
+            val hasSources = entries.any { it.isDirectory || it.extension in setOf("c", "h", "cpp", "hpp") || it.name == "CMakeLists.txt" }
+            if (oldManifest?.get("name") != name || !wasmMagic || hasSources) {
+                throw BuildError("${outDir.path}: non-empty output is not a built application package; use an empty folder")
+            }
+        }
+        if (!outDir.isDirectory && !outDir.mkdirs()) throw BuildError("cannot create output ${outDir.path}")
+        marker.writeText("perinkpheral application package\n")
     }
 
     /** The application's own C files, in the order they are compiled. */
@@ -325,12 +346,14 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     companion object {
         /** What `headers` makes; nothing else in its folder is touched. */
         private val GENERATED = listOf("strings.h", "strings.c", "pictures.h")
+        internal const val OUTPUT_MARK = ".perinkpheral-output"
 
         /** A package's files in the order a device takes them: the module first, the manifest
          * last - until it is there the device does not list the application, and by then
          * everything it needs is. */
         fun packageFiles(dir: File): List<String> {
-            val data = dir.listFiles().orEmpty().map { it.name }.filter { it != MODULE && it != MANIFEST }.sorted()
+            val data = dir.listFiles().orEmpty().filter { it.isFile && !it.name.startsWith(".") }
+                .map { it.name }.filter { it != MODULE && it != MANIFEST }.sorted()
             return listOf(MODULE) + data + listOf(MANIFEST)
         }
 

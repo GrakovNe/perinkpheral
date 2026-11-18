@@ -53,8 +53,8 @@ static uint32_t          s_sheds;
 static int               s_critical_looks;
 static void (*s_shedders[SHEDDERS_MAX])(void);
 static int               s_shedder_count;
-/* Since when, in seconds of uptime, every request was refused room; 0 while
- * the last was given it. A word: written by the poller, read by the host loop. */
+/* Since when, in seconds of uptime, requests were refused room; 0 after
+ * either task observes enough room again. */
 static volatile uint32_t s_session_refused_since_s;
 
 static uint32_t uptime_s(void)
@@ -110,6 +110,12 @@ void memory_look(void)
     bool is_critical = free_bytes < CRITICAL_FREE_BYTES || block_bytes < CRITICAL_BLOCK_BYTES ||
                        failures != s_failures_seen;
     s_failures_seen = failures;
+    if (free_bytes >= NEEDS[MEMORY_FOR_A_SESSION].free_bytes &&
+        block_bytes >= NEEDS[MEMORY_FOR_A_SESSION].one_block_bytes) {
+        /* A slow poll may not ask again before the refusal expires. Recovery
+         * of the heap still ends the period of continuous pressure. */
+        s_session_refused_since_s = 0;
+    }
     uint32_t refused_since_s = s_session_refused_since_s;
     if (refused_since_s != 0 && uptime_s() - refused_since_s >= SESSION_REFUSED_FOR_S) {
         ESP_LOGE(TAG, "no room for a request for %d min: %u free, %u in one block; restarting",

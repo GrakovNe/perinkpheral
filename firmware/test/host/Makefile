@@ -33,6 +33,26 @@ QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
 TESTS   := test_sdk_lib test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_recovery_ota test_recovery_settings test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls test_request_queue test_app_room
 TESTS   += test_recovery_screen
+TESTS   += test_poll_round test_wifi_credentials test_memory
+TESTS   += test_app_storage test_app_kv
+
+.DEFAULT_GOAL := test
+PERSISTENCE_STUBS := $(wildcard persistence_stubs/*.h)
+
+test_app_storage: test_app_storage.c tinytest.h $(PERSISTENCE_STUBS) $(MAIN)/app_code.c $(MAIN)/app_code.h $(APPSTORE)/app_store.c $(APPSTORE)/include/app_store.h $(APPSTORE)/app_room.c $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -D_DARWIN_C_SOURCE -Ipersistence_stubs -o $@ test_app_storage.c $(APPSTORE)/app_room.c $(MANIFEST_SRCS) -lm
+
+test_app_kv: test_app_kv.c tinytest.h $(PERSISTENCE_STUBS) $(MAIN)/app_kv.c $(MAIN)/app_kv.h $(MAIN)/settings.h $(MAIN)/storage.h $(APPSTORE)/app_manifest.c $(APPSTORE)/json_tree.c
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -D_DARWIN_C_SOURCE -Ipersistence_stubs -I$(APPCONF)/include -o $@ test_app_kv.c $(MANIFEST_SRCS) -lm
+
+test_poll_round: test_poll_round.c tinytest.h $(APPSTORE)/poll_round.c $(APPSTORE)/include/poll_round.h $(APPSTORE)/poll_schedule.c $(APPSTORE)/include/poll_schedule.h
+	$(CC) $(CFLAGS) $(MANIFEST_FLAGS) -o $@ test_poll_round.c $(APPSTORE)/poll_round.c $(APPSTORE)/poll_schedule.c
+
+test_wifi_credentials: test_wifi_credentials.c tinytest.h $(NET)/wifi_credentials.c $(NET)/include/wifi_credentials.h
+	$(CC) $(CFLAGS) -I$(NET)/include -o $@ test_wifi_credentials.c $(NET)/wifi_credentials.c
+
+test_memory: test_memory.c tinytest.h $(MAIN)/memory.c $(MAIN)/memory.h $(wildcard memory_stubs/*.h)
+	$(CC) $(CFLAGS) -Imemory_stubs -I$(MAIN) -I$(DEADLINES)/include -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(SDK_LIB) -o $@ test_memory.c $(MAIN)/memory.c
 
 # Running a real application needs wasi-sdk to build it.
 ifdef WASI_SDK_PATH

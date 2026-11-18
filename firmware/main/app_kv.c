@@ -5,6 +5,7 @@
 #include "app_kv.h"
 #include "settings.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,16 +46,15 @@ static esp_err_t open_store(const char *app_name, nvs_open_mode_t mode, nvs_hand
 }
 
 /* Everything of one namespace of one partition, gone. */
-static void erase_namespace(const char *partition, const char *namespace)
+static bool erase_namespace(const char *partition, const char *namespace)
 {
     nvs_handle_t store;
     if (nvs_open_from_partition(partition, namespace, NVS_READWRITE, &store) != ESP_OK) {
-        return;
+        return false;
     }
-    if (nvs_erase_all(store) == ESP_OK) {
-        nvs_commit(store);
-    }
+    bool erased = nvs_erase_all(store) == ESP_OK && nvs_commit(store) == ESP_OK;
     nvs_close(store);
+    return erased;
 }
 
 /* The namespace of the first value found in the partition for which
@@ -99,7 +99,7 @@ static bool is_orphaned(const char *namespace)
     snprintf(folder, sizeof folder, STORAGE_APPS_ROOT "/%s",
              namespace + sizeof NAMESPACE_PREFIX - 1);
     struct stat entry;
-    return stat(folder, &entry) != 0;
+    return stat(folder, &entry) != 0 && errno == ENOENT;
 }
 
 int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity)
@@ -124,36 +124,61 @@ int app_kv_orphaned(char names[][APP_NAME_MAX + 1], int capacity)
     return count;
 }
 
-/* The stores used to live among the host's settings: what is still there
- * is brought over, a value at a time, and removed. */
-static void migrate_from_settings_partition(void)
+/* A retry must not overwrite values saved in appkv after an earlier,
+ * incomplete migration. The old namespace stays until the copy is durable. */
+static esp_err_t migrate_namespace(const char *namespace)
 {
     static uint8_t value[HOST_KV_VALUE_MAX];
+    nvs_handle_t from, to;
+    esp_err_t err = nvs_open(namespace, NVS_READONLY, &from);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_open_from_partition(PARTITION, namespace, NVS_READWRITE, &to);
+    if (err != ESP_OK) {
+        nvs_close(from);
+        return err;
+    }
+    nvs_iterator_t entry = NULL;
+    err = nvs_entry_find(NVS_DEFAULT_PART_NAME, namespace, NVS_TYPE_BLOB, &entry);
+    bool copied_all = err == ESP_ERR_NVS_NOT_FOUND;
+    while (err == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(entry, &info);
+        size_t length = 0;
+        err = nvs_get_blob(to, info.key, NULL, &length);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            length = sizeof value;
+            err = nvs_get_blob(from, info.key, value, &length);
+            if (err == ESP_OK) {
+                err = nvs_set_blob(to, info.key, value, length);
+            }
+        }
+        if (err != ESP_OK) {
+            break;
+        }
+        err = nvs_entry_next(&entry);
+        copied_all = err == ESP_ERR_NVS_NOT_FOUND;
+    }
+    nvs_release_iterator(entry);
+    if (copied_all) {
+        err = nvs_commit(to);
+    }
+    nvs_close(to);
+    nvs_close(from);
+    return err;
+}
+
+static void migrate_from_settings_partition(void)
+{
     char namespace[NVS_NS_NAME_MAX_SIZE];
     while (find_namespace(NVS_DEFAULT_PART_NAME, is_app_namespace, namespace)) {
-        nvs_handle_t from, to;
-        if (nvs_open(namespace, NVS_READONLY, &from) == ESP_OK) {
-            bool is_open = nvs_open_from_partition(PARTITION, namespace, NVS_READWRITE, &to) == ESP_OK;
-            nvs_iterator_t entry = NULL;
-            esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, namespace, NVS_TYPE_BLOB, &entry);
-            while (err == ESP_OK && is_open) {
-                nvs_entry_info_t info;
-                nvs_entry_info(entry, &info);
-                size_t length = sizeof value;
-                if (nvs_get_blob(from, info.key, value, &length) == ESP_OK) {
-                    nvs_set_blob(to, info.key, value, length);
-                }
-                err = nvs_entry_next(&entry);
-            }
-            nvs_release_iterator(entry);
-            if (is_open) {
-                nvs_commit(to);
-                nvs_close(to);
-            }
-            nvs_close(from);
+        esp_err_t err = migrate_namespace(namespace);
+        if (err != ESP_OK || !erase_namespace(NVS_DEFAULT_PART_NAME, namespace)) {
+            ESP_LOGW(TAG, "%s: migration deferred", namespace);
+            return;
         }
         ESP_LOGI(TAG, "%s: brought over from the settings", namespace);
-        erase_namespace(NVS_DEFAULT_PART_NAME, namespace);
     }
 }
 
@@ -180,7 +205,9 @@ static void forget_host_namespaces(void)
         if (found[0] == '\0') {
             return;
         }
-        erase_namespace(PARTITION, found);
+        if (!erase_namespace(PARTITION, found)) {
+            return;
+        }
     }
 }
 
@@ -338,7 +365,9 @@ static int32_t store_value(const char *app_name, const char *key, const void *va
     char orphaned[NVS_NS_NAME_MAX_SIZE];
     while (is_full(err) && find_namespace(PARTITION, is_orphaned, orphaned)) {
         ESP_LOGW(TAG, "full: forgetting what %s kept", orphaned + sizeof NAMESPACE_PREFIX - 1);
-        erase_namespace(PARTITION, orphaned);
+        if (!erase_namespace(PARTITION, orphaned)) {
+            break;
+        }
         result = write_value(app_name, key, value, value_length, keep_empty, &err);
     }
     if (is_full(err)) {

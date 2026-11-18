@@ -4,6 +4,17 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.45
+
+- Interrupted application updates stay hidden until their files are consistent.
+  Storage failures preserve cached modules and settings awaiting migration.
+- Concurrent list polls finish every item. Temporary memory pressure no longer
+  causes a delayed restart after the heap has recovered.
+- Wi-Fi accepts full-length network names and 64-character hexadecimal keys.
+- Application builds refuse source folders as output; catalogs reject duplicate
+  application names. IDE-generated headers are isolated by application path.
+- Releases include enclosure files and the exact firmware symbols for crash reports.
+
 ## 0.1.38
 
 - Normal firmware updates keep a single preparation screen until the confirmation

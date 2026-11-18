@@ -164,7 +164,9 @@ static void take_translated_title(app_manifest_t *manifest)
 static void read_installed(void)
 {
     /* A module that came as a file goes into its slot first. */
-    app_code_adopt(STORAGE_APPS_ROOT);
+    if (storage_is_mounted()) {
+        app_code_adopt(STORAGE_APPS_ROOT);
+    }
     s_installed_count = app_store_list(STORAGE_APPS_ROOT, s_installed, INSTALLED_APPS_MAX);
     ESP_LOGI(TAG, "%d applications installed", s_installed_count);
     for (int i = 0; i < s_installed_count; i++) {
@@ -176,7 +178,7 @@ static void read_installed(void)
         /* Run from its slot, in place; one that has none is read from its
          * file into memory, as all of them used to be. */
         size_t         size = 0;
-        const uint8_t *code = app_code_find(s_installed[i].name, &size);
+        const uint8_t *code = app_code_find(STORAGE_APPS_ROOT, s_installed[i].name, &size);
         s_installed[i].id = id_of(s_installed[i].name, code, size);
         s_app_scenes[i] = code != NULL
                               ? app_scene_create_in_place(&s_installed[i], code, size,

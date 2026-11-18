@@ -4,6 +4,7 @@
  */
 #include "priorities.h"
 #include "wifi.h"
+#include "wifi_credentials.h"
 
 #include <string.h>
 
@@ -148,8 +149,8 @@ void wifi_retry_is_due(void)
 static void start_access_point(void)
 {
     wifi_config_t config = { 0 };
-    strlcpy((char *)config.ap.ssid, s_wifi.access_point_name, sizeof config.ap.ssid);
-    config.ap.ssid_len = (uint8_t)strlen(s_wifi.access_point_name);
+    config.ap.ssid_len = (uint8_t)wifi_copy_field(config.ap.ssid, sizeof config.ap.ssid,
+                                                s_wifi.access_point_name);
     config.ap.channel = ACCESS_POINT_CHANNEL;
     config.ap.authmode = WIFI_AUTH_OPEN;
     config.ap.max_connection = ACCESS_POINT_CLIENTS;
@@ -183,8 +184,8 @@ static void stop_access_point(void)
 static void connect(void)
 {
     wifi_config_t config = { 0 };
-    strlcpy((char *)config.sta.ssid, s_wifi.ssid, sizeof config.sta.ssid);
-    strlcpy((char *)config.sta.password, s_wifi.password, sizeof config.sta.password);
+    wifi_copy_field(config.sta.ssid, sizeof config.sta.ssid, s_wifi.ssid);
+    wifi_copy_field(config.sta.password, sizeof config.sta.password, s_wifi.password);
     config.sta.threshold.authmode =
         s_wifi.password[0] != '\0' ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
     s_is_looking_in_one_place =

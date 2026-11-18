@@ -72,7 +72,10 @@ object Applications {
             val built = builder.build(appDir, packed)
             val installed = File(File(state, "apps"), built.name)
             installed.listFiles().orEmpty().filter { PACKAGE_ONLY.matches(it.name) }.forEach { it.delete() }
-            packed.copyRecursively(installed, overwrite = true)
+            installed.mkdirs()
+            for (file in AppBuilder.packageFiles(packed)) {
+                File(packed, file).copyTo(File(installed, file), overwrite = true)
+            }
             return built.name
         } finally {
             packed.deleteRecursively()
