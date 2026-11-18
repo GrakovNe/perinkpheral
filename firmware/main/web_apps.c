@@ -74,53 +74,86 @@ static bool asked_app(httpd_req_t *request, char name[APP_NAME_BUFFER])
     return web_query_value(request, "app", name, APP_NAME_BUFFER) && is_installed(name);
 }
 
-/* What the application says of itself in the device's language, or NULL. */
-static json_t *translation_of(const char *app_name)
+typedef struct {
+    char name[APP_NAME_BUFFER];
+    char title[APP_TITLE_MAX * MANIFEST_TEXT_BYTES_PER_CHARACTER + 1];
+    char version[APP_VERSION_MAX + 1];
+} app_list_entry_t;
+
+typedef struct {
+    int count;
+    app_list_entry_t entries[LAUNCHER_INSTALLED_MAX];
+} app_list_t;
+
+static void copy_app_list(void *argument)
 {
+    app_list_t *list = argument;
+    const app_manifest_t *installed = launcher_installed(&list->count);
+    for (int index = 0; index < list->count; index++) {
+        app_list_entry_t *entry = &list->entries[index];
+        strcpy(entry->name, installed[index].name);
+        strcpy(entry->title, installed[index].title);
+        strcpy(entry->version, installed[index].version);
+    }
+}
+
+/* Missing translations are ordinary. A file that exists but cannot be
+ * read or parsed must fail the response. */
+static bool translation_of(const char *app_name, json_t **translation)
+{
+    *translation = NULL;
     appconf_t settings;
     settings_read(&settings);
     if (strcmp(settings.language, "en") == 0) {
-        return NULL;
+        return true;
     }
-    char  *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
-    json_t *translation = text != NULL ? json_parse(text) : NULL;
+    char file[APP_FILE_NAME_MAX + 1];
+    snprintf(file, sizeof file, "manifest.%s", settings.language);
+    if (app_store_file_size(STORAGE_APPS_ROOT, app_name, file) < 0) {
+        return true;
+    }
+    char *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
+    *translation = text != NULL ? json_parse(text) : NULL;
     free(text);
-    return translation;
+    return *translation != NULL;
 }
 
-/* A setting as the page shows it: its title and help in the device's
- * language, and for a choice a label beside every option - the options
- * themselves stay what is stored and what the application compares. */
-static void translate_setting(json_t *setting, const json_t *translated)
+/* The labels are translated separately from the option values. */
+static bool translate_setting(json_t *setting, const json_t *translated)
 {
     static const char *const WORDS[] = { "title", "help" };
     for (size_t i = 0; i < sizeof WORDS / sizeof WORDS[0]; i++) {
         const json_t *text = json_get(translated, WORDS[i]);
         if (json_is_string(text) && text->text[0] != '\0') {
             json_remove(setting, WORDS[i]);
-            json_add_string(setting, WORDS[i], text->text);
+            if (json_add_string(setting, WORDS[i], text->text) == NULL) {
+                return false;
+            }
         }
     }
     const json_t *names = json_get(translated, "options");
     const json_t *options = json_get(setting, "options");
     if (!json_is_object(names) || !json_is_array(options)) {
-        return;
+        return true;
     }
-    json_t       *labels = json_new_array();
+    json_t *labels = json_add_item(setting, "labels", json_new_array());
+    if (labels == NULL) {
+        return false;
+    }
     const json_t *option;
     json_for_each(option, options)
     {
-        const json_t *label = json_is_string(option)
-                                 ? json_get(names, option->text)
-                                 : NULL;
-        json_array_add(labels, json_new_string(json_is_string(label) ? label->text
-                                                        : json_is_string(option) ? option->text
-                                                                                 : ""));
+        const json_t *label = json_is_string(option) ? json_get(names, option->text) : NULL;
+        json_t *item = json_new_string(json_is_string(label) ? label->text
+                                       : json_is_string(option) ? option->text : "");
+        if (item == NULL) {
+            return false;
+        }
+        json_array_add(labels, item);
     }
-    json_add_item(setting, "labels", labels);
+    return true;
 }
 
-/* The manifest's "settings" as they are, and beside them what is set. */
 /* The name of a certificate authority, as its subject's CN says it; empty
  * when the file is no certificate. */
 static void authority_of(const char *app_name, const char *file, char *name, size_t size)
@@ -151,116 +184,159 @@ static void authority_of(const char *app_name, const char *file, char *name, siz
 
 /* "trusts": the certificate authorities it trusts beside the browsers'
  * set, by their names, for the page to say before anything else. */
-static void add_trusts(json_t *app, const char *app_name, const char *manifest_text)
+static bool add_trusts(json_t *app, const char *app_name, const json_t *manifest)
 {
-    char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
-    int  count = app_manifest_certificates(manifest_text, files, MANIFEST_CERTIFICATES_MAX);
-    if (count == 0) {
-        return;
+    const json_t *certificates = json_get(manifest, "certificates");
+    if (!json_is_array(certificates) || certificates->child == NULL) {
+        return true;
     }
-    json_t *trusts = json_new_array();
-    for (int i = 0; i < count; i++) {
+    json_t *trusts = json_add_item(app, "trusts", json_new_array());
+    if (trusts == NULL) {
+        return false;
+    }
+    const json_t *file;
+    json_for_each(file, certificates)
+    {
+        if (!json_is_string(file) || !app_store_is_file_name(file->text)) {
+            return false;
+        }
         char name[96];
-        authority_of(app_name, files[i], name, sizeof name);
-        json_array_add(trusts, json_new_string(name[0] != '\0' ? name : files[i]));
+        authority_of(app_name, file->text, name, sizeof name);
+        json_t *item = json_new_string(name[0] != '\0' ? name : file->text);
+        if (item == NULL) {
+            return false;
+        }
+        json_array_add(trusts, item);
     }
-    json_add_item(app, "trusts", trusts);
+    return true;
 }
 
-static void add_settings(json_t *app, const char *app_name)
+static bool add_setting_value(json_t *values, const json_t *setting, const char *app_name,
+                              const char *key, const char *type)
 {
-    char  *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, app_name);
-    json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
-    if (manifest_text != NULL) {
-        add_trusts(app, app_name, manifest_text);
+    char value[APP_SETTING_VALUE_MAX + 1];
+    int32_t length = app_kv_get(app_name, key, value, sizeof value - 1);
+    value[length > 0 ? length : 0] = '\0';
+    bool is_link = strcmp(type, "link") == 0;
+    if (!is_link && strcmp(type, "secret") != 0) {
+        return json_add_string(values, key, value) != NULL;
     }
-    free(manifest_text);
-    json_t *settings = json_detach(manifest, "settings");
-    json_t *icon = json_detach(manifest, "icon");
-    json_t *description = json_detach(manifest, "description");
-    json_t *companion = json_detach(manifest, "companion");
-    /* What the application is and reaches, for the page to say in words. */
+
+    /* Only a manifest default is public. Custom links, like secrets, are
+     * represented by whether they have been set. */
+    const json_t *preset = json_get(setting, "default");
+    if (is_link && length == HOST_ERR_NOT_FOUND && json_is_string(preset)) {
+        return json_add_string(values, key, preset->text) != NULL;
+    }
+    return json_add_bool(values, key, value[0] != '\0') != NULL;
+}
+
+static bool add_settings(json_t *app, json_t *manifest, const json_t *translation, const char *app_name)
+{
     static const char *const FACTS[] = { "hosts", "polls", "intents", "system", "writes_files",
-                                         "fullscreen" };
-    for (size_t i = 0; i < sizeof FACTS / sizeof FACTS[0]; i++) {
-        json_t *fact = json_detach(manifest, FACTS[i]);
-        if (fact != NULL) {
-            json_add_item(app, FACTS[i], fact);
-        }
-    }
-    json_free(manifest);
-    if (companion != NULL) {
-        json_add_item(app, "companion", companion);
-    }
-    if (icon != NULL) {
-        json_add_item(app, "icon", icon);
-    }
-    if (settings == NULL) {
-        settings = json_new_array();
-    }
-    json_t *values = json_new_object();
-    json_t *translation = translation_of(app_name);
-    /* What the application does, in the device's language when the package has it so. */
+                                         "fullscreen", "companion", "icon", "description" };
     const json_t *translated = json_get(translation, "description");
     if (json_is_string(translated)) {
-        json_add_string(app, "description", translated->text);
-        json_free(description);
-    } else if (description != NULL) {
-        json_add_item(app, "description", description);
+        json_remove(manifest, "description");
+        if (json_add_string(app, "description", translated->text) == NULL) {
+            return false;
+        }
+    }
+    for (size_t i = 0; i < sizeof FACTS / sizeof FACTS[0]; i++) {
+        json_t *fact = json_detach(manifest, FACTS[i]);
+        if (fact != NULL && json_add_item(app, FACTS[i], fact) == NULL) {
+            return false;
+        }
+    }
+
+    json_t *settings = json_detach(manifest, "settings");
+    settings = json_add_item(app, "settings", settings != NULL ? settings : json_new_array());
+    json_t *values = json_add_item(app, "values", json_new_object());
+    if (settings == NULL || values == NULL) {
+        return false;
     }
     json_t *setting;
     json_for_each(setting, settings)
     {
         const json_t *key = json_get(setting, "key");
         const json_t *type = json_get(setting, "type");
-        if (!json_is_string(key) || !json_is_string(type)) {
-            continue;
-        }
-        translate_setting(setting, json_get(
-                                       json_get(translation, "settings"),
-                                       key->text));
-        char value[APP_SETTING_VALUE_MAX + 1];
-        int32_t length = app_kv_get(app_name, key->text, value, sizeof value - 1);
-        value[length > 0 ? length : 0] = '\0';
-        if (strcmp(type->text, "secret") == 0 || strcmp(type->text, "link") == 0) {
-            /* A secret goes one way: the page learns only whether there is one.
-             * A link is one too - whoever has a calendar's address reads the
-             * calendar. */
-            const json_t *preset = json_get(setting, "default");
-            if (strcmp(type->text, "link") == 0 && length == HOST_ERR_NOT_FOUND &&
-                json_is_string(preset)) {
-                /* A manifest default is already public. Custom links stay private. */
-                json_add_string(values, key->text, preset->text);
-            } else {
-                json_add_bool(values, key->text, value[0] != '\0');
-            }
-        } else {
-            json_add_string(values, key->text, value);
+        if (json_is_string(key) && json_is_string(type) &&
+            (!translate_setting(setting, json_get(json_get(translation, "settings"), key->text)) ||
+             !add_setting_value(values, setting, app_name, key->text, type->text))) {
+            return false;
         }
     }
+    return true;
+}
+
+static char *app_list_json(const app_list_entry_t *entry)
+{
+    json_t *app = json_new_object();
+    if (app == NULL ||
+        json_add_string(app, "name", entry->name) == NULL ||
+        json_add_string(app, "title", entry->title) == NULL ||
+        json_add_string(app, "version", entry->version) == NULL) {
+        json_free(app);
+        return NULL;
+    }
+
+    char *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, entry->name);
+    json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
+    free(manifest_text);
+    json_t *translation = NULL;
+    bool complete = manifest != NULL && add_trusts(app, entry->name, manifest) &&
+                    translation_of(entry->name, &translation) &&
+                    add_settings(app, manifest, translation, entry->name);
     json_free(translation);
-    json_add_item(app, "settings", settings);
-    json_add_item(app, "values", values);
+    json_free(manifest);
+    char *text = complete ? json_print(app) : NULL;
+    json_free(app);
+    return text;
+}
+
+static esp_err_t list_unavailable(httpd_req_t *request)
+{
+    httpd_resp_set_status(request, "503 Service Unavailable");
+    httpd_resp_set_type(request, "application/json");
+    return httpd_resp_sendstr(request, "{\"error\":\"Applications unavailable.\"}");
 }
 
 static esp_err_t handle_list(httpd_req_t *request)
 {
-    int             count;
-    app_manifest_t *installed = read_installed(&count);
-    if (installed == NULL) {
-        return web_send_message(request, "503 Service Unavailable", "error", "Not enough memory.");
+    app_list_t *list = malloc(sizeof *list);
+    if (list == NULL || !events_call(copy_app_list, list)) {
+        free(list);
+        return list_unavailable(request);
     }
-    json_t *apps = json_new_array();
-    for (int i = 0; i < count; i++) {
-        json_t *app = json_new_object();
-        json_add_string(app, "name", installed[i].name);
-        json_add_string(app, "title", installed[i].title);
-        json_add_string(app, "version", installed[i].version);
-        add_settings(app, installed[i].name);
-        json_array_add(apps, app);
+
+    httpd_resp_set_type(request, "application/json");
+    esp_err_t result = ESP_OK;
+    for (int i = 0; i < list->count; i++) {
+        char *text = app_list_json(&list->entries[i]);
+        if (text == NULL) {
+            free(list);
+            if (i == 0) {
+                return list_unavailable(request);
+            }
+            /* No final chunk on failure. The HTTP server closes the
+             * connection and the client rejects the truncated response. */
+            return ESP_FAIL;
+        }
+        result = httpd_resp_send_chunk(request, i == 0 ? "[" : ",", 1);
+        if (result == ESP_OK) {
+            result = httpd_resp_sendstr_chunk(request, text);
+        }
+        free(text);
+        if (result != ESP_OK) {
+            break;
+        }
     }
-    free(installed);
-    return web_send_json(request, "200 OK", apps);
+    bool empty = list->count == 0;
+    free(list);
+    if (result == ESP_OK) {
+        result = httpd_resp_sendstr_chunk(request, empty ? "[]" : "]");
+    }
+    return result == ESP_OK ? httpd_resp_send_chunk(request, NULL, 0) : result;
 }
 
 /* A form is checked as a whole before any of it is stored: one value
