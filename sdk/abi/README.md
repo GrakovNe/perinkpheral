@@ -1,7 +1,7 @@
 # Frozen application contracts
 
-ABI 3 is being prepared as the first frozen generation. Nothing is frozen until
-the release. The host supports the explicit set `{3}`;
+ABI 3 is the first frozen generation, released with firmware 0.1.30.
+The host supports the explicit set `{3}`;
 ABI 2 has no adapter and receives "Update the app."
 
 `WASI_SDK_PATH=<wasi-sdk> tools/perinkpheral contract snapshot` creates or extends
@@ -17,7 +17,7 @@ constants and function macros, permanent introduction stamps, struct sizes,
 alignments, field types, sizes and offsets. The separate `3/fixtures.txt` records
 SHA-256 hashes of the package inputs, including translations and saved state;
 `contract check` verifies them with the same no-change rule as the contract.
-After release, changing an existing signature or meaning requires another ABI; additions preserve
+Changing an existing signature or meaning requires another ABI; additions preserve
 old entries. `HOST_SINCE_<name>` stamps only entries added after the ABI 3
 firmware floor, 0.1.30. A new fixed layout
 needs a new type/call. `answer_info` may grow after its unchanged prefix.
@@ -34,7 +34,7 @@ needs a new type/call. `answer_info` may grow after its unchanged prefix.
   Russian string tables; host tests compare the resulting frames. Its manifest
   translations remain package inputs too.
 
-After release, do not rebuild or overwrite these inputs when changing the SDK. Add fixtures for
+Do not rebuild or overwrite these inputs when changing the SDK. Add fixtures for
 new features. Host tests cover the pure settings allowlist, request preparation
 and notification consumption independently of these old binaries.
 

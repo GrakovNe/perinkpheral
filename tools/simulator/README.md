@@ -38,8 +38,10 @@ every address that begins with the rest.
 
 Not simulated: the menu of several applications, the system API but the
 host's settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`), e-paper
-refresh timing, sleep and the battery. The application area of the device
-(128 KB for the interpreter) is not enforced: the build's report is the check.
+refresh timing, sleep, the battery or firmware/recovery updates. The device's
+128 KB application area (64 KB Wasm memory and 64 KB interpreter space) is not
+enforced as a combined arena; the module's 64 KB linear-memory limit still applies.
+Use the build's memory report and a real device to check interpreter headroom.
 
 Build: `make` for this computer (a C compiler, nothing else). `make platforms`
 builds what the CLion plugin carries: `build/macos` (arm64 and x86_64, on macOS),

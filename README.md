@@ -28,7 +28,8 @@ cd firmware
 idf.py build
 ```
 
-Host tests, from the repository root, require a C compiler and Make:
+Host tests, from the repository root, require Java 21 or later, a C compiler and
+Make. Keep `WASI_SDK_PATH` set to include the interpreter, delivery and frozen ABI checks:
 
 ```sh
 make -C firmware/test/host test
@@ -37,11 +38,23 @@ make -C firmware/test/host test
 CI builds and tests every push. Each successful push to `main` creates a
 [release](https://github.com/GrakovNe/perinkpheral/releases) with release and debug firmware.
 
-Existing devices need a one-time USB migration to the recovery layout. Choose **Keep data**
+Devices with the old two-slot layout need a one-time USB migration. Choose **Keep data**
 in the [web flasher](https://perinkpheral.dev/flash), then press BACK on the device to start
 the installed firmware. Later updates use Wi-Fi and ask for OK on the device. A failed
 update returns to recovery, where another firmware image can be uploaded; the previous
 full firmware is no longer kept in a second slot.
+
+For a normal update, open **Firmware** on the device's web page and check for updates
+or choose `perinkpheral.bin`. The device shows preparation, then asks for physical OK.
+To open recovery without starting an update, choose **Device > Enter recovery**.
+BACK, labelled **Exit recovery**, tries the installed firmware if it is still valid.
+Recovery keeps the `perink-recovery` access point available at `http://192.168.4.1`
+and also tries the saved Wi-Fi network.
+
+Wi-Fi updates replace main only. To update recovery itself, use **Keep data** in
+the USB web flasher with the required release, or build locally and run
+`idf.py -p "$PORT" recovery-flash` from `firmware/`. The latter writes only recovery;
+install the matching main firmware separately when the change needs both.
 
 ## Repository
 

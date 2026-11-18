@@ -123,7 +123,7 @@
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
     <li><b>III</b>Reference: host API and SDK library</li>
   </ul>
-  <div class="facts">revision 11, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
+  <div class="facts">revision 12, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Contents</h1>
@@ -133,7 +133,8 @@
 
 <h1 id="overview">1. Overview</h1>
 <p>perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.</p>
-<p>The firmware is called the <i>host</i>. The host draws the menu and its own notices. Every other screen is an <i>application</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.</p>
+<p>The main firmware is called the <i>host</i>. The host draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.</p>
+<p>An independent recovery image installs firmware updates and runs no applications. Ordinary OTA replaces only the main firmware and preserves installed packages and their data.</p>
 <p>An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.</p>
 <p>The host's own pages, Settings and About, are built as applications with the same header.</p>
 
@@ -909,7 +910,8 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 
 <p>screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
 <p>These question and focus rules are included in the ABI 3 firmware floor, 0.1.30. No additional manifest minimum is needed for them.</p>
-<h2 id="background-notification_post">Notifications</h2>
+<a id="background-notification_post"></a>
+<h2 id="background-notifications">Notifications</h2>
 <pre>void app_on_alarm(int32_t id)                      /* the application is loaded for this call */
 {
     host_notice_t notice = { .first = "Time", .second = "is up", .icon = HOST_ICON_BELL };
@@ -1101,7 +1103,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <li>The output folder is created anew on every run. It must be empty or an earlier catalog, and must not contain the applications.</li>
   <li>The index lists the name, title, version and icon of each application, and its files with their sizes and SHA-256 hashes. The device accepts a file only if both the size and the hash match.</li>
   <li>Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.</li>
-  <li>The official catalog is the <code>perinkpheral-apps</code> repository, with fifteen applications. It is the first source on every device. The user can add up to three HTTPS sources on the device's web page.</li>
+  <li>The official catalog is the <code>perinkpheral-apps</code> repository, with eighteen applications. It is the first source on every device. The user can add up to three HTTPS sources on the device's web page.</li>
   <li>The web page shows a summary of each installed application, taken from its manifest: the servers it connects to, the polling interval, what it stores, and whether it starts with the device.</li>
   <li>Increase <code>version</code> with every change. The page offers Update when a catalog version differs from the installed version. Catalog includes installed applications, marked Installed or Update. Update all appears in Installed apps when at least two compatible updates are available; Refresh fetches the catalogs again.</li>
 </ul>

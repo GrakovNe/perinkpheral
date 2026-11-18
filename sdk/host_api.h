@@ -6,8 +6,7 @@
  * applications. Applications include this header and link the imports.
  * The host builds its import table from the same names.
  *
- * ABI 3 is being prepared for its first frozen release. After release,
- * existing names, signatures,
+ * ABI 3 was frozen in firmware 0.1.30. Existing names, signatures,
  * privileges, layouts, values and meanings remain available on later
  * firmware. Changing a signature or meaning requires a new ABI; additions
  * after the 0.1.30 floor use HOST_SINCE_<name> and a firmware minimum.

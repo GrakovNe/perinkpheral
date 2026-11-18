@@ -80,9 +80,14 @@ Holds:
 
 Does not hold:
 - **There is no password on the page.** Anybody who can reach port 80 may install and
-  remove applications, add a catalog, change every setting, restart the device, read the
-  log and what is set (but for secrets) - with a command line; the checks above are
+  remove applications, add a catalog, change every setting, restart the device or enter
+  recovery, read the log and what is set (but for secrets) - with a command line; the checks above are
   against browsers. The owner chose this scope on 2026-11-12.
+- Entering recovery does not require physical confirmation and interrupts normal
+  applications until main is started again. Replacing main still requires a new
+  physical OK after recovery has shown the image's version. Main refuses direct
+  firmware uploads; recovery cannot write its own image, the bootloader or the
+  partition table through its HTTP API.
 - **They can replace a secret, and move a server.** Settings of an application are
   written without a question: point HA Companion's `server` at their own machine and the
   secrets are forgotten, as designed - but the user, seeing "Access denied", types the
@@ -100,6 +105,11 @@ Does not hold:
   with everything above. Jamming the home Wi-Fi for two minutes is enough to bring it up.
   From there, as from any network, what cannot be undone - another network, a firmware,
   a reset - is asked about on the screen; the rest is not.
+- Recovery always exposes the open `perink-recovery` access point at `192.168.4.1`,
+  including while it is connected to the saved Wi-Fi. Its HTTP surface is limited
+  to the upload page, status and firmware upload. It applies its own Host/Origin
+  checks and physical confirmation; it has no settings, application or development
+  API. It reads saved settings and glyph packs without modifying them.
 
 ### Somebody with the device in their hands
 

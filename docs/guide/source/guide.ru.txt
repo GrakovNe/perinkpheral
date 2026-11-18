@@ -55,8 +55,8 @@ about 10 s, no reflashing
 <b>III</b>Reference: host API and SDK library
 <b>III</b>Справочник: API хоста и библиотека SDK
 
-revision 11, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 11, 2026-11-18 / зафиксированный host API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+revision 12, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 12, 2026-11-18 / зафиксированный host API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
 
 Contents
 Содержание
@@ -70,8 +70,11 @@ Part I. Datasheet
 perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.
 perINKpheral - настольный дисплей: чёрно-белая панель E-Ink 4,2" с четырьмя кнопками на базе ESP32-C6. Отображается информация, рассчитанная на чтение с одного взгляда: время, погода, ближайшая встреча, состояние дома.
 
-The firmware is called the <i>host</i>. The host draws the menu and its own notices. Every other screen is an <i>application</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.
-Прошивка называется <i>хостом</i>. Хост рисует меню и свои уведомления. Все остальные экраны - <i>приложения</i>, в том числе Настройки и О системе: это системные приложения, встроенные в прошивку. Приложения устанавливаются из каталога; прошивка при этом не перезаписывается.
+The main firmware is called the <i>host</i>. The host draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.
+Основная прошивка называется <i>хостом</i>. Хост рисует меню и свои сообщения. Остальные его экраны - <i>приложения</i>, в том числе Настройки и О системе: это системные приложения, встроенные в прошивку. Приложения устанавливаются из каталога, без перепрошивки устройства.
+
+An independent recovery image installs firmware updates and runs no applications. Ordinary OTA replaces only the main firmware and preserves installed packages and their data.
+Отдельная прошивка восстановления устанавливает обновления и не запускает приложения. Обычное OTA заменяет только основную прошивку, сохраняя установленные пакеты и их данные.
 
 An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.
 Приложение состоит из модуля WebAssembly и манифеста. Модуль пишется на C с одним заголовочным файлом, <code>sdk/host_api.h</code>, и исполняется интерпретатором (wasm3) внутри хоста.
@@ -3004,8 +3007,8 @@ The index lists the name, title, version and icon of each application, and its f
 Trust model: HTTPS to a source that the user selected, plus the sandbox. Packages are unsigned.
 Модель доверия: HTTPS до источника, выбранного пользователем, плюс песочница. Пакеты не подписываются.
 
-The official catalog is the <code>perinkpheral-apps</code> repository, with fifteen applications. It is the first source on every device. The user can add up to three HTTPS sources on the device's web page.
-Официальный каталог - репозиторий <code>perinkpheral-apps</code> с пятнадцатью приложениями. Это первый источник на каждом устройстве. Пользователь может добавить до трёх HTTPS-источников на странице устройства.
+The official catalog is the <code>perinkpheral-apps</code> repository, with eighteen applications. It is the first source on every device. The user can add up to three HTTPS sources on the device's web page.
+Официальный каталог - репозиторий <code>perinkpheral-apps</code> с восемнадцатью приложениями. Это первый источник на каждом устройстве. Пользователь может добавить до трёх HTTPS-источников на странице устройства.
 
 The web page shows a summary of each installed application, taken from its manifest: the servers it connects to, the polling interval, what it stores, and whether it starts with the device.
 Веб-страница показывает сводку по каждому установленному приложению, взятую из манифеста: серверы, к которым оно подключается, интервал опроса, что оно хранит и запускается ли вместе с устройством.

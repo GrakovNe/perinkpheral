@@ -21,7 +21,19 @@ WASI_SDK_PATH="$HOME/opt/wasi-sdk" make -s test
 The host tests cover the pure modules, the real wasm interpreter, answer delivery,
 frozen ABI 3 packages and the contract snapshot. They also check layers, languages and
 the generated city table. CI runs them on Linux with the sanitizers selected by the
-Makefile. They do not exercise ESP-IDF, GPIO, flash hardware or radio timing.
+Makefile. Recovery tests cover the OTA writer with stubbed flash operations, the
+one-use update hint, screen selection and confirmation key handling. They do not
+exercise ESP-IDF, GPIO, flash hardware or radio timing.
+
+Browser update and manual-entry flows are tested separately with Node.js:
+
+```sh
+node firmware/test/web/test_firmware_update.js
+```
+
+These tests execute the page's JavaScript with mocked HTTP responses. They cover
+compressed release downloads, delayed recovery startup, lost replies, manual entry,
+image identity and probation; they do not replace a browser/device check.
 
 The simulator compares application frames with reviewed pictures:
 
@@ -35,8 +47,10 @@ has no panel latency. Its network can use canned responses from each scenario.
 ## Device observations
 
 A development build exposes the frame and injected presses, application uploads, the
-store, restart, firmware upload, socket listing and deliberate faults under `/api/dev`.
+store, restart, socket listing and deliberate faults under `/api/dev`.
 Release builds omit these routes. There is no `/api/dev/health` route.
+`/api/dev/flash` is retained only to return 409; firmware uploads in either build
+go through recovery and physical confirmation.
 
 Use the current tools, with `PERINKPHERAL_HOST` set to the bench device:
 
@@ -102,7 +116,8 @@ After power returns, check:
 - the store opens and its accounting agrees with its contents;
 - files are usable, or the application handles an incomplete cache;
 - glyph packs are whole or absent;
-- the device runs a reachable firmware, confirming probation or rolling back;
+- main completes probation, or recovery remains reachable and accepts a replacement
+  image; there is no previous full firmware slot to roll back to;
 - host settings remain valid. `settings_start()` uses defaults for invalid stored values;
   whole-settings transactional rollback is not promised.
 
@@ -115,8 +130,9 @@ See [SECURITY.md](../../SECURITY.md) for network access and physical confirmatio
 Long-running automated soak, parser fuzzing, random navigation, network fault injection
 and controlled power cuts need runners and, for the hardware cases, a dedicated bench.
 They are not CI jobs and have no CLI commands. Battery life also needs measured current.
-The owner requires reusable tool logic in `tools/core`, commands and generators in
-`tools/cli`, and device or simulator code in C; no project Python.
+Firmware/SDK tool logic belongs in `tools/core`, commands and generators in
+`tools/cli`, and device or simulator code in C. The separate Python CAD exporter
+in `tools/case` is not a platform for device-test runners.
 
 ## Results
 

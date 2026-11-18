@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: perINKpheral device API
-  version: 0.1.30
+  version: 0.1.40
   license:
     name: MIT
     identifier: MIT
@@ -9,19 +9,27 @@ info:
     The HTTP API of a perINKpheral device, served by the device itself on port 80.
     The device's web page uses it; so do the command line tools.
 
+    This full API runs in application mode. Recovery serves only GET /,
+    GET /api/status and POST /api/ota. It does not serve settings, logs,
+    applications or development routes.
+
     Requests from pages of other sites are refused: a browser request must carry
     the device's own Origin, or none, and Host must name the device's address or
-    hostname. The root page is public. Errors and plain confirmations are
+    hostname. Main's root page is public; recovery checks Host and Origin there too.
+    Main's errors and plain confirmations are
     `{"error": "..."}` and `{"ok": "..."}`, but for a request refused for its origin,
     answered `Forbidden.` as text. Besides what each route lists, any of them may be
-    answered 503 when the device is busy or short of memory, and 500 when its storage
+    answered 503 in main when the device is busy or short of memory, and 500 when its storage
     fails.
 
     Firmware updates, factory reset and a change of the Wi-Fi network wait for
     a press of OK on the device, up to a minute; installing a system application
     also requires this confirmation. The press must begin after the question
-    reaches the panel. Unanswered is
-    `403 {"error": "Not confirmed."}`.
+    reaches the panel. Unanswered main-firmware questions return
+    `403 {"error": "Not confirmed."}`. Recovery's upload instead returns 400
+    with a text message, including cancellation and timeout; its successful response
+    is `{"message": "Installed. Restarting."}`. Clients must then wait for the
+    expected image_id and on_probation=false in application mode.
 
     `/api/dev/*` exists only in firmware built with the development tools.
     There is no authentication. Origin and Host checks restrict browser requests;
@@ -57,9 +65,13 @@ components:
       required: [error]
     Status:
       type: object
+      description: |
+        Recovery returns mode, ota_protocol, firmware, on_probation, uptime_s,
+        boot_id, partition_table and upload_state only. Its on_probation is always
+        false; this does not mean a new main image has been confirmed.
       properties:
         name: { type: string, description: Device name }
-        firmware: { type: string, examples: ["0.1.30"] }
+        firmware: { type: string, examples: ["0.1.40", "recovery-1"] }
         supported_abis:
           type: array
           description: Explicit supported application ABI generations; membership, never a version ceiling.
@@ -558,11 +570,18 @@ paths:
     post:
       tags: [Firmware]
       summary: Select recovery and restart; uploading there requires physical OK
-      description: Refused while main is on probation. Does not erase the main image or user data.
+      description: |
+        Main only. Refused while main is on probation. Selects factory by clearing
+        OTA metadata, but does not erase main or user data and needs no physical OK.
+        Wait for status.mode=recovery before uploading. This does not update the
+        recovery image itself; replacing recovery requires USB.
       parameters:
         - name: manual
           in: query
-          description: Show recovery immediately instead of the planned update preparation screen.
+          description: |
+            With manual=true, enter recovery without an expected upload. Omitted or
+            false records a one-use planned-update hint. Screen behavior depends on
+            the installed recovery version; older recovery images ignore the hint.
           schema: { type: boolean, default: false }
       responses:
         "200": { $ref: "#/components/responses/Ok" }
@@ -573,14 +592,33 @@ paths:
     post:
       tags: [Firmware]
       summary: Upload firmware in recovery; main returns 409 until recovery is entered
+      description: |
+        Recovery checks the image header, project, chip and partition layout before
+        asking for physical OK. After confirmation it writes only ota_0, verifies
+        the complete image and restarts main on probation. Installed apps and their
+        data are preserved. A failed write may leave main incomplete; recovery stays
+        available for another upload. A lost HTTP response is not proof of failure
+        or success: check mode, boot_id, upload_state and the intended image_id.
       requestBody:
         required: true
         content:
           application/octet-stream: {}
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200":
+          description: Image installed; restarting into main, which must still complete probation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string, const: "Installed. Restarting." }
         "409": { $ref: "#/components/responses/Error" }
-        "400": { $ref: "#/components/responses/Error" }
+        "400":
+          description: Recovery refused the request, confirmation timed out or was cancelled, or the upload failed
+          content:
+            text/html:
+              schema: { type: string, examples: ["Not confirmed.", "Upload interrupted.", "Forbidden."] }
         "403": { $ref: "#/components/responses/Error" }
 
   /api/ota/release:
@@ -588,20 +626,9 @@ paths:
       tags: [Firmware]
       summary: Obsolete device-side downloader; returns 409, download through the browser instead
       deprecated: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                url: { type: string, format: uri }
-                size: { type: integer }
-              required: [url, size]
+      description: Main only. The request body is ignored; no download is started.
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
         "409": { $ref: "#/components/responses/Error" }
-        "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
   /api/dev/screen:
@@ -707,13 +734,11 @@ paths:
   /api/dev/flash:
     post:
       tags: [Development]
-      summary: Upload a firmware image without a confirmation
-      requestBody:
-        required: true
-        content:
-          application/octet-stream: {}
+      summary: Obsolete direct upload; enter recovery and upload through /api/ota instead
+      deprecated: true
+      description: Always refuses with 409. Development builds do not bypass physical confirmation.
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /api/dev/restart:
     post:
