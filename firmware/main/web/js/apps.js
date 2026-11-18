@@ -458,7 +458,7 @@ function drawTiles() {
   capacity.setAttribute("aria-valuenow", String(installed.length));
   capacity.setAttribute("aria-valuetext", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
   capacity.firstElementChild.style.width = Math.min(100, installed.length / CATALOG_INSTALLED_MAX * 100) + "%";
-  byId("update-all").hidden = updates().length < 2; /* one is its tile's Update */
+  byId("update-all").hidden = updates().length === 0;
   drawCatalog();
 }
 

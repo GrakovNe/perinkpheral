@@ -77,6 +77,8 @@ async function testAutoUpdateSetting() {
     settings: { app_auto_update: false }, document: { getElementById: () => button },
     t: text => text, setTimeout: callback => callback(),
     fetch: async (url, request) => {
+      assert.equal(url, "/api/settings", "Auto-update must not install applications");
+      assert.equal(request.method, "POST");
       const body = JSON.parse(request.body);
       sent.push({ url, method: request.method, body });
       // /api/settings value_of(APPCONF_FLAG) accepts JSON booleans only.
@@ -106,7 +108,49 @@ async function testAutoUpdateSetting() {
   assert.equal(context.settings.app_auto_update, false);
   assert.equal(attributes["aria-pressed"], "false");
   assert.deepEqual(sent.map(request => request.body.app_auto_update), [true, false, false]);
+  assert.equal(sent.length, 3, "one settings request per toggle, including a failed save");
   assert.equal(button.disabled, false);
+}
+
+function testUpdateAllVisibility() {
+  const elements = new Map();
+  const byId = id => {
+    if (!elements.has(id)) elements.set(id, {
+      hidden: false, attributes: {}, firstElementChild: { style: {} },
+      setAttribute(key, value) { this.attributes[key] = value; },
+      replaceChildren() {},
+    });
+    return elements.get(id);
+  };
+  const context = vm.createContext({
+    CATALOG_INSTALLED_MAX: 24, settings: { app_auto_update: false },
+    installed: [{ name: "iss", version: "1.0.0" }, { name: "clock", version: "1.0.0" }],
+    offered: [], byId, inMenuOrder: apps => apps, tile: () => ({}), drawCatalog() {},
+    compatibilityProblem: app => app.incompatible ? "Update the firmware." : "",
+    t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
+  });
+  const updatesStart = apps.indexOf("const updates = () =>");
+  vm.runInContext(apps.slice(updatesStart, apps.indexOf("/* The catalog:", updatesStart)), context);
+  vm.runInContext(apps.slice(apps.indexOf("function drawTiles()"),
+    apps.indexOf("/* Every application a source has another version")), context);
+  for (const automatic of [false, true]) {
+    context.settings.app_auto_update = automatic;
+    for (const count of [0, 1, 2]) {
+      context.offered = context.installed.map((app, index) => ({
+        source: 0, app: { ...app, version: index < count ? "2.0.0" : app.version },
+      }));
+      context.drawTiles();
+      assert.equal(byId("update-all").hidden, count === 0,
+        `Update all visibility with ${count} updates and Auto-update ${automatic}`);
+      assert.equal(byId("auto-update-apps").attributes["aria-pressed"], String(automatic));
+    }
+  }
+  context.offered = [
+    { source: 0, app: { name: "iss", version: "2.0.0", incompatible: true } },
+    { source: 0, app: { name: "weather", version: "2.0.0" } },
+  ];
+  context.drawTiles();
+  assert.equal(byId("update-all").hidden, true, "only compatible installed updates count");
 }
 
 async function testAuthors() {
@@ -157,6 +201,7 @@ async function testAuthors() {
 }
 
 (async () => {
+  testUpdateAllVisibility();
   await testAutoUpdateSetting();
   await testAuthors();
   const memory = [503, "Not enough memory."];
