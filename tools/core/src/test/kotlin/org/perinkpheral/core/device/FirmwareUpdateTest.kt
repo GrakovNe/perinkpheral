@@ -8,6 +8,10 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** Protocol failure cases plus the real HTTP client against a local fake device. */
 object FirmwareUpdateTest {
@@ -74,10 +78,12 @@ object FirmwareUpdateTest {
         fails("unterminated") { FirmwareImage(unterminated) }
     }
 
-    private fun httpCase(dropReply: Boolean) {
+    private fun httpCase(dropReply: Boolean, staleKeepAlive: Boolean = false) {
         val statusCount = AtomicInteger()
         val uploads = AtomicInteger()
         val handoffs = AtomicInteger()
+        val handoffPort = AtomicInteger()
+        val reusedSocket = AtomicInteger()
         val statuses = listOf(main(), recovery(), recovery(state = "restarting"), main(true), main())
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/api/status") { exchange ->
@@ -88,6 +94,7 @@ object FirmwareUpdateTest {
         }
         server.createContext("/api/ota/recovery") { exchange ->
             handoffs.incrementAndGet()
+            handoffPort.set(exchange.remoteAddress.port)
             exchange.requestBody.readBytes()
             if (!dropReply) exchange.sendResponseHeaders(200, -1)
             exchange.close()
@@ -95,7 +102,12 @@ object FirmwareUpdateTest {
         server.createContext("/api/ota") { exchange ->
             uploads.incrementAndGet()
             check(exchange.requestBody.readBytes().contentEquals(image))
-            if (!dropReply) exchange.sendResponseHeaders(200, -1)
+            if (staleKeepAlive && exchange.remoteAddress.port == handoffPort.get()) {
+                // This connection belongs to the main firmware which has just restarted.
+                // A response makes this regression deterministic: no socket race or retry.
+                reusedSocket.incrementAndGet()
+                exchange.sendResponseHeaders(503, -1)
+            } else if (!dropReply) exchange.sendResponseHeaders(200, -1)
             exchange.close()
         }
         server.start()
@@ -103,8 +115,50 @@ object FirmwareUpdateTest {
             val result = DeviceClient("127.0.0.1:${server.address.port}").flash(image)
             check(result.contains("Installed and confirmed"))
             check(uploads.get() == 1 && handoffs.get() == 1) { "HTTP mutation was resent" }
+            check(reusedSocket.get() == 0) { "a connection survived the firmware handoff" }
         } finally {
             server.stop(0)
+        }
+    }
+
+    private fun stalledPost(cancel: Boolean) {
+        val received = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val cancelled = AtomicBoolean()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val serverThreads = Executors.newCachedThreadPool { task -> Thread(task).apply { isDaemon = true } }
+        val clientThread = Executors.newSingleThreadExecutor { task -> Thread(task).apply { isDaemon = true } }
+        server.executor = serverThreads
+        server.createContext("/api/ota") { exchange ->
+            received.countDown()
+            // Neither drain the request nor send a response. Closing the client must
+            // interrupt outstanding work rather than wait for a cooperative device.
+            release.await(10, TimeUnit.SECONDS)
+            exchange.close()
+        }
+        server.start()
+        val client = DeviceClient("127.0.0.1:${server.address.port}")
+        try {
+            val pending = clientThread.submit<Throwable?> {
+                try {
+                    client.firmwarePost("/api/ota", ByteArray(2 * 1024 * 1024),
+                        if (cancel) 300_000 else 500) { cancelled.get() }
+                    null
+                } catch (error: Throwable) { error }
+            }
+            check(received.await(3, TimeUnit.SECONDS)) { "stalled upload never reached fake device" }
+            if (cancel) cancelled.set(true)
+            val error = pending.get(4, TimeUnit.SECONDS)
+            check(if (cancel) error is InterruptedException else error is IOException) {
+                "stalled upload did not stop correctly: $error"
+            }
+        } finally {
+            cancelled.set(true)
+            client.abort()
+            release.countDown()
+            server.stop(0)
+            clientThread.shutdownNow()
+            serverThreads.shutdownNow()
         }
     }
 
@@ -112,6 +166,9 @@ object FirmwareUpdateTest {
         protocolCases()
         httpCase(dropReply = false)
         httpCase(dropReply = true)
-        println("Firmware update checks passed: header validation, same-version identity, probation, rollback, lost responses and real HTTP.")
+        httpCase(dropReply = false, staleKeepAlive = true)
+        stalledPost(cancel = false)
+        stalledPost(cancel = true)
+        println("Firmware update checks passed: header validation, image identity, probation, rollback, lost responses, fresh sockets, deadlines and cancellation.")
     }
 }

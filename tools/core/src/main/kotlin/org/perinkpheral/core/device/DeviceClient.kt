@@ -257,14 +257,18 @@ class DeviceClient(val host: String) {
     }
 
     /* HttpURLConnection's read timeout does not bound writing a stalled request body. */
-    private fun firmwarePost(path: String, body: ByteArray?, timeoutMs: Int, isCancelled: () -> Boolean) {
+    internal fun firmwarePost(path: String, body: ByteArray?, timeoutMs: Int, isCancelled: () -> Boolean) {
         if (isAborted || isCancelled()) throw InterruptedException("cancelled")
         val publisher = if (body == null) HttpRequest.BodyPublishers.noBody()
                         else HttpRequest.BodyPublishers.ofByteArray(body)
         val request = HttpRequest.newBuilder(URI.create(base + path))
             .timeout(Duration.ofMillis(timeoutMs.toLong()))
             .header("Content-Type", "application/octet-stream").POST(publisher).build()
-        val pending = FIRMWARE_HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+        // Main and recovery share an address, but a pooled connection belongs to one boot.
+        // Close each OTA client's pool before the next operation crosses that boundary.
+        val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3))
+            .version(HttpClient.Version.HTTP_1_1).build()
+        val pending = client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
         firmwareRequest = pending
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.toLong())
         try {
@@ -286,12 +290,11 @@ class DeviceClient(val host: String) {
         } finally {
             pending.cancel(true)
             firmwareRequest = null
+            client.close()
         }
     }
 
     companion object {
-        private val FIRMWARE_HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3))
-            .version(HttpClient.Version.HTTP_1_1).build()
         private const val BUSY_RETRIES = 3
         private const val UPLOAD_TIMEOUT_MS = 120_000
         private const val RESTART_WAIT_MS = 60_000L
