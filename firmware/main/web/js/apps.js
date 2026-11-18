@@ -244,32 +244,128 @@ window.addEventListener("message", event => {
   }
 });
 
-/* Installs the application from its source, or installs it over itself: an update. */
-async function install(button, offer) {
-  const have = installed.find(app => app.name === offer.app.name);
-  if (have && !appUpdateAvailable(have.version, offer.app.version)) return;
+/* One page sends one install at a time. Pending clicks are kept only in memory:
+ * leaving the page drops them, and an uncertain POST is never replayed. */
+const appInstallQueue = [], pendingAppInstalls = new Map();
+let appInstallRunning = false, appInstallClosed = false;
+
+function restoreInstallButton(job) {
+  if (!job.button) return;
+  job.button.textContent = job.label;
+  job.button.disabled = false;
+}
+
+function install(button, offer, notifyQueued = true) {
+  if (appInstallClosed) return Promise.resolve(false);
+  const name = offer.app.name;
+  if (pendingAppInstalls.has(name)) return pendingAppInstalls.get(name).promise;
+  const have = installed.find(app => app.name === name);
+  if (have && !appUpdateAvailable(have.version, offer.app.version)) return Promise.resolve(false);
   const problem = compatibilityProblem(offer.app);
-  if (problem) { toast(problem); return; }
-  /* The system API is the owner's to give: the page asks, once, in so many words. */
+  if (problem) { toast(problem); return Promise.resolve(false); }
+  const job = { button, offer, label: button && button.textContent };
+  job.promise = new Promise(resolve => { job.resolve = resolve; });
+  pendingAppInstalls.set(name, job);
+  appInstallQueue.push(job);
+  if (button) button.disabled = true;
+  if (appInstallRunning) {
+    if (button) button.textContent = t("Queued");
+    if (notifyQueued) toast(t("{0} queued.", offerSays(offer, "title")), "passive");
+    drawTiles();
+  }
+  void runAppInstalls();
+  return job.promise;
+}
+
+async function runAppInstalls() {
+  if (appInstallRunning || appInstallClosed) return;
+  appInstallRunning = true;
+  try {
+    while (appInstallQueue.length && !appInstallClosed) {
+      const job = appInstallQueue.shift();
+      restoreInstallButton(job);
+      job.started = true;
+      drawTiles();
+      let done = false;
+      try {
+        done = await performInstall(job.button, job.offer);
+      } catch (error) {
+        if (!appInstallClosed) toast(offerSays(job.offer, "title") + ": " + error.message, "error");
+      } finally {
+        pendingAppInstalls.delete(job.offer.app.name);
+        if (!appInstallClosed) drawTiles();
+        job.resolve(done);
+      }
+    }
+  } finally {
+    appInstallRunning = false;
+  }
+}
+
+window.addEventListener("beforeunload", event => {
+  if (!pendingAppInstalls.size) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+window.addEventListener("pagehide", () => {
+  appInstallClosed = true;
+  for (const job of appInstallQueue.splice(0)) {
+    restoreInstallButton(job);
+    pendingAppInstalls.delete(job.offer.app.name);
+    job.resolve(false);
+  }
+});
+
+window.addEventListener("pageshow", event => {
+  if (!event.persisted) return;
+  appInstallClosed = false;
+  void loadApps().catch(error => toast(error.message, "error"));
+});
+
+function markPendingInstall(button, offer) {
+  const job = pendingAppInstalls.get(offer.app.name);
+  if (!job) return;
+  button.disabled = true;
+  button.textContent = t(job.started ? (installed.some(app => app.name === offer.app.name) ? "Updating" : "Installing") : "Queued");
+}
+
+/* Recheck a queued offer before it starts: another completed action may
+ * already have installed it. Permission dialogs also run one at a time. */
+async function performInstall(button, offer) {
+  const have = installed.find(app => app.name === offer.app.name);
+  if (have && !appUpdateAvailable(have.version, offer.app.version)) return false;
+  const problem = compatibilityProblem(offer.app);
+  if (problem) { toast(problem); return false; }
   if (offer.app.system &&
-      !await confirmed(t("{0} requests system access.", offerSays(offer, "title")), "Install")) return;
-  /* So is a certificate authority it trusts for its own requests. */
+      !await confirmed(t("{0} requests system access.", offerSays(offer, "title")), "Install")) return false;
   const trusts = offer.app.trusts || [];
   if (trusts.length &&
       !await confirmed(t(trusts.length > 1 ? "{0} trusts its own certificate authorities: {1}."
                                            : "{0} trusts its own certificate authority: {1}.",
-                         offerSays(offer, "title"), trusts.join(", ")), "Install")) return;
+                         offerSays(offer, "title"), trusts.join(", ")), "Install")) return false;
+  if (appInstallClosed) return false;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-  const isUpdate = Boolean(have);
-  if (await busy(button, async () => {
+  const work = async () => {
+    const dismiss = toast(t(have ? "Updating {0}…" : "Installing {0}…", offerSays(offer, "title")), "busy passive", true);
     try {
       await askForApp(url, post({ files: offer.app.files, version: offer.app.version }));
+      if (!appInstallClosed)
+        toast(have ? t("{0} updated to {1}.", offerSays(offer, "title"), offer.app.version) : "Installed.");
     } catch (error) {
       throw new Error(offerSays(offer, "title") + ": " +
         (error.message === "Failed to fetch" ? t("Device unreachable.") : error.message));
+    } finally {
+      dismiss();
     }
-    toast(isUpdate ? t("{0} updated to {1}.", offerSays(offer, "title"), offer.app.version) : "Installed.");
-  })) await loadApps();
+  };
+  let done;
+  if (button) done = await busy(button, work);
+  else {
+    try { await work(); done = true; }
+    catch (error) { if (!appInstallClosed) toast(error.message, "error"); done = false; }
+  }
+  if (done && !appInstallClosed) await loadApps();
+  return done;
 }
 
 /* An icon is eleven rows of eleven cells; what a catalog gives that is not one is no icon. */
@@ -314,6 +410,7 @@ function tile(have, offer) {
     } else {
       const update = make("button", { className: "action", textContent: "Update" });
       update.title = offer.app.version;
+      markPendingInstall(update, offer);
       update.addEventListener("click", () => install(update, offer));
       box.append(update);
     }
@@ -429,6 +526,7 @@ function drawCatalog() {
       const isUpdate = have && appUpdateAvailable(have.version, offer.app.version);
       const button = make("button", { className: "quiet", textContent: !have ? "Install" : isUpdate ? "Update" : "Installed" });
       button.disabled = Boolean(needed) || (have ? !isUpdate : isFull);
+      markPendingInstall(button, offer);
       if (!have || isUpdate) button.addEventListener("click", () => install(button, offer));
       row.append(picture(offer.app.icon, 3), text, button);
       return row;
@@ -464,23 +562,20 @@ function drawTiles() {
   drawCatalog();
 }
 
-/* Every application a source has another version of, one after another; the first that fails
- * stops it, and says why. */
+/* Bulk and individual updates share the queue, including duplicate clicks. */
 byId("update-all").addEventListener("click", async () => {
-  const button = byId("update-all");
-  await busy(button, async () => {
-    for (const offer of updates()) {
-      const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-      try {
-        await askForApp(url, post({ files: offer.app.files, version: offer.app.version }));
-      } catch (error) {
-        throw new Error(offerSays(offer, "title") + ": " +
-          (error.message === "Failed to fetch" ? t("Device unreachable.") : error.message));
-      }
-      toast(t("{0} updated to {1}.", offerSays(offer, "title"), offer.app.version));
-    }
-  });
-  await loadApps();
+  const button = byId("update-all"), label = button.textContent;
+  if (button.disabled) return;
+  button.disabled = true;
+  button.classList.add("busy");
+  button.textContent = t("Updating");
+  try {
+    await Promise.all(updates().map(offer => install(null, offer, false)));
+  } finally {
+    button.textContent = label;
+    button.classList.remove("busy");
+    button.disabled = false;
+  }
 });
 
 byId("auto-update-apps").addEventListener("click", async () => {

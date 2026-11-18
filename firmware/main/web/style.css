@@ -64,9 +64,10 @@ h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bot
 
 /* ---- what happened, in the corner ---- */
 .toasts { position: fixed; top: 1rem; right: 1rem; z-index: 10; display: grid; gap: .6rem;
-          width: min(22rem, calc(100vw - 2rem)); }
-.toast { padding: .75rem 1rem; color: var(--ink); background: var(--paper); border: 1px solid var(--ink);
+          width: min(22rem, calc(100vw - 2rem)); pointer-events: none; }
+.toast { pointer-events: auto; padding: .75rem 1rem; color: var(--ink); background: var(--paper); border: 1px solid var(--ink);
          box-shadow: 4px 4px 0 var(--ink); cursor: pointer; animation: drop .15s ease-out; }
+.toast.passive { pointer-events: none; }
 .toast.error { color: var(--paper); background: var(--ink); box-shadow: 4px 4px 0 var(--dim); }
 .toast.busy::after { content: ""; animation: dots 1.2s steps(1) infinite; }
 @keyframes drop { from { opacity: 0; transform: translateY(-.5rem); } }
