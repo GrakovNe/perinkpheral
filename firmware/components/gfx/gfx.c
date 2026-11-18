@@ -434,6 +434,7 @@ size_t gfx_pack_bytes(const void *data, size_t available)
         size_t glyphs_bytes = (size_t)face->glyph_count * sizeof(gfx_glyph_t);
         at += sizeof *face;
         if (glyphs_bytes > header->bytes - at ||
+            face->bits_bytes > header->bytes - at - glyphs_bytes ||
             padded(face->bits_bytes) > header->bytes - at - glyphs_bytes) {
             return 0;
         }

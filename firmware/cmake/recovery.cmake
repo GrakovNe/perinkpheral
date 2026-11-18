@@ -52,6 +52,10 @@ add_dependencies(app-flash main_check_size blank_ota_data)
 # omits the file system, the application code cache and both NVS partitions.
 idf_component_get_property(migration_args esptool_py FLASH_ARGS)
 idf_component_get_property(migration_sub_args esptool_py FLASH_SUB_ARGS)
+esptool_py_flash_target(recovery-flash "${migration_args}" "${migration_sub_args}")
+esptool_py_flash_target_image(recovery-flash recovery "${recovery_offset}"
+                            "${recovery_build}/perink_recovery.bin")
+add_dependencies(recovery-flash recovery)
 esptool_py_flash_target(migration-flash "${migration_args}" "${migration_sub_args}")
 get_property(install_images TARGET flash PROPERTY IMAGES)
 foreach(image IN ITEMS "0x0 bootloader/bootloader.bin" "0x8000 partition_table/partition-table.bin"

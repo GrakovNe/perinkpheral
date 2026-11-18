@@ -5,6 +5,8 @@ set(EXTRA_COMPONENT_DIRS
     "${REPOSITORY}/firmware/components/board"
     "${REPOSITORY}/firmware/components/appconf"
     "${REPOSITORY}/firmware/components/gfx"
+    "${REPOSITORY}/firmware/components/ui"
+    "${REPOSITORY}/firmware/components/words"
     "${REPOSITORY}/firmware/components/epd"
     "${REPOSITORY}/firmware/components/deadlines")
 set(COMPONENTS main)

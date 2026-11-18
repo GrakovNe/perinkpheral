@@ -7,8 +7,8 @@
 
 enum { IMAGE_BYTES = 1000 };
 static uint8_t image[IMAGE_BYTES];
-static const esp_partition_t factory = { ESP_PARTITION_SUBTYPE_APP_FACTORY, 4096, 0x20000 };
-static const esp_partition_t main_slot = { ESP_PARTITION_SUBTYPE_APP_OTA_0, 4096, 0xe0000 };
+static const esp_partition_t factory = { .subtype = ESP_PARTITION_SUBTYPE_APP_FACTORY, .size = 4096, .address = 0x20000 };
+static const esp_partition_t main_slot = { .subtype = ESP_PARTITION_SUBTYPE_APP_OTA_0, .size = 4096, .address = 0xe0000 };
 static const esp_partition_t *running = &factory;
 static char trace[64];
 static size_t trace_length;

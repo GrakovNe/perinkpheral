@@ -368,6 +368,22 @@ static void test_glyph_pack(void)
     memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
     broken.bytes[0] = 'X';
     CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
+
+    /* On the device, these bitmap sizes wrap to zero if padded first. */
+    for (uint8_t low = 0xfd; ; low++) {
+        memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
+        memset(broken.bytes + 24 + 4, 0xff, sizeof(uint32_t));
+        broken.bytes[24 + 4] = low;
+        broken.bytes[24 + 8 + 8] = 0xff;
+        broken.bytes[24 + 8 + 9] = 0xff;
+        CHECK(gfx_pack_bytes(broken.bytes, sizeof broken.bytes) == 0);
+        CHECK(!gfx_pack_add(broken.bytes, sizeof broken.bytes));
+        if (low == 0xff) { break; }
+    }
+    /* A bitmap that fits without its required padding still crosses the pack boundary. */
+    memcpy(broken.bytes, PACK.bytes, sizeof broken.bytes);
+    broken.bytes[8]--;
+    CHECK(gfx_pack_bytes(broken.bytes, sizeof broken.bytes) == 0);
 }
 
 /* A limit in bytes never falls inside a character. */

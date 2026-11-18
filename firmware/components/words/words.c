@@ -10,6 +10,12 @@
 /* A notice's large lines hold about eleven letters and its line of
  * ordinary text sixteen: a translation is written to fit, not to mirror. */
 static const char *const ENGLISH[WORD_COUNT] = {
+    [WORD_CHECKING] = "Checking", [WORD_STARTING] = "Starting", [WORD_FIRMWARE] = "firmware",
+    [WORD_KEEP_DEVICE_ON] = "Keep the device on", [WORD_TRY_INSTALLED] = "Try installed",
+    [WORD_UPDATE_FAILED] = "Update failed",
+    [WORD_JOIN_WIFI] = "Join Wi-Fi", [WORD_FIRMWARE_TITLE] = "Firmware update",
+    [WORD_OPEN] = "Open the", [WORD_DEVICE_PAGE] = "device page",
+    [WORD_UPDATE_CANCELLED] = "Update cancelled",
     [WORD_DISMISS] = "Dismiss", [WORD_CANCEL] = "Cancel", [WORD_CLOSE] = "Close",
     [WORD_FORMAT] = "Format", [WORD_SKIP] = "Skip",
     [WORD_SAVE] = "Save", [WORD_NEXT] = "Next", [WORD_BACK] = "Back",
@@ -40,6 +46,12 @@ static const char *const ENGLISH[WORD_COUNT] = {
 };
 
 static const char *const RUSSIAN[WORD_COUNT] = {
+    [WORD_CHECKING] = "Проверка", [WORD_STARTING] = "Запуск", [WORD_FIRMWARE] = "прошивки",
+    [WORD_KEEP_DEVICE_ON] = "Не выключайте устройство", [WORD_TRY_INSTALLED] = "Запустить",
+    [WORD_UPDATE_FAILED] = "Не удалось обновить",
+    [WORD_JOIN_WIFI] = "Сеть Wi-Fi", [WORD_FIRMWARE_TITLE] = "Обновление прошивки",
+    [WORD_OPEN] = "Откройте", [WORD_DEVICE_PAGE] = "страницу",
+    [WORD_UPDATE_CANCELLED] = "Обновление отменено",
     [WORD_DISMISS] = "Закрыть", [WORD_CANCEL] = "Отмена", [WORD_CLOSE] = "Закрыть",
     [WORD_FORMAT] = "Очистить", [WORD_SKIP] = "Пропустить",
     [WORD_SAVE] = "Сохранить", [WORD_NEXT] = "Далее", [WORD_BACK] = "Назад",

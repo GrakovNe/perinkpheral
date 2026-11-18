@@ -150,8 +150,11 @@ The network handoff reached recovery, and a direct HTTP upload reached physical
 confirmation and expired with "Not confirmed" without erasing main. Two CLI attempts
 stopped before confirmation. A regression test reproduced reuse of the handoff's
 keep-alive socket; each OTA POST now owns a fresh client, with deadline and cancellation
-tests against a stalled server. A successful physical OTA upload and the remaining
-qualification cases below are still pending; USB installation is not evidence for them.
+tests against a stalled server. The corrected CLI then completed a physical OTA cycle
+on battery power with USB disconnected: main entered recovery, the physical OK key
+approved installation, and the intended image completed probation. The returned
+0.1.34-39c9b26 image identity matched the uploaded header, `usb_host` was false and
+the failed-allocation counter was zero. This also checks reinstalling the same image.
 
 The seven installed catalog applications from the reviewed batch (air, github, iss,
 life, metals, pomodoro and rates) were updated to 0.1.1. Frames captured from the
@@ -168,9 +171,11 @@ failed allocations, a 28,244-byte minimum free heap, and three temporary memory
 refusals which returned 503 and succeeded on subsequent attempts. This is a short
 functional check, not an endurance or power-loss qualification.
 
-The recovery branch changes the update mechanism. Host tests and builds do not qualify
-physical power-loss behavior. Before release, run these on a bench device with backed-up
-settings and applications; the shelf device is not a power-cut test fixture.
+Recovery changes the update mechanism. Host tests and successful battery OTA do not
+qualify physical power-loss behavior. The owner cannot disconnect the shelf device's
+battery; removing its USB cable does not cut power. Controlled power cuts remain
+unverified and require another fixture. Full bench qualification comprises the cases
+below, including those already recorded above, with settings and applications backed up.
 
 - Migrate over USB with the migration manifest: no full erase, no apps image. Compare the
   bytes of nvs, appkv, appcode, apps and glyphs before and after migration.

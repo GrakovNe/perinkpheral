@@ -4,6 +4,26 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.35
+
+- Independent recovery replaces the second full firmware slot. Main firmware now has
+  2 MiB, an additional 576 KiB. Settings, applications and their storage keep their
+  existing partition addresses and sizes.
+- Existing devices require a one-time USB migration: choose Keep data in the web
+  flasher. Ordinary OTA cannot change the bootloader or partition table. Press BACK
+  after migration to start the installed firmware.
+- Network updates enter recovery and ask for OK on the device. Recovery uses the same
+  notices, icons, buttons and saved language as the main interface. It reads settings
+  and installed glyphs without modifying their partitions.
+- A failed or interrupted update can be replaced from recovery. There is no automatic
+  return to a previous full firmware image. Hold BACK for three seconds during reset
+  to enter recovery; its page is also available on the perink-recovery Wi-Fi network.
+- The browser and CLI wait for the intended image to complete its startup checks.
+  CLI upload connections are renewed across the recovery reboot.
+- Large installed-app lists are streamed within the heap budget. Catalog downloads
+  check TLS memory before starting, and malformed glyph bitmap lengths are rejected
+  before alignment arithmetic.
+
 ## 0.1.34
 
 - Applications can keep up to 1024 bytes of temporary scene state in RAM through

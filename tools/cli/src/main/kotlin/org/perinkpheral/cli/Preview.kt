@@ -21,7 +21,10 @@ object Preview {
         val made = Files.createTempDirectory("perinkpheral-preview").toFile()
         try {
             val command = mutableListOf(File(folder, "build/perinkpheral-preview").path, made.path)
-            if (family != null) command += family
+            command += family ?: "departure"
+            val packs = File(made, "glyphs")
+            GlyphPacks.make(root, packs, null)
+            command += File(packs, "cyrillic.glyphs").path
             if (ProcessBuilder(command).inheritIO().start().waitFor() != 0) throw BuildError("the preview failed")
             out.mkdirs()
             return made.listFiles().orEmpty().filter { it.name.endsWith(".pbm") }.sortedBy { it.name }.map { pbm ->

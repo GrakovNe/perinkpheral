@@ -36,7 +36,11 @@ typedef enum {
     WORD_SUN = WORD_SUNDAY + 7, /* the same, short */
     WORD_JANUARY = WORD_SUN + 7, /* as in "13 November", and the eleven after it */
     WORD_JAN = WORD_JANUARY + 12, /* short */
-    WORD_COUNT = WORD_JAN + 12,
+    WORD_CHECKING = WORD_JAN + 12, WORD_STARTING, WORD_FIRMWARE,
+    WORD_KEEP_DEVICE_ON, WORD_TRY_INSTALLED, WORD_UPDATE_FAILED,
+    WORD_JOIN_WIFI, WORD_FIRMWARE_TITLE,
+    WORD_OPEN, WORD_DEVICE_PAGE, WORD_UPDATE_CANCELLED,
+    WORD_COUNT,
 } word_t;
 
 /* The language by its code ("en", "ru"); one the host has no words for is

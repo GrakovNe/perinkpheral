@@ -37,9 +37,16 @@ make -C firmware/test/host test
 CI builds and tests every push. Each successful push to `main` creates a
 [release](https://github.com/GrakovNe/perinkpheral/releases) with release and debug firmware.
 
+Existing devices need a one-time USB migration to the recovery layout. Choose **Keep data**
+in the [web flasher](https://perinkpheral.dev/flash), then press BACK on the device to start
+the installed firmware. Later updates use Wi-Fi and ask for OK on the device. A failed
+update returns to recovery, where another firmware image can be uploaded; the previous
+full firmware is no longer kept in a second slot.
+
 ## Repository
 
 - `firmware/` - ESP-IDF project, components, system applications and host tests.
+- `recovery/` - independent firmware updater, built with the main firmware.
 - `sdk/` - host API, application library, CMake support and Hello sample.
 - `tools/` - command line, shared Kotlin core, simulator and screen preview.
 - `docs/` - application guide and web API reference.

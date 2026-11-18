@@ -7,6 +7,8 @@
 #include "deadlines.h"
 #include "display.h"
 #include "gfx.h"
+#include "fonts.h"
+#include "words.h"
 #include "ota.h"
 #include "settings.h"
 #include "screen.h"
@@ -297,6 +299,8 @@ void app_main(void)
                                     .full_every = 12, .keepalive_ms = 86400000 };
     display_start(&policy);
     start_network();
+    recovery_fonts_start();
+    words_use(settings.language);
     int shown = -1;
     unsigned shown_generation = 0;
     recovery_keys_t buttons_state = {0};

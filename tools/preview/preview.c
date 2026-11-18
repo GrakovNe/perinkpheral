@@ -18,6 +18,7 @@
 #include "screens.h"
 #include "screen.h"
 #include "wm.h"
+#include "words.h"
 
 #define W 400
 #define H 300
@@ -367,6 +368,8 @@ int main(int argc, char **argv)
         { "recovery-confirm", CONFIRM, "192.168.1.123" },
         { "recovery-writing", WRITING, "192.168.1.123" },
         { "recovery-failed", FAILED, "" },
+        { "recovery-checking", RECEIVING, "192.168.1.123" },
+        { "recovery-starting", RESTART, "192.168.1.123" },
     };
     for (size_t index = 0; index < sizeof recovery / sizeof recovery[0]; index++) {
         gfx_init(&g, fb, W, H);
@@ -374,6 +377,31 @@ int main(int argc, char **argv)
                              "perink-recovery");
         if (save(dir, recovery[index].name)) { return 1; }
     }
+
+    if (argc > 3) {
+        static uint8_t glyph_pack[64 * 1024];
+        FILE *file = fopen(argv[3], "rb");
+        if (file == NULL) { return 1; }
+        size_t length = fread(glyph_pack, 1, sizeof glyph_pack, file);
+        bool whole = !ferror(file) && fgetc(file) == EOF;
+        fclose(file);
+        if (!whole || !gfx_pack_add(glyph_pack, length)) { return 1; }
+        words_use("ru");
+        for (size_t index = 0; index < sizeof recovery / sizeof recovery[0]; index++) {
+            gfx_init(&g, fb, W, H);
+            recovery_screen_draw(&g, recovery[index].state, "0.1.35-1234567", recovery[index].address,
+                                 "perink-recovery");
+            char name[64];
+            snprintf(name, sizeof name, "%s-ru", recovery[index].name);
+            if (save(dir, name)) { return 1; }
+        }
+        words_use("en");
+    }
+
+    gfx_init(&g, fb, W, H);
+    recovery_screen_draw(&g, CONFIRM, "1234567890123456789012345678901", "192.168.1.123",
+                         "perink-recovery");
+    if (save(dir, "recovery-long-version")) { return 1; }
 
     return 0;
 }

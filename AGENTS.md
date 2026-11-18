@@ -37,6 +37,8 @@ recovery, main, and the applications' partition `apps` with `hello` - what is
 installed there is replaced). Both `flash` and `app-flash` preserve `nvs`;
 `app-flash` also preserves recovery and the apps partition, and selects recovery
 through blank OTA metadata. Press BACK in recovery to try the installed main.
+`recovery-flash` writes only recovery over USB; it preserves main, OTA metadata and
+all data partitions. Enter recovery from the device page after this maintenance flash.
 Builds check each image against its own partition. Use the generated migration
 manifest to preserve data when moving an existing device to the recovery layout;
 never erase the whole flash or write apps.bin during migration.
@@ -142,6 +144,8 @@ Firmware without the cable, once the device is on a network:
 minute (unanswered, the upload is refused). The device restarts into the new image and
 keeps it only if it comes back reachable; `GET /api/status` says
 whether it is still on probation. The address is on the second page of About.
+USB is not required for ordinary OTA when the battery is charged. Removing USB with
+the battery connected is not a power-cut test.
 
 The log without the cable: `curl http://<address>/api/log` gives the
 last 4 KB of it; `l` in the development console prints the same.

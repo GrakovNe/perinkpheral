@@ -31,7 +31,7 @@ APP_SRCS := $(APPSYS)/app.c $(APPSYS)/app_api_draw.c $(APPSYS)/app_api_ui.c $(AP
 QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
-TESTS   := test_sdk_lib test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_recovery_ota test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls test_request_queue test_app_room
+TESTS   := test_sdk_lib test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_recovery_ota test_recovery_settings test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls test_request_queue test_app_room
 
 # Running a real application needs wasi-sdk to build it.
 ifdef WASI_SDK_PATH
@@ -165,6 +165,9 @@ test_ota: test_ota.c tinytest.h ../../../recovery/main/control.h $(NET)/ota_stre
 
 test_recovery_ota: test_recovery_ota.c tinytest.h ../../../recovery/main/ota.c ../../../recovery/main/ota.h ../../../recovery/main/control.h $(wildcard recovery_stubs/*.h) $(NET)/ota_stream.c $(NET)/include/ota_stream.h
 	$(CC) $(CFLAGS) -DRECOVERY_LAYOUT=0x1234abcd -Irecovery_stubs -I$(NET)/include -o $@ test_recovery_ota.c ../../../recovery/main/ota.c $(NET)/ota_stream.c
+
+test_recovery_settings: test_recovery_settings.c tinytest.h ../../../recovery/main/settings.c ../../../recovery/main/settings.h $(wildcard recovery_stubs/*.h) $(APPCONF)/appconf.c $(APPCONF)/include/appconf.h
+	$(CC) $(CFLAGS) -Irecovery_stubs -I$(APPCONF)/include -o $@ test_recovery_settings.c ../../../recovery/main/settings.c $(APPCONF)/appconf.c
 
 test_log_ring: test_log_ring.c tinytest.h $(MAIN)/log_ring.c $(MAIN)/log_ring.h
 	$(CC) $(CFLAGS) -I$(MAIN) -o $@ test_log_ring.c $(MAIN)/log_ring.c
