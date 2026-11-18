@@ -12,6 +12,7 @@ import org.perinkpheral.core.build.Sdk
 import org.perinkpheral.core.catalog.Catalog
 import org.perinkpheral.core.device.Bmp
 import org.perinkpheral.core.device.DeviceClient
+import org.perinkpheral.core.device.Endurance
 import org.perinkpheral.core.device.LogFollower
 import org.perinkpheral.core.device.UsbConsole
 import org.perinkpheral.core.simulator.SimulatorNetwork
@@ -68,6 +69,8 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
 
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
     perinkpheral status                       what the device is and how it is doing
+    perinkpheral soak --out <dir> --image <id> [--hours 72]
+                                              observe a release image; logs, status and gaps, no device changes
     perinkpheral log [--follow] [--app]       its log; --app: only the lines of applications
     perinkpheral shot [out.png]               the frame its panel shows
     perinkpheral press 3 3 2L [--shot f.png]  buttons: 1-4 a short press, 1L-4L a long one
@@ -278,6 +281,9 @@ private fun run(raw: Array<String>): Int {
             val status = Json.parse(device(arguments).status()) as Map<*, *>
             status.forEach { (key, value) -> println("%-18s %s".format(key, value)) }
         }
+        "soak" -> Endurance(device(arguments), File(arguments.option("out") ?: fail("--out is required")),
+            arguments.option("image") ?: fail("--image is required")).run(
+                (arguments.option("hours") ?: "72").toDouble())
         "log" -> {
             val log = LogFollower(device(arguments))
             val isFollowing = arguments.has("follow")

@@ -21,5 +21,11 @@ val firmwareUpdateTest by tasks.registering(JavaExec::class) {
     mainClass.set("org.perinkpheral.core.device.FirmwareUpdateTest")
 }
 tasks.check { dependsOn(firmwareUpdateTest) }
+val enduranceTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.perinkpheral.core.device.EnduranceTest")
+}
+tasks.check { dependsOn(enduranceTest) }
 // The tests above have a main entry point, not JUnit annotations.
 tasks.test { failOnNoDiscoveredTests.set(false) }

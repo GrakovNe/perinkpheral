@@ -2,8 +2,9 @@
 
 The owner's test scope of 2026-11-17: operation for days, bounded memory, recovery after
 an interrupted write and a loss of power. This file distinguishes existing checks from
-manual tests. No soak runner, fuzz suite, random-button runner or power-switch runner is
-implemented in `tools/cli`.
+manual tests. `tools/perinkpheral soak` collects read-only endurance observations;
+it does not exercise buttons, change power modes or inject faults. No fuzz suite,
+random-button runner or power-switch runner is implemented in `tools/cli`.
 
 Read [CLAUDE.md](../../CLAUDE.md) for the specification and [AGENTS.md](../../AGENTS.md)
 for build and device recipes. The HTTP surface is [openapi.yaml](../api/openapi.yaml).
@@ -79,6 +80,55 @@ require hardware tests. Injected presses do not test the button pins.
 
 ## Manual endurance test
 
+### Observation collector
+
+```sh
+tools/perinkpheral --host <address> soak --out <private-run-directory> \
+    --image <release-image-id> --hours 72
+```
+
+The expected image must be a release build, running with completed probation. Keep
+the exact downloaded binary, its release identity and matching ELF when available;
+an ELF from a different build is not an exact symbol file. The 0.1.44 CI artifacts
+did not retain the ELF, which limits postmortem symbolication for that candidate.
+
+The collector writes `run.json`, `status.jsonl`, `log.jsonl`, `events.jsonl` and an
+atomically replaced `progress.json`. Status is sampled every minute and the log every
+two seconds. Responses are not retried invisibly. Boot identifiers detect restarts
+even when the new log cursor has already passed the previous one; missing ring-buffer
+bytes and observation gaps are recorded. The collected files may contain private
+application data and network names; keep the directory private and outside git.
+
+The process must remain running on an awake computer. Resume with the same command
+and directory: the original deadline remains, and interrupted observation is not
+counted as evidence of continuous operation. Another collector cannot own the same
+directory. There is no automatic device restart, repair, update or pass verdict.
+
+Use `phase.txt` in the run directory to label the physical scenario. `powered` is
+the default. `sleep` reduces log requests to one every 30 seconds; unavailable-device
+requests also back off to 30 seconds. This file changes observation only, not the
+device's settings. After the first 24 hours the collector records a reminder that
+the physical sleep phase still needs to be arranged. At the end it says
+`awaiting_review`, not passed. Settings, applications, real buttons, the panel and
+recovery still need the manual checks below.
+
+### Release candidate sequence
+
+Use one frozen release image and application set for 72 hours, without scheduled
+restarts: 24 hours with power saving disabled, 24 hours with Always and no USB host,
+then 24 hours with Auto and controlled network outages of 1, 10 and 30 minutes on a
+test network. Leave the final 12 hours quiet. Record each intervention and compare
+memory only in equivalent settled states. USB removal with the battery connected
+is a power-profile transition, not a power cut. An ordinary charger can sustain the
+sleep test without presenting a USB host; this is not a battery-life measurement.
+
+Afterward check OTA, physical confirmation, exact image identity and probation,
+then manual recovery entry and exit, and compare settings and application versions.
+A separate 26-hour static-image run with the header clock disabled checks the daily
+panel refresh: routine screen updates can postpone that deadline.
+
+### Physical checks
+
 Use a separate bench device. The owner's shelf device is not a test bench; obtain the
 owner's agreement before installing, removing or flashing on it. Record the firmware,
 applications and versions, network, power profile, duration and operations performed.
@@ -127,8 +177,9 @@ See [SECURITY.md](../../SECURITY.md) for network access and physical confirmatio
 
 ## Coverage not implemented
 
-Long-running automated soak, parser fuzzing, random navigation, network fault injection
-and controlled power cuts need runners and, for the hardware cases, a dedicated bench.
+Automated workload generation, parser fuzzing, random navigation, network fault
+injection and controlled power cuts need runners and, for the hardware cases, a
+dedicated bench. The read-only soak collector does not perform these operations.
 They are not CI jobs and have no CLI commands. Battery life also needs measured current.
 Firmware/SDK tool logic belongs in `tools/core`, commands and generators in
 `tools/cli`, and device or simulator code in C. The separate Python CAD exporter
