@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.48
+
+- Show Update all whenever at least one app update is available.
+- Raise the ESP locating stops by 0.5 mm and refresh the enclosure print files.
+
 ## 0.1.47
 
 - Show installed app capacity as a thin bar below the heading.
