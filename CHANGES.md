@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.46
+
+- Fix the app auto-update switch reporting "Invalid value."
+- Place the logging switch to the right of the log level.
+
 ## 0.1.45
 
 - New app installations open on the device. Updates keep the current screen.
