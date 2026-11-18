@@ -559,6 +559,11 @@ paths:
       tags: [Firmware]
       summary: Select recovery and restart; uploading there requires physical OK
       description: Refused while main is on probation. Does not erase the main image or user data.
+      parameters:
+        - name: manual
+          in: query
+          description: Show recovery immediately instead of the planned update preparation screen.
+          schema: { type: boolean, default: false }
       responses:
         "200": { $ref: "#/components/responses/Ok" }
         "400": { $ref: "#/components/responses/Error" }

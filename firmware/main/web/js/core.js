@@ -84,6 +84,7 @@ const WORDS = { Save: ["Saving", "Saved"], Install: ["Installing", "Installed"],
                 Remove: ["Removing", "Removed"], Update: ["Updating", "Updated"],
                 "Update all": ["Updating", "Updated"],
                 Connect: ["Connecting", "Connected"], Restart: ["Restarting", "Restarting"],
+                "Enter recovery": ["Entering recovery", "Entering recovery"],
                 "Factory reset": ["Resetting", "Reset"], Refresh: ["Loading", "Refresh"],
                 Set: ["Setting", "Set"], "Check for updates": ["Checking", "Check for updates"] };
 

@@ -50,7 +50,7 @@ static atomic_bool s_on_probation;
 _Static_assert(sizeof(esp_ota_select_entry_t) <= OTA_HANDOFF_OFFSET,
                "recovery hint overlaps the boot record");
 
-const char *ota_enter_recovery(void)
+const char *ota_enter_recovery(bool update)
 {
     if (s_on_probation) { return "Previous update is being verified."; }
     const esp_partition_t *factory = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
@@ -58,6 +58,7 @@ const char *ota_enter_recovery(void)
     if (!factory || esp_ota_set_boot_partition(factory) != ESP_OK) {
         return "Recovery image unavailable. Restore it over USB.";
     }
+    if (!update) { return NULL; }
     const esp_partition_t *metadata = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
                                                         ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
     const ota_handoff_t hint = { OTA_HANDOFF_MAGIC, ~OTA_HANDOFF_MAGIC };

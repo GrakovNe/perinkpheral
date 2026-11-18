@@ -706,7 +706,11 @@ static esp_err_t handle_reset(httpd_req_t *request)
 static esp_err_t handle_ota_recovery(httpd_req_t *request)
 {
     /* Entering recovery is a restart. Writing an image still needs physical OK there. */
-    const char *error = ota_enter_recovery();
+    char query[32], manual_value[6];
+    bool manual = httpd_req_get_url_query_str(request, query, sizeof query) == ESP_OK &&
+                  httpd_query_key_value(query, "manual", manual_value, sizeof manual_value) == ESP_OK &&
+                  strcmp(manual_value, "true") == 0;
+    const char *error = ota_enter_recovery(!manual);
     if (error) { return send_error(request, error); }
     esp_err_t result = send_ok(request, "Entering recovery.");
     host_stop_soon(HOST_STOP_RESTART);
@@ -715,7 +719,7 @@ static esp_err_t handle_ota_recovery(httpd_req_t *request)
 
 static esp_err_t handle_ota_release(httpd_req_t *request)
 {
-    return send_failure(request, "409 Conflict", "Download the image in the browser and enter recovery.");
+    return send_failure(request, "409 Conflict", "Download perinkpheral.bin from the latest GitHub release, then click Device > Enter recovery and install the file.");
 }
 
 esp_err_t web_server_take_firmware(httpd_req_t *request)

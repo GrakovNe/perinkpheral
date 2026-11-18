@@ -22,8 +22,9 @@ void ota_start(bool network_stored);
 /* True while this image is still on probation. */
 bool ota_is_on_probation(void);
 
-/* Select recovery durably; the caller then performs an orderly restart. */
-const char *ota_enter_recovery(void);
+/* Select recovery durably; the caller then performs an orderly restart.
+ * An update keeps its preparation screen until the upload arrives. */
+const char *ota_enter_recovery(bool update);
 
 #ifdef __cplusplus
 }

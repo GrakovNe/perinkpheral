@@ -191,3 +191,53 @@ async function checkRelease({ length = "512", code = 200, unavailable = false, i
   assert.equal(result.hidden, true);
   console.log("Release availability checks passed: compressed/missing lengths, absent files, network errors and decoded size handoff.");
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+const recoveryButton = source.slice(source.indexOf('byId("enter-recovery")'), source.indexOf('byId("reset")'));
+async function enterRecovery(statuses, { dropped = false, rejected = false } = {}) {
+  let clock = 0, reads = 0;
+  const requests = [], redirects = [], errors = [], handlers = {};
+  const button = { addEventListener(event, handler) { handlers[event] = handler; } };
+  const context = vm.createContext({
+    Error, Date: { now: () => clock },
+    setTimeout: (callback, delay) => { clock += delay; callback(); },
+    AbortSignal: { timeout: () => undefined },
+    byId: () => button, location: { assign: url => redirects.push(url) },
+    busy: async (target, action) => {
+      assert.equal(target, button);
+      try { await action(); } catch (error) { errors.push(error.message); }
+    },
+    fetch: async (url, options) => {
+      if (url === "/api/status") {
+        const current = statuses[Math.min(reads++, statuses.length - 1)];
+        if (!current) throw TypeError("device is restarting");
+        return { ok: true, json: async () => current };
+      }
+      requests.push([url, options.method]);
+      if (rejected) return { ok: false, status: 400, text: async () => '{"error":"Previous update is being verified."}' };
+      if (dropped) throw TypeError("reply lost during restart");
+      return { ok: true };
+    },
+  });
+  vm.runInContext(workflow + recoveryButton, context);
+  await handlers.click({ currentTarget: button });
+  return { requests, redirects, errors, reads };
+}
+
+(async () => {
+  for (const dropped of [false, true]) {
+    const result = await enterRecovery([main(), null, recovery()], { dropped });
+    assert.deepEqual(result.requests, [["/api/ota/recovery?manual=true", "POST"]]);
+    assert.deepEqual(result.redirects, ["/"]);
+    assert.equal(result.reads, 3, "open recovery only once its server is ready");
+    assert.deepEqual(result.errors, []);
+  }
+  let result = await enterRecovery([main()], { rejected: true });
+  assert.deepEqual(result.redirects, []);
+  assert.equal(result.reads, 0, "a refused request must not wait for a restart");
+  assert.deepEqual(result.errors, ["Previous update is being verified."]);
+  result = await enterRecovery([main()]);
+  assert.deepEqual(result.redirects, []);
+  assert.deepEqual(result.errors, ["Recovery not found. Check the address on the device screen."]);
+  assert.ok(result.reads <= 45, "waiting for recovery is bounded");
+  console.log("Manual recovery checks passed: delayed startup, lost reply, refusal, timeout and page navigation.");
+})().catch(error => { console.error(error); process.exitCode = 1; });

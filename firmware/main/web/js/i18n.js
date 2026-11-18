@@ -14,6 +14,10 @@ const RUSSIAN = {
   /* recovery updates */
   "Downloading firmware.": "Скачивание прошивки.",
   "Entering recovery.": "Переход в восстановление.",
+  "Enter recovery": "Войти в recovery",
+  "Entering recovery": "Переход в recovery",
+  "Download perinkpheral.bin from the latest GitHub release, then click Device > Enter recovery and install the file.":
+    "Скачайте perinkpheral.bin из последнего релиза на GitHub, затем нажмите «Устройство > Войти в recovery» и установите файл.",
   "Checking the new firmware.": "Проверка новой прошивки.",
   "Update stopped": "Обновление остановлено",
   "Invalid image size.": "Недопустимый размер прошивки.",

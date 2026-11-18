@@ -348,6 +348,24 @@ byId("restart").addEventListener("click", async event => {
   if (await send(event.target, "/api/restart", { method: "POST" })) afterRestart();
 });
 
+byId("enter-recovery").addEventListener("click", event => busy(event.currentTarget, async () => {
+  await firmwarePost("/api/ota/recovery?manual=true", undefined, 15000);
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, BACK_EVERY_MS));
+    let current = null;
+    try {
+      const response = await fetch("/api/status", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+      if (response.ok) current = await response.json();
+    } catch (error) { /* The device is restarting. */ }
+    if (current && current.mode === "recovery") {
+      location.assign("/");
+      return;
+    }
+  }
+  throw Error("Recovery not found. Check the address on the device screen.");
+}));
+
 byId("reset").addEventListener("click", async event => {
   if (await confirmed("Factory reset? All settings and app data will be erased.", "Factory reset")) {
     toast(CONFIRM_ON_DEVICE);
