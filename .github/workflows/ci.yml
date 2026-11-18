@@ -82,10 +82,11 @@ jobs:
         run: tools/perinkpheral > /dev/null
       - name: Host tests, frozen ABI and the layers
         run: make -C firmware/test/host test
-      - name: Recovery update clients
+      - name: Firmware and application update clients
         run: |
           tools/cli/gradlew -p tools/core firmwareUpdateTest
           node firmware/test/web/test_firmware_update.js
+          node firmware/test/web/test_app_requests.js
       - name: The applications in the simulator
         run: tools/perinkpheral sim-test firmware/test/sim
       - name: The pictures that differ

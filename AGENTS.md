@@ -68,15 +68,17 @@ and runs it in the real interpreter, and
 not needed; Java 21 or later is, even without wasi-sdk, because `make test`
 also runs the tools' language, layer and city-table checks.
 
-Recovery update clients have separate suites, run from the repository root:
+Firmware and application update clients have separate suites, run from the repository root:
 
 ```bash
 tools/cli/gradlew -p tools/core firmwareUpdateTest
 node firmware/test/web/test_firmware_update.js
+node firmware/test/web/test_app_requests.js
 ```
 
 The first tests the shared Kotlin client used by the CLI and CLion plugin;
-the second tests the browser update and manual recovery flows. Neither is
+the second tests the browser update and manual recovery flows; the third tests
+catalog and app-install retries, their limits and permanent refusals. None is
 part of `make test`. The firmware's simulator cases are separate too:
 `tools/perinkpheral sim-test firmware/test/sim`.
 

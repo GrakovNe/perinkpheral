@@ -58,8 +58,39 @@ function iconButton(rows, title, onClick) {
 async function ask(url, options) {
   const answer = await fetch(url, options);
   const json = await answer.json();
-  if (!answer.ok) throw new Error(json.error || "HTTP " + answer.status);
+  if (!answer.ok) {
+    const error = new Error(json.error || "HTTP " + answer.status);
+    error.status = answer.status;
+    throw error;
+  }
   return json;
+}
+
+/* Repeat catalog reads and installs only after an explicit refusal. A lost
+ * response may mean the installation was committed, so it must not be replayed. */
+async function askForApp(url, options) {
+  const delays = [2000, 4000, 8000];
+  let dismiss = null;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await ask(url, options);
+      } catch (error) {
+        const occupied = error.status === 503 && ["Not enough memory.", "Device busy."].includes(error.message);
+        const interrupted = error.status === 502 && error.message === "Download failed.";
+        if (!occupied && !interrupted) throw error;
+        if (attempt === delays.length) {
+          if (occupied) error.message = "Device busy. Try again shortly.";
+          throw error;
+        }
+        if (dismiss) dismiss();
+        dismiss = toast(occupied ? "Device busy. Retrying" : "Download interrupted. Retrying", "busy", true);
+        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      }
+    }
+  } finally {
+    if (dismiss) dismiss();
+  }
 }
 
 const post = body => ({ method: "POST", body: JSON.stringify(body) });
@@ -122,8 +153,8 @@ async function busy(button, work) {
 
 /* The device's "Saved." is what the tick on the button says already; anything more
  * than that - "Restart to apply." - is worth a line in the corner. */
-const send = (button, url, options) => busy(button, async () => {
-  const answer = await ask(url, options);
+const send = (button, url, options, request = ask) => busy(button, async () => {
+  const answer = await request(url, options);
   const isPlain = !answer.ok || answer.ok === "Saved." || answer.ok.endsWith("Restarting.");
   if (!isPlain) toast(answer.ok);
 });

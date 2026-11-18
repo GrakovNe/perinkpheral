@@ -146,6 +146,9 @@ const RUSSIAN = {
   /* the device's answers */
   "Device unreachable.": "Устройство недоступно.", "Device busy.": "Устройство занято.",
   "Not confirmed.": "Не подтверждено.", "Not enough memory.": "Недостаточно памяти.",
+  "Device busy. Retrying": "Устройство занято. Повторяем попытку",
+  "Download interrupted. Retrying": "Загрузка прервалась. Повторяем попытку",
+  "Device busy. Try again shortly.": "Устройство пока занято. Попробуйте чуть позже.",
   "Out of memory.": "Недостаточно памяти.", "Not enough storage.": "Недостаточно места.",
   "Storage error.": "Ошибка хранилища.", "Invalid request.": "Неверный запрос.",
   "Invalid value.": "Неверное значение.", "Invalid value: {0}.": "Неверное значение: {0}.",

@@ -258,7 +258,7 @@ async function install(button, offer) {
                                            : "{0} trusts its own certificate authority: {1}.",
                          offerSays(offer, "title"), trusts.join(", ")), "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-  if (await send(button, url, post({ files: offer.app.files }))) await loadApps();
+  if (await send(button, url, post({ files: offer.app.files }), askForApp)) await loadApps();
 }
 
 /* An icon is eleven rows of eleven cells; what a catalog gives that is not one is no icon. */
@@ -453,7 +453,7 @@ byId("update-all").addEventListener("click", async () => {
   await busy(button, async () => {
     for (const offer of updates()) {
       const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-      await ask(url, post({ files: offer.app.files }));
+      await askForApp(url, post({ files: offer.app.files }));
     }
   });
   await loadApps();
@@ -479,19 +479,20 @@ async function loadCatalogs() {
   const found = [], silent = [];
   for (let source = 0; source < sources.length; source++) {
     try {
-      const catalog = await ask("/api/catalog?source=" + source);
+      const catalog = await askForApp("/api/catalog?source=" + source);
       /* The first catalog that has an application is the one it comes from. */
       for (const app of catalog.apps)
         if (!found.some(offer => offer.app.name === app.name)) found.push({ app, source });
     } catch (error) {
-      silent.push(sources[source]);
+      silent.push({ source: sources[source], error });
     }
   }
   offered = found;
   catalogsRead = true;
   drawTiles();
   loadGlyphs();
-  for (const source of silent) toast(t("Source unavailable: {0}", source), "error");
+  for (const { source, error } of silent)
+    toast(error.status === 503 ? error.message : t("Source unavailable: {0}", source), "error");
 }
 
 /* ---- sources ---- */
