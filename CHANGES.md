@@ -4,6 +4,15 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.50
+
+- Queue individual app updates and Update all together, with immediate progress
+  notices and a result for each app. Repeated clicks do not duplicate an install,
+  and one failed update does not stop the remaining apps.
+- Leaving the page drops updates that have not started; returning from the
+  browser cache refreshes the list without replaying an installation.
+- Describe perINKpheral as a specialized operating system for e-paper devices.
+
 ## 0.1.49
 
 - Do not offer older stable app versions from a stale catalog as updates.

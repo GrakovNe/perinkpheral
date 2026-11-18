@@ -7,6 +7,7 @@ const vm = require("node:vm");
 const read = name => fs.readFileSync(path.join(__dirname, "../../main/web/js", name), "utf8");
 const core = read("core.js");
 const apps = read("apps.js");
+const installCode = apps.slice(apps.indexOf("const appInstallQueue"), apps.indexOf("/* An icon is"));
 const offer = { source: 0, app: { name: "iss", version: "1.2.3", files: [{ name: "app.wasm" }] } };
 
 async function run(replies, action = "install", options = {}) {
@@ -19,8 +20,9 @@ async function run(replies, action = "install", options = {}) {
   const context = vm.createContext({
     button, offer: { ...offer, app: { ...offer.app, version: options.offeredVersion || offer.app.version } },
     Error, encodeURIComponent, TextEncoder, MANIFEST_AUTHOR_MAX: 63,
+    window: { addEventListener() {} },
     t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
-    installed: options.fresh ? [] : [{ name: "iss", version: options.installedVersion || "1.0.0" }],
+    installed: options.fresh ? [] : [{ name: "iss", version: options.installedVersion || "1.0.0" }, { name: "clock", version: "1.0.0" }],
     document: { getElementById: () => button },
     compatibilityProblem: () => options.incompatible ? "Update the firmware." : null,
     confirmed: async () => false,
@@ -52,7 +54,7 @@ async function run(replies, action = "install", options = {}) {
     messages.push(message);
     return () => { message.dismissed = true; };
   };
-  vm.runInContext(apps.slice(apps.indexOf("async function install("), apps.indexOf("/* An icon is")), context);
+  vm.runInContext(installCode, context);
   const updateStart = apps.indexOf('byId("update-all").addEventListener');
   vm.runInContext(apps.slice(updateStart, apps.indexOf('byId("auto-update-apps").addEventListener', updateStart)), context);
   vm.runInContext(apps.slice(apps.indexOf("function catalogAuthorIsAllowed("), apps.indexOf("/* ---- sources ---- */")), context);
@@ -106,6 +108,7 @@ async function testCachedCatalogOffers() {
     const node = { tag, ...attributes, children: [], listeners: {},
       append(...children) { this.children.push(...children); },
       replaceChildren(...children) { this.children = children; },
+      classList: { add() {}, remove() {} },
       addEventListener(event, handler) { this.listeners[event] = handler; },
     };
     rendered.push(node);
@@ -121,11 +124,13 @@ async function testCachedCatalogOffers() {
     CATALOG_INSTALLED_MAX: 24, GEAR: [], INFO: [], byId, make,
     isIcon: () => false, picture: () => ({}), iconButton: () => ({}),
     compatibilityProblem: () => "", offerSays: (offer, field) => offer.app[field] || "",
-    t: text => text, toast() {}, loadApps: async () => {}, post: body => body,
+    t: text => text, toast: () => () => {}, loadApps: async () => {}, post: body => body,
+    window: { addEventListener() {} }, drawTiles() {},
     busy: async (_, work) => { await work(); return true; },
     askForApp: async (url, body) => { requests.push({ url, body }); },
   });
   vm.runInContext(read("compatibility.js"), context);
+  vm.runInContext(installCode, context);
   vm.runInContext(apps.slice(apps.indexOf("function tile("), apps.indexOf("/* ---- what an application is")), context);
   const updatesStart = apps.indexOf("const updates = () =>");
   vm.runInContext(apps.slice(updatesStart, apps.indexOf('byId("catalog-search").addEventListener')), context);
@@ -222,7 +227,7 @@ function testUpdateAllVisibility() {
   const updatesStart = apps.indexOf("const updates = () =>");
   vm.runInContext(apps.slice(updatesStart, apps.indexOf("/* The catalog:", updatesStart)), context);
   vm.runInContext(apps.slice(apps.indexOf("function drawTiles()"),
-    apps.indexOf("/* Every application a source has another version")), context);
+    apps.indexOf("/* Bulk and individual updates share the queue")), context);
   for (const automatic of [false, true]) {
     context.settings.app_auto_update = automatic;
     for (const count of [0, 1, 2]) {
@@ -258,7 +263,7 @@ async function testAuthors() {
     t: (text, value) => text.replace("{0}", value),
     toast: text => messages.push(text),
     byId: id => id === "catalog-search" ? { value: "" } : view,
-    compatibilityProblem: () => "", picture: () => ({}),
+    compatibilityProblem: () => "", picture: () => ({}), markPendingInstall() {},
     offerSays: (offer, field) => offer.app[field] || "",
     make: (tag, attributes = {}) => {
       rendered.push({ tag, ...attributes });
@@ -305,7 +310,8 @@ async function testAuthors() {
   assert.equal(result.requests.length, 2);
   assert.equal(result.reloads, 1);
   assert.deepEqual(result.delays, [2000]);
-  assert.equal(result.messages[0].text, "Device busy. Retrying");
+  assert.equal(result.messages[0].text, "Updating ISS…");
+  assert(result.messages.some(message => message.text === "Device busy. Retrying"));
   assert(!result.messages.some(message => message.kind === "error"));
   assert.deepEqual(result.requests[0], result.requests[1]);
   assert.equal(result.messages.at(-1).text, "ISS updated to 1.2.3.");
@@ -314,8 +320,8 @@ async function testAuthors() {
   assert.equal(result.requests.length, 4);
   assert(result.requests[2].url.endsWith("app=iss"));
   assert(result.requests[3].url.endsWith("app=clock"));
-  assert.equal(result.messages[1].text, "Download interrupted. Retrying");
-  assert.equal(result.reloads, 1);
+  assert(result.messages.some(message => message.text === "Download interrupted. Retrying"));
+  assert.equal(result.reloads, 2);
   assert.deepEqual(result.messages.filter(message => message.kind === undefined).map(message => message.text),
     ["ISS updated to 1.2.3.", "Clock updated to 2.0.0."]);
 
@@ -348,7 +354,9 @@ async function testAuthors() {
   assert.equal(result.requests.length, 4);
   assert.equal(result.messages.at(-1).text, "ISS: Download failed.");
   result = await run([memory], "update-all");
-  assert.equal(result.requests.length, 4);
-  assert(result.requests.every(request => request.url.endsWith("app=iss")));
+  assert.equal(result.requests.length, 8);
+  assert(result.requests.slice(0, 4).every(request => request.url.endsWith("app=iss")));
+  assert(result.requests.slice(4).every(request => request.url.endsWith("app=clock")));
+  await require("./test_app_install_queue.js")();
   console.log("App requests: retry, exhaustion, update all and refusal checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });
