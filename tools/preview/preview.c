@@ -362,19 +362,22 @@ int main(int argc, char **argv)
         }
     }
 
-    const struct { const char *name; recovery_state_t state; const char *address; } recovery[] = {
-        { "recovery-waiting", WAITING, "" },
-        { "recovery-online", WAITING, "192.168.1.123" },
-        { "recovery-confirm", CONFIRM, "192.168.1.123" },
-        { "recovery-writing", WRITING, "192.168.1.123" },
-        { "recovery-failed", FAILED, "" },
-        { "recovery-checking", RECEIVING, "192.168.1.123" },
-        { "recovery-starting", RESTART, "192.168.1.123" },
+    const struct { const char *name; recovery_state_t state; const char *address; recovery_wait_t waiting; } recovery[] = {
+        { "recovery-preparing", WAITING, "", RECOVERY_WAIT_PREPARING },
+        { "recovery-preparing-online", WAITING, "192.168.1.123", RECOVERY_WAIT_PREPARING },
+        { "recovery-connecting", WAITING, "", RECOVERY_WAIT_CONNECTING },
+        { "recovery-waiting", WAITING, "", RECOVERY_WAIT_NETWORK },
+        { "recovery-online", WAITING, "192.168.1.123", RECOVERY_WAIT_NETWORK },
+        { "recovery-confirm", CONFIRM, "192.168.1.123", RECOVERY_WAIT_PREPARING },
+        { "recovery-writing", WRITING, "192.168.1.123", RECOVERY_WAIT_PREPARING },
+        { "recovery-failed", FAILED, "", RECOVERY_WAIT_NETWORK },
+        { "recovery-checking", RECEIVING, "192.168.1.123", RECOVERY_WAIT_PREPARING },
+        { "recovery-starting", RESTART, "192.168.1.123", RECOVERY_WAIT_PREPARING },
     };
     for (size_t index = 0; index < sizeof recovery / sizeof recovery[0]; index++) {
         gfx_init(&g, fb, W, H);
         recovery_screen_draw(&g, recovery[index].state, "0.1.35-1234567", recovery[index].address,
-                             "perink-recovery");
+                             "perink-recovery", recovery[index].waiting);
         if (save(dir, recovery[index].name)) { return 1; }
     }
 
@@ -390,7 +393,7 @@ int main(int argc, char **argv)
         for (size_t index = 0; index < sizeof recovery / sizeof recovery[0]; index++) {
             gfx_init(&g, fb, W, H);
             recovery_screen_draw(&g, recovery[index].state, "0.1.35-1234567", recovery[index].address,
-                                 "perink-recovery");
+                                 "perink-recovery", recovery[index].waiting);
             char name[64];
             snprintf(name, sizeof name, "%s-ru", recovery[index].name);
             if (save(dir, name)) { return 1; }
@@ -400,7 +403,7 @@ int main(int argc, char **argv)
 
     gfx_init(&g, fb, W, H);
     recovery_screen_draw(&g, CONFIRM, "1234567890123456789012345678901", "192.168.1.123",
-                         "perink-recovery");
+                         "perink-recovery", RECOVERY_WAIT_PREPARING);
     if (save(dir, "recovery-long-version")) { return 1; }
 
     return 0;

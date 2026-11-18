@@ -14,6 +14,7 @@
 #include "esp_app_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_flash_partitions.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,6 +24,7 @@
 #include "host.h"
 #include "image_layout.h"
 #include "ota_stream.h"
+#include "ota_handoff.h"
 #include "power.h"
 #include "web_server.h"
 #include "wifi.h"
@@ -45,6 +47,9 @@ _Static_assert(offsetof(esp_app_desc_t, project_name) == 48 && sizeof(esp_app_de
 /* True from start until a freshly installed image has proved itself. */
 static atomic_bool s_on_probation;
 
+_Static_assert(sizeof(esp_ota_select_entry_t) <= OTA_HANDOFF_OFFSET,
+               "recovery hint overlaps the boot record");
+
 const char *ota_enter_recovery(void)
 {
     if (s_on_probation) { return "Previous update is being verified."; }
@@ -52,6 +57,14 @@ const char *ota_enter_recovery(void)
                                                 ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
     if (!factory || esp_ota_set_boot_partition(factory) != ESP_OK) {
         return "Recovery image unavailable. Restore it over USB.";
+    }
+    const esp_partition_t *metadata = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+                                                        ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
+    const ota_handoff_t hint = { OTA_HANDOFF_MAGIC, ~OTA_HANDOFF_MAGIC };
+    /* Failure only loses the quiet update screen; recovery remains bootable. */
+    if (!metadata || metadata->erase_size <= OTA_HANDOFF_OFFSET + sizeof hint ||
+        esp_partition_write(metadata, OTA_HANDOFF_OFFSET, &hint, sizeof hint) != ESP_OK) {
+        ESP_LOGW(TAG, "recovery update hint unavailable");
     }
     return NULL;
 }

@@ -193,6 +193,13 @@ below, including those already recorded above, with settings and applications ba
 - Upload from a browser and CLI over saved WPA2 and WPA3 networks, and through the recovery
   access point with no saved network and with damaged NVS. Verify the displayed version,
   OK confirmation, timeout and BACK cancellation. A held key must not approve a new request.
+- Verify recovery entry screens separately: a requested update keeps "Preparing update"
+  through connection and header receipt, then asks for confirmation; manual entry, failed
+  probation and interrupted writes show recovery rather than preparation. A requested
+  update which never uploads exposes network help after 30 seconds. Without saved Wi-Fi,
+  access-point instructions appear immediately. The one-use hint and these screen choices
+  have host tests and reviewed English/Russian previews; this revision still needs USB
+  installation and hardware verification of both entry paths.
 - Reject foreign projects, old partition layouts, another chip, oversized images, truncated
   headers and damaged checksums. Invalid headers must leave main untouched.
 - Cut power before and during boot-metadata erasure, during each portion of main erasure and

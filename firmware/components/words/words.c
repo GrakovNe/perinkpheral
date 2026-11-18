@@ -10,6 +10,8 @@
 /* A notice's large lines hold about eleven letters and its line of
  * ordinary text sixteen: a translation is written to fit, not to mirror. */
 static const char *const ENGLISH[WORD_COUNT] = {
+    [WORD_PREPARING] = "Preparing", [WORD_UPDATE_PREPARATION] = "update",
+    [WORD_RECOVERY] = "Recovery", [WORD_CONNECTING] = "Connecting", [WORD_TO_WIFI] = "to Wi-Fi",
     [WORD_CHECKING] = "Checking", [WORD_STARTING] = "Starting", [WORD_FIRMWARE] = "firmware",
     [WORD_KEEP_DEVICE_ON] = "Keep the device on", [WORD_TRY_INSTALLED] = "Try installed",
     [WORD_UPDATE_FAILED] = "Update failed",
@@ -46,6 +48,8 @@ static const char *const ENGLISH[WORD_COUNT] = {
 };
 
 static const char *const RUSSIAN[WORD_COUNT] = {
+    [WORD_PREPARING] = "Подготовка", [WORD_UPDATE_PREPARATION] = "обновления",
+    [WORD_RECOVERY] = "Восстановление", [WORD_CONNECTING] = "Подключение", [WORD_TO_WIFI] = "к Wi-Fi",
     [WORD_CHECKING] = "Проверка", [WORD_STARTING] = "Запуск", [WORD_FIRMWARE] = "прошивки",
     [WORD_KEEP_DEVICE_ON] = "Не выключайте устройство", [WORD_TRY_INSTALLED] = "Запустить",
     [WORD_UPDATE_FAILED] = "Не удалось обновить",

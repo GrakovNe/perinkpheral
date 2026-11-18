@@ -7,6 +7,16 @@
 
 enum { TEXT_MARGIN = 24, HEADING_BASELINE = 32, DETAIL_BASELINE = 222 };
 
+recovery_wait_t recovery_screen_wait(bool update_requested, bool saved_network, bool online,
+                                    uint32_t uptime)
+{
+    if (saved_network && uptime < RECOVERY_NETWORK_HELP_SECONDS) {
+        if (update_requested) { return RECOVERY_WAIT_PREPARING; }
+        if (!online) { return RECOVERY_WAIT_CONNECTING; }
+    }
+    return RECOVERY_WAIT_NETWORK;
+}
+
 static void detail_draw(gfx_t *graphics, const char *text)
 {
     const gfx_font_t *font = gfx_font_system();
@@ -18,7 +28,7 @@ static void detail_draw(gfx_t *graphics, const char *text)
 }
 
 void recovery_screen_draw(gfx_t *graphics, recovery_state_t state, const char *version,
-                          const char *address, const char *access_point)
+                          const char *address, const char *access_point, recovery_wait_t waiting)
 {
     gfx_clear(graphics, false);
     notice_t notice = { .icon = GFX_ICON_UPDATE };
@@ -26,8 +36,24 @@ void recovery_screen_draw(gfx_t *graphics, recovery_state_t state, const char *v
     const char *detail = NULL;
     switch (state) {
         case WAITING:
+        case RECEIVING:
+            if (waiting == RECOVERY_WAIT_PREPARING || state == RECEIVING) {
+                notice.first = word(WORD_PREPARING);
+                notice.second = word(WORD_UPDATE_PREPARATION);
+                notice.is_working = true;
+                break;
+            }
+            if (waiting == RECOVERY_WAIT_CONNECTING) {
+                heading = word(WORD_RECOVERY);
+                notice.first = word(WORD_CONNECTING);
+                notice.second = word(WORD_TO_WIFI);
+                notice.back = word(WORD_TRY_INSTALLED);
+                break;
+            }
+            /* Network instructions are a fallback, not a step in a normal update. */
+            /* fall through */
         case FAILED:
-            heading = word(state == FAILED ? WORD_UPDATE_FAILED : WORD_FIRMWARE_TITLE);
+            heading = word(state == FAILED ? WORD_UPDATE_FAILED : WORD_RECOVERY);
             notice.first = word(address[0] ? WORD_OPEN : WORD_JOIN_WIFI);
             notice.second = address[0] ? word(WORD_DEVICE_PAGE) : access_point;
             notice.detail = address[0] ? address : "192.168.4.1";
@@ -47,7 +73,6 @@ void recovery_screen_draw(gfx_t *graphics, recovery_state_t state, const char *v
             notice.is_working = true;
             detail = word(WORD_KEEP_DEVICE_ON);
             break;
-        case RECEIVING:
         case RETRYING:
         case RESTART:
             notice.first = word(state == RESTART ? WORD_STARTING : WORD_CHECKING);

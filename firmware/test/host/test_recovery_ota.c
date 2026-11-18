@@ -4,12 +4,16 @@
 #include "recovery_stubs/esp_ota_ops.h"
 #include "recovery_stubs/esp_image_format.h"
 #include "../../../recovery/main/ota.h"
+#include "ota_handoff.h"
 
 enum { IMAGE_BYTES = 1000 };
 static uint8_t image[IMAGE_BYTES];
 static const esp_partition_t factory = { .subtype = ESP_PARTITION_SUBTYPE_APP_FACTORY, .size = 4096, .address = 0x20000 };
 static const esp_partition_t main_slot = { .subtype = ESP_PARTITION_SUBTYPE_APP_OTA_0, .size = 4096, .address = 0xe0000 };
 static const esp_partition_t *running = &factory;
+static const esp_partition_t metadata = { .size = 8192, .erase_size = 4096 };
+static ota_handoff_t handoff;
+static bool missing_metadata, refuse_metadata_write;
 static char trace[64];
 static size_t trace_length;
 static bool refuse_factory, refuse_begin, refuse_write, refuse_end, refuse_main;
@@ -24,7 +28,8 @@ static void record(char event)
 
 const esp_partition_t *esp_partition_find_first(int type, int subtype, const char *label)
 {
-    (void)type; (void)label;
+    (void)label;
+    if (type == ESP_PARTITION_TYPE_DATA) { return missing_metadata ? NULL : &metadata; }
     return subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0 ? &main_slot : &factory;
 }
 
@@ -32,10 +37,25 @@ const esp_partition_t *esp_ota_get_running_partition(void) { return running; }
 
 esp_err_t esp_partition_read(const esp_partition_t *partition, size_t offset, void *data, size_t length)
 {
+    if (partition == &metadata) {
+        CHECK(offset == OTA_HANDOFF_OFFSET && length == sizeof handoff);
+        if (unreadable) { return ESP_FAIL; }
+        memcpy(data, &handoff, length);
+        return ESP_OK;
+    }
     CHECK(partition == &main_slot && offset == 0 && length == OTA_HEAD_BYTES);
     record('R');
     if (unreadable) { return ESP_FAIL; }
     memcpy(data, image, length);
+    return ESP_OK;
+}
+
+esp_err_t esp_partition_write(const esp_partition_t *partition, size_t offset,
+                              const void *data, size_t length)
+{
+    CHECK(partition == &metadata && offset == OTA_HANDOFF_OFFSET && length == sizeof handoff);
+    if (refuse_metadata_write) { return ESP_FAIL; }
+    memcpy(&handoff, data, length);
     return ESP_OK;
 }
 
@@ -110,6 +130,8 @@ static void reset(void)
     running = &factory;
     refuse_factory = refuse_begin = refuse_write = refuse_end = refuse_main = false;
     bad_revision = unreadable = invalid_image = false;
+    missing_metadata = refuse_metadata_write = false;
+    memset(&handoff, 0xff, sizeof handoff);
 }
 
 static void test_clear_journal_before_erasing(void)
@@ -201,8 +223,38 @@ static void test_retry_validates_before_journal_changes(void)
     CHECK_STR(trace, "");
 }
 
+static void test_update_intent_is_consumed_once(void)
+{
+    reset();
+    CHECK(!recovery_ota_take_handoff(true));
+    handoff = (ota_handoff_t){ OTA_HANDOFF_MAGIC, ~OTA_HANDOFF_MAGIC };
+    CHECK(recovery_ota_take_handoff(true));
+    CHECK(handoff.magic == 0 && handoff.check == 0);
+    CHECK(!recovery_ota_take_handoff(true));
+
+    /* A power loss or crash between requesting recovery and its boot is not
+     * an ongoing update, and must not leave a hint for the next restart. */
+    handoff = (ota_handoff_t){ OTA_HANDOFF_MAGIC, ~OTA_HANDOFF_MAGIC };
+    CHECK(!recovery_ota_take_handoff(false));
+    CHECK(!recovery_ota_take_handoff(true));
+
+    handoff = (ota_handoff_t){ OTA_HANDOFF_MAGIC, 0xffffffff };
+    CHECK(!recovery_ota_take_handoff(true));
+    handoff = (ota_handoff_t){ OTA_HANDOFF_MAGIC, ~OTA_HANDOFF_MAGIC };
+    unreadable = true;
+    CHECK(!recovery_ota_take_handoff(true));
+    unreadable = false;
+    refuse_metadata_write = true;
+    CHECK(!recovery_ota_take_handoff(true));
+    refuse_metadata_write = false;
+    missing_metadata = true;
+    CHECK(!recovery_ota_take_handoff(true));
+    CHECK_STR(trace, "");
+}
+
 int main(void)
 {
+    test_update_intent_is_consumed_once();
     test_clear_journal_before_erasing();
     test_failures_keep_recovery_selected();
     test_retry_validates_before_journal_changes();

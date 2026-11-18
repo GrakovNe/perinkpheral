@@ -3,6 +3,9 @@
 #include "control.h"
 #include "ota_stream.h"
 
+/* Consume a one-boot UI hint before networking or accepting an upload. */
+bool recovery_ota_take_handoff(bool software_reset);
+
 /* Header checks, including this chip's revision, before any erase or consent. */
 const char *recovery_ota_check_header(const uint8_t header[OTA_HEAD_BYTES]);
 /* Starting only validates size; the first feed after confirmation begins writing. */

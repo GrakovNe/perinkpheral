@@ -1,14 +1,35 @@
 // SPDX-License-Identifier: MIT
 #include "ota.h"
 #include "esp_ota_ops.h"
+#include "esp_flash_partitions.h"
 #include "bootloader_common.h"
 #include "esp_image_format.h"
+#include "ota_handoff.h"
 #include <stddef.h>
 #include <string.h>
 
 _Static_assert(offsetof(esp_image_header_t, chip_id) == 12, "image chip field moved");
 _Static_assert(sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) == 32,
                "image description moved");
+
+_Static_assert(sizeof(esp_ota_select_entry_t) <= OTA_HANDOFF_OFFSET,
+               "recovery hint overlaps the boot record");
+
+bool recovery_ota_take_handoff(bool software_reset)
+{
+    const esp_partition_t *metadata = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+                                                        ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
+    ota_handoff_t hint;
+    if (!metadata || metadata->erase_size <= OTA_HANDOFF_OFFSET + sizeof hint ||
+        esp_partition_read(metadata, OTA_HANDOFF_OFFSET, &hint, sizeof hint) != ESP_OK ||
+        hint.magic != OTA_HANDOFF_MAGIC || hint.check != ~OTA_HANDOFF_MAGIC) {
+        return false;
+    }
+    const ota_handoff_t consumed = {0};
+    /* Clear even after a crash or power loss. A later boot cannot inherit intent. */
+    return esp_partition_write(metadata, OTA_HANDOFF_OFFSET, &consumed, sizeof consumed) == ESP_OK &&
+           software_reset;
+}
 
 const char *recovery_ota_check_header(const uint8_t header[OTA_HEAD_BYTES])
 {

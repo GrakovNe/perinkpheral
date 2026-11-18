@@ -275,7 +275,7 @@ static void start_network(void)
 
 static bool due(void) { return true; }
 
-static display_result_t draw(int current_state)
+static display_result_t draw(int current_state, recovery_wait_t waiting)
 {
     gfx_t graphics;
     gfx_init(&graphics, frame, DISPLAY_WIDTH, DISPLAY_HEIGHT);
@@ -284,12 +284,14 @@ static display_result_t draw(int current_state)
     portENTER_CRITICAL(&version_lock);
     memcpy(version, image_version, sizeof version);
     portEXIT_CRITICAL(&version_lock);
-    recovery_screen_draw(&graphics, current_state, version, address, access_point);
+    recovery_screen_draw(&graphics, current_state, version, address, access_point, waiting);
     return display_show(frame, REFRESH_FOR_SWITCH);
 }
 
 void app_main(void)
 {
+    bool update_requested = recovery_ota_take_handoff(esp_reset_reason() == ESP_RST_SW);
+    ESP_LOGI("recovery", "entry: %s", update_requested ? "update" : "recovery");
     board_init();
     gpio_config_t buttons = { .pin_bit_mask = (1ULL << OK_GPIO) | (1ULL << BACK_GPIO),
                               .mode = GPIO_MODE_INPUT };
@@ -305,6 +307,7 @@ void app_main(void)
     unsigned shown_generation = 0;
     recovery_keys_t buttons_state = {0};
     bool shown_online = false;
+    recovery_wait_t shown_waiting = RECOVERY_WAIT_NETWORK;
     uint32_t next_connection = 0;
     for (;;) {
         unsigned ticket = atomic_load(&control.ticket);
@@ -318,18 +321,34 @@ void app_main(void)
             recovery_control_change_ticket(&control, ticket, CANCELLED);
         } else if (current_state == CONFIRM && (pressed & 1)) {
             recovery_control_change_ticket(&control, ticket, ACCEPTED);
-        } else if ((current_state == WAITING || current_state == FAILED) && (pressed & 2) &&
+        } else if (shown == current_state &&
+                   (current_state == FAILED ||
+                    (current_state == WAITING && shown_waiting != RECOVERY_WAIT_PREPARING)) &&
+                   (pressed & 2) &&
                    recovery_control_claim_ticket(&control, ticket, RETRYING)) {
             recovery_control_set(&control, recovery_ota_retry() ? RESTART : FAILED);
         }
         bool connected = atomic_load(&online);
-        if (shown != current_state || shown_online != connected || shown_generation != generation) {
-            display_result_t result = draw(current_state);
+        if (station && !connected && now_seconds() >= next_connection) {
+            esp_wifi_connect();
+            next_connection = now_seconds() + NETWORK_RETRY_SECONDS;
+        }
+        if (current_state != WAITING) { update_requested = false; }
+        recovery_wait_t waiting = recovery_screen_wait(update_requested, station != NULL,
+                                                       connected, now_seconds());
+        bool network_help = current_state == FAILED ||
+                            (current_state == WAITING && waiting == RECOVERY_WAIT_NETWORK);
+        if (shown != current_state || (current_state == WAITING && shown_waiting != waiting) ||
+            (network_help && shown_online != connected) || shown_generation != generation) {
+            display_result_t result = draw(current_state, waiting);
             /* A new request may have the same visible version as the last one. */
             if (result == DISPLAY_SHOWN || result == DISPLAY_UNCHANGED) {
                 shown = current_state;
                 shown_generation = generation;
                 shown_online = connected;
+                shown_waiting = waiting;
+                ESP_LOGI("recovery", "screen: state=%d waiting=%d online=%d",
+                         current_state, waiting, connected);
             }
         }
         deadline_id_t deadline;
@@ -341,10 +360,6 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(1000));
             display_rest();
             esp_restart();
-        }
-        if (station && !connected && now_seconds() >= next_connection) {
-            esp_wifi_connect();
-            next_connection = now_seconds() + NETWORK_RETRY_SECONDS;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
