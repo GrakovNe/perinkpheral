@@ -316,6 +316,17 @@ HOST_IMPORT(screen_leave, void screen_leave(void));
 HOST_IMPORT(session_set, int32_t session_set(const void *data, int32_t length));
 HOST_IMPORT(session_get, int32_t session_get(void *buffer, int32_t capacity));
 
+/* A larger buffer for scene state, such as a packed game board. Lives in
+ * RAM with the same lifetime and access rules as session_set()/session_get(),
+ * independently of their 128 bytes. Storage is allocated when first used.
+ * scene_state_set() returns HOST_ERR_NO_SPACE if allocation fails and keeps
+ * the previous value. Length 0 releases the buffer. */
+#define HOST_SCENE_STATE_MAX 1024
+#define HOST_SINCE_scene_state_set "0.1.34"
+#define HOST_SINCE_scene_state_get "0.1.34"
+HOST_IMPORT(scene_state_set, int32_t scene_state_set(const void *data, int32_t length));
+HOST_IMPORT(scene_state_get, int32_t scene_state_get(void *buffer, int32_t capacity));
+
 /* One-shot timer: app_on_timer(id) after `milliseconds`. 0 cancels.
  * Setting a running timer restarts it. id: 0..HOST_TIMER_COUNT-1.
  * Timers stop when the application leaves the screen. */

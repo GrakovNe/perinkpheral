@@ -284,6 +284,7 @@
 <p>Use session memory for temporary UI state: the current page, selected row or unfinished edit. Up to 128 bytes (<code>HOST_SESSION_MAX</code>) survive unloads while the application remains in the navigation stack. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
 <p>Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.</p>
 
+<p>For larger temporary state, such as a packed game board, use <code>scene_state_set()</code> and <code>scene_state_get()</code>. The host allocates up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes on demand. This buffer is independent of the smaller session and follows the same lifetime and access rules. Both calls require firmware 0.1.34 or later.</p>
 <p>The session is attached after app_on_load() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_on_load() returns HOST_ERR_ARGUMENT.</p>
 <h2 id="model-screen">Navigation and refresh</h2>
 <p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.</p>
@@ -1238,6 +1239,8 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <tr><td class="c">void screen_request(void)</td><td>Requests the screen from a background handler; decided after delivery ends. Refused within 30 s of a press, over a question waiting for its answer, or within 30 s of the last grant. A refusal is discarded, with no retry</td></tr>
   <tr><td class="c">int32_t session_set(data, length)</td><td>Keeps up to <code>HOST_SESSION_MAX</code> (128) bytes while the application is in the stack. Length 0 clears. <code>HOST_ERR_ARGUMENT</code> from an instance loaded off the screen</td></tr>
   <tr><td class="c">int32_t session_get(buffer, capacity)</td><td>Copies what is kept. Returns its length; 0 for none; <code>HOST_ERR_NO_SPACE</code> when the buffer is smaller</td></tr>
+  <tr><td class="c">int32_t scene_state_set(data, length)</td><td>Keeps up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes in a separate session buffer. Length 0 releases the buffer. <code>HOST_ERR_NO_SPACE</code> if allocation fails; the previous value is retained</td></tr>
+  <tr><td class="c">int32_t scene_state_get(buffer, capacity)</td><td>Copies the larger buffer, with the same return values and access rules as <code>session_get()</code></td></tr>
 </table>
 
 <h2 id="ref-notifications">Notifications and header status</h2>

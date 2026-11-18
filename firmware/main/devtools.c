@@ -303,8 +303,8 @@ static void store_value(void *argument)
     command->result = app_kv_set(command->app_name, command->key, command->value, command->length);
     if (command->result == HOST_OK) {
         app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-        host_deliver(command->app_name, &changed);
         poller_hurry(command->app_name);
+        host_deliver(command->app_name, &changed);
     }
 }
 

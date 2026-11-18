@@ -113,13 +113,26 @@ typedef struct {
 /* Whose request is under way, by id: an application updated meanwhile has
  * another id and the same name, and the answer was asked for by the
  * version that is gone. One request at a time, so one is enough. */
-static volatile uint32_t s_answering_app;
+static uint32_t s_answering_app;
+static bool s_answer_invalidated;
+static bool s_answering_poll;
+
+/* The poller lock covers the start and invalidation of the one active request. */
+static void begin_answer_locked(uint32_t app, bool is_poll)
+{
+    s_answering_app = app;
+    s_answer_invalidated = false;
+    s_answering_poll = is_poll;
+}
 
 static void deliver_in_host_loop(void *argument)
 {
     const handed_t       *handed = argument;
     const app_manifest_t *app = launcher_find(handed->app_name);
-    if (app != NULL && app->id == s_answering_app) {
+    lock();
+    bool current = app != NULL && app->id == s_answering_app && !s_answer_invalidated;
+    unlock();
+    if (current) {
         host_deliver(handed->app_name, handed->delivery);
     }
 }
@@ -269,6 +282,7 @@ static bool run_pending_request(int why_not)
         memcpy(taken.body, at, (size_t)request->body_length);
         is_taken = true;
         is_installed = name_of(request->app, app_name);
+        begin_answer_locked((uint32_t)taken.app, false);
         request_queue_drop(&s_queue, slot, true);
     }
     unlock();
@@ -278,7 +292,6 @@ static bool run_pending_request(int why_not)
             .headers = taken.headers, .header_count = taken.header_count,
             .body = taken.body, .body_length = taken.body_length,
         };
-        s_answering_app = (uint32_t)taken.app;
         if (why_not != 0) {
             poller_net_tell_failure(app_name, ask.number, why_not);
         } else {
@@ -349,7 +362,7 @@ static bool fail_request_without_network(void)
         }
         number = request->number;
         found = name_of(request->app, app_name);
-        s_answering_app = (uint32_t)request->app;
+        begin_answer_locked((uint32_t)request->app, false);
         request_queue_drop(&s_queue, slot, false);
     }
     unlock();
@@ -612,7 +625,9 @@ static bool run_wanted_poll(void)
         unlock();
     }
     if (is_installed) {
-        s_answering_app = (uint32_t)app;
+        lock();
+        begin_answer_locked((uint32_t)app, true);
+        unlock();
         if (why_not == 0) {
             items = poller_net_poll(name, poll, item);
         } else {
@@ -833,6 +848,13 @@ void poller_hurry(const char *app_name)
     if (app == NO_APP) {
         return;
     }
+    lock();
+    /* A manifest poll's templates belonged to the previous settings. Explicit HTTP
+     * requests still need their terminal callback; their application owns the context. */
+    if (s_answering_app == (uint32_t)app && s_answering_poll) {
+        s_answer_invalidated = true;
+    }
+    unlock();
     for (int i = 0; i < s_known_count; i++) {
         if ((int)s_known[i].id != app) {
             continue;

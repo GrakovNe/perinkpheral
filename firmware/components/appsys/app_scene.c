@@ -141,6 +141,9 @@ static void app_scene_discard(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
     self->session.length = 0;
+    free(self->session.scene_state);
+    self->session.scene_state = NULL;
+    self->session.scene_state_length = 0;
     self->scene.question = 0; /* a question it waited with is over too */
     /* Still loaded, it is about to leave: its blur must not write the session back. */
     self->session.is_closed = self->app != NULL;
@@ -371,6 +374,7 @@ void app_scene_destroy(scene_t *scene)
     if (self->module != NULL) {
         unload(self);
     }
+    free(self->session.scene_state);
     free(self);
 }
 

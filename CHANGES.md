@@ -4,6 +4,16 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.34
+
+- Applications can keep up to 1024 bytes of temporary scene state in RAM through
+  `scene_state_set` / `scene_state_get`. This preserves game boards across background
+  deliveries without flash writes; the existing 128-byte session remains independent.
+- A settings change discards unfinished manifest poll responses from the previous
+  settings and releases their background instance. Explicit HTTP requests retain
+  their terminal callbacks.
+- The gas icon uses clean geometric nodes and bonds at all three sizes.
+
 ## 0.1.30
 
 - ABI 3 is the first frozen application contract. ABI 2 packages are refused with

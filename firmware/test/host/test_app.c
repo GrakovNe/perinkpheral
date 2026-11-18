@@ -37,6 +37,7 @@
 #define ROW_DATA          18
 #define ROW_TEXT          20
 #define ROW_COLOR         60
+#define ROW_SCENE_STATE   61
 #define ROW_LOCAL_TIME    62
 #define ROW_VALUES        63
 #define ROW_PICTURE       44
@@ -323,6 +324,30 @@ static void test_lifecycle(void)
     app_blur(app);
     CHECK_STR(logged, "init;blur;");
     CHECK(!app_has_stopped(app));
+    app_unload(app);
+}
+
+static void test_scene_state(void)
+{
+    app_session_t session = {0};
+    app_t *app = load_probe();
+    app_attach_session(app, &session, true);
+    app_button(app, 13, BTN_PRESSED);
+    app_blur(app);
+    CHECK(session.scene_state_length == HOST_SCENE_STATE_MAX);
+    app_unload(app);
+
+    app = load_probe();
+    app_attach_session(app, &session, true);
+    app_button(app, 14, BTN_PRESSED);
+    draw(app);
+    CHECK(gfx_get(&surface, 0, ROW_SCENE_STATE));
+    CHECK(gfx_get(&surface, 2, ROW_SCENE_STATE));
+    CHECK(gfx_get(&surface, 4, ROW_SCENE_STATE));
+    app_button(app, 15, BTN_PRESSED);
+    draw(app);
+    CHECK(gfx_get(&surface, 6, ROW_SCENE_STATE));
+    CHECK(session.scene_state_length == 0 && session.scene_state == NULL);
     app_unload(app);
 }
 
@@ -808,6 +833,7 @@ static void test_frozen_hello_state(void)
 int main(void)
 {
     test_probe_contract();
+    test_scene_state();
     probe_bytes = frozen_probe_wasm;
     probe_size = sizeof frozen_probe_wasm;
     test_probe_contract();

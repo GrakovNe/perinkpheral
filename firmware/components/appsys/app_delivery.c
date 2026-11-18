@@ -143,6 +143,14 @@ void app_deliver(app_delivery_state_t *state, wm_t *wm, scene_t *owner,
     if (delivery->only_on_screen) {
         return;
     }
+    /* The rest of the old poll will be suppressed. Start the settings
+     * callback in a fresh instance and keep the foreground suspended. */
+    if (delivery->kind == APP_DELIVERY_SETTINGS && state->in_background == owner &&
+        state->is_mid_answer && state->answer_request < HOST_REQUEST_FIRST) {
+        app_scene_end_background(owner);
+        state->in_background = NULL;
+        state->is_mid_answer = false;
+    }
     /* A piece that is not the first, for an application that is not taking
      * the answer: the instance that took the start gave way to a press, or
      * was replaced. The rest of that answer is nobody's. */

@@ -26,6 +26,7 @@
 #define ROW_COLOR          60 /* pixels 0 1 4..7: a bar with a hole of paper; pixel 10: a wrong colour refused */
 #define ROW_VALUES         63 /* pixel 0: picked values read right; 2: a failed request told apart; 4: no values outside the handler; 6: numbers parse */
 #define ROW_PICTURE        44 /* a picture read from the file; under it an icon; pixel 30: what there is none of is refused */
+#define ROW_SCENE_STATE    61
 #define ROW_LOCAL_TIME     62 /* pixel 0: no time yet; pixel 2: the time taken apart; pixel 4: a wild pointer refused */
 
 #define BUTTON_DRAW_OUTSIDE 3
@@ -37,6 +38,9 @@
 #define BUTTON_REDRAW_SOON   10
 #define BUTTON_REDRAW_CLEAN  11
 #define BUTTON_REDRAW_STREAM 12
+#define BUTTON_KEEP_SCENE    13
+#define BUTTON_CHECK_SCENE   14
+#define BUTTON_CLEAR_SCENE   15
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
@@ -49,6 +53,9 @@ static int32_t presses;
 static int32_t fired_timer = -1;
 static int32_t result_outside_draw;
 static int32_t found_on_start;
+static bool keep_scene, reads_empty, reads_scene, refuses_scene_write, clears_scene;
+static uint8_t scene_data[HOST_SCENE_STATE_MAX + 1];
+static const uint8_t SESSION_VALUE = 42;
 
 /* What app_on_data saw of request 1: the lengths add up, the bytes too. */
 static int32_t data_bytes, data_sum, data_pieces, data_status;
@@ -110,6 +117,7 @@ void app_on_load(void)
 {
     uint8_t kept;
     found_on_start = kv_get("kept", 4, &kept, sizeof kept) == 1 && kept == 7;
+    reads_empty = scene_state_get(scene_data, 0) == 0 && session_get(scene_data, 0) == 0;
     log_write(HOST_LOG_INFO, "init", 4);
 }
 
@@ -132,12 +140,37 @@ void app_on_focus(void)
 
 void app_on_blur(void)
 {
+    if (keep_scene) {
+        scene_data[HOST_SCENE_STATE_MAX - 1] = 37;
+        scene_state_set(scene_data, HOST_SCENE_STATE_MAX);
+        session_set(&SESSION_VALUE, sizeof SESSION_VALUE);
+    }
     log_write(HOST_LOG_INFO, "blur", 4);
 }
 
 void app_on_button(int32_t event)
 {
     int32_t button = BTN_OF(event);
+    if (button == BUTTON_KEEP_SCENE) {
+        keep_scene = true;
+        return;
+    }
+    if (button == BUTTON_CHECK_SCENE) {
+        uint8_t small = 5;
+        uint8_t session = 0;
+        reads_scene = scene_state_get(&small, sizeof small) == HOST_ERR_NO_SPACE &&
+            small == 5 && scene_state_get(scene_data, sizeof scene_data) == HOST_SCENE_STATE_MAX &&
+            scene_data[HOST_SCENE_STATE_MAX - 1] == 37 &&
+            session_get(&session, sizeof session) == sizeof session && session == SESSION_VALUE;
+        refuses_scene_write = scene_state_set(scene_data, sizeof scene_data) == HOST_ERR_ARGUMENT &&
+            scene_state_get((void *)0xffffff00u, 1) == HOST_ERR_ARGUMENT;
+        return;
+    }
+    if (button == BUTTON_CLEAR_SCENE) {
+        clears_scene = scene_state_set(scene_data, 0) == HOST_OK &&
+            scene_state_get(scene_data, 0) == 0 && session_get(scene_data, 0) == HOST_ERR_NO_SPACE;
+        return;
+    }
     if (button == BUTTON_TRAP) {
         __builtin_trap();
     }
@@ -357,6 +390,10 @@ void app_on_timer(int32_t id)
 
 void app_on_draw(void)
 {
+    if (reads_empty) { mark(0, ROW_SCENE_STATE); }
+    if (reads_scene) { mark(2, ROW_SCENE_STATE); }
+    if (refuses_scene_write) { mark(4, ROW_SCENE_STATE); }
+    if (clears_scene) { mark(6, ROW_SCENE_STATE); }
     gfx_draw_rect(0, ROW_PRESSES, presses, 1, HOST_RECT_FILLED);
     if (fired_timer >= 0) {
         gfx_draw_rect(0, ROW_TIMER, fired_timer + 1, 1, HOST_RECT_FILLED);

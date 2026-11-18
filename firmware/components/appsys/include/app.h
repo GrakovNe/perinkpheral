@@ -132,6 +132,8 @@ typedef struct {
     uint8_t bytes[APP_SESSION_BYTES];
     int32_t length;
     bool    is_closed;
+    uint8_t *scene_state;
+    int32_t scene_state_length;
 } app_session_t;
 
 /* The instance reads and writes `session`; one loaded off the screen only reads it. */

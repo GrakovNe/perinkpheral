@@ -757,7 +757,59 @@ HOST_FUNCTION(session_get)
     if (length > capacity) {
         m3ApiReturn(HOST_ERR_NO_SPACE);
     }
-    memcpy(buffer, app->session->bytes, (size_t)length);
+    if (length > 0) { memcpy(buffer, app->session->bytes, (size_t)length); }
+    m3ApiReturn(length);
+}
+
+HOST_FUNCTION(scene_state_set)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, offset);
+    m3ApiGetArg(int32_t, length);
+    app_t *app = APP_OF(runtime);
+    const uint8_t *data = app_memory_at(runtime, _mem, offset, length);
+    app_session_t *session = app->session;
+    if (data == NULL || length < 0 || length > HOST_SCENE_STATE_MAX || session == NULL ||
+        !app->session_is_writable) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    if (session->is_closed) {
+        m3ApiReturn(HOST_OK);
+    }
+    if (length == 0) {
+        free(session->scene_state);
+        session->scene_state = NULL;
+    } else {
+        if (length > session->scene_state_length) {
+            uint8_t *storage = realloc(session->scene_state, (size_t)length);
+            if (storage == NULL) {
+                m3ApiReturn(HOST_ERR_NO_SPACE);
+            }
+            session->scene_state = storage;
+        }
+        memcpy(session->scene_state, data, (size_t)length);
+    }
+    session->scene_state_length = length;
+    m3ApiReturn(HOST_OK);
+}
+
+HOST_FUNCTION(scene_state_get)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, offset);
+    m3ApiGetArg(int32_t, capacity);
+    app_t *app = APP_OF(runtime);
+    uint8_t *buffer = app_memory_to_fill(runtime, _mem, offset, capacity);
+    if (buffer == NULL || capacity < 0) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    int32_t length = app->session != NULL && !app->session->is_closed ? app->session->scene_state_length : 0;
+    if (length > capacity) {
+        m3ApiReturn(HOST_ERR_NO_SPACE);
+    }
+    if (length > 0) {
+        memcpy(buffer, app->session->scene_state, (size_t)length);
+    }
     m3ApiReturn(length);
 }
 

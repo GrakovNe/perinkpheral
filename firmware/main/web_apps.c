@@ -356,8 +356,8 @@ static void change_app_settings(void *argument)
         if (written > 0) {
             ESP_LOGI(TAG, "settings of \"%s\" changed", command->app_name);
             app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-            host_deliver(command->app_name, &changed);
             poller_hurry(command->app_name);
+            host_deliver(command->app_name, &changed);
         }
         if (stored) {
             command->status = "200 OK";

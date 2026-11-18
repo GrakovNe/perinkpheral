@@ -305,15 +305,41 @@ static void test_something_else_in_the_middle_of_an_answer(void)
     deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
     app_t *taking = app_scene_app(probe);
     CHECK(taking != NULL && state.is_mid_answer);
-    /* its settings change while the answer is still coming */
-    app_delivery_t changed = { .kind = APP_DELIVERY_SETTINGS };
-    app_deliver(&state, &wm, probe, &changed, 0);
+    /* Its alarm fires while the answer is still coming. */
+    app_delivery_t alarm = { .kind = APP_DELIVERY_ALARM };
+    app_deliver(&state, &wm, probe, &alarm, 0);
     /* the same instance goes on taking the answer */
     CHECK(app_scene_app(probe) == taking && state.in_background == probe && wm.suspended);
     deliver_piece(HOST_DATA_CHUNK_MAX, 0, 0);
     deliver_piece(2500 - 2048, HOST_DATA_LAST, 0);
     /* whole, and it asked for the screen: it had all 2500 bytes */
     CHECK(wm.current == probe && state.in_background == NULL && !state.is_mid_answer);
+}
+
+static void test_settings_discard_an_unfinished_poll(void)
+{
+    start_on(&menu.scene);
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_FIRST, 0);
+    CHECK(state.in_background == probe && state.is_mid_answer && wm.suspended);
+
+    app_delivery_t settings = { .kind = APP_DELIVERY_SETTINGS };
+    app_deliver(&state, &wm, probe, &settings, 1);
+    CHECK(state.in_background == NULL && !state.is_mid_answer && !wm.suspended);
+    deliver_piece(HOST_DATA_CHUNK_MAX, HOST_DATA_LAST, 2);
+    CHECK(wm.current == &menu.scene && app_scene_app(probe) == NULL);
+
+    static uint8_t bytes[1] = { 7 };
+    app_delivery_t explicit_request = { .kind = APP_DELIVERY_PIECE, .request = HOST_REQUEST_FIRST,
+                                        .http_status = 200, .data = bytes, .length = sizeof bytes,
+                                        .flags = HOST_DATA_FIRST };
+    app_deliver(&state, &wm, probe, &explicit_request, 3);
+    app_t *taking = app_scene_app(probe);
+    CHECK(taking != NULL && state.is_mid_answer);
+    app_deliver(&state, &wm, probe, &settings, 4);
+    CHECK(app_scene_app(probe) == taking && state.is_mid_answer && wm.suspended);
+    explicit_request.flags = HOST_DATA_LAST;
+    app_deliver(&state, &wm, probe, &explicit_request, 5);
+    CHECK(state.in_background == NULL && !state.is_mid_answer && !wm.suspended);
 }
 
 static void test_a_press_in_the_middle_of_an_answer(void)
@@ -370,6 +396,36 @@ static void test_a_scene_that_is_not_an_application(void)
     CHECK(app_scene_begin_background(&menu.scene) == NULL);
     app_scene_end_background(&menu.scene);
     CHECK(app_scene_take_reaction(&menu.scene).kind == SCENE_IGNORED);
+}
+
+static void test_scene_state_lifetime(void)
+{
+    char path[128];
+    snprintf(path, sizeof path, "%s/probe/app.wasm", root);
+    copy_file("build/probe/app.wasm", path);
+    start_on(probe);
+    app_button(app_scene_app(probe), 13, BTN_PRESSED);
+    wm_suspend(&wm);
+    CHECK(app_scene_app(probe) == NULL);
+    wm_resume(&wm);
+
+    static uint8_t bits[400 * 300 / 8];
+    gfx_t surface;
+    gfx_init(&surface, bits, 400, 300);
+    app_button(app_scene_app(probe), 14, BTN_PRESSED);
+    app_draw(app_scene_app(probe), &surface);
+    CHECK(gfx_get(&surface, 2, 61));
+
+    app_button(app_scene_app(probe), 13, BTN_PRESSED);
+    wm_close(&wm, probe);
+    CHECK(app_scene_app(probe) == NULL);
+    wm_open(&wm, probe);
+    gfx_clear(&surface, false);
+    app_button(app_scene_app(probe), 14, BTN_PRESSED);
+    app_draw(app_scene_app(probe), &surface);
+    CHECK(!gfx_get(&surface, 2, 61));
+    wm_close(&wm, probe);
+    copy_file("../../../sdk/abi/3/probe/app.wasm", path);
 }
 
 static void count_notification(void *context)
@@ -500,8 +556,10 @@ int main(void)
     test_not_from_under_the_user();
     test_a_request_that_broke_off();
     test_something_else_in_the_middle_of_an_answer();
+    test_settings_discard_an_unfinished_poll();
     test_a_press_in_the_middle_of_an_answer();
     test_opened_while_taking_an_answer();
     test_a_scene_that_is_not_an_application();
+    test_scene_state_lifetime();
     REPORT();
 }
