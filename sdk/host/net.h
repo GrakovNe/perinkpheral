@@ -128,6 +128,26 @@ HOST_LAYOUT(host_answer_info_t, 476);
  * shorter struct. Capacity 0 writes nothing and returns 0 in a handler. */
 HOST_IMPORT(answer_info, int32_t answer_info(host_answer_info_t *response, int32_t capacity));
 
+/* Copies occurrence (from 0) of a response header, without a terminating NUL.
+ * Valid only inside app_on_data/app_on_picked, for the current answer. Names
+ * are case-insensitive HTTP tokens of 1..63 bytes. Repeated fields, including
+ * Set-Cookie, are separate values in arrival order, never comma-joined.
+ * Returns the value length, HOST_ERR_NOT_FOUND if absent/outside a handler,
+ * HOST_ERR_ARGUMENT for invalid arguments, or HOST_ERR_NO_SPACE if the whole
+ * value does not fit. On error the output is unchanged; capacity 0 accepts
+ * an empty value. Perinkpheral OS keeps headers in 1024 bytes, including names
+ * and two NUL separators per field. If the complete set does not fit, every
+ * answer_header call for that response returns HOST_ERR_NO_SPACE, including
+ * fields received before overflow. answer_info is independent of this limit.
+ * Only the final response after redirects is exposed; no cookies are stored
+ * or sent automatically. Save required session values with kv_set only when
+ * they change: background instances are unloaded between answers. Bind cached
+ * credentials to their server/account and clear them when settings change. */
+#define HOST_SINCE_answer_header "0.1.51"
+HOST_IMPORT(answer_header,
+            int32_t answer_header(const char *name, int32_t name_length, int32_t occurrence,
+                                  char *value, int32_t capacity));
+
 /* Returns the buffer for one piece of data: HOST_DATA_CHUNK_MAX bytes of
  * application memory. Provided by sdk/lib; applications do not define it. */
 APP_EXPORT(app_data_buffer, uint8_t *app_data_buffer(void));

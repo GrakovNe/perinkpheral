@@ -4374,3 +4374,18 @@ Author shown in the catalog. Required for publishing. Perinkpheral is reserved f
 
 author
 author
+
+From firmware 0.1.51, <code>answer_header(name, name_length, occurrence, value, capacity)</code> reads a response header inside either data handler. Names are case-insensitive HTTP tokens, 1–63 bytes. Occurrence starts at 0; repeated Set-Cookie fields remain separate, in arrival order. The result is the value length without a terminating NUL. A missing field returns HOST_ERR_NOT_FOUND; invalid arguments return HOST_ERR_ARGUMENT. A value that does not fit returns HOST_ERR_NO_SPACE without writing.
+Начиная с прошивки 0.1.51, <code>answer_header(name, name_length, occurrence, value, capacity)</code> читает заголовок ответа в любом обработчике данных. Имя — HTTP-токен длиной 1–63 байта, без учёта регистра. Номер вхождения начинается с 0; повторные Set-Cookie сохраняются отдельно, в порядке получения. Результат — длина значения без завершающего NUL. Для отсутствующего поля возвращается HOST_ERR_NOT_FOUND, для неверных аргументов — HOST_ERR_ARGUMENT. Если значение не помещается, возвращается HOST_ERR_NO_SPACE без записи.
+
+Perinkpheral OS keeps up to 1024 bytes of headers, counting each name, value and two NUL separators. If the complete set does not fit, every answer_header call returns HOST_ERR_NO_SPACE, including fields received before overflow. answer_info remains available. Only the final response after redirects is exposed. No cookies are sent or stored automatically.
+Perinkpheral OS сохраняет до 1024 байт заголовков: имя, значение и два разделителя NUL на поле. Если весь набор не помещается, любой вызов answer_header возвращает HOST_ERR_NO_SPACE, в том числе для полей, полученных до переполнения. answer_info остаётся доступным. После перенаправлений доступен только конечный ответ. Cookie не отправляются и не сохраняются автоматически.
+
+For authentication across background unloads, save a small session record with kv_set when the session changes, not on every poll. Include the server/account identity and handshake step; restore them on load. Clear the session when settings change or the server rejects it. Declare a cookie field as secret if it belongs in settings; stored values are not encrypted. session_set and scene_state_set belong to a scene and are not a background credential store.
+Для авторизации между фоновыми выгрузками сохраняйте небольшую запись сессии через kv_set при её изменении, а не при каждом опросе. Храните адрес сервера, учётную запись и шаг авторизации; восстанавливайте их при загрузке. Очищайте сессию при смене настроек или отказе сервера. Если поле cookie входит в настройки, объявите его secret; сохранённые значения не зашифрованы. session_set и scene_state_set принадлежат сцене и не служат фоновым хранилищем учётных данных.
+
+answer_header(name, name_length, occurrence, value, capacity)
+answer_header(name, name_length, occurrence, value, capacity)
+
+Header value in a data handler, without NUL. Case-insensitive name; occurrence starts at 0. Returns length, HOST_ERR_ARGUMENT, HOST_ERR_NOT_FOUND or HOST_ERR_NO_SPACE. Requires firmware 0.1.51; capture limits and authentication state are described above.
+Значение заголовка в обработчике данных, без NUL. Имя без учёта регистра, номер вхождения с 0. Возвращает длину, HOST_ERR_ARGUMENT, HOST_ERR_NOT_FOUND или HOST_ERR_NO_SPACE. Требуется прошивка 0.1.51; ограничения и состояние авторизации описаны выше.

@@ -5,6 +5,7 @@
  * Data: answers, the store, files, requests, polls and alarms.
  */
 #include "app_internal.h"
+#include "answer_headers.h"
 
 HOST_FUNCTION(answer_value)
 {
@@ -101,6 +102,26 @@ HOST_FUNCTION(answer_info)
     response.status = app->response_status;
     memcpy(given, &response, (size_t)length);
     m3ApiReturn(length);
+}
+
+HOST_FUNCTION(answer_header)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(uint32_t, name_offset);
+    m3ApiGetArg(int32_t, name_length);
+    m3ApiGetArg(int32_t, occurrence);
+    m3ApiGetArg(uint32_t, value_offset);
+    m3ApiGetArg(int32_t, capacity);
+
+    app_t *app = APP_OF(runtime);
+    const char *name = (const char *)app_memory_at(runtime, _mem, name_offset, name_length);
+    char *value = (char *)app_memory_to_fill(runtime, _mem, value_offset, capacity);
+    if (name == NULL || value == NULL || occurrence < 0 ||
+        !answer_header_name_valid(name, (size_t)name_length)) {
+        m3ApiReturn(HOST_ERR_ARGUMENT);
+    }
+    m3ApiReturn(answer_headers_get(app->is_in_answer ? app->headers : NULL,
+                                   name, (size_t)name_length, occurrence, value, capacity));
 }
 
 /* The key as a terminated string; false when it is not a key at all. */
