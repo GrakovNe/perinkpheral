@@ -34,7 +34,9 @@ typedef struct {
  * nothing there. */
 static bool take_header(app_scene_t *self)
 {
-    bool changed = false;
+    bool inverted = self->app != NULL && !app_has_stopped(self->app) && app_screen_inverted(self->app);
+    bool changed = self->scene.inverted != inverted;
+    self->scene.inverted = inverted;
     for (int side = HOST_HEADER_LEFT; side <= HOST_HEADER_RIGHT; side++) {
         const char *text = self->app != NULL && !app_has_stopped(self->app)
                                ? app_header_text(self->app, side)
@@ -141,6 +143,8 @@ static void app_scene_discard(scene_t *scene)
 {
     app_scene_t *self = (app_scene_t *)scene;
     self->session.length = 0;
+    self->session.screen_inverted = false;
+    self->scene.inverted = false;
     free(self->session.scene_state);
     self->session.scene_state = NULL;
     self->session.scene_state_length = 0;
@@ -268,6 +272,7 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
 {
     app_scene_t *self = (app_scene_t *)scene;
     if (self->app == NULL) {
+        scene->inverted = false;
         draw_message(surface, self->manifest.title, word(WORD_CANNOT_START), self->load_error);
         return;
     }
@@ -278,10 +283,12 @@ static void app_scene_draw(scene_t *scene, gfx_t *surface)
             take_question(self, app_take_redraw_flags(self->app));
         }
         app_draw(self->app, surface);
+        scene->inverted = app_screen_inverted(self->app);
         app_take_redraw_request(self->app);
         app_take_redraw_flags(self->app);
     }
     if (app_has_stopped(self->app)) {
+        scene->inverted = false;
         /* Over whatever it managed to draw before it stopped. */
         gfx_clear(surface, false);
         draw_message(surface, self->manifest.title, word(WORD_CRASHED), app_stop_reason(self->app));

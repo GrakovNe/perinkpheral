@@ -56,6 +56,26 @@ static bool covers_whole_buffer(const gfx_t *g)
            g->clip_x1 == g->w && g->clip_y1 == g->h && g->stride * 8 == g->w;
 }
 
+void gfx_invert(gfx_t *g)
+{
+    for (int y = g->clip_y0; y < g->clip_y1; y++) {
+        uint8_t *row = g->bits + y * g->stride;
+        int x = g->clip_x0;
+        while (x < g->clip_x1 && (x & 7)) {
+            row[x / 8] ^= gfx_bit_of(x);
+            x++;
+        }
+        while (x + 8 <= g->clip_x1) {
+            row[x / 8] ^= 0xff;
+            x += 8;
+        }
+        while (x < g->clip_x1) {
+            row[x / 8] ^= gfx_bit_of(x);
+            x++;
+        }
+    }
+}
+
 void gfx_clear(gfx_t *g, bool black)
 {
     if (covers_whole_buffer(g)) {

@@ -132,6 +132,7 @@ typedef struct {
     uint8_t bytes[APP_SESSION_BYTES];
     int32_t length;
     bool    is_closed;
+    bool    screen_inverted;
     uint8_t *scene_state;
     int32_t scene_state_length;
 } app_session_t;
@@ -197,6 +198,7 @@ bool app_take_focus_request(app_t *app);
 /* Header text of the application for `side` (HOST_HEADER_*). Empty: the
  * side shows the host's content. */
 const char *app_header_text(const app_t *app, int side);
+bool app_screen_inverted(const app_t *app);
 
 /* True once after a screen_redraw() call. */
 bool app_take_redraw_request(app_t *app);

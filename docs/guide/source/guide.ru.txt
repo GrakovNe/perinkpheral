@@ -4389,3 +4389,24 @@ answer_header(name, name_length, occurrence, value, capacity)
 
 Header value in a data handler, without NUL. Case-insensitive name; occurrence starts at 0. Returns length, HOST_ERR_ARGUMENT, HOST_ERR_NOT_FOUND or HOST_ERR_NO_SPACE. Requires firmware 0.1.51; capture limits and authentication state are described above.
 Значение заголовка в обработчике данных, без NUL. Имя без учёта регистра, номер вхождения с 0. Возвращает длину, HOST_ERR_ARGUMENT, HOST_ERR_NOT_FOUND или HOST_ERR_NO_SPACE. Требуется прошивка 0.1.51; ограничения и состояние авторизации описаны выше.
+
+Screen inversion: an application can invert its complete screen, including Perinkpheral OS header
+Инверсия экрана: приложение может инвертировать весь свой экран, включая заголовок Perinkpheral OS
+
+Whole-screen inversion
+Инверсия всего экрана
+
+Since firmware 0.1.54, <code>screen_set_inverted(inverted)</code> selects normal colours with 0 or inverted colours with any nonzero value. It returns <code>HOST_OK</code>; changing the value requests a redraw. Draw on the usual white surface with the usual colours. Perinkpheral OS inverts the completed frame, including its header, the bottom margin and any footer or telemetry drawn by the application. Full-screen applications use the same call.
+Начиная с прошивки 0.1.54, <code>screen_set_inverted(inverted)</code> выбирает обычные цвета при 0 и инвертированные при любом ненулевом значении. Вызов возвращает <code>HOST_OK</code>; изменение значения запрашивает перерисовку. Рисуйте обычными цветами на белой поверхности. Perinkpheral OS инвертирует готовый кадр, включая свой заголовок, нижнее поле и подвал или телеметрию, нарисованные приложением. Полноэкранные приложения используют тот же вызов.
+
+The preference belongs to the current scene. It survives temporary unloads for background delivery and covering the scene with another screen, and is restored when the scene returns. Closing the scene clears it. It does not change the menu, other applications or a global theme. The call is allowed outside <code>app_on_draw()</code>; background handlers return <code>HOST_OK</code> but cannot change the retained foreground preference.
+Настройка принадлежит текущей сцене. Она сохраняется при временной выгрузке для фоновой доставки и при открытии другого экрана поверх сцены, а при возврате сцены восстанавливается. Закрытие сцены сбрасывает её. Меню, другие приложения и общая тема не меняются. Вызов разрешён вне <code>app_on_draw()</code>; фоновые обработчики получают <code>HOST_OK</code>, но не могут изменить сохранённую настройку сцены на экране.
+
+Call this helper from <code>app_on_draw()</code>: <code>draw_scene(0)</code> draws a normal screen, <code>draw_scene(1)</code> an inverted one. Choose the argument from the application state; the drawing code is identical.
+Вызывайте эту функцию из <code>app_on_draw()</code>: <code>draw_scene(0)</code> рисует обычный экран, <code>draw_scene(1)</code> - инвертированный. Выбирайте аргумент по состоянию приложения; код отрисовки одинаков.
+
+Since 0.1.54 (ABI 3). 0: normal; nonzero: invert the completed frame, including Perinkpheral OS header. Returns <code>HOST_OK</code>; a change requests a redraw. Scene lifetime and background rules: <a href="#screen-inversion">Whole-screen inversion</a>
+Начиная с 0.1.54 (ABI 3). 0: обычный экран; ненулевое значение: инверсия готового кадра, включая заголовок Perinkpheral OS. Возвращает <code>HOST_OK</code>; изменение запрашивает перерисовку. Время жизни настройки и правила фоновых вызовов: <a href="#screen-inversion">Инверсия всего экрана</a>
+
+int32_t screen_set_inverted(int32_t inverted)
+int32_t screen_set_inverted(int32_t inverted)

@@ -63,6 +63,8 @@ struct app {
 
     gfx_t      *surface; /* set only while app_on_draw() runs */
     bool        redraw_requested;
+    bool        screen_inverted;
+    bool        screen_inversion_set;
     bool        not_drawing_logged; /* once an instance: a mistake every beginner makes */
     bool        slow_logged;        /* once an instance: a handler that took too long */
     bool        has_wrong_export;   /* a handler declared otherwise than the contract has it */

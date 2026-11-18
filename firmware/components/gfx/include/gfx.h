@@ -66,6 +66,9 @@ void gfx_viewport(const gfx_t *parent, gfx_t *view, int x, int y, int w, int h);
 /* Fills the surface, not the buffer under it. */
 void gfx_clear(gfx_t *g, bool black);
 
+/* Exchanges ink and paper inside the surface, independent of its drawing shade. */
+void gfx_invert(gfx_t *g);
+
 /* Pixels outside the surface are ignored. */
 void gfx_pixel(gfx_t *g, int x, int y, bool black);
 

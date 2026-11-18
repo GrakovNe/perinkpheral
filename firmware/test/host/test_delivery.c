@@ -564,7 +564,7 @@ static int32_t auth_set(const char *app, const char *key, const void *value, int
     }
     return HOST_OK;
 }
-static const char *current_firmware(void) { return "0.1.51"; }
+static const char *current_firmware(void) { return "0.1.54"; }
 static void test_headers_across_background_unloads(void)
 {
     start_on(&menu.scene);
@@ -599,6 +599,39 @@ static void test_headers_across_background_unloads(void)
     app_scene_destroy(owner);
 }
 
+static void test_scene_inversion_lifetime(void)
+{
+    start_on(&menu.scene);
+    char *text = app_store_read_manifest("build", "probe");
+    app_manifest_t manifest;
+    CHECK(text != NULL && app_manifest_parse(text, &manifest) == APP_MANIFEST_OK);
+    free(text);
+    app_services_t services = SERVICES;
+    services.firmware_version = current_firmware;
+    scene_t *owner = app_scene_create(&manifest, "build", &services);
+    CHECK(owner != NULL);
+    wm_open(&wm, owner);
+    app_button(app_scene_app(owner), 100, BTN_PRESSED);
+    app_scene_take_reaction(owner);
+    CHECK(owner->inverted && !menu.scene.inverted);
+    menu_t overlay = { .scene = { .ops = &MENU_OPS } };
+    wm_open(&wm, &overlay.scene);
+    CHECK(wm.current == &overlay.scene && !wm.current->inverted);
+    app_delivery_t delivery = { .kind = APP_DELIVERY_PIECE, .request = 40, .http_status = 200,
+        .flags = HOST_DATA_FIRST | HOST_DATA_LAST };
+    app_deliver(&state, &wm, owner, &delivery, 0);
+    CHECK(wm.current == &overlay.scene && !wm.current->inverted);
+    CHECK(owner->inverted);
+    wm_open(&wm, owner);
+    CHECK(owner->inverted && app_screen_inverted(app_scene_app(owner)));
+    wm_close(&wm, owner);
+    CHECK(!owner->inverted);
+    wm_open(&wm, owner);
+    CHECK(!owner->inverted && !app_screen_inverted(app_scene_app(owner)));
+    wm_close(&wm, owner);
+    app_scene_destroy(owner);
+}
+
 int main(void)
 {
     install_probe();
@@ -617,5 +650,6 @@ int main(void)
     test_a_scene_that_is_not_an_application();
     test_scene_state_lifetime();
     test_headers_across_background_unloads();
+    test_scene_inversion_lifetime();
     REPORT();
 }

@@ -226,6 +226,14 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 #define HOST_REDRAW_QUESTION 8
 HOST_IMPORT(screen_redraw, void screen_redraw(int32_t flags));
 
+/* Inverts the completed screen, including the Perinkpheral OS header and bottom
+ * margin. Draw normally; zero disables inversion, any other value enables it.
+ * Returns HOST_OK. A change requests a redraw. The preference belongs to this
+ * scene, survives temporary unloads, and resets when the scene is closed.
+ * Background handlers cannot change the retained foreground preference. */
+#define HOST_SINCE_screen_set_inverted "0.1.54"
+HOST_IMPORT(screen_set_inverted, int32_t screen_set_inverted(int32_t inverted));
+
 /* Sets application text in Perinkpheral OS header. The header is shown above an
  * application that is not full-screen. Perinkpheral OS defaults: left side empty
  * (next to the connection icon); right side the time by default, or the

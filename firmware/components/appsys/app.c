@@ -530,6 +530,13 @@ void app_attach_session(app_t *app, app_session_t *session, bool is_writable)
     if (app != NULL) {
         app->session = session;
         app->session_is_writable = is_writable;
+        if (session != NULL) {
+            if (app->screen_inversion_set && is_writable && !session->is_closed) {
+                session->screen_inverted = app->screen_inverted;
+            } else {
+                app->screen_inverted = session->screen_inverted;
+            }
+        }
     }
 }
 
@@ -644,6 +651,11 @@ void app_installed(app_t *app)
 void app_updated(app_t *app)
 {
     CALL_HANDLER(app, app_on_updated);
+}
+
+bool app_screen_inverted(const app_t *app)
+{
+    return app->screen_inverted;
 }
 
 const char *app_header_text(const app_t *app, int side)
