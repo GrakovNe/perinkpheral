@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.52
+
+- Use Perinkpheral OS consistently in the SDK guide, architecture documentation
+  and developer tools.
+
 ## 0.1.51
 
 - Let applications read HTTP response headers for authentication with local services.
