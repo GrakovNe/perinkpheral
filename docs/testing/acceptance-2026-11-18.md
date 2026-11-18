@@ -40,10 +40,10 @@ checks, not a release-readiness certificate. The owner stopped the endurance run
   Air's removed particle icons remain removed; pollen names remain present.
 - Optimized Bad Apple decoding: measured about 12.6% less decoder time and lower
   static data use, with identical decoded frames. This is not a panel frame-rate claim.
-- GitHub 0.1.2 accepts padded calendars, including the verified 368-day response.
-  A further change requests data immediately after app updates without duplicating
-  a request already made by the new instance. Physical confirmation is still pending.
-- ISS 0.1.8 uses one light/dark map palette according to day/night below the station,
+- GitHub 0.1.3 includes the padded-calendar parser, verified with a 368-day response,
+  and requests data after app updates without duplicating a request already made
+  by the new instance. Physical confirmation is still pending.
+- ISS 0.1.9 uses one light/dark screen palette according to day/night below the station,
   a thin dashed observed track, metre altitude and the approved centered telemetry.
   Its Russian description is exactly “МКС на мировой карте”.
 - Reviewed Home Assistant pairing concurrency and isolation. Investigated the local
@@ -61,14 +61,13 @@ checks, not a release-readiness certificate. The owner stopped the endurance run
 
 ## Delivery and remaining checks
 
-At this checkpoint the device is on release **0.1.49**, with **GitHub 0.1.2** and
-**ISS 0.1.8**. Settings and installed apps were preserved through prior updates.
-ISS 0.1.8 is installed and its settings were preserved. Firmware 0.1.52 has been published and its binary digest verified; GitHub 0.1.3
-is awaiting publication. A package
-being in Git is not evidence that it is installed on the device.
+The device is on release **0.1.54**, with **GitHub 0.1.3** and **ISS 0.1.9**.
+The published firmware binary was verified against its release digest, installed
+through recovery with physical confirmation, and checked by image identity with
+probation complete. Settings and other installed applications matched their
+pre-update snapshots; ISS settings were preserved. Public catalog package hashes
+were also verified. These checks do not establish what the physical panel shows.
 
-- Complete release verification and install the published firmware through recovery
-  with the owner's physical OK. Never erase NVS or replace the apps partition.
 - Confirm GitHub's calendar on the real panel. The last forced request returned
   HTTP 200; native tests and the published WASM accept the saved reply. Those facts
   alone do not prove what the panel now shows. Tokens and private replies are not
@@ -83,20 +82,25 @@ being in Git is not evidence that it is installed on the device.
 
 Reviewed changes: firmware PRs [7](https://github.com/GrakovNe/perinkpheral/pull/7),
 [8](https://github.com/GrakovNe/perinkpheral/pull/8),
-[9](https://github.com/GrakovNe/perinkpheral/pull/9);
+[9](https://github.com/GrakovNe/perinkpheral/pull/9),
+[10](https://github.com/GrakovNe/perinkpheral/pull/10);
 apps PRs [6](https://github.com/GrakovNe/perinkpheral-apps/pull/6),
 [7](https://github.com/GrakovNe/perinkpheral-apps/pull/7),
-[8](https://github.com/GrakovNe/perinkpheral-apps/pull/8);
+[8](https://github.com/GrakovNe/perinkpheral-apps/pull/8),
+[9](https://github.com/GrakovNe/perinkpheral-apps/pull/9);
 portal PRs [6](https://github.com/GrakovNe/perinkpheral-dev-portal/pull/6),
 [7](https://github.com/GrakovNe/perinkpheral-dev-portal/pull/7);
 [CLion PR 2](https://github.com/GrakovNe/perinkpheral-clion-plugin/pull/2).
 
-## Follow-up requested after this checkpoint
+## Whole-screen inversion
 
 The owner requested that ISS invert the **whole display**, including Perinkpheral OS's
-header and the telemetry area, instead of only the map. The proposed generic SDK call
-is `screen_set_inverted(int32_t inverted)`, owned by the visible application scene.
-Compose the ordinary light frame first, then invert the complete frame once; reset or
-restore the flag with scene navigation so it cannot affect another application.
-The planned minimum firmware is 0.1.54. This is work in progress, not a claim that
-ISS 0.1.8 or the installed firmware already supports whole-display inversion.
+header and the telemetry area, instead of only the map. Firmware 0.1.54 adds
+`screen_set_inverted(int32_t inverted)`, owned by the application scene. It composes
+the ordinary light frame, then inverts the complete frame once. Navigation resets
+or restores the preference without changing other applications. The API and its
+lifetime rules are documented in the SDK and both language versions of the guide.
+Host tests cover composition, background delivery and scene lifetime. ISS 0.1.9
+passed eight simulator scenarios with twelve frames: the daytime frame stayed
+unchanged, and night frames invert the header and telemetry with the map. Both
+updates are installed; the new appearance still needs the owner's panel check.
