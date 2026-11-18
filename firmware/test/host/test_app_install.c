@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include "tinytest.h"
 #include "../../main/storage.h"
-static char test_root[128];
+static char test_root[sizeof "/tmp/perink-install-XXXXXX"];
 #undef STORAGE_APPS_ROOT
 #define STORAGE_APPS_ROOT test_root
 #include "../../main/app_install.c"
