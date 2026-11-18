@@ -453,7 +453,11 @@ function drawTiles() {
   byId("auto-update-apps").setAttribute("aria-pressed", String(Boolean(settings.app_auto_update)));
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles);
-  show("app-count", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
+  const capacity = byId("app-capacity");
+  capacity.setAttribute("aria-valuemax", String(CATALOG_INSTALLED_MAX));
+  capacity.setAttribute("aria-valuenow", String(installed.length));
+  capacity.setAttribute("aria-valuetext", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
+  capacity.firstElementChild.style.width = Math.min(100, installed.length / CATALOG_INSTALLED_MAX * 100) + "%";
   byId("update-all").hidden = updates().length < 2; /* one is its tile's Update */
   drawCatalog();
 }

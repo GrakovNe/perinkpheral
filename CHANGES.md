@@ -4,6 +4,10 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.47
+
+- Show installed app capacity as a thin bar below the heading.
+
 ## 0.1.46
 
 - Fix the app auto-update switch reporting "Invalid value."
