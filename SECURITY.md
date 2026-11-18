@@ -17,15 +17,15 @@ This assessment is based on code review, not adversarial testing.
 
 ### An application the user installed
 
-Applications are untrusted. The interpreter and host API enforce their isolation.
+Applications are untrusted. The interpreter and Perinkpheral OS API enforce their isolation.
 
 Holds:
 - It runs in the interpreter with 64 KB of its own. Every pointer, length and coordinate
-  it passes is checked before use (`firmware/components/appsys/app.c`); it cannot read or write the host's
+  it passes is checked before use (`firmware/components/appsys/app.c`); it cannot read or write Perinkpheral OS's
   memory. A handler that does not return in 3 seconds is stopped.
 - Its store is its own (`a.<name>`; a name has no dot), its files are its own folder, and
   a file's name cannot leave it. It cannot reach another application's secrets.
-- It has no sockets. A request goes through the host, to a host its manifest names, and a
+- It has no sockets. A request goes through Perinkpheral OS, to a host its manifest names, and a
   redirect outside that list is refused. Polls use their manifest URLs;
   code requests use `hosts`. Cross-host redirects drop application headers. `user@host`, a port and the case of letters do not get
   round the comparison.
@@ -42,7 +42,7 @@ Does not hold:
   For example, an application can request a token and list both `{{server}}` and
   another host in its manifest. Installation does not warn about that destination.
 - It can ask for the screen every 30 seconds, write lines into the log that look like
-  the host's, and wear the flash with writes to its store and files. Nuisance, not theft.
+  Perinkpheral OS's, and wear the flash with writes to its store and files. Nuisance, not theft.
 - It can ask the home network: `"hosts": ["192.168.1.1"]` is a manifest like any other.
   Plain `http` to a router or a camera, from inside. Again nobody is shown.
 
@@ -114,7 +114,7 @@ Does not hold:
 ### A server the device talks to
 
 Holds: HTTPS is verified against ESP-IDF's root certificate bundle; an answer over 256 KB is cut off, 4 MB for one handed on in pieces; a
-JSON answer is picked apart by the host in a stream, with bounds; text that is not ASCII
+JSON answer is picked apart by Perinkpheral OS in a stream, with bounds; text that is not ASCII
 is drawn from glyph packs, spelled in ASCII or shown as `?`, never run.
 
 Does not hold: plain `http` is allowed, so a token sent over it crosses the network in the

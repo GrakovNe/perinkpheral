@@ -12,7 +12,7 @@ The site's source lives in [perinkpheral-dev-portal](https://github.com/GrakovNe
 | Architecture, constraints and current state | [CLAUDE.md](../CLAUDE.md) |
 | Build, flash and bench recipes | [AGENTS.md](../AGENTS.md) |
 | Application development guide | [English HTML](guide/source/guide.html), [Russian translation](guide/source/guide.ru.txt) |
-| Host ABI and compatibility | [host_api.h](../sdk/host_api.h), [frozen ABI notes](../sdk/abi/README.md) |
+| Perinkpheral OS ABI and compatibility | [host_api.h](../sdk/host_api.h), [frozen ABI notes](../sdk/abi/README.md) |
 | Device HTTP API, including recovery | [OpenAPI](api/openapi.yaml) |
 | Security model | [SECURITY.md](../SECURITY.md) |
 | Test coverage and hardware results | [Stability testing](testing/stability.md) |

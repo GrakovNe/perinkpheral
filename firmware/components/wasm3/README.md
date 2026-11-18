@@ -10,12 +10,12 @@ is configured from `CMakeLists.txt`.
 `wasm3/m3_exec.h`, operations `ContinueLoop` and `ContinueLoopIf`: each
 calls `m3_Yield()` before it goes round again, as `Call` already does.
 Upstream yields only on calls, so a loop that calls nothing can never be
-interrupted, and one such loop in an application would hang the host.
+interrupted, and one such loop in an application would hang Perinkpheral OS.
 The lines are marked `perinkpheral`. When updating Wasm3, carry them
 over or check whether upstream has closed its own TODO at that spot.
 
 `wasm3/m3_core.c`, the allocator: with `d_m3ApplicationArea` defined the
 interpreter's `calloc`, `free` and `realloc` are those of `m3_area.c`,
 which uses a preallocated application arena. Unloading the application resets
-the arena. Host-side storage and network services have separate allocations;
+the arena. Perinkpheral OS storage and network services have separate allocations;
 this isolation applies to interpreter memory. The lines are marked `perinkpheral`.

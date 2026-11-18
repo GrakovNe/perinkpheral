@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * The kit: the host's look for an application - lists, notices, text in
+ * The kit: Perinkpheral OS's look for an application - lists, notices, text in
  * its styles, buttons, bars, cells, charts, pickers.
  */
 #pragma once
@@ -10,11 +10,11 @@
 #include "base.h"
 #include "gfx.h"
 
-/* ---- Kit: host interface parts ----
+/* ---- Kit: Perinkpheral OS interface parts ----
  *
- * The ui_* calls draw the parts that the host screens are built from. The
- * drawing code is in the host and is the same code that draws the menu
- * and the host questions. The drawing calls are valid inside app_on_draw()
+ * The ui_* calls draw the parts that Perinkpheral OS screens are built from. The
+ * drawing code is in Perinkpheral OS and is the same code that draws the menu
+ * and Perinkpheral OS questions. The drawing calls are valid inside app_on_draw()
  * only; ui_text_width() and ui_text_height() work anywhere. */
 
 /* List.
@@ -69,7 +69,7 @@ HOST_IMPORT(ui_draw_list_row,
                                 int32_t label_length, const char *value, int32_t value_length,
                                 int32_t icon));
 
-/* Notice: a full-surface message in the style of the host.
+/* Notice: a full-surface message in the style of Perinkpheral OS.
  *
  * Layout: two lines of large text on the left, a large icon on the right,
  * button labels at the bottom ("<ok> OK" at the left, "BACK <back>" at the
@@ -91,7 +91,7 @@ typedef struct host_notice {
 HOST_LAYOUT(host_notice_t, 296);
 HOST_IMPORT(ui_draw_notice, int32_t ui_draw_notice(const host_notice_t *notice));
 
-/* Queues a notification. The host shows the notice below its header,
+/* Queues a notification. Perinkpheral OS shows the notice below its header,
  * over the current screen, until the user presses OK or BACK, and then
  * restores the previous screen.
  * Callable from any handler, typically app_on_alarm() off the screen.
@@ -103,7 +103,7 @@ HOST_IMPORT(ui_draw_notice, int32_t ui_draw_notice(const host_notice_t *notice))
  * is full. */
 HOST_IMPORT(notification_post, int32_t notification_post(const host_notice_t *notice));
 
-/* Text in a host style. `y` is the top of the line. The text is cut with
+/* Text in a Perinkpheral OS style. `y` is the top of the line. The text is cut with
  * "..." at `max_width` pixels (0: no limit). Returns the width drawn.
  * Using the kit is optional; gfx_* calls can draw anything.
  * sdk/lib/app_ui.h implements button handling for the list, the picker
@@ -132,7 +132,7 @@ HOST_IMPORT(ui_text_width, int32_t ui_text_width(int32_t style, const char *text
                                                  int32_t length));
 HOST_IMPORT(ui_text_height, int32_t ui_text_height(int32_t style));
 
-/* Standard left and right margin of the host screens. */
+/* Standard left and right margin of Perinkpheral OS screens. */
 #define HOST_UI_MARGIN 16
 
 /* Page title at the standard position, with a rule below it. Returns the
@@ -202,7 +202,7 @@ HOST_IMPORT(ui_draw_frame, int32_t ui_draw_frame(int32_t x, int32_t y, int32_t w
  * Picture size: HOST_UI_CELL_PICTURE_LARGE pixels in a cell that covers
  * the whole surface, HOST_UI_CELL_PICTURE_SMALL otherwise.
  * `picture` is a picture in gfx_draw_picture() format, or 0; `icon` is one of
- * the host's icons (HOST_ICON_*) drawn in its place, or HOST_ICON_NONE.
+ * Perinkpheral OS's icons (HOST_ICON_*) drawn in its place, or HOST_ICON_NONE.
  * Cells shown together should use one size: ui_cell_fit() returns the
  * size class that fits a cell (1 is the largest); set `size` of every
  * cell to the largest returned number. size 0 selects the size
@@ -258,7 +258,7 @@ HOST_IMPORT(ui_draw_chart, int32_t ui_draw_chart(const host_chart_t *chart, cons
 /* Picker: one value of a sequence, on the whole surface. The selected
  * value is framed in the middle; the previous value is above it, the next
  * one below. An empty text marks the end of the sequence. The button row
- * is included: an empty `ok` or `back` is the host's own word for it, in
+ * is included: an empty `ok` or `back` is Perinkpheral OS's own word for it, in
  * the device's language - Save and Cancel. */
 typedef struct host_picker {
     char above[64];
@@ -271,7 +271,7 @@ HOST_LAYOUT(host_picker_t, 256);
 HOST_IMPORT(ui_draw_picker, int32_t ui_draw_picker(const host_picker_t *picker));
 
 /* Date and time editor on the whole surface. The part being set is
- * framed. An empty `ok` or `back` is the host's own word, in the device's
+ * framed. An empty `ok` or `back` is Perinkpheral OS's own word, in the device's
  * language: Next, or Save on the last part; Back, or Cancel on the first.
  * With nothing being set an empty one is no button. */
 #define HOST_DATE_HAS_TIME 1

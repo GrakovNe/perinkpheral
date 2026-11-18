@@ -179,9 +179,9 @@ async function read_memory() {
       const interpreter = Math.max(0, status.app_area_used - PAGE_BYTES);
       byId("memory").textContent = status.app_area_used
         ? "Application: " + kb(interpreter) + " of " + kb(status.app_area - PAGE_BYTES) +
-          " to run its code. Host: " + kb(status.free_memory) + " free, " +
+          " to run its code. Perinkpheral OS: " + kb(status.free_memory) + " free, " +
           kb(status.least_free_memory) + " at the least."
-        : "No application is loaded. Host: " + kb(status.free_memory) + " free.";
+        : "No application is loaded. Perinkpheral OS: " + kb(status.free_memory) + " free.";
     }
   } catch (failure) { /* the screen's own look says so */ }
   setTimeout(read_memory, 3000);

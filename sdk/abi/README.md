@@ -1,7 +1,7 @@
 # Frozen application contracts
 
 ABI 3 is the first frozen generation, released with firmware 0.1.30.
-The host supports the explicit set `{3}`;
+Perinkpheral OS supports the explicit set `{3}`;
 ABI 2 has no adapter and receives "Update the app."
 
 `WASI_SDK_PATH=<wasi-sdk> tools/perinkpheral contract snapshot` creates or extends

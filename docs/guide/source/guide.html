@@ -87,7 +87,7 @@
   .two { columns: 2; column-gap: 8mm; }
   .two > * { break-inside: avoid; }
 
-  /* The panel, as the host's own drawing code renders it. */
+  /* The panel, as Perinkpheral OS's own drawing code renders it. */
   .screens { display: flex; gap: 5mm; margin: 2.5mm 0 4mm; break-inside: avoid; }
   figure { margin: 0; flex: 1; }
   figure img { width: 100%; display: block; border: .7pt solid var(--ink); image-rendering: pixelated; }
@@ -121,9 +121,9 @@
   <ul class="steps">
     <li><b>I</b>Datasheet: parameters and execution model</li>
     <li><b>II</b>Development guide: package, screen, input, storage, network</li>
-    <li><b>III</b>Reference: host API and SDK library</li>
+    <li><b>III</b>Reference: Perinkpheral OS API and SDK library</li>
   </ul>
-  <div class="facts">revision 12, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
+  <div class="facts">revision 12, 2026-11-18 / frozen Perinkpheral OS API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT</div>
 </div>
 
 <h1 id="contents" notoc>Contents</h1>
@@ -133,34 +133,34 @@
 
 <h1 id="overview">1. Overview</h1>
 <p>perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.</p>
-<p>The main firmware is called the <i>host</i>. The host draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.</p>
+<p><i>Perinkpheral OS</i> is a specialized operating system for e-paper, built on FreeRTOS/ESP-IDF. It draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.</p>
 <p>An independent recovery image installs firmware updates and runs no applications. Ordinary OTA replaces only the main firmware and preserves installed packages and their data.</p>
-<p>An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.</p>
-<p>The host's own pages, Settings and About, are built as applications with the same header.</p>
+<p>An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside Perinkpheral OS.</p>
+<p>Perinkpheral OS's own pages, Settings and About, are built as applications with the same header.</p>
 
 <h2 id="overview-features">Features</h2>
 <div class="two">
 <ul>
   <li>Display: 400 x 300 pixels, 1 bit, dithered greys, partial refresh in about 0.5 s</li>
   <li>Input: four buttons; short press, long press, key down and key up events</li>
-  <li>Sandbox: 64 KB of private memory; network access through the host only</li>
-  <li>Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code</li>
-  <li>Data: the host extracts values and lists from JSON responses; any response can be streamed in 1 KB pieces</li>
+  <li>Sandbox: 64 KB of private memory; network access through Perinkpheral OS only</li>
+  <li>Network: HTTP and HTTPS requests performed by Perinkpheral OS, as scheduled polls or on request from the code</li>
+  <li>Data: Perinkpheral OS extracts values and lists from JSON responses; any response can be streamed in 1 KB pieces</li>
   <li>Background work: responses, alarms and device events are delivered while the application is off the screen</li>
 </ul>
 <ul>
   <li>Storage: a key-value store, kept across restarts and reinstalls, and files, kept across restarts</li>
-  <li>Design system: lists, notices, pickers, cells and a button row, drawn by the host</li>
-  <li>Notifications: shown by the host over any screen</li>
+  <li>Design system: lists, notices, pickers, cells and a button row, drawn by Perinkpheral OS</li>
+  <li>Notifications: shown by Perinkpheral OS over any screen</li>
   <li>Settings: declared in the manifest, edited on the device's web page</li>
-  <li>Localization: strings per language, loaded by the host; Extended Latin, Cyrillic and Greek</li>
+  <li>Localization: strings per language, loaded by Perinkpheral OS; Extended Latin, Cyrillic and Greek</li>
   <li>Tools: build, check and measure an application; control a device over the network</li>
 </ul>
 </div>
 
 <h2 id="overview-model">How an application runs</h2>
-<p>An application is a set of exported handlers with fixed names. A handler is called by the host when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
-<p>The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by the host when a frame is needed. Refresh timing and method are decided by the host.</p>
+<p>An application is a set of exported handlers with fixed names. A handler is called by Perinkpheral OS when an event occurs: a button press, a timer, incoming data, a request to draw.</p>
+<p>The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by Perinkpheral OS when a frame is needed. Refresh timing and method are decided by Perinkpheral OS.</p>
 <p>One application is loaded at a time. An application is unloaded when it leaves the screen. Persistent state is kept in the application's store; global variables are kept until the unload.</p>
 
 <h1 id="characteristics">2. Characteristics</h1>
@@ -171,7 +171,7 @@
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
   <tr><td>Panel</td><td class="n">4.2" e-paper, SSD1683</td><td>No backlight. The image is retained without power</td></tr>
   <tr><td>Resolution</td><td class="n">400 x 300 px</td><td>About 120 px per inch</td></tr>
-  <tr><td>Application surface</td><td class="n">400 x 260 px</td><td>Below the host header. 400 x 300 with <code>"fullscreen": true</code></td></tr>
+  <tr><td>Application surface</td><td class="n">400 x 260 px</td><td>Below Perinkpheral OS header. 400 x 300 with <code>"fullscreen": true</code></td></tr>
   <tr><td>Depth</td><td class="n">1 bit</td><td>17 grey levels by fixed 4 x 4 dithering; for filled areas</td></tr>
   <tr><td>Partial refresh</td><td class="n">0.46 - 0.7 s</td><td>Only the changed rectangle is sent. 0.6 - 0.7 s when the panel has been idle for more than 1.5 s and is woken first</td></tr>
   <tr><td>Full refresh</td><td class="n">Fast: 2.2 s; standard: 2.7 s</td><td>The panel flashes during a full refresh. The refresh_fast setting selects the fast waveform</td></tr>
@@ -187,7 +187,7 @@
   <tr><td>Buttons</td><td class="n">4</td><td>Order on the device: UP, OK, DOWN, BACK</td></tr>
   <tr><td>Events per button</td><td class="n">4</td><td>Key down, key up, pressed, long pressed</td></tr>
   <tr><td>Long press</td><td class="n">600 ms</td><td>Reported while the button is held</td></tr>
-  <tr><td>Reserved</td><td class="n">long press of BACK</td><td>Handled by the host: clears the stack and opens the menu</td></tr>
+  <tr><td>Reserved</td><td class="n">long press of BACK</td><td>Handled by Perinkpheral OS: clears the stack and opens the menu</td></tr>
 </table>
 
 <h2 id="char-sandbox">Sandbox</h2>
@@ -218,7 +218,7 @@
 <h2 id="char-network">Network</h2>
 <table>
   <tr><th style="width:38%">Parameter</th><th style="width:24%">Value</th><th>Notes</th></tr>
-  <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>Performed by the host</td></tr>
+  <tr><td>Transport</td><td class="n">HTTP, HTTPS</td><td>Performed by Perinkpheral OS</td></tr>
   <tr><td>HTTPS trust</td><td class="n">ESP-IDF's root certificate bundle</td><td>Plus up to 2 roots an application brings, for its own requests. Self-signed server certificates are rejected. Plain <code>http</code> is available for home networks</td></tr>
   <tr><td>Hosts for requests from code</td><td class="n">4</td><td>Listed in the manifest, or taken from a <code>url</code> or <code>link</code> setting. Polls use the address in their <code>url</code></td></tr>
   <tr><td>Polls per manifest</td><td class="n">4</td><td>Interval 10 s to 1 day; minimum 300 s on battery. A poll can go over a list setting: one request per item, one at a time</td></tr>
@@ -239,8 +239,8 @@
   <tr><td>Device events (intents)</td><td class="n">3</td><td>Started, time changed, network up</td></tr>
   <tr><td>Installation, update</td><td class="n">once each</td><td><code>app_on_installed()</code>, <code>app_on_updated()</code></td></tr>
   <tr><td>Queued notifications</td><td class="n">4</td><td>Per device</td></tr>
-  <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>screen_request()</code>; granted by the host</td></tr>
-  <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network or by hand. 0 until first set. The time zone is a host setting</td></tr>
+  <tr><td>Screen takeover</td><td class="n">max. 1 per 30 s</td><td><code>screen_request()</code>; granted by Perinkpheral OS</td></tr>
+  <tr><td>Clock</td><td class="n">Unix seconds</td><td>Set from the network or by hand. 0 until first set. The time zone is a Perinkpheral OS setting</td></tr>
 </table>
 
 <h2 id="char-text">Text</h2>
@@ -252,7 +252,7 @@
   <tr><td>Fallback</td><td class="n">ASCII transliteration</td><td>"Moskva", "Strasse", "Athina"; otherwise <code>?</code></td></tr>
   <tr><td>Text per drawing call</td><td class="n">127 bytes</td><td>Longer text is cut between characters</td></tr>
   <tr><td>Font sizes</td><td class="n">6</td><td>Capital height 8 to 80 px. Two typefaces, selected by the user</td></tr>
-  <tr><td>Languages</td><td class="n">27</td><td>English built in; other languages as tables loaded by the host (section 12)</td></tr>
+  <tr><td>Languages</td><td class="n">27</td><td>English built in; other languages as tables loaded by Perinkpheral OS (section 12)</td></tr>
 </table>
 
 <h1 id="model">3. Execution model</h1>
@@ -265,14 +265,14 @@
   <tr><td>A response, alarm, intent or settings change while on the screen</td><td>Same instance</td><td class="c">app_on_data / app_on_picked / app_on_alarm / app_on_intent / app_on_settings</td></tr>
   <tr><td>The same while off the screen</td><td>Loaded for the delivery, unloaded when it ends. Stream chunks share one instance. The current screen is suspended and restored</td><td class="c">app_on_load, the handler, app_on_terminate</td></tr>
   <tr><td>Installed, or updated to another version</td><td>Once, on or off the screen</td><td class="c">app_on_installed / app_on_updated</td></tr>
-  <tr><td><code>screen_request()</code> granted by the host</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_on_load, app_on_focus, app_on_draw</td></tr>
+  <tr><td><code>screen_request()</code> granted by Perinkpheral OS</td><td>Unloaded, then opened on top of the stack</td><td class="c">... app_on_terminate; app_on_load, app_on_focus, app_on_draw</td></tr>
   <tr><td>The application leaves the screen: BACK, the menu, another application on top</td><td>Unloaded</td><td class="c">app_on_blur, app_on_terminate</td></tr>
 </table>
 
 <h2 id="model-rules">Handler guarantees</h2>
 <ul>
   <li>Handlers are run one at a time, each to completion. Locking is unnecessary.</li>
-  <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.</li>
+  <li>A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. Perinkpheral OS is unaffected.</li>
   <li>Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.</li>
   <li><code>app_on_load()</code> is called before any other handler of an instance.</li>
   <li>Button events are delivered in order; 16 can wait, and one more is lost. Pending timers with the same number are merged. The pieces of one response are delivered in order; a settings change or an alarm may be delivered between two of them.</li>
@@ -285,14 +285,14 @@
 <p>Use session memory for temporary UI state: the current page, selected row or unfinished edit. Up to 128 bytes (<code>HOST_SESSION_MAX</code>) survive unloads while the application remains in the navigation stack. It is saved in <code>app_on_blur()</code> and read in <code>app_on_focus()</code>, with <code>app_session_save()</code> and <code>app_session_load()</code>. It is cleared when the application leaves the stack, when it is opened again from the menu, and by a restart. An instance loaded for a background call can read it and cannot change it.</p>
 <p>Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.</p>
 
-<p>For larger temporary state, such as a packed game board, use <code>scene_state_set()</code> and <code>scene_state_get()</code>. The host allocates up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes on demand. This buffer is independent of the smaller session and follows the same lifetime and access rules. Both calls require firmware 0.1.34 or later.</p>
+<p>For larger temporary state, such as a packed game board, use <code>scene_state_set()</code> and <code>scene_state_get()</code>. Perinkpheral OS allocates up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes on demand. This buffer is independent of the smaller session and follows the same lifetime and access rules. Both calls require firmware 0.1.34 or later.</p>
 <p>The session is attached after app_on_load() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_on_load() returns HOST_ERR_ARGUMENT.</p>
 <h2 id="model-screen">Navigation and refresh</h2>
-<p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.</p>
+<p>Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a Perinkpheral OS question or an application that requested the screen is placed above the current screen.</p>
 <p>The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.</p>
 <p>Only the top entry is loaded. An application lower in the stack is unloaded; its state is restored when it returns to the top.</p>
-<p>The panel is controlled by the host. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.</p>
-<p>A complete frame is always shown. Refresh timing is decided by the host.</p>
+<p>The panel is controlled by Perinkpheral OS. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.</p>
+<p>A complete frame is always shown. Refresh timing is decided by Perinkpheral OS.</p>
 
 <h1 class="part" id="part-2">Part II. Development guide</h1>
 
@@ -377,7 +377,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
     draw_line(0, "Hello from wasm");
     draw_line(2, counter_buffer);
 }</pre>
-<p>BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.</p>
+<p>BACK is handled by Perinkpheral OS here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.</p>
 
 <h2 id="start-report">Build report</h2>
 <pre>tools/perinkpheral build my-app --out build/my-app</pre>
@@ -386,7 +386,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
   <tr><td class="c">module</td><td>File size: code and initial data. Executed from flash</td><td>Move pictures and tables to <code>files/</code>. Use the kit instead of custom drawing</td></tr>
   <tr><td class="c">code</td><td>Code size and the estimated interpreter memory needed to run all of it. <b>The scarcest resource</b>: one byte of code uses four bytes of memory</td><td>See "Memory" in section 13</td></tr>
   <tr><td class="c">memory</td><td>The 64 KB page: stack, static data, and the remainder for the arena</td><td>Call <code>app_alloc_mark()</code> before allocating temporary buffers with <code>app_alloc()</code>. Call <code>app_alloc_release(mark)</code> when finished. Read files in parts; see app_alloc.h in section 23</td></tr>
-  <tr><td class="c">firmware</td><td>The oldest firmware the application runs on, and the host call that asks for it</td><td>-</td></tr>
+  <tr><td class="c">firmware</td><td>The oldest firmware the application runs on, and the Perinkpheral OS call that asks for it</td><td>-</td></tr>
 </table>
 <p>The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.</p>
 <p>The build also fails in these cases:</p>
@@ -397,7 +397,7 @@ void app_on_draw(void)              /* draw the whole frame from the state */
   <li>the code calls <code>file_write()</code> and the manifest lacks <code>"writes_files": true</code>;</li>
   <li>the manifest exceeds a limit;</li>
   <li>a translation does not match <code>en.json</code> (section 12);</li>
-  <li>a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;</li>
+  <li>a function is named like a handler (<code>app_on_...</code>) and Perinkpheral OS has no such handler;</li>
   <li>the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_send()</code> and lacks the handler that receives the result;</li>
   <li>the manifest declares a poll or intents and the code lacks <code>app_on_picked()</code>, <code>app_on_data()</code> or <code>app_on_intent()</code>;</li>
   <li>the code draws and lacks <code>app_on_draw()</code>;</li>
@@ -445,11 +445,11 @@ void app_on_draw(void)              /* draw the whole frame from the state */
   <tr><td class="c">author</td><td>1 - 63 UTF-8 bytes</td><td>Author shown in the catalog. Required for publishing. Perinkpheral is reserved for the official catalog</td></tr>
   <tr><td class="c">description</td><td>1 - 95 characters, optional</td><td>What the application does, in a line: shown in the catalog and on the web page. Translatable</td></tr>
   <tr><td class="c">version</td><td>up to 15 bytes</td><td>Set by the developer. A different version in a catalog is offered as an update</td></tr>
-  <tr><td class="c">abi</td><td><code>3</code></td><td>Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."</td></tr>
+  <tr><td class="c">abi</td><td><code>3</code></td><td>Frozen Perinkpheral OS contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."</td></tr>
   <tr><td class="c">firmware</td><td><code>"0.1.30"</code></td><td>The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware."</td></tr>
-  <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: host header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
+  <tr><td class="c">fullscreen</td><td>true / false (default)</td><td>false: Perinkpheral OS header on top, surface 400 x 260. true: surface 400 x 300</td></tr>
   <tr><td class="c">icon</td><td>11 rows of 11 of <code>#</code> and <code>.</code></td><td>Shown in the menu, on the web page and in catalogs. Optional</td></tr>
-  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by the host (below). A poll can go over a list setting</td></tr>
+  <tr><td class="c">polls</td><td>up to 4</td><td>Scheduled requests performed by Perinkpheral OS (below). A poll can go over a list setting</td></tr>
   <tr><td class="c">hosts</td><td>up to 4, each up to 63 bytes</td><td>Destinations allowed for <code>http_send()</code>: a name, a name with a port, or <code>{{key}}</code> of a <code>url</code> or <code>link</code> setting. Required only for requests from code; polls are exempt</td></tr>
   <tr><td class="c"><code>settings</code></td><td>up to 8</td><td>Settings form on the device's web page (below)</td></tr>
   <tr><td class="c">intents</td><td><code>started</code>, <code>time_changed</code>, <code>network_up</code></td><td>Device events that load the application. An unknown value fails the build</td></tr>
@@ -459,15 +459,15 @@ void app_on_draw(void)              /* draw the whole frame from the state */
   <tr><td class="c">certificates</td><td>up to 2 files of <code>files/</code></td><td>Certificate authorities trusted for this application's own requests, beside the ESP-IDF's root certificate bundle (section 9). The web page names them before installation</td></tr>
 </table>
 <p>The packaged manifest is at most 8192 bytes, including formatting and the firmware version written by the build.</p>
-<p>The host ignores unknown keys. The build validates the keys listed above.</p>
+<p>Perinkpheral OS ignores unknown keys. The build validates the keys listed above.</p>
 
 <h2 id="package-polls">Polls</h2>
 <table>
   <tr><th style="width:13%">Field</th><th style="width:30%">Format</th><th>Description</th></tr>
   <tr><td class="c">url</td><td>Up to 511 bytes. <code>http</code> or <code>https</code>; or starting with <code>{{key}}</code> of a <code>url</code> setting; or exactly <code>{{key}}</code> of a <code>link</code> setting</td><td>Request URL; setting placeholders are described below</td></tr>
-  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
-  <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code></td></tr>
-  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the response is streamed</td></tr>
+  <tr><td class="c">every</td><td>10 to 86400 seconds, or <code>"{{key}}"</code> of a setting</td><td>Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. Perinkpheral OS applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it</td></tr>
+  <tr><td class="c">headers</td><td>up to 4; a value up to 255 bytes</td><td><code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of Perinkpheral OS's <code>perinkpheral</code></td></tr>
+  <tr><td class="c">pick</td><td>up to 16 paths of up to 63 bytes</td><td>JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). Perinkpheral OS extracts the values. Without <code>pick</code> the response is streamed</td></tr>
   <tr><td class="c">each</td><td>key of a <code>list</code> setting</td><td>One request for every item of the list, made one after another. In this poll <code>{{key}}</code> of the list is the item. <code>answer_item()</code> gives the item a response is for</td></tr>
   <tr><td class="c">prefix</td><td>up to 15 characters, with <code>each</code></td><td>The poll takes only the items that begin with it; <code>{{key}}</code> is the item without it. A poll of the list without a prefix takes the items no other poll claims. One list then serves several sources: <code>AAPL</code>, <code>MOEX:SBER</code>. <code>answer_item()</code> is the position in the whole list</td></tr>
 </table>
@@ -484,13 +484,13 @@ https://api.example.com/quote?symbols={{tickers}}</pre>
              "each": "tickers", "pick": ["quote.name", "quote.closes[*]"] } ]
 
 response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 356.27] } }</pre>
-<p>A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.</p>
+<p>A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list Perinkpheral OS attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.</p>
 
 <h2 id="package-settings">Settings</h2>
 <p>Settings are declared in the manifest. The device's web page builds the settings form from the manifest alone. Each value is stored as text in the application's store, under the key of the setting.</p>
 <p>The application reads a setting with <code>kv_get()</code> and the key of the setting.</p>
 <p>Settings form values must be printable ASCII; list values also allow line breaks between items.</p>
-<p>When the user saves the form, the host calls <code>app_on_settings()</code> and repeats all polls immediately.</p>
+<p>When the user saves the form, Perinkpheral OS calls <code>app_on_settings()</code> and repeats all polls immediately.</p>
 <h3>Setting fields</h3>
 <table>
   <tr><th style="width:22%">Field</th><th>Rule</th></tr>
@@ -519,12 +519,12 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <ul>
   <li>An absent setting reads as its <code>default</code> through <code>kv_get()</code> and placeholders. The page uses the default for an unset form field. Saving an empty value through <code>/api/apps/settings</code> stores an empty override; <code>kv_set(..., 0)</code> instead deletes the key and restores the default. A list default is a list of items.</li>
   <li>The application can write any setting with <code>kv_set()</code> but <code>url</code> and <code>link</code>; a list as its items with line breaks between them.</li>
-  <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
+  <li><code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, Perinkpheral OS erases the secrets that were not entered again, so a token stays with the server it was entered for.</li>
   <li><code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.</li>
 </ul>
 
 <p>Non-list defaults are nonempty strings, including number and toggle defaults. Secret and place settings cannot have defaults. A list default must contain at least one item.</p>
-<p>The host validates supplied settings before writing, but writes are not transactional. A storage failure can leave some values changed. If at least one write succeeds, app_on_settings() is delivered and polls are requested again, even after a partially failed save.</p>
+<p>Perinkpheral OS validates supplied settings before writing, but writes are not transactional. A storage failure can leave some values changed. If at least one write succeeds, app_on_settings() is delivered and polls are requested again, even after a partially failed save.</p>
 <h3>Place with coordinates</h3>
 <pre>"settings": [
   { "key": "city", "type": "place", "title": "City",
@@ -556,7 +556,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <table>
   <tr><th style="width:24%">Constant</th><th>Capital height, px</th><th>Line height, px</th><th>Characters per 400 px</th><th style="width:34%">Typical use</th></tr>
   <tr><td class="c">HOST_FONT_SMALL</td><td>8 / 10</td><td>15 / 21</td><td>57 / 50</td><td>Units, captions</td></tr>
-  <tr><td class="c">HOST_FONT_TEXT</td><td>16 / 15</td><td>30 / 28</td><td>28 / 33</td><td>Body text; the host's own text</td></tr>
+  <tr><td class="c">HOST_FONT_TEXT</td><td>16 / 15</td><td>30 / 28</td><td>28 / 33</td><td>Body text; Perinkpheral OS's own text</td></tr>
   <tr><td class="c">HOST_FONT_MEDIUM</td><td>24 / 25</td><td>45 / 43</td><td>19 / 21</td><td>Titles, secondary values</td></tr>
   <tr><td class="c">HOST_FONT_LARGE</td><td>32 / 30</td><td>60 / 56</td><td>14 / 16</td><td>Notice lines</td></tr>
   <tr><td class="c">HOST_FONT_DISPLAY</td><td>48 / 50</td><td>90 / 86</td><td>9 / 10</td><td>The main value of a screen</td></tr>
@@ -570,7 +570,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 </ul>
 
 <h2 id="screen-letters">Text beyond ASCII</h2>
-<p>Displayed text is UTF-8. The host draws each character using the first available option:</p>
+<p>Displayed text is UTF-8. Perinkpheral OS draws each character using the first available option:</p>
 <ol>
   <li>The glyph of the character. Printable ASCII is always available. Extended Latin, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).</li>
   <li>An ASCII transliteration: "Moskva", "Strasse", "Athina". Typographic dashes and quotes become plain ones.</li>
@@ -581,8 +581,8 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 <p>User-visible manifest text has both a character limit and a UTF-8 byte limit of twice that character limit. A title is at most 23 characters and 46 bytes. A field of the contract, such as a notice's line, has a size in bytes, and holds half as many two-byte characters as one-byte characters.</p>
 
 <h2 id="screen-pictures">Pictures and icons</h2>
-<p>The host provides 49 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
-<p><code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
+<p>Perinkpheral OS provides 49 built-in icons: Perinkpheral OS's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.</p>
+<p><code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. Perinkpheral OS picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.</p>
 <table>
   <tr><th style="width:27%">Constant</th><th style="width:23%">Meaning</th><th style="width:27%">Constant</th><th>Meaning</th></tr>
   <tr><td class="c">HOST_ICON_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-16px;top:-67px" alt=""></span>connected</td><td class="c">HOST_ICON_NO_SIGNAL</td><td><span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" style="left:-92px;top:-67px" alt=""></span>not connected</td></tr>
@@ -613,7 +613,7 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
 </table>
 
 <div class="screens">
-  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" alt=""><figcaption>The host's own icons at cell sizes of 2 and 4 pixels</figcaption></figure>
+  <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons.png" alt=""><figcaption>Perinkpheral OS's own icons at cell sizes of 2 and 4 pixels</figcaption></figure>
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-more.png" alt=""><figcaption>The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels</figcaption></figure>
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" alt=""><figcaption>Air quality icons at cell sizes of 2 and 4 pixels</figcaption></figure>
 </div>
@@ -641,14 +641,14 @@ gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 <p><code>tools/perinkpheral pictures pictures/</code> prints the pictures as the build reads them.</p>
 <p>A picture is stored as one bit per cell. <code>gfx_draw_picture()</code> draws it with a cell size of 1 to 16 pixels, so one picture can be used at several sizes.</p>
 <p>Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more detail. Pictures then match the icons in weight.</p>
-<p>Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.</p>
+<p>Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. Perinkpheral OS reads the file directly; the picture does not use the application's memory.</p>
 
 <h2 id="screen-kit">Kit</h2>
-<p>The kit is the set of interface parts that the host's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.</p>
+<p>The kit is the set of interface parts that Perinkpheral OS's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.</p>
 <div class="screens">
   <figure style="flex:0 0 58mm"><img src="{{ROOT}}/docs/guide/source/screens/kit-primitives.png" alt=""><figcaption>UI kit primitives: title, text, caption, icons, value, button, bar and actions</figcaption></figure>
 </div>
-<p>Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in the host.</p>
+<p>Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in Perinkpheral OS.</p>
 <table>
   <tr><th style="width:27%">Call</th><th>Description</th><th style="width:32%">Use</th></tr>
   <tr><td class="c">ui_draw_list_row, ui_list_first, ui_list_visible</td><td>List: one row per line, a value or icon at the right edge, the selected row inverted, a scroll bar. Without a selection, UP and DOWN scroll</td><td>More than three items; menus; settings</td></tr>
@@ -680,7 +680,7 @@ gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 <div class="keep">
 <h2 id="screen-refresh">Requesting a refresh</h2>
 <table>
-  <tr><th style="width:27%">Flag</th><th>Host behaviour</th><th style="width:36%">Use</th></tr>
+  <tr><th style="width:27%">Flag</th><th>Perinkpheral OS behaviour</th><th style="width:36%">Use</th></tr>
   <tr><td class="c">HOST_REDRAW_NORMAL</td><td>From a button handler: immediate. Other handlers follow the refresh policy, normally once a minute; settings changes use the urgent policy described below</td><td>Default</td></tr>
   <tr><td class="c">HOST_REDRAW_SOON</td><td>Bypasses the normal data interval; waits until at least one second after the preceding refresh</td><td>Data the user is waiting for, such as the result of a manual refresh; a rhythm the user started with a press, such as a rotation or a countdown</td></tr>
   <tr><td class="c">HOST_REDRAW_CLEAN</td><td>Full refresh: 2 - 3 s, one flash, removes ghosting. Waits until at least one second after the preceding refresh</td><td>Images that must be clean; the end of a frame sequence</td></tr>
@@ -693,7 +693,7 @@ gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
 <p>Each refresh uses battery energy and wears the panel. Frequent changes also make the device distracting. See section 13 for guidelines.</p>
 
 <h1 id="buttons">7. Buttons</h1>
-<p>The buttons are, in order: UP, OK, DOWN, BACK. The host uses them the same way on every screen. Applications should keep these meanings.</p>
+<p>The buttons are, in order: UP, OK, DOWN, BACK. Perinkpheral OS uses them the same way on every screen. Applications should keep these meanings.</p>
 <p>Each press produces two kinds of events. The raw events are <code>KEYDOWN</code> and <code>KEYUP</code>. The interpreted events are <code>PRESSED</code>, sent when a short press ends, and <code>LONG_PRESSED</code>, sent after 600 ms while the button is still held. A long press does not produce <code>PRESSED</code>.</p>
 <p>Most applications handle only <code>PRESSED</code> and <code>LONG_PRESSED</code>.</p>
 <p>The event value combines the button and the action. Each combination has a constant:</p>
@@ -712,7 +712,7 @@ gfx_draw_picture(x, y, PICTURE_DROP, 2);    /* 22 px: cell size 2 */</pre>
   <tr><td>Without <code>app_on_back()</code></td><td>Closes the application (one step down the stack)</td></tr>
   <tr><td>With <code>app_on_back()</code></td><td>Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>screen_leave()</code></td></tr>
 </table>
-<p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.</p>
+<p>A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens Perinkpheral OS's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.</p>
 <p><code>screen_leave()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>screen_request()</code>.</p>
 
 <h2 id="buttons-kit">Lists, pickers, dates</h2>
@@ -741,7 +741,7 @@ void app_on_draw(void)
 <h1 id="storage">8. Storage</h1>
 <h2 id="storage-kv">Store</h2>
 <p><code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has a private namespace.</p>
-<p>The store holds the application's state and its settings. Removal normally keeps the store for reinstall. The host may reclaim stores belonging to removed applications when the stores partition is full. Removal with "forget" erases it immediately.</p>
+<p>The store holds the application's state and its settings. Removal normally keeps the store for reinstall. Perinkpheral OS may reclaim stores belonging to removed applications when the stores partition is full. Removal with "forget" erases it immediately.</p>
 <pre>typedef struct { int32_t version; int32_t minutes; int64_t ends_at; } state_t;
 static state_t state;
 
@@ -768,7 +768,7 @@ void app_on_load(void)
 </ul>
 
 <h1 id="network">9. Network</h1>
-<p>All network access goes through the host. The application describes a request; the host performs it and delivers the response. The host performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.</p>
+<p>All network access goes through Perinkpheral OS. The application describes a request; Perinkpheral OS performs it and delivers the response. Perinkpheral OS performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.</p>
 <p>Network availability is reported in the response: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.</p>
 <table>
   <tr><th style="width:20%">Method</th><th style="width:33%">Trigger</th><th>Delivery</th></tr>
@@ -778,7 +778,7 @@ void app_on_load(void)
   <tr><td><code>http_send()</code></td><td>Code: after a button press, or as a follow-up request</td><td><code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)</td></tr>
 </table>
 
-<h2 id="network-values">Values extracted by the host</h2>
+<h2 id="network-values">Values extracted by Perinkpheral OS</h2>
 <pre>#include "app_values.h"
 enum { VALUE_TEMPERATURE, VALUE_CODE };            /* order of "pick" in the manifest */
 
@@ -842,7 +842,7 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
 <ul>
   <li>Process each piece when it arrives and keep only the data to display. Use a state machine, the SDK's <code>json_pick</code> or a custom parser. A response can be several megabytes; the application has 64 KB. <code>json_pick</code> takes list paths too, with a buffer the application gives (section 23).</li>
   <li>Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new response.</li>
-  <li>Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.</li>
+  <li>Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most Perinkpheral OS's struct size; absent fields are zeroed, except length is -1 when absent.</li>
 </ul>
 
 <p>Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: answer_info() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.</p>
@@ -856,20 +856,20 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 <ul>
   <li>Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.</li>
   <li>An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). Queue additional requests as responses arrive. Applications and polls take turns while queued work remains valid. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.</li>
-  <li>The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
+  <li>Perinkpheral OS sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.</li>
   <li>A response to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the response is still needed.</li>
-  <li>The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.</li>
+  <li>Perinkpheral OS follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.</li>
   <li><code>poll_run(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.</li>
 </ul>
 
 <p>For http_send(), URL substitution and the initial host check happen before queuing. An unset URL value returns HOST_ERR_ARGUMENT without a callback. The expanded destination stays queued. Before sending, it is authorized again and headers are filled from the same current KV snapshot. A settings change that disallows the old destination gives HOST_FAILED_NOT_ALLOWED; queued requests are never silently retargeted. Missing or invalid header values give HOST_FAILED_NOT_READY. Once prepared, the request keeps its snapshot during transmission. URLs fit in 511 bytes; header values in 255 bytes; body bytes are copied at queue time.</p>
 <p>The 16-request ceiling is per application, with no reserved slots. All queued requests share a 16 KB budget for queue records, URLs, headers and bodies. HOST_ERR_NO_SPACE may occur before sixteen requests are waiting. A raw header name is at most 31 bytes; its value is at most 255 bytes.</p>
 <h2 id="network-certificates">Certificate authorities of the application</h2>
-<p>The host verifies HTTPS servers against the ESP-IDF's root certificate bundle. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
+<p>Perinkpheral OS verifies HTTPS servers against the ESP-IDF's root certificate bundle. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:</p>
 <pre>"certificates": ["russian-root-ca.pem"]          /* files/russian-root-ca.pem */</pre>
 <ul>
   <li>Each file is a root certificate of an authority, in PEM or DER, up to 4 KB. The build rejects a file that is missing, is not a certificate, is a server's certificate, or has expired.</li>
-  <li>The roots are trusted for this application's polls and requests only, in addition to the ESP-IDF's root certificate bundle. Other applications and the host do not trust them.</li>
+  <li>The roots are trusted for this application's polls and requests only, in addition to the ESP-IDF's root certificate bundle. Other applications and Perinkpheral OS do not trust them.</li>
   <li>The web page names the authorities before installation, as it does for system access, and on the application's card. The catalog index carries their names.</li>
   <li>Obtain the root certificate from its authority and verify its fingerprint against that authority's published fingerprint.</li>
 </ul>
@@ -898,19 +898,19 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 </table>
 
 <h1 id="background">10. Background work</h1>
-<p>The host loads an off-screen application for a delivery when one of these events occurs:</p>
+<p>Perinkpheral OS loads an off-screen application for a delivery when one of these events occurs:</p>
 <table>
   <tr><th style="width:26%">Task</th><th style="width:31%">Mechanism</th><th>Notes</th></tr>
   <tr><td>Scheduled data</td><td>Poll in the manifest</td><td>Active after a restart without code</td></tr>
   <tr><td>Action at a set time</td><td class="c">alarm_set, alarm_set_at, alarm_set_every</td><td>Alarms are cleared by a restart. Restore them in the <code>started</code> intent from a time kept in the store</td></tr>
-  <tr><td>Message to the user</td><td class="c">notification_post</td><td>Shown by the host over the current screen until dismissed</td></tr>
-  <tr><td>Bring the application to the screen</td><td class="c">screen_request</td><td>Granted by the host, at most once per 30 s</td></tr>
+  <tr><td>Message to the user</td><td class="c">notification_post</td><td>Shown by Perinkpheral OS over the current screen until dismissed</td></tr>
+  <tr><td>Bring the application to the screen</td><td class="c">screen_request</td><td>Granted by Perinkpheral OS, at most once per 30 s</td></tr>
   <tr><td>Status in the header</td><td class="c">header_set_status</td><td>An icon and short text above every screen with a header, including the owning application's screen. A screen's left text takes precedence over kept left status; kept right status takes precedence over the screen's right text</td></tr>
   <tr><td>Reaction to device start, network connection or clock change</td><td>Intent in the manifest</td><td><code>app_on_intent()</code></td></tr>
   <tr><td>Set up after installation or an update</td><td class="c">app_on_installed, app_on_updated</td><td>Once. A new version does not inherit the alarms of the old one: set them here. Poll intervals set from code are kept</td></tr>
 </table>
 
-<p>screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
+<p>screen_request() stays void: Perinkpheral OS decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.</p>
 <p>These question and focus rules are included in the ABI 3 firmware floor, 0.1.30. No additional manifest minimum is needed for them.</p>
 <a id="background-notification_post"></a>
 <h2 id="background-notifications">Notifications</h2>
@@ -919,8 +919,8 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
     host_notice_t notice = { .first = "Time", .second = "is up", .icon = HOST_ICON_BELL };
     notification_post(&amp;notice);
 }</pre>
-<p>After <code>notification_post()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.</p>
-<p>The notification is managed entirely by the host. The application stays unloaded while it is displayed.</p>
+<p>After <code>notification_post()</code> returns, Perinkpheral OS manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.</p>
+<p>The notification is managed entirely by Perinkpheral OS. The application stays unloaded while it is displayed.</p>
 <p>Use <code>notification_post()</code> instead of <code>screen_request()</code> when the message fits in two lines.</p>
 
 <h2 id="background-alarms">Alarms, timers</h2>
@@ -937,7 +937,7 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 <h1 id="time">11. Time</h1>
 <ul>
   <li><code>time_now()</code> returns Unix time in seconds. It returns 0 until the device has obtained the time. The application must handle this case.</li>
-  <li>Display local time. The host owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.</li>
+  <li>Display local time. Perinkpheral OS owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.</li>
   <li><code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".</li>
   <li>To be called when the clock is set or changed, declare the <code>time_changed</code> intent.</li>
 </ul>
@@ -956,7 +956,7 @@ http_send(REQUEST_TOGGLE, HOST_HTTP_POST, URL, sizeof URL - 1, HEADERS, sizeof H
 </table>
 <h1 id="language">12. Languages</h1>
 <p>Application string keys match <code>[a-z][a-z0-9_]*</code>. Generated constants use <code>STR_</code> followed by the uppercase key.</p>
-<p>An application displays its text in the language of the device. The developer provides the translations. The host loads the translation for the current language.</p>
+<p>An application displays its text in the language of the device. The developer provides the translations. Perinkpheral OS loads the translation for the current language.</p>
 <h3>strings/en.json</h3>
 <pre>{ "no_events": "No events", "starts_in": "In {0} min" }</pre>
 <h3>strings/ru.json</h3>
@@ -986,7 +986,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
                            &amp;minutes, 1, line, sizeof line);          /* "In 10 min" */</pre>
 <ul>
   <li><code>strings/</code> is optional. When it is there, <code>en.json</code> is required in it. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).</li>
-  <li>When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.</li>
+  <li>When Perinkpheral OS loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.</li>
   <li><code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Write each string in one form for all numbers, for example "min".</li>
   <li>The <code>manifest</code> key of a translation contains the translated parts of the manifest: the title, the title and help of each setting, and labels for the options of a choice. The stored option value does not change; only its label is translated.</li>
   <li>The build fails if a language is not listed in <code>sdk/languages.json</code> (27 languages, two-letter codes), if a translation has a missing or an extra key, or if a string contains a character that the glyph packs of the language do not cover.</li>
@@ -994,12 +994,12 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 </ul>
 
 <h1 id="design">13. Design rules</h1>
-<p>These rules apply to all applications. The host's own screens follow them. Most are conventions; the host checks only a few.</p>
+<p>These rules apply to all applications. Perinkpheral OS's own screens follow them. Most are conventions; Perinkpheral OS checks only a few.</p>
 
 <h2 id="design-paper">Screen content</h2>
 <div class="rule"><b>Show one main value per screen.</b> The device is read from about a metre, in about a second. Choose the main value, draw it largest, and keep everything else small.</div>
 <div class="rule"><b>Keep screens static.</b> Change a screen only when its data changes. A bar shows a quantity. To indicate work in progress, show a notice with <code>is_working</code>.</div>
-<div class="rule"><b>Redraw only when the content changes.</b> A timer should request a redraw only if the picture will differ. A clock redraws once a minute, on the minute. By default the host allows one refresh per minute that was not caused by a button press. Design for this rate.</div>
+<div class="rule"><b>Redraw only when the content changes.</b> A timer should request a redraw only if the picture will differ. A clock redraws once a minute, on the minute. By default Perinkpheral OS allows one refresh per minute that was not caused by a button press. Design for this rate.</div>
 <div class="rule"><b>Draw black on white.</b> Use ink on paper. Use grey for filled areas only. Use white text on a black bar only for the selected item or for new information.</div>
 <div class="rule"><b>Keep interface text short and standard.</b> Use common words: "Save", "Remove", "Not set up". If a label needs an explanation, change the label.</div>
 
@@ -1019,7 +1019,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <div class="rule"><b>Take text input on the web page.</b> Declare text such as a token, an address or a city as a manifest setting; the user enters it on the device's web page. On the device, let the user choose from a few values with UP and DOWN.</div>
 <div class="rule"><b>Take the screen rarely.</b> Use a notification only for events the user asked to be told about, such as a timer or a meeting. Let other information wait until the user looks.</div>
 <div class="rule"><b>Send user data only where the user directs.</b> List only the hosts the application needs. Use a <code>url</code> setting for the user's own server. Use a <code>secret</code> setting for a token and send it through a header placeholder.</div>
-<div class="rule"><b>Poll no more often than the data changes.</b> Offer the interval as a setting with a reasonable default. On battery power the host limits every poll to one per five minutes.</div>
+<div class="rule"><b>Poll no more often than the data changes.</b> Offer the interval as a setting with a reasonable default. On battery power Perinkpheral OS limits every poll to one per five minutes.</div>
 
 <h1 id="tools">14. Tools and debugging</h1>
 <table>
@@ -1046,7 +1046,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
 <p><code>press ... --shot</code> waits for the panel to finish and saves the frame. This can be used to script regression tests of the application's screens.</p>
 
 <h2 id="tools-simulator">Simulator</h2>
-<p>The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. It uses the firmware rendering code but does not model physical panel refreshes. It runs on macOS and Linux.</p>
+<p>The simulator runs one application on a computer, with the firmware's own interpreter, Perinkpheral OS API, kit, header and fonts. It uses the firmware rendering code but does not model physical panel refreshes. It runs on macOS and Linux.</p>
 <p>It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. The address opened in a browser shows the page of <code>serve</code>, with the simulator's own requests (below) as buttons.</p>
 <table>
   <tr><th style="width:34%">Device</th><th>Simulator</th></tr>
@@ -1079,7 +1079,7 @@ int32_t length = text_fill(app_string(STR_STARTS_IN), app_text_length(app_string
   <li>The network sends <code>User-Agent: perinkpheral</code>, as the device does. The header's icon shows whether the last request reached the network.</li>
   <li>Ctrl+C stops the simulator as a restart stops the device: <code>app_on_terminate()</code> is called. A process that is killed loses what was not saved, as at a power loss.</li>
   <li><code>set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in bash or zsh.</li>
-  <li>Not simulated: other applications (the menu holds only this one), device-specific system actions, refresh timing and sleep. Host-setting and time-setting calls are supported. The interpreter memory limit is not enforced: check the build report.</li>
+  <li>Not simulated: other applications (the menu holds only this one), device-specific system actions, refresh timing and sleep. Calls for Perinkpheral OS settings and time settings are supported. The interpreter memory limit is not enforced: check the build report.</li>
 </ul>
 
 <h2 id="tools-problems">Common problems</h2>
@@ -1123,13 +1123,13 @@ gh repo create OWNER/my-perink-apps --public</pre>
 </ul>
 
 <h1 class="part" id="part-3">Part III. Reference</h1>
-<p>This part summarizes the host calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.</p>
+<p>This part summarizes Perinkpheral OS calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.</p>
 <p><code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.</p>
-<p>Host calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.</p>
+<p>Perinkpheral OS calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.</p>
 <p>Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.</p>
 <p>A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.</p>
 
-<p>Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).</p>
+<p>Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events Perinkpheral OS calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).</p>
 
 <h2>ABI 3 compatibility</h2>
 <p>ABI 3 starts with firmware 0.1.30. Existing names, wasm types, privileges, constants, layouts and meanings remain available in later firmware. A changed signature or meaning requires a new ABI; HOST_SINCE_ stamps only entries added after the ABI 3 floor, 0.1.30. Firmware releases and ABI generations are independent. Missing exports remain optional.</p>
@@ -1137,8 +1137,8 @@ gh repo create OWNER/my-perink-apps --public</pre>
 <p>tools/perinkpheral contract snapshot records the contract in sdk/abi/3.txt and package hashes separately in sdk/abi/3/fixtures.txt; contract check verifies both in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.</p>
 <h2>Binary representation and buffers</h2>
 <p>The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.</p>
-<p>Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.</p>
-<p>kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.</p>
+<p>Input buffers are consumed or copied before an import returns. Perinkpheral OS retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.</p>
+<p>kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, Perinkpheral OS's struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.</p>
 <p>Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_on_load or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.</p>
 <p>Only HOST_DATA_LAST makes a streamed answer whole. HOST_DATA_FAILED may follow earlier pieces and invalidates them all. An interrupted answer may end with neither flag. Piece boundaries are unspecified, even inside a UTF-8 character or a document marker. Keep the previous displayed result until LAST.</p>
 <p>Rendering keeps the existing rules: combined redraw flags choose CLEAN before NO_BLINK before SOON; QUESTION is independent. When dithering is disabled, gfx_set_color shades 1..7 become paper and 8..15 ink. Icon first/last ink coordinates are inclusive; text end_x is exclusive.</p>
@@ -1156,7 +1156,7 @@ gh repo create OWNER/my-perink-apps --public</pre>
 </table>
 
 <h1 id="ref-exports">17. Exports</h1>
-<p>Export the handlers required by the features your application uses. The host skips absent handlers; the build rejects a feature without its required handler (section 4).</p>
+<p>Export the handlers required by the features your application uses. Perinkpheral OS skips absent handlers; the build rejects a feature without its required handler (section 4).</p>
 <table>
   <tr><th style="width:42%">Export</th><th>Called when</th></tr>
   <tr><td class="c">void app_on_load(void)</td><td>The instance is loaded and its strings are in place. Once per instance</td></tr>
@@ -1198,10 +1198,10 @@ gh repo create OWNER/my-perink-apps --public</pre>
   <tr><td class="c">gfx_draw_icon(x, y, icon, cell)</td><td>Built-in icon <code>HOST_ICON_*</code>, 11 x 11 cells. Cell size 1 - 16 px</td></tr>
   <tr><td class="c">gfx_icon_ink(icon, cell, ink)</td><td>The pixels an icon drawn at <code>cell</code> covers, into a <code>host_icon_ink_t</code> (first_x, last_x, first_y, last_y)</td></tr>
   <tr><td class="c">gfx_draw_bitmap(x, y, w, h, bits)</td><td>Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits are transparent</td></tr>
-  <tr><td class="c">gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by the host from an application file, starting at <code>offset</code></td></tr>
+  <tr><td class="c">gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by Perinkpheral OS from an application file, starting at <code>offset</code></td></tr>
   <tr><td class="c">gfx_draw_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
   <tr><td class="c">void screen_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION accepts OK only from a press begun after the question reached the panel</td></tr>
-  <tr><td class="c">header_set_text(side, text, length)</td><td>Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect</td></tr>
+  <tr><td class="c">header_set_text(side, text, length)</td><td>Sets the application's text in Perinkpheral OS header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to Perinkpheral OS. Callable from any handler; off the screen it has no effect</td></tr>
 </table>
 
 <p>Drawing coordinates are bounded to -4096 through 4096. Both bitmap calls require positive dimensions no larger than the current surface, even if clipping would hide the excess. QR cell size is 0 - 16.</p>
@@ -1226,8 +1226,8 @@ gh repo create OWNER/my-perink-apps --public</pre>
   <tr><td class="c">ui_draw_bar(x, y, width, value, maximum)</td><td>Bar, 14 px high: <code>value</code> of <code>maximum</code></td></tr>
   <tr><td class="c">ui_draw_chart(chart, values)</td><td>Draws a series of integers using host_chart_t; missing values use HOST_CHART_NO_VALUE</td></tr>
   <tr><td class="c">ui_draw_frame(x, y, width, height, arrows)</td><td>Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_DOWN</code></td></tr>
-  <tr><td class="c">ui_draw_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel</td></tr>
-  <tr><td class="c">ui_draw_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel</td></tr>
+  <tr><td class="c">ui_draw_picker(picker)</td><td>Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is Perinkpheral OS's word in the device's language: Save, Cancel</td></tr>
+  <tr><td class="c">ui_draw_date(date)</td><td>Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is Perinkpheral OS's word: Next or Save, Back or Cancel</td></tr>
 </table>
 
 <h2 id="ref-chart">Chart fields and flags</h2>
@@ -1286,7 +1286,7 @@ gh repo create OWNER/my-perink-apps --public</pre>
   <tr><td class="c">answer_count(index)</td><td>Inside <code>app_on_picked()</code>: the number of elements of list path <code>index</code>; 1 or 0 for any other path</td></tr>
   <tr><td class="c">answer_element(index, element, text, capacity)</td><td>Inside <code>app_on_picked()</code>: copies element <code>element</code> of path <code>index</code>, as <code>answer_value()</code> does</td></tr>
   <tr><td class="c">answer_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_picked()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response</td></tr>
-  <tr><td class="c">answer_info(response, capacity)</td><td>Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
+  <tr><td class="c">answer_info(response, capacity)</td><td>Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond Perinkpheral OS's struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
 </table>
 
 <h2 id="ref-text">Text and logging</h2>
@@ -1313,18 +1313,18 @@ gh repo create OWNER/my-perink-apps --public</pre>
 </table>
 
 <h1 id="ref-system">22. System API</h1>
-<p>The system API is the set of <code>sys_*</code> calls. The host's own pages use it.</p>
+<p>The system API is the set of <code>sys_*</code> calls. Perinkpheral OS's own pages use it.</p>
 <p>Any application can use the system API if its manifest contains <code>"system": true</code>. The web page warns the user before installing such an application. A module that imports a <code>sys_*</code> call without this declaration is rejected.</p>
 <table>
   <tr><th style="width:44%">Call</th><th>Description</th></tr>
   <tr><td class="c">sys_info(what, text, capacity)</td><td>Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code></td></tr>
-  <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
+  <tr><td class="c">sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)</td><td>A Perinkpheral OS setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key</td></tr>
   <tr><td class="c">sys_setting_range(key, key_length, number)</td><td>A numeric setting's value and its range</td></tr>
   <tr><td class="c">sys_time_set(int64_t unix_seconds)</td><td>Sets the clock to Unix seconds 1767225600 - 4102444800 (2026-01-01 through 2100-01-01 UTC, inclusive). HOST_ERR_ARGUMENT outside this range; HOST_ERR_FAILED while the time source is the network. On failure the clock is unchanged</td></tr>
   <tr><td class="c">sys_app_list(ids, capacity), sys_app_title(id, text, capacity), sys_app_remove(id)</td><td>Installed applications by id, in title order: list, title, deferred removal. HOST_OK means removal is queued until the handler returns, not completed. A second removal in the same handler gives HOST_ERR_NO_SPACE and leaves the first queued. An application cannot remove itself</td></tr>
   <tr><td class="c">sys_app_get_default(void), sys_app_set_default(id)</td><td>Default application id; 0: none</td></tr>
   <tr><td class="c">sys_draw_logo(x, y, scale), sys_logo_width(scale), sys_logo_height(scale)</td><td>The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height</td></tr>
-  <tr><td class="c">sys_run(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen</td></tr>
+  <tr><td class="c">sys_run(action)</td><td><code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. Perinkpheral OS does not check it; use HOST_REDRAW_QUESTION on the confirmation screen</td></tr>
 </table>
 
 <h1 id="ref-library">23. SDK library</h1>
@@ -1346,7 +1346,7 @@ void    app_text_copy(char *to, int32_t size, const char *from);
 bool    app_text_equal(const char *a, const char *b);
 bool    app_text_starts(const char *text, const char *start);
 int32_t app_time_text(int64_t moment, int32_t style, char *text, int32_t size); /* time_text(), null-terminated */
-#define APP_TEXT_DEGREE "\xC2\xB0"                                 /* the degree sign the host draws */</pre>
+#define APP_TEXT_DEGREE "\xC2\xB0"                                 /* the degree sign Perinkpheral OS draws */</pre>
 <p>The buffer is always null-terminated and stays within its size. Each call leaves a terminated string; excess text is dropped at a character boundary.</p>
 <h2 id="lib-draw">app_draw.h: drawing helpers</h2>
 <pre>/* null-terminated text; inside app_on_draw() */
@@ -1384,7 +1384,7 @@ bool    app_setting_is(const char *key, const char *wanted);
 /* toggle: true unless "0" */
 bool    app_setting_is_on(const char *key);
 bool    app_setting_number(const char *key, int32_t decimals, int32_t *number);
-/* "15 min", "1 h" as the host reads "every" */
+/* "15 min", "1 h" as Perinkpheral OS reads "every" */
 int32_t app_seconds_of(const char *text, int32_t otherwise);
 int32_t app_setting_seconds(const char *key, int32_t otherwise);
 /* a place's name, before its comma */
@@ -1451,7 +1451,7 @@ int64_t         app_date_seconds(const app_date_t *date);
 </pre>
 <p>Lists have at most 10000 rows. app_list_button() pages by the most recently measured matching list, using app_list_first(). Before measurement, or after another list was measured, it uses five rows.</p>
 <p>To handle BACK on these screens, export <code>app_on_back()</code> and pass <code>BTN_BACK_PRESSED</code> from it to the same button function.</p>
-<p>app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. The host applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.</p>
+<p>app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. Perinkpheral OS applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.</p>
 <h2 id="lib-alloc">app_alloc.h: arena allocation</h2>
 <pre>void   *app_alloc(int32_t bytes);            /* NULL if the arena is too small; memory is not zeroed */
 int32_t app_alloc_left(void);
@@ -1532,7 +1532,7 @@ bool        json_pick_is_cut(const json_pick_t *pick);
   <tr><td class="c">HOST_ICON_CELLS</td><td>11</td><td>Icon grid in cells</td></tr>
   <tr><td class="c">HOST_ICON_CELL_MAX</td><td>16</td><td>Icon cell size in pixels</td></tr>
   <tr><td class="c">HOST_ICON_COUNT</td><td>49</td><td>Built-in icons</td></tr>
-  <tr><td class="c">String table of one language</td><td>8 KB</td><td>Loaded by the host</td></tr>
+  <tr><td class="c">String table of one language</td><td>8 KB</td><td>Loaded by Perinkpheral OS</td></tr>
   <tr><td class="c">Packaged manifest</td><td>8192 bytes</td><td>Formatting and firmware stamp included</td></tr>
 </table>
 

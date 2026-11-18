@@ -260,7 +260,7 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 ## 0.1.13 - 2026-11-17
 
-- The host's settings are a store by key. Settings on the device and the device's page write the
+- Perinkpheral OS's settings are a store by key. Settings on the device and the device's page write the
   same keys by the same rules, and any application with system access may too
   (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`).
 - An application cannot remove itself.

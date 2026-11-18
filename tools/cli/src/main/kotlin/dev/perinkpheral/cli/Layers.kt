@@ -4,13 +4,13 @@ package dev.perinkpheral.cli
 import java.io.File
 
 /**
- * The firmware's layers, held by its includes and its calls (the host tests run it).
+ * The firmware's layers, held by its includes and its calls (host tests run it).
  *
  * Each rule below is one CLAUDE.md states in words: the components know only the ones under
- * them and never the host's own code; what is pure knows nothing of ESP-IDF; the views and the
+ * them and never Perinkpheral OS's own code; what is pure knows nothing of ESP-IDF; the views and the
  * scenes know no service; the settings' store knows none of the settings' consumers; the
- * services know no screen; and what other tasks change of the host loop's state goes through
- * the host loop. A rule broken is a line naming the file, the include or the call, and the
+ * services know no screen; and what other tasks change of the main event loop's state goes through
+ * the main event loop. A rule broken is a line naming the file, the include or the call, and the
  * rule. Read by the text of the sources: an include is a line, and a function's body runs from
  * its head at the left margin to the next one.
  */
@@ -28,7 +28,7 @@ class Layers(firmwareFolder: File) {
         var checks = 0
         fun rel(file: File) = file.relativeTo(firmware).path
 
-        // The components: each knows only the ones under it, none the host's code.
+        // The components: each knows only the ones under it, none Perinkpheral OS's code.
         for (component in components.listFiles().orEmpty().filter { it.isDirectory }.map { it.name }.sorted()) {
             val allowed = ALLOWED[component]
             if (allowed == null) {
@@ -42,7 +42,7 @@ class Layers(firmwareFolder: File) {
                     checks++
                     if (belongs == null || belongs == component) continue
                     if (belongs == "main") {
-                        broken += "${rel(source)} includes $header: no component knows the host's own code"
+                        broken += "${rel(source)} includes $header: no component knows Perinkpheral OS's own code"
                     } else if (belongs !in allowed) {
                         broken += "${rel(source)} includes $header: $component does not know $belongs"
                     }
@@ -112,14 +112,14 @@ class Layers(firmwareFolder: File) {
             }
         }
 
-        // What other tasks change of the host loop's state, the host loop does.
+        // What other tasks change of the main event loop's state, the main event loop does.
         for (source in OTHER_TASKS) {
             val file = File(firmware, source)
             if (!file.isFile) continue
             val text = file.readText()
             val bodies = functions(text)
-            // A function runs only in the host loop when it is handed to it, or when every
-            // function of the file that calls it does. A callback handed to the host loop and
+            // A function runs only in the main event loop when it is handed to it, or when every
+            // function of the file that calls it does. A callback handed to the main event loop and
             // also called straight from a handler runs in both.
             val handed = Regex("""events_call\w*\(\s*(\w+)""").findAll(text).map { it.groupValues[1] }.toSet()
             val callers = bodies.keys.associateWith { HashSet<String>() }
@@ -145,7 +145,7 @@ class Layers(firmwareFolder: File) {
                 for (call in HOST_LOOP_ONLY) {
                     if (Regex("""\b$call\(""").containsMatchIn(body)) {
                         checks++
-                        if (name !in inLoop) broken += "$source: $name() calls $call() outside the host loop"
+                        if (name !in inLoop) broken += "$source: $name() calls $call() outside the main event loop"
                     }
                 }
             }
@@ -223,7 +223,7 @@ class Layers(firmwareFolder: File) {
             "wasm3" to listOf(), "gfx" to listOf(),
             "deadlines" to listOf("board"), "input" to listOf("board"),
             "epd" to listOf("board", "deadlines"),
-            // The network clock uses the supported time range of the host contract.
+            // The network clock uses the supported time range of Perinkpheral OS contract.
             "net" to listOf("board", "deadlines", "sdk"),
             "ui" to listOf("gfx", "words"),
             "appstore" to listOf("board", "sdk"),
@@ -254,7 +254,7 @@ class Layers(firmwareFolder: File) {
         )
         private val SYSTEM = Regex("""^(esp_|freertos/|driver/|nvs|lwip/|sdkconfig|hal/|soc/|rom/|riscv/|mdns)""")
 
-        /** The views and the scenes: a model in, pixels or a reaction out. Of the host's own
+        /** The views and the scenes: a model in, pixels or a reaction out. Of Perinkpheral OS's own
          * code they know only one another. */
         private val VIEWS = listOf("screens", "header", "menu_order", "scene_menu", "scene_splash", "scene_confirm",
             "scene_working", "scene_storage", "scene_notify")
@@ -271,8 +271,8 @@ class Layers(firmwareFolder: File) {
         private val SCREEN_HEADERS = setOf("gfx.h", "gfx_icons.h", "kit.h", "list.h", "notice.h", "wm.h", "scene.h",
             "scenes.h", "screens.h", "header.h")
 
-        /** What only the host loop may do: in the web server's handlers, these are called from a
-         * function handed to the host loop (events_call), or from one such a function calls. */
+        /** What only the main event loop may do: in the web server's handlers, these are called from a
+         * function handed to the main event loop (events_call), or from one such a function calls. */
         private val HOST_LOOP_ONLY = listOf("host_reload_apps", "host_reload_apps_later", "launcher_remove", "host_close_app",
             "host_deliver", "app_kv_set", "host_redraw", "glyphs_install", "glyphs_remove",
             "app_store_commit_all", "app_store_commit_file", "settings_change", "settings_set",

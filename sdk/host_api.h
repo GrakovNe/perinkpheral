@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * perINKpheral host API: the contract between the host firmware and wasm
+ * Perinkpheral OS API: the contract between Perinkpheral OS firmware and wasm
  * applications. Applications include this header and link the imports.
- * The host builds its import table from the same names.
+ * Perinkpheral OS builds its import table from the same names.
  *
  * ABI 3 was frozen in firmware 0.1.30. Existing names, signatures,
  * privileges, layouts, values and meanings remain available on later
@@ -12,7 +12,7 @@
  * after the 0.1.30 floor use HOST_SINCE_<name> and a firmware minimum.
  * ABI 2 is unsupported.
  * Commands use subject then verb (gfx_draw_text); queries name what is
- * asked (gfx_width); host-called events are app_on_<what happened>.
+ * asked (gfx_width); events called by Perinkpheral OS are app_on_<what happened>.
  *
  * The contract is written by subject in host/, and this header includes all
  * of it: an application includes this one. The tools read the headers in

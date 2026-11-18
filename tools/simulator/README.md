@@ -1,6 +1,6 @@
 # Simulator
 
-Runs one application on a computer using the firmware's interpreter, host API,
+Runs one application on a computer using the firmware's interpreter, Perinkpheral OS API,
 UI kit and window manager. It exposes the rendered framebuffer and simulated input.
 
     tools/perinkpheral sim <application folder> [--language ru] [--mocks mocks.json]
@@ -36,7 +36,7 @@ every address that begins with the rest.
     }
 
 Not simulated: the menu of several applications, the system API except
-host settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`) and
+Perinkpheral OS settings (`sys_setting_get`, `sys_setting_set`, `sys_setting_range`) and
 `sys_time_set`, e-paper
 refresh timing, sleep, the battery or firmware/recovery updates. The device's
 128 KB application area (64 KB Wasm memory and 64 KB interpreter space) is not

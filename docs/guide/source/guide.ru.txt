@@ -52,11 +52,11 @@ build and upload without reflashing
 <b>II</b>Development guide: package, screen, input, storage, network
 <b>II</b>Руководство разработчика: пакет, экран, ввод, хранение, сеть
 
-<b>III</b>Reference: host API and SDK library
-<b>III</b>Справочник: API хоста и библиотека SDK
+<b>III</b>Reference: Perinkpheral OS API and SDK library
+<b>III</b>Справочник: API Perinkpheral OS и библиотека SDK
 
-revision 12, 2026-11-18 / frozen host API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
-редакция 12, 2026-11-18 / зафиксированный host API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+revision 12, 2026-11-18 / frozen Perinkpheral OS API of sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
+редакция 12, 2026-11-18 / зафиксированный Perinkpheral OS API sdk/host_api.h, ABI 3<br>github.com/GrakovNe/perinkpheral / MIT
 
 Contents
 Содержание
@@ -70,17 +70,17 @@ Part I. Datasheet
 perINKpheral is a desk display: a 4.2" black-and-white e-paper panel with four buttons, built on an ESP32-C6. Information intended for reading at a glance is displayed: time, weather, the next meeting, the state of a home.
 perINKpheral - настольный дисплей: чёрно-белая панель E-Ink 4,2" с четырьмя кнопками на базе ESP32-C6. Отображается информация, рассчитанная на чтение с одного взгляда: время, погода, ближайшая встреча, состояние дома.
 
-The main firmware is called the <i>host</i>. The host draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.
-Основная прошивка называется <i>хостом</i>. Хост рисует меню и свои сообщения. Остальные его экраны - <i>приложения</i>, в том числе Настройки и О системе: это системные приложения, встроенные в прошивку. Приложения устанавливаются из каталога, без перепрошивки устройства.
+<i>Perinkpheral OS</i> is a specialized operating system for e-paper, built on FreeRTOS/ESP-IDF. It draws the menu and its own notices. Its other screens are <i>applications</i>, Settings and About among them: they are system applications, carried in the firmware. Applications are installed from a catalog; the firmware is not reflashed.
+<i>Perinkpheral OS</i> — специализированная ОС для e-paper на базе FreeRTOS/ESP-IDF. Она рисует меню и свои сообщения. Остальные её экраны - <i>приложения</i>, в том числе Настройки и О системе: это системные приложения, встроенные в прошивку. Приложения устанавливаются из каталога, без перепрошивки устройства.
 
 An independent recovery image installs firmware updates and runs no applications. Ordinary OTA replaces only the main firmware and preserves installed packages and their data.
 Отдельная прошивка восстановления устанавливает обновления и не запускает приложения. Обычное OTA заменяет только основную прошивку, сохраняя установленные пакеты и их данные.
 
-An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside the host.
-Приложение состоит из модуля WebAssembly и манифеста. Модуль пишется на C с одним заголовочным файлом, <code>sdk/host_api.h</code>, и исполняется интерпретатором (wasm3) внутри хоста.
+An application consists of a WebAssembly module and a manifest. The module is written in C against a single header, <code>sdk/host_api.h</code>, and is executed by an interpreter (wasm3) inside Perinkpheral OS.
+Приложение состоит из модуля WebAssembly и манифеста. Модуль пишется на C с одним заголовочным файлом, <code>sdk/host_api.h</code>, и исполняется интерпретатором (wasm3) внутри Perinkpheral OS.
 
-The host's own pages, Settings and About, are built as applications with the same header.
-Собственные страницы хоста, «Настройки» и «О системе», собраны как приложения с тем же заголовочным файлом.
+Perinkpheral OS's own pages, Settings and About, are built as applications with the same header.
+Собственные страницы Perinkpheral OS, «Настройки» и «О системе», собраны как приложения с тем же заголовочным файлом.
 
 Features
 Возможности
@@ -91,14 +91,14 @@ Display: 400 x 300 pixels, 1 bit, dithered greys, partial refresh in about 0.5 s
 Input: four buttons; short press, long press, key down and key up events
 Ввод: четыре кнопки; события короткого нажатия, длинного нажатия, нажатия и отпускания
 
-Sandbox: 64 KB of private memory; network access through the host only
-Песочница: 64 КБ собственной памяти; доступ в сеть только через хост
+Sandbox: 64 KB of private memory; network access through Perinkpheral OS only
+Песочница: 64 КБ собственной памяти; доступ в сеть только через Perinkpheral OS
 
-Network: HTTP and HTTPS requests performed by the host, as scheduled polls or on request from the code
-Сеть: запросы HTTP и HTTPS выполняются хостом - опросы по расписанию или запросы из кода
+Network: HTTP and HTTPS requests performed by Perinkpheral OS, as scheduled polls or on request from the code
+Сеть: запросы HTTP и HTTPS выполняются Perinkpheral OS - опросы по расписанию или запросы из кода
 
-Data: the host extracts values and lists from JSON responses; any response can be streamed in 1 KB pieces
-Данные: хост извлекает значения и списки из ответов JSON; любой ответ можно получать потоком кусками по 1 КБ
+Data: Perinkpheral OS extracts values and lists from JSON responses; any response can be streamed in 1 KB pieces
+Данные: Perinkpheral OS извлекает значения и списки из ответов JSON; любой ответ можно получать потоком кусками по 1 КБ
 
 Background work: responses, alarms and device events are delivered while the application is off the screen
 Фоновая работа: ответы, будильники и события устройства доставляются приложению, когда оно не на экране
@@ -106,17 +106,17 @@ Background work: responses, alarms and device events are delivered while the app
 Storage: a key-value store, kept across restarts and reinstalls, and files, kept across restarts
 Хранение: хранилище «ключ-значение», сохраняется при перезагрузке и переустановке, и файлы, сохраняются при перезагрузке
 
-Design system: lists, notices, pickers, cells and a button row, drawn by the host
-Дизайн-система: списки, сообщения, выбор значения, ячейки и строка кнопок, отрисовываются хостом
+Design system: lists, notices, pickers, cells and a button row, drawn by Perinkpheral OS
+Дизайн-система: списки, сообщения, выбор значения, ячейки и строка кнопок, отрисовываются Perinkpheral OS
 
-Notifications: shown by the host over any screen
-Уведомления: показываются хостом поверх любого экрана
+Notifications: shown by Perinkpheral OS over any screen
+Уведомления: показываются Perinkpheral OS поверх любого экрана
 
 Settings: declared in the manifest, edited on the device's web page
 Настройки: объявляются в манифесте, редактируются на веб-странице устройства
 
-Localization: strings per language, loaded by the host; Extended Latin, Cyrillic and Greek
-Локализация: строки по языкам, загружаются хостом; расширенная латиница, кириллица и греческий
+Localization: strings per language, loaded by Perinkpheral OS; Extended Latin, Cyrillic and Greek
+Локализация: строки по языкам, загружаются Perinkpheral OS; расширенная латиница, кириллица и греческий
 
 Tools: build, check and measure an application; control a device over the network
 Инструменты: сборка, проверка и измерение приложения; управление устройством по сети
@@ -124,11 +124,11 @@ Tools: build, check and measure an application; control a device over the networ
 How an application runs
 Как работает приложение
 
-An application is a set of exported handlers with fixed names. A handler is called by the host when an event occurs: a button press, a timer, incoming data, a request to draw.
-Приложение - это набор экспортируемых обработчиков с фиксированными именами. Обработчик вызывается хостом при наступлении события: нажатие кнопки, таймер, поступление данных, запрос на отрисовку.
+An application is a set of exported handlers with fixed names. A handler is called by Perinkpheral OS when an event occurs: a button press, a timer, incoming data, a request to draw.
+Приложение - это набор экспортируемых обработчиков с фиксированными именами. Обработчик вызывается Perinkpheral OS при наступлении события: нажатие кнопки, таймер, поступление данных, запрос на отрисовку.
 
-The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by the host when a frame is needed. Refresh timing and method are decided by the host.
-Состояние приложения изменяется в обработчике, после чего запрашивается перерисовка. <code>app_on_draw()</code> вызывается хостом, когда нужен кадр. Момент и способ обновления экрана определяются хостом.
+The application's state is updated in a handler, and a redraw is requested. <code>app_on_draw()</code> is called by Perinkpheral OS when a frame is needed. Refresh timing and method are decided by Perinkpheral OS.
+Состояние приложения изменяется в обработчике, после чего запрашивается перерисовка. <code>app_on_draw()</code> вызывается Perinkpheral OS, когда нужен кадр. Момент и способ обновления экрана определяются Perinkpheral OS.
 
 One application is loaded at a time. An application is unloaded when it leaves the screen. Persistent state is kept in the application's store; global variables are kept until the unload.
 Одновременно загружено одно приложение. Приложение выгружается, когда уходит с экрана. Постоянное состояние хранится в хранилище приложения; глобальные переменные сохраняются до выгрузки.
@@ -172,8 +172,8 @@ Application surface
 400 x 260 px
 =
 
-Below the host header. 400 x 300 with <code>"fullscreen": true</code>
-Под заголовком хоста. 400 x 300 при <code>"fullscreen": true</code>
+Below Perinkpheral OS header. 400 x 300 with <code>"fullscreen": true</code>
+Под заголовком Perinkpheral OS. 400 x 300 при <code>"fullscreen": true</code>
 
 Depth
 Глубина цвета
@@ -259,8 +259,8 @@ Reserved
 long press of BACK
 длинное нажатие BACK
 
-Handled by the host: clears the stack and opens the menu
-Обрабатывается хостом: очищает стек и открывает меню
+Handled by Perinkpheral OS: clears the stack and opens the menu
+Обрабатывается Perinkpheral OS: очищает стек и открывает меню
 
 Sandbox
 Песочница
@@ -397,8 +397,8 @@ Transport
 HTTP, HTTPS
 =
 
-Performed by the host
-Выполняется хостом
+Performed by Perinkpheral OS
+Выполняется Perinkpheral OS
 
 HTTPS trust
 Доверие HTTPS
@@ -514,8 +514,8 @@ Screen takeover
 max. 1 per 30 s
 не чаще 1 раза в 30 с
 
-<code>screen_request()</code>; granted by the host
-<code>screen_request()</code>; разрешается хостом
+<code>screen_request()</code>; granted by Perinkpheral OS
+<code>screen_request()</code>; разрешается Perinkpheral OS
 
 Clock
 Часы
@@ -523,8 +523,8 @@ Clock
 Unix seconds
 секунды Unix
 
-Set from the network or by hand. 0 until first set. The time zone is a host setting
-Задаётся по сети или вручную. 0 до первой установки. Часовой пояс - настройка хоста
+Set from the network or by hand. 0 until first set. The time zone is a Perinkpheral OS setting
+Задаётся по сети или вручную. 0 до первой установки. Часовой пояс - настройка Perinkpheral OS
 
 Text
 Текст
@@ -577,8 +577,8 @@ Capital height 8 to 80 px. Two typefaces, selected by the user
 Languages
 Языки
 
-English built in; other languages as tables loaded by the host (section 12)
-Английский встроен; остальные языки - таблицы, загружаемые хостом (раздел 12)
+English built in; other languages as tables loaded by Perinkpheral OS (section 12)
+Английский встроен; остальные языки - таблицы, загружаемые Perinkpheral OS (раздел 12)
 
 3. Execution model
 3. Модель исполнения
@@ -634,8 +634,8 @@ Once, on or off the screen
 app_on_installed / app_on_updated
 =
 
-<code>screen_request()</code> granted by the host
-<code>screen_request()</code> разрешён хостом
+<code>screen_request()</code> granted by Perinkpheral OS
+<code>screen_request()</code> разрешён Perinkpheral OS
 
 Unloaded, then opened on top of the stack
 Выгружается, затем открывается на вершине стека
@@ -658,8 +658,8 @@ Handler guarantees
 Handlers are run one at a time, each to completion. Locking is unnecessary.
 Обработчики выполняются по одному, каждый до завершения. Блокировки не нужны.
 
-A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. The host is unaffected.
-Обработчик ограничен 3 секундами. Обработчик, превысивший лимит или вызвавший ловушку (например, на неверном указателе), останавливается. Приложение завершается, показывается экран ошибки. Хост продолжает работу.
+A handler is limited to 3 seconds. A handler that exceeds the limit, or traps (for example, on an invalid pointer), is stopped. The application is then terminated and an error screen is shown. Perinkpheral OS is unaffected.
+Обработчик ограничен 3 секундами. Обработчик, превысивший лимит или вызвавший ловушку (например, на неверном указателе), останавливается. Приложение завершается, показывается экран ошибки. Perinkpheral OS продолжает работу.
 
 Handlers return <code>void</code>. A redraw, the screen or an exit is obtained with a request. Requests are applied after the handler returns.
 Обработчики возвращают <code>void</code>. Перерисовка, экран или выход получаются запросом. Запросы применяются после возврата из обработчика.
@@ -688,8 +688,8 @@ Use session memory for temporary UI state: the current page, selected row or unf
 Use <code>time_now()</code> for timestamps that must span restarts. Store <code>time_boot_id()</code> beside an uptime value to detect an earlier boot and discard that value. The boot id is a random nonzero 32-bit value; equality does not guarantee that no restart occurred.
 Для меток времени, сохраняемых между перезапусками, используйте <code>time_now()</code>. Вместе со временем работы сохраняйте <code>time_boot_id()</code>, чтобы обнаружить предыдущий запуск и отбросить старое значение. Идентификатор запуска - случайное ненулевое 32-битное число; совпадение не гарантирует отсутствия перезапуска.
 
-For larger temporary state, such as a packed game board, use <code>scene_state_set()</code> and <code>scene_state_get()</code>. The host allocates up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes on demand. This buffer is independent of the smaller session and follows the same lifetime and access rules. Both calls require firmware 0.1.34 or later.
-Для более объёмного временного состояния, например упакованного игрового поля, используйте <code>scene_state_set()</code> и <code>scene_state_get()</code>. Хост выделяет до <code>HOST_SCENE_STATE_MAX</code> (1024) байт по запросу. Этот буфер хранится отдельно от меньшей сессии и подчиняется тем же правилам срока хранения и доступа. Для обоих вызовов нужна прошивка 0.1.34 или новее.
+For larger temporary state, such as a packed game board, use <code>scene_state_set()</code> and <code>scene_state_get()</code>. Perinkpheral OS allocates up to <code>HOST_SCENE_STATE_MAX</code> (1024) bytes on demand. This buffer is independent of the smaller session and follows the same lifetime and access rules. Both calls require firmware 0.1.34 or later.
+Для более объёмного временного состояния, например упакованного игрового поля, используйте <code>scene_state_set()</code> и <code>scene_state_get()</code>. Perinkpheral OS выделяет до <code>HOST_SCENE_STATE_MAX</code> (1024) байт по запросу. Этот буфер хранится отдельно от меньшей сессии и подчиняется тем же правилам срока хранения и доступа. Для обоих вызовов нужна прошивка 0.1.34 или новее.
 
 The session is attached after app_on_load() returns. Read it in app_on_focus() or a background delivery handler; session_set() in app_on_load() returns HOST_ERR_ARGUMENT.
 Сессия подключается после возврата из app_on_load(). Читайте её в app_on_focus() или обработчике фоновой доставки; session_set() в app_on_load() возвращает HOST_ERR_ARGUMENT.
@@ -697,8 +697,8 @@ The session is attached after app_on_load() returns. Read it in app_on_focus() o
 Navigation and refresh
 Навигация и обновление экрана
 
-Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a host question or an application that requested the screen is placed above the current screen.
-Навигация организована как стек. Внизу находится меню. Приложение, открытое из меню, помещается сверху. Уведомление, вопрос хоста или приложение, запросившее экран, помещается над текущим экраном.
+Navigation is organized as a stack. The menu is at the bottom. An application opened from the menu is placed on top. A notification, a Perinkpheral OS question or an application that requested the screen is placed above the current screen.
+Навигация организована как стек. Внизу находится меню. Приложение, открытое из меню, помещается сверху. Уведомление, вопрос Perinkpheral OS или приложение, запросившее экран, помещается над текущим экраном.
 
 The top entry is removed by a short press of BACK. The stack is cleared and the menu is opened by a long press of BACK.
 Верхний элемент снимается коротким нажатием BACK. Длинным нажатием BACK стек очищается и открывается меню.
@@ -706,11 +706,11 @@ The top entry is removed by a short press of BACK. The stack is cleared and the 
 Only the top entry is loaded. An application lower in the stack is unloaded; its state is restored when it returns to the top.
 Загружен только верхний элемент. Приложение ниже в стеке выгружено; его состояние восстанавливается при возврате на вершину.
 
-The panel is controlled by the host. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.
-Панелью управляет хост. Каждый новый кадр сравнивается с кадром на панели, передаётся только изменившаяся область. Обновление без нажатия кнопки откладывается, если предыдущее было слишком недавно.
+The panel is controlled by Perinkpheral OS. Each new frame is compared with the frame on the panel, and only the changed area is sent. A refresh without a button press is postponed if the previous one was too recent.
+Панелью управляет Perinkpheral OS. Каждый новый кадр сравнивается с кадром на панели, передаётся только изменившаяся область. Обновление без нажатия кнопки откладывается, если предыдущее было слишком недавно.
 
-A complete frame is always shown. Refresh timing is decided by the host.
-На панели всегда показан целый кадр. Момент обновления определяется хостом.
+A complete frame is always shown. Refresh timing is decided by Perinkpheral OS.
+На панели всегда показан целый кадр. Момент обновления определяется Perinkpheral OS.
 
 Part II. Development guide
 Часть II. Руководство разработчика
@@ -796,8 +796,8 @@ update the state, request a redraw
 draw the whole frame from the state
 нарисовать весь кадр по состоянию
 
-BACK is handled by the host here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.
-BACK здесь обрабатывается хостом: короткое нажатие BACK закрывает приложение, у которого нет экспорта <code>app_on_back()</code>.
+BACK is handled by Perinkpheral OS here: a short press of BACK closes an application that has no <code>app_on_back()</code> export.
+BACK здесь обрабатывается Perinkpheral OS: короткое нажатие BACK закрывает приложение, у которого нет экспорта <code>app_on_back()</code>.
 
 Build report
 Отчёт сборки
@@ -841,8 +841,8 @@ Call <code>app_alloc_mark()</code> before allocating temporary buffers with <cod
 firmware
 =
 
-The oldest firmware the application runs on, and the host call that asks for it
-Самая старая прошивка, на которой приложение работает, и вызов хоста, который её требует
+The oldest firmware the application runs on, and the Perinkpheral OS call that asks for it
+Самая старая прошивка, на которой приложение работает, и вызов Perinkpheral OS, который её требует
 
 The log reports two conditions of a running application, once per instance or per minute: a handler that runs longer than 400 ms (<code>slow handler: on_draw took 520 ms</code>), and more than 12 store writes in a minute. Each store write is a flash write: state is saved in <code>app_on_terminate()</code>.
 Журнал сообщает о двух состояниях работающего приложения, один раз на экземпляр или в минуту: обработчик выполняется дольше 400 мс (<code>slow handler: on_draw took 520 ms</code>), и более 12 записей в хранилище за минуту. Каждая запись в хранилище - запись во флеш: состояние сохраняется в <code>app_on_terminate()</code>.
@@ -868,8 +868,8 @@ the manifest exceeds a limit;
 a translation does not match <code>en.json</code> (section 12);
 перевод не соответствует <code>en.json</code> (раздел 12);
 
-a function is named like a handler (<code>app_on_...</code>) and the host has no such handler;
-функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у хоста нет;
+a function is named like a handler (<code>app_on_...</code>) and Perinkpheral OS has no such handler;
+функция названа как обработчик (<code>app_on_...</code>), а такого обработчика у Perinkpheral OS нет;
 
 the code calls <code>timer_set()</code>, <code>alarm_set*()</code> or <code>http_send()</code> and lacks the handler that receives the result;
 код вызывает <code>timer_set()</code>, <code>alarm_set*()</code> или <code>http_send()</code> и не содержит обработчика, который получает результат;
@@ -955,8 +955,8 @@ Set by the developer. A different version in a catalog is offered as an update
 abi
 =
 
-Frozen host contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."
-Поколение зафиксированного контракта хоста. Принимаются только явно поддерживаемые поколения; ABI 2 получает ответ "Обновите приложение."
+Frozen Perinkpheral OS contract generation. Only the explicit supported set is accepted; ABI 2 gives "Update the app."
+Поколение зафиксированного контракта Perinkpheral OS. Принимаются только явно поддерживаемые поколения; ABI 2 получает ответ "Обновите приложение."
 
 The minimum firmware release. The build takes the maximum of the ABI 3 floor (0.1.30), the introduction stamps of used imports/exports and an explicit manifest minimum. New flags or manifest behaviour need an explicit minimum. Older firmware refuses installation and startup with "Update the firmware."
 Минимальная версия прошивки. Сборка берёт максимум из нижней границы ABI 3 (0.1.30), отметок введения используемых импортов и экспортов и явно заданного минимума манифеста. Новым флагам или поведению манифеста нужен явный минимум. Более старая прошивка отказывает при установке и запуске: "Update the firmware."
@@ -967,8 +967,8 @@ fullscreen
 true / false (default)
 true / false (по умолчанию)
 
-false: host header on top, surface 400 x 260. true: surface 400 x 300
-false: сверху заголовок хоста, поверхность 400 x 260. true: поверхность 400 x 300
+false: Perinkpheral OS header on top, surface 400 x 260. true: surface 400 x 300
+false: сверху заголовок Perinkpheral OS, поверхность 400 x 260. true: поверхность 400 x 300
 
 icon
 =
@@ -985,8 +985,8 @@ polls
 up to 4
 до 4
 
-Scheduled requests performed by the host (below). A poll can go over a list setting
-Запросы по расписанию, которые выполняет хост (ниже). Опрос может проходить по настройке-списку
+Scheduled requests performed by Perinkpheral OS (below). A poll can go over a list setting
+Запросы по расписанию, которые выполняет Perinkpheral OS (ниже). Опрос может проходить по настройке-списку
 
 hosts
 =
@@ -1037,13 +1037,13 @@ up to 2 files of <code>files/</code>
 до 2 файлов из <code>files/</code>
 
 Certificate authorities trusted for this application's own requests, beside the ESP-IDF's root certificate bundle (section 9). The web page names them before installation
-Центры сертификации, которым хост доверяет при выполнении запросов этого приложения, помимо набора корневых сертификатов ESP-IDF (раздел 9). Веб-страница называет их перед установкой
+Центры сертификации, которым Perinkpheral OS доверяет при выполнении запросов этого приложения, помимо набора корневых сертификатов ESP-IDF (раздел 9). Веб-страница называет их перед установкой
 
 The packaged manifest is at most 8192 bytes, including formatting and the firmware version written by the build.
 Упакованный манифест занимает не более 8192 байт, включая форматирование и версию прошивки, записанную сборкой.
 
-The host ignores unknown keys. The build validates the keys listed above.
-Хост пропускает незнакомые ключи. Сборка проверяет перечисленные выше.
+Perinkpheral OS ignores unknown keys. The build validates the keys listed above.
+Perinkpheral OS пропускает незнакомые ключи. Сборка проверяет перечисленные выше.
 
 Polls
 Опросы
@@ -1063,8 +1063,8 @@ every
 10 to 86400 seconds, or <code>"{{key}}"</code> of a setting
 от 10 до 86400 секунд либо <code>"{{key}}"</code> настройки
 
-Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. The host applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it
-Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется хостом. Пока пользователь не выбрал, интервал равен <code>default</code> настройки, а без него - 15 минутам; приложение не сохраняет для него значение
+Interval. With a setting, the stored text is a number and a unit; the unit is identified by its first letter: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). A number alone is seconds. Perinkpheral OS applies the user's choice. Before the user chooses, the interval is the <code>default</code> of the setting, or 15 minutes without one; the application stores no value for it
+Интервал. При использовании настройки сохранённый текст - число и единица; единица определяется по первой букве: <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> ("30 s", "15 min", "1 h", "1 day"). Число без единицы - секунды. Выбор пользователя применяется Perinkpheral OS. Пока пользователь не выбрал, интервал равен <code>default</code> настройки, а без него - 15 минутам; приложение не сохраняет для него значение
 
 headers
 =
@@ -1072,8 +1072,8 @@ headers
 up to 4; a value up to 255 bytes
 до 4; значение до 255 байт
 
-<code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of the host's <code>perinkpheral</code>
-<code>{{key}}</code> поддерживается в значениях. Используются для отправки токена или собственного <code>User-Agent</code> приложения вместо хостового <code>perinkpheral</code>
+<code>{{key}}</code> is supported in values. Used to send a token, or a <code>User-Agent</code> of the application's own in place of Perinkpheral OS's <code>perinkpheral</code>
+<code>{{key}}</code> поддерживается в значениях. Используются для отправки токена или собственного <code>User-Agent</code> приложения вместо системного <code>perinkpheral</code>
 
 pick
 =
@@ -1081,8 +1081,8 @@ pick
 up to 16 paths of up to 63 bytes
 до 16 путей, каждый до 63 байт
 
-JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). The host extracts the values. Without <code>pick</code> the response is streamed
-Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> вместо одного индекса берёт все элементы массива: <code>close[*]</code> (раздел 9). Значения извлекает хост. Без <code>pick</code> ответ приходит потоком
+JSON paths, for example <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> in place of one index takes every element of the array: <code>close[*]</code> (section 9). Perinkpheral OS extracts the values. Without <code>pick</code> the response is streamed
+Пути JSON, например <code>current.temperature_2m</code>, <code>daily.code[0]</code>. <code>[*]</code> вместо одного индекса берёт все элементы массива: <code>close[*]</code> (раздел 9). Значения извлекает Perinkpheral OS. Без <code>pick</code> ответ приходит потоком
 
 each
 =
@@ -1114,8 +1114,8 @@ Setting placeholders
 Polls are numbered from 0 in the order of the list. Handlers receive this number.
 Опросы нумеруются с 0 в порядке списка. Этот номер получают обработчики.
 
-A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list the host attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.
-Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке хост пытается выполнить один опрос с <code>answer_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.
+A path follows the response from its top: <code>[0]</code> and <code>[*]</code> may stand together in one path, <code>chart.result[0].closes[*]</code>. With an empty list Perinkpheral OS attempts one poll with <code>answer_item()</code> equal to -1. It fails with <code>HOST_FAILED_NOT_READY</code> if substitution needs the unset list value; a fixed URL that does not reference the list can still be requested.
+Путь отсчитывается от начала ответа: <code>[0]</code> и <code>[*]</code> могут быть в одном пути, <code>chart.result[0].closes[*]</code>. При пустом списке Perinkpheral OS пытается выполнить один опрос с <code>answer_item()</code>, равным -1. Он завершается с <code>HOST_FAILED_NOT_READY</code>, если подстановка требует пустое значение списка; фиксированный URL без ссылки на список может быть запрошен.
 
 Settings
 Настройки
@@ -1129,8 +1129,8 @@ The application reads a setting with <code>kv_get()</code> and the key of the se
 Settings form values must be printable ASCII; list values also allow line breaks between items.
 Значения формы настроек должны быть печатным ASCII; для списков также разрешён перевод строки между элементами.
 
-When the user saves the form, the host calls <code>app_on_settings()</code> and repeats all polls immediately.
-Когда пользователь сохраняет форму, хост вызывает <code>app_on_settings()</code> и сразу повторяет все опросы.
+When the user saves the form, Perinkpheral OS calls <code>app_on_settings()</code> and repeats all polls immediately.
+Когда пользователь сохраняет форму, Perinkpheral OS вызывает <code>app_on_settings()</code> и сразу повторяет все опросы.
 
 Setting fields
 Поля настройки
@@ -1258,8 +1258,8 @@ An absent setting reads as its <code>default</code> through <code>kv_get()</code
 The application can write any setting with <code>kv_set()</code> but <code>url</code> and <code>link</code>; a list as its items with line breaks between them.
 Приложение может записать через <code>kv_set()</code> любую настройку, кроме <code>url</code> и <code>link</code>; список - пунктами через перевод строки.
 
-<code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, the host erases the secrets that were not entered again, so a token stays with the server it was entered for.
-Настройки типов <code>url</code> и <code>link</code> доступны приложению только для чтения: <code>kv_set()</code> по их ключам завершается ошибкой. Когда пользователь меняет такую настройку, хост стирает секреты, не введённые заново, поэтому токен остаётся с тем сервером, для которого был введён.
+<code>url</code> and <code>link</code> settings are read-only for the application: <code>kv_set()</code> on their keys fails. When the user changes such a setting, Perinkpheral OS erases the secrets that were not entered again, so a token stays with the server it was entered for.
+Настройки типов <code>url</code> и <code>link</code> доступны приложению только для чтения: <code>kv_set()</code> по их ключам завершается ошибкой. Когда пользователь меняет такую настройку, Perinkpheral OS стирает секреты, не введённые заново, поэтому токен остаётся с тем сервером, для которого был введён.
 
 <code>title</code> is 1 to 31 characters. <code>help</code> is up to 95 characters.
 <code>title</code> - от 1 до 31 символа. <code>help</code> - до 95 символов.
@@ -1267,8 +1267,8 @@ The application can write any setting with <code>kv_set()</code> but <code>url</
 Non-list defaults are nonempty strings, including number and toggle defaults. Secret and place settings cannot have defaults. A list default must contain at least one item.
 Значения по умолчанию, кроме list, задаются непустыми строками, включая number и toggle. Для secret и place они запрещены. Для list нужен хотя бы один элемент.
 
-The host validates supplied settings before writing, but writes are not transactional. A storage failure can leave some values changed. If at least one write succeeds, app_on_settings() is delivered and polls are requested again, even after a partially failed save.
-Хост проверяет переданные настройки перед записью, но запись не является транзакцией. Ошибка хранилища может оставить часть значений изменёнными. Если хотя бы одна запись успешна, вызывается app_on_settings() и снова запрашиваются опросы, даже при частичной ошибке сохранения.
+Perinkpheral OS validates supplied settings before writing, but writes are not transactional. A storage failure can leave some values changed. If at least one write succeeds, app_on_settings() is delivered and polls are requested again, even after a partially failed save.
+Perinkpheral OS проверяет переданные настройки перед записью, но запись не является транзакцией. Ошибка хранилища может оставить часть значений изменёнными. Если хотя бы одна запись успешна, вызывается app_on_settings() и снова запрашиваются опросы, даже при частичной ошибке сохранения.
 
 Place with coordinates
 Место с координатами
@@ -1339,8 +1339,8 @@ Units, captions
 HOST_FONT_TEXT
 =
 
-Body text; the host's own text
-Основной текст; текст самого хоста
+Body text; Perinkpheral OS's own text
+Основной текст; текст самой Perinkpheral OS
 
 HOST_FONT_MEDIUM
 =
@@ -1378,8 +1378,8 @@ Add <code>HOST_FONT_TABULAR</code> to the font for numbers that change in place,
 Text beyond ASCII
 Текст за пределами ASCII
 
-Displayed text is UTF-8. The host draws each character using the first available option:
-Отображаемый текст - UTF-8. Для каждого символа хост использует первый доступный вариант:
+Displayed text is UTF-8. Perinkpheral OS draws each character using the first available option:
+Отображаемый текст - UTF-8. Для каждого символа Perinkpheral OS использует первый доступный вариант:
 
 The glyph of the character. Printable ASCII is always available. Extended Latin, Cyrillic and Greek are available when the user has installed the glyph pack (Settings, Language, on the device's web page).
 Глиф символа. Печатные символы ASCII доступны всегда. Расширенная латиница, кириллица и греческий доступны, если пользователь установил пакет глифов («Настройки», «Язык» на веб-странице устройства).
@@ -1402,11 +1402,11 @@ User-visible manifest text has both a character limit and a UTF-8 byte limit of 
 Pictures and icons
 Картинки и иконки
 
-The host provides 49 built-in icons: the host's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.
-Хост предоставляет 49 встроенных иконок: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.
+Perinkpheral OS provides 49 built-in icons: Perinkpheral OS's own, the weather, the things of a home and the sky. Each icon is on a grid of 11 x 11 cells, and many are also drawn on 22 and 44 cells. An application uses them instead of drawing its own.
+Perinkpheral OS предоставляет 49 встроенных иконок: системные, погодные, домашние и астрономические. Каждая нарисована на сетке 11 x 11 клеток, многие ещё и на 22 и 44 клетках. Приложение берёт их, а не рисует свои.
 
-<code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. The host picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.
-<code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Хост берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.
+<code>gfx_draw_icon()</code> draws an icon with a cell size of 1 to 16 pixels. <code>ui_draw_icon()</code> draws an icon at one of three standard sizes: 22, 44 or 99 px. Perinkpheral OS picks the finest drawing that fits at two pixels per cell or more, so lines keep the weight of the text and curves stay smooth at large sizes. <code>gfx_icon_ink()</code> gives the pixels an icon covers, to align it by what is visible.
+<code>gfx_draw_icon()</code> рисует иконку с клеткой от 1 до 16 пикселей. <code>ui_draw_icon()</code> рисует иконку одного из трёх стандартных размеров: 22, 44 или 99 px. Perinkpheral OS берёт самый подробный рисунок, который помещается при двух пикселях на клетку или больше: толщина линий соответствует толщине штрихов текста, а кривые на больших размерах остаются гладкими. <code>gfx_icon_ink()</code> сообщает, какие пиксели занимает иконка, для выравнивания по границам видимого рисунка.
 
 Meaning
 Значение
@@ -1705,8 +1705,8 @@ HOST_ICON_MASK
 <span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>poor air quality
 <span class="icon-sample"><img src="{{ROOT}}/docs/guide/source/screens/icons-air.png" style="left:-16px;top:-117px" alt=""></span>плохое качество воздуха
 
-The host's own icons at cell sizes of 2 and 4 pixels
-Собственные иконки хоста при клетке 2 и 4 пикселя
+Perinkpheral OS's own icons at cell sizes of 2 and 4 pixels
+Собственные иконки Perinkpheral OS при клетке 2 и 4 пикселя
 
 The weather, the things of a home and the sky at cell sizes of 2 and 4 pixels
 Погодные, домашние и астрономические иконки при размере клетки 2 и 4 пикселя
@@ -1759,20 +1759,20 @@ A picture is stored as one bit per cell. <code>gfx_draw_picture()</code> draws i
 Use the same grids as the built-in icons: 11 cells, or 22 and 44 cells for more detail. Pictures then match the icons in weight.
 Используйте те же сетки, что у встроенных иконок: 11 клеток либо 22 и 44 клетки для большей детализации. Тогда картинки совпадают с иконками по насыщенности.
 
-Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. The host reads the file directly; the picture does not use the application's memory.
-Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_draw_bitmap_file()</code>. Хост читает файл напрямую; память приложения картинка не занимает.
+Place a picture that is too large for the module in <code>files/</code> and draw it with <code>gfx_draw_bitmap_file()</code>. Perinkpheral OS reads the file directly; the picture does not use the application's memory.
+Картинку, слишком большую для модуля, размещайте в <code>files/</code> и рисуйте вызовом <code>gfx_draw_bitmap_file()</code>. Perinkpheral OS читает файл напрямую; память приложения картинка не занимает.
 
 Kit
 Kit
 
-The kit is the set of interface parts that the host's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.
-Kit - набор элементов интерфейса, из которых собраны экраны самого хоста. Приложения могут использовать те же элементы через вызовы <code>ui_*</code>.
+The kit is the set of interface parts that Perinkpheral OS's own screens are built from. Applications can use the same parts through the <code>ui_*</code> calls.
+Kit - набор элементов интерфейса, из которых собраны экраны самой Perinkpheral OS. Приложения могут использовать те же элементы через вызовы <code>ui_*</code>.
 
 UI kit primitives: title, text, caption, icons, value, button, bar and actions
 Примитивы интерфейса: заголовок, текст, подпись, иконки, значение, кнопка, полоса и действия
 
-Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in the host.
-Использовать Kit необязательно: вызовами <code>gfx_*</code> можно нарисовать что угодно. У Kit три преимущества. Приложение выглядит как остальная система. Оно следует за будущими изменениями внешнего вида без пересборки. Оно меньше, потому что код отрисовки находится в хосте.
+Using the kit is optional: <code>gfx_*</code> calls can draw anything. The kit has three advantages. The application looks like the rest of the system. It follows future changes of the look without a rebuild. It is smaller, because the drawing code is in Perinkpheral OS.
+Использовать Kit необязательно: вызовами <code>gfx_*</code> можно нарисовать что угодно. У Kit три преимущества. Приложение выглядит как остальная система. Оно следует за будущими изменениями внешнего вида без пересборки. Оно меньше, потому что код отрисовки находится в Perinkpheral OS.
 
 Call
 Вызов
@@ -1918,8 +1918,8 @@ Requesting a refresh
 Flag
 Флаг
 
-Host behaviour
-Поведение хоста
+Perinkpheral OS behaviour
+Поведение Perinkpheral OS
 
 HOST_REDRAW_NORMAL
 =
@@ -1978,8 +1978,8 @@ Each refresh uses battery energy and wears the panel. Frequent changes also make
 7. Buttons
 7. Кнопки
 
-The buttons are, in order: UP, OK, DOWN, BACK. The host uses them the same way on every screen. Applications should keep these meanings.
-Кнопки по порядку: UP, OK, DOWN, BACK. Хост использует их одинаково на всех экранах. Приложениям следует сохранять эти значения.
+The buttons are, in order: UP, OK, DOWN, BACK. Perinkpheral OS uses them the same way on every screen. Applications should keep these meanings.
+Кнопки по порядку: UP, OK, DOWN, BACK. Perinkpheral OS использует их одинаково на всех экранах. Приложениям следует сохранять эти значения.
 
 Each press produces two kinds of events. The raw events are <code>KEYDOWN</code> and <code>KEYUP</code>. The interpreted events are <code>PRESSED</code>, sent when a short press ends, and <code>LONG_PRESSED</code>, sent after 600 ms while the button is still held. A long press does not produce <code>PRESSED</code>.
 Каждое нажатие порождает события двух видов. Низкоуровневые события - <code>KEYDOWN</code> и <code>KEYUP</code>. Интерпретированные события - <code>PRESSED</code>, отправляется по окончании короткого нажатия, и <code>LONG_PRESSED</code>, отправляется через 600 мс, пока кнопка ещё удерживается. Длинное нажатие не порождает <code>PRESSED</code>.
@@ -2008,8 +2008,8 @@ With <code>app_on_back()</code>
 Delivered to <code>app_on_back()</code>. Typical handling: go one page back; on the first page call <code>screen_leave()</code>
 Доставляется в <code>app_on_back()</code>. Типичная обработка: вернуться на страницу назад; на первой странице вызвать <code>screen_leave()</code>
 
-A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens the host's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.
-Короткое нажатие BACK передаётся в <code>app_on_back()</code> или закрывает приложение без этого экспорта. Долгое нажатие BACK открывает меню хоста. Остальные события получает <code>app_on_button()</code>, но в режиме вопроса хост поглощает OK KEYDOWN. Последующие события OK передаются лишь при нажатии, начавшемся после появления вопроса на панели.
+A short press of BACK goes to <code>app_on_back()</code>, or closes the application if it has no such export. A long press of BACK opens Perinkpheral OS's menu. <code>app_on_button()</code> receives the other events, except that question mode consumes OK KEYDOWN. Later OK events are delivered only if the press began after the question reached the panel.
+Короткое нажатие BACK передаётся в <code>app_on_back()</code> или закрывает приложение без этого экспорта. Долгое нажатие BACK открывает меню Perinkpheral OS. Остальные события получает <code>app_on_button()</code>, но в режиме вопроса Perinkpheral OS поглощает OK KEYDOWN. Последующие события OK передаются лишь при нажатии, начавшемся после появления вопроса на панели.
 
 <code>screen_leave()</code> removes the application from the top of the stack. The user returns to the previous screen. This also applies to an application that took the screen with <code>screen_request()</code>.
 <code>screen_leave()</code> снимает приложение с вершины стека. Пользователь возвращается на предыдущий экран. Это относится и к приложению, занявшему экран через <code>screen_request()</code>.
@@ -2038,8 +2038,8 @@ Store
 <code>kv_get()</code> and <code>kv_set()</code> read and write small values by key. Each application has a private namespace.
 <code>kv_get()</code> и <code>kv_set()</code> читают и записывают небольшие значения по ключу. У каждого приложения собственное пространство имён.
 
-The store holds the application's state and its settings. Removal normally keeps the store for reinstall. The host may reclaim stores belonging to removed applications when the stores partition is full. Removal with "forget" erases it immediately.
-Хранилище содержит состояние приложения и настройки. При удалении оно обычно сохраняется для повторной установки. При заполнении раздела хост может стереть данные удалённых приложений. Удаление с «забыть» стирает их сразу.
+The store holds the application's state and its settings. Removal normally keeps the store for reinstall. Perinkpheral OS may reclaim stores belonging to removed applications when the stores partition is full. Removal with "forget" erases it immediately.
+Хранилище содержит состояние приложения и настройки. При удалении оно обычно сохраняется для повторной установки. При заполнении раздела Perinkpheral OS может стереть данные удалённых приложений. Удаление с «забыть» стирает их сразу.
 
 no stored state, or an older version
 нет сохранённого состояния или старая версия
@@ -2080,8 +2080,8 @@ Each file takes whole blocks of 4 KB of the 32 KB. Keep related records in one f
 9. Network
 9. Сеть
 
-All network access goes through the host. The application describes a request; the host performs it and delivers the response. The host performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.
-Весь доступ к сети идёт через хост. Приложение описывает запрос; хост выполняет его и доставляет ответ. На всём устройстве одновременно выполняется один запрос. Ответы обычно доставляются и на экране, и вне его. Отказ в опросе до начала запроса из-за отсутствия сети или памяти сессии сообщается только приложению на экране.
+All network access goes through Perinkpheral OS. The application describes a request; Perinkpheral OS performs it and delivers the response. Perinkpheral OS performs one request at a time for the whole device. Responses normally reach the application on or off screen. A poll refused before starting because there is no network or insufficient session memory is reported only while its application is on screen.
+Весь доступ к сети идёт через Perinkpheral OS. Приложение описывает запрос; Perinkpheral OS выполняет его и доставляет ответ. На всём устройстве одновременно выполняется один запрос. Ответы обычно доставляются и на экране, и вне его. Отказ в опросе до начала запроса из-за отсутствия сети или памяти сессии сообщается только приложению на экране.
 
 Network availability is reported in the response: a request made without a network fails with <code>HOST_FAILED_NO_NETWORK</code>.
 О доступности сети сообщает ответ: запрос, сделанный без сети, завершается ошибкой <code>HOST_FAILED_NO_NETWORK</code>.
@@ -2125,8 +2125,8 @@ Code: after a button press, or as a follow-up request
 <code>app_on_data()</code> in pieces, with the tag chosen by the application (16 - 255)
 <code>app_on_data()</code> фрагментами, с тегом, выбранным приложением (16 - 255)
 
-Values extracted by the host
-Значения, извлечённые хостом
+Values extracted by Perinkpheral OS
+Значения, извлечённые Perinkpheral OS
 
 order of "pick" in the manifest
 порядок "pick" в манифесте
@@ -2203,8 +2203,8 @@ Process each piece when it arrives and keep only the data to display. Use a stat
 Replace the displayed data only on <code>HOST_DATA_LAST</code>. Delivery can stop without a last piece and without a failure (section 3). <code>HOST_DATA_FIRST</code> always starts a new response.
 Заменяйте отображаемые данные только по <code>HOST_DATA_LAST</code>. Доставка может прекратиться без последнего фрагмента и без ошибки (раздел 3). <code>HOST_DATA_FIRST</code> всегда начинает новый ответ.
 
-Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most the host struct size; absent fields are zeroed, except length is -1 when absent.
-В обработчике <code>answer_info(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры хоста; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.
+Inside the handler, <code>answer_info(&amp;response, sizeof response)</code> copies response metadata and returns the bytes written: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link and Retry-After. It copies at most Perinkpheral OS's struct size; absent fields are zeroed, except length is -1 when absent.
+В обработчике <code>answer_info(&amp;response, sizeof response)</code> копирует метаданные ответа и возвращает число записанных байт: status, Content-Length, Content-Type, ETag, Last-Modified, Location, Link и Retry-After. Копируется не больше размера структуры Perinkpheral OS; отсутствующие поля обнулены, кроме length, равного -1 при отсутствии длины.
 
 Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: answer_info() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.
 Успешные части ответа имеют общие метаданные. Завершающий вызов с HOST_DATA_FAILED может не иметь метаданных: answer_info() возвращает код ошибки как status, length -1 и пустые строки заголовков. Неверный или незавершённый JSON с извлечением значений даёт HOST_FAILED_NO_ANSWER, даже если HTTP-ответ получен.
@@ -2218,14 +2218,14 @@ Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</co
 An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). Queue additional requests as responses arrive. Applications and polls take turns while queued work remains valid. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.
 У приложения может ждать 16 запросов (<code>HOST_HTTP_PENDING_MAX</code>). Добавляйте следующие запросы по мере прихода ответов. Приложения и опросы обслуживаются по очереди, пока ожидающие запросы остаются действительными. <code>HOST_ERR_NO_SPACE</code> означает, что ждут 16 или что у устройства нет памяти ещё на один.
 
-The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.
-Хост отправляет <code>User-Agent: perinkpheral</code>. Заголовок <code>User-Agent</code> от приложения заменяет его, в опросе и в запросе.
+Perinkpheral OS sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.
+Perinkpheral OS отправляет <code>User-Agent: perinkpheral</code>. Заголовок <code>User-Agent</code> от приложения заменяет его, в опросе и в запросе.
 
 A response to a request from code that was interrupted (section 3) is dropped: the request is not repeated. Ask again from <code>app_on_terminate()</code> or later if the response is still needed.
 Прерванный ответ на запрос из кода (раздел 3) отбрасывается: запрос не повторяется. Если ответ ещё нужен, запросите снова из <code>app_on_terminate()</code> или позже.
 
-The host follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.
-Для <code>GET</code> хост выполняет до трёх перенаправлений. Перенаправление на адрес вне списка завершается ошибкой <code>HOST_FAILED_NOT_ALLOWED</code>. Запрос другим методом отправляется один раз; ответ с перенаправлением доставляется как ответ на запрос.
+Perinkpheral OS follows up to three redirects for a <code>GET</code>. A redirect to a host outside the list fails with <code>HOST_FAILED_NOT_ALLOWED</code>. A request of another method is sent once; its redirect response is delivered as the response.
+Для <code>GET</code> Perinkpheral OS выполняет до трёх перенаправлений. Перенаправление на адрес вне списка завершается ошибкой <code>HOST_FAILED_NOT_ALLOWED</code>. Запрос другим методом отправляется один раз; ответ с перенаправлением доставляется как ответ на запрос.
 
 <code>poll_run(n)</code> requests poll <code>n</code> through the shared queue without waiting for a response; repeated pending requests are coalesced, for example when the user presses a refresh button. <code>poll_set_interval(n, seconds)</code> changes the interval of a poll from code, for example to honour a Retry-After header.
 <code>poll_run(n)</code> запрашивает опрос <code>n</code> через общую очередь без ожидания ответа; повторные ожидающие запросы объединяются, например при нажатии кнопки обновления. <code>poll_set_interval(n, seconds)</code> меняет интервал опроса из кода, например по заголовку Retry-After.
@@ -2239,8 +2239,8 @@ The 16-request ceiling is per application, with no reserved slots. All queued re
 Certificate authorities of the application
 Центры сертификации приложения
 
-The host verifies HTTPS servers against the ESP-IDF's root certificate bundle. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:
-Хост проверяет HTTPS-серверы по набору корневых сертификатов ESP-IDF. Запрос к серверу, сертификат которого выдан центром сертификации вне этого набора, завершается с <code>HOST_FAILED_NOT_TRUSTED</code>. Приложение, которому нужен такой сервер, приносит корневой сертификат этого центра в своём пакете и называет его в манифесте:
+Perinkpheral OS verifies HTTPS servers against the ESP-IDF's root certificate bundle. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:
+Perinkpheral OS проверяет HTTPS-серверы по набору корневых сертификатов ESP-IDF. Запрос к серверу, сертификат которого выдан центром сертификации вне этого набора, завершается с <code>HOST_FAILED_NOT_TRUSTED</code>. Приложение, которому нужен такой сервер, приносит корневой сертификат этого центра в своём пакете и называет его в манифесте:
 
 files/russian-root-ca.pem
 =
@@ -2248,8 +2248,8 @@ files/russian-root-ca.pem
 Each file is a root certificate of an authority, in PEM or DER, up to 4 KB. The build rejects a file that is missing, is not a certificate, is a server's certificate, or has expired.
 Каждый файл - корневой сертификат центра сертификации в PEM или DER, до 4 КБ. Сборка отклоняет файл, которого нет, который не является сертификатом, является сертификатом сервера или просрочен.
 
-The roots are trusted for this application's polls and requests only, in addition to the ESP-IDF's root certificate bundle. Other applications and the host do not trust them.
-Этим корневым сертификатам доверяют только опросы и запросы этого приложения, в дополнение к набору корневых сертификатов ESP-IDF. Другие приложения и хост им не доверяют.
+The roots are trusted for this application's polls and requests only, in addition to the ESP-IDF's root certificate bundle. Other applications and Perinkpheral OS do not trust them.
+Этим корневым сертификатам доверяют только опросы и запросы этого приложения, в дополнение к набору корневых сертификатов ESP-IDF. Другие приложения и Perinkpheral OS им не доверяют.
 
 The web page names the authorities before installation, as it does for system access, and on the application's card. The catalog index carries their names.
 Веб-страница называет эти центры перед установкой, как и системный доступ, и в карточке приложения. Индекс каталога содержит их имена.
@@ -2353,8 +2353,8 @@ None. The response arrived; missing data is reported by the application
 10. Background work
 10. Фоновая работа
 
-The host loads an off-screen application for a delivery when one of these events occurs:
-Хост загружает приложение вне экрана для доставки при одном из этих событий:
+Perinkpheral OS loads an off-screen application for a delivery when one of these events occurs:
+Perinkpheral OS загружает приложение вне экрана для доставки при одном из этих событий:
 
 Task
 Задача
@@ -2386,8 +2386,8 @@ Message to the user
 notification_post
 =
 
-Shown by the host over the current screen until dismissed
-Показывается хостом поверх текущего экрана, пока не будет закрыто
+Shown by Perinkpheral OS over the current screen until dismissed
+Показывается Perinkpheral OS поверх текущего экрана, пока не будет закрыто
 
 Bring the application to the screen
 Вывод приложения на экран
@@ -2395,8 +2395,8 @@ Bring the application to the screen
 screen_request
 =
 
-Granted by the host, at most once per 30 s
-Разрешается хостом, не чаще раза в 30 с
+Granted by Perinkpheral OS, at most once per 30 s
+Разрешается Perinkpheral OS, не чаще раза в 30 с
 
 Status in the header
 Статус в заголовке
@@ -2422,8 +2422,8 @@ app_on_installed, app_on_updated
 Once. A new version does not inherit the alarms of the old one: set them here. Poll intervals set from code are kept
 Один раз. Новая версия не наследует будильники старой: задайте их здесь. Интервалы опросов, заданные из кода, сохраняются
 
-screen_request() stays void: the host decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.
-screen_request() остаётся void: хост принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.
+screen_request() stays void: Perinkpheral OS decides after background delivery ends, after the last piece for a streamed answer. It refuses within 30 s of a button press, over a question waiting for its answer, or within 30 s of the last granted focus request. A refused request is discarded, with no retry. A request in app_on_terminate() is too late for that decision.
+screen_request() остаётся void: Perinkpheral OS принимает решение после завершения фоновой доставки, после последней части потокового ответа. Запрос отклоняется в течение 30 с после нажатия кнопки, поверх вопроса, ожидающего ответа, или в течение 30 с после последнего разрешённого запроса фокуса. Отклонённый запрос отбрасывается без повторной попытки. Вызов из app_on_terminate() уже не влияет на это решение.
 
 These question and focus rules are included in the ABI 3 firmware floor, 0.1.30. No additional manifest minimum is needed for them.
 Эти правила вопросов и получения экрана входят в нижнюю границу ABI 3, прошивку 0.1.30. Отдельный минимум в манифесте для них не нужен.
@@ -2434,11 +2434,11 @@ Notifications
 the application is loaded for this call
 приложение загружено для этого вызова
 
-After <code>notification_post()</code> returns, the host manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
-После возврата из <code>notification_post()</code> уведомлением управляет хост. Он показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
+After <code>notification_post()</code> returns, Perinkpheral OS manages the notification. It shows the notice under the header, keeps it until the user presses OK or BACK, and then restores the previous screen.
+После возврата из <code>notification_post()</code> уведомлением управляет Perinkpheral OS. Она показывает сообщение под заголовком, держит его, пока пользователь не нажмёт OK или BACK, а затем восстанавливает предыдущий экран.
 
-The notification is managed entirely by the host. The application stays unloaded while it is displayed.
-Уведомлением полностью управляет хост. Пока оно показано, приложение остаётся выгруженным.
+The notification is managed entirely by Perinkpheral OS. The application stays unloaded while it is displayed.
+Уведомлением полностью управляет Perinkpheral OS. Пока оно показано, приложение остаётся выгруженным.
 
 Use <code>notification_post()</code> instead of <code>screen_request()</code> when the message fits in two lines.
 Используйте <code>notification_post()</code> вместо <code>screen_request()</code>, когда сообщение помещается в две строки.
@@ -2485,8 +2485,8 @@ first_in равен 0 - 86400 независимо от периода повт�
 <code>time_now()</code> returns Unix time in seconds. It returns 0 until the device has obtained the time. The application must handle this case.
 <code>time_now()</code> возвращает время Unix в секундах. Возвращает 0, пока устройство не получило время. Приложение обязано обрабатывать этот случай.
 
-Display local time. The host owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.
-Отображайте местное время. Часовым поясом управляет хост. <code>time_local()</code> возвращает текущие местные дату и время, <code>time_local_at()</code> преобразует любой момент, <code>time_from_local()</code> преобразует местные дату и время обратно во время Unix, например для <code>alarm_set_at()</code>.
+Display local time. Perinkpheral OS owns the time zone. <code>time_local()</code> returns the current local date and time, <code>time_local_at()</code> converts any moment, and <code>time_from_local()</code> converts a local date and time back to Unix time, for example for <code>alarm_set_at()</code>.
+Отображайте местное время. Часовым поясом управляет Perinkpheral OS. <code>time_local()</code> возвращает текущие местные дату и время, <code>time_local_at()</code> преобразует любой момент, <code>time_from_local()</code> преобразует местные дату и время обратно во время Unix, например для <code>alarm_set_at()</code>.
 
 <code>time_text()</code> formats a moment as text in the device's language. Applications do not need their own names of days and months. Formats: "15:04", "Fri 13 Nov", "Friday", "Fri", "13 November", and a relative form: "15:04", "Tmrw 15:04", "Sat 15:04", "21 Nov".
 <code>time_text()</code> форматирует момент времени как текст на языке устройства. Собственные названия дней и месяцев приложениям не нужны. Форматы: "15:04", "Пт 13 ноя", "Пятница", "Пт", "13 ноября" и относительная форма: "15:04", "Завтра 15:04", "Сб 15:04", "21 ноя".
@@ -2551,8 +2551,8 @@ Tmrw
 Application string keys match <code>[a-z][a-z0-9_]*</code>. Generated constants use <code>STR_</code> followed by the uppercase key.
 Ключи строк приложения соответствуют <code>[a-z][a-z0-9_]*</code>. Сгенерированные константы начинаются с <code>STR_</code>, затем идёт ключ в верхнем регистре.
 
-An application displays its text in the language of the device. The developer provides the translations. The host loads the translation for the current language.
-Приложение отображает свой текст на языке устройства. Переводы предоставляет разработчик. Хост загружает перевод для текущего языка.
+An application displays its text in the language of the device. The developer provides the translations. Perinkpheral OS loads the translation for the current language.
+Приложение отображает свой текст на языке устройства. Переводы предоставляет разработчик. Perinkpheral OS загружает перевод для текущего языка.
 
 strings/en.json
 =
@@ -2572,8 +2572,8 @@ text in the device's language
 <code>strings/</code> is optional. When it is there, <code>en.json</code> is required in it. English is compiled into the module and is used when a translation is unavailable. Every other file contains exactly the same keys. The key <code>manifest</code> is allowed in translations only (see below).
 <code>strings/</code> необязательна. Если она есть, в ней обязателен <code>en.json</code>. Английский встраивается в модуль и используется, когда перевода нет. Каждый другой файл содержит ровно те же ключи. Ключ <code>manifest</code> допустим только в переводах (см. ниже).
 
-When the host loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.
-При загрузке приложения хост копирует таблицу строк на языке устройства в память приложения поверх английской. После этого <code>app_string()</code> возвращает переведённый текст без дополнительного вызова.
+When Perinkpheral OS loads the application, it copies the string table of the device's language into the application's memory, over the English table. <code>app_string()</code> then returns the translated text with no extra call.
+При загрузке приложения Perinkpheral OS копирует таблицу строк на языке устройства в память приложения поверх английской. После этого <code>app_string()</code> возвращает переведённый текст без дополнительного вызова.
 
 <code>text_fill()</code> replaces <code>{0}</code>, <code>{1}</code> in a string with numbers or texts. A translation can place them in any order. Write each string in one form for all numbers, for example "min".
 <code>text_fill()</code> заменяет <code>{0}</code>, <code>{1}</code> в строке числами или текстами. Перевод может располагать их в любом порядке. Пишите каждую строку в одной форме для всех чисел, например "min".
@@ -2590,8 +2590,8 @@ Translated text may be longer or shorter than English. Check every supported lan
 13. Design rules
 13. Правила проектирования
 
-These rules apply to all applications. The host's own screens follow them. Most are conventions; the host checks only a few.
-Эти правила относятся ко всем приложениям. Экраны самого хоста им следуют. Большинство из них - соглашения; хост проверяет лишь некоторые.
+These rules apply to all applications. Perinkpheral OS's own screens follow them. Most are conventions; Perinkpheral OS checks only a few.
+Эти правила относятся ко всем приложениям. Экраны самой Perinkpheral OS им следуют. Большинство из них - соглашения; Perinkpheral OS проверяет лишь некоторые.
 
 Screen content
 Содержимое экрана
@@ -2611,8 +2611,8 @@ Change a screen only when its data changes. A bar shows a quantity. To indicate 
 Redraw only when the content changes.
 Перерисовывайте только при изменении содержимого.
 
-A timer should request a redraw only if the picture will differ. A clock redraws once a minute, on the minute. By default the host allows one refresh per minute that was not caused by a button press. Design for this rate.
-Таймер должен запрашивать перерисовку, только если изображение изменится. Часы перерисовываются раз в минуту, на границе минуты. По умолчанию хост допускает одно обновление в минуту без нажатия кнопки. Проектируйте под эту частоту.
+A timer should request a redraw only if the picture will differ. A clock redraws once a minute, on the minute. By default Perinkpheral OS allows one refresh per minute that was not caused by a button press. Design for this rate.
+Таймер должен запрашивать перерисовку, только если изображение изменится. Часы перерисовываются раз в минуту, на границе минуты. По умолчанию Perinkpheral OS допускает одно обновление в минуту без нажатия кнопки. Проектируйте под эту частоту.
 
 Draw black on white.
 Рисуйте чёрным по белому.
@@ -2701,8 +2701,8 @@ List only the hosts the application needs. Use a <code>url</code> setting for th
 Poll no more often than the data changes.
 Опрашивайте не чаще, чем меняются данные.
 
-Offer the interval as a setting with a reasonable default. On battery power the host limits every poll to one per five minutes.
-Предлагайте интервал как настройку с разумным значением по умолчанию. При питании от батареи хост ограничивает каждый опрос одним разом в пять минут.
+Offer the interval as a setting with a reasonable default. On battery power Perinkpheral OS limits every poll to one per five minutes.
+Предлагайте интервал как настройку с разумным значением по умолчанию. При питании от батареи Perinkpheral OS ограничивает каждый опрос одним разом в пять минут.
 
 14. Tools and debugging
 14. Инструменты и отладка
@@ -2821,8 +2821,8 @@ Log bytes outside printable ASCII, including UTF-8 bytes and line breaks, are re
 Simulator
 Симулятор
 
-The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. It uses the firmware rendering code but does not model physical panel refreshes. It runs on macOS and Linux.
-Симулятор запускает одно приложение на компьютере, используя интерпретатор, API хоста, элементы интерфейса, заголовок и шрифты самой прошивки. Он использует код отрисовки прошивки, но не моделирует физическое обновление панели. Работает на macOS и Linux.
+The simulator runs one application on a computer, with the firmware's own interpreter, Perinkpheral OS API, kit, header and fonts. It uses the firmware rendering code but does not model physical panel refreshes. It runs on macOS and Linux.
+Симулятор запускает одно приложение на компьютере, используя интерпретатор, API Perinkpheral OS, элементы интерфейса, заголовок и шрифты самой прошивки. Он использует код отрисовки прошивки, но не моделирует физическое обновление панели. Работает на macOS и Linux.
 
 It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. The address opened in a browser shows the page of <code>serve</code>, with the simulator's own requests (below) as buttons.
 Он отвечает на <code>127.0.0.1:8401</code> как устройство. Остальные команды работают с ним через <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. Адрес, открытый в браузере, показывает страницу <code>serve</code>, а собственные запросы симулятора (ниже) на ней стоят кнопками.
@@ -2914,8 +2914,8 @@ Ctrl+C останавливает симулятор, как перезапус�
 <code>set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in bash or zsh.
 <code>set</code> принимает список пунктами через перевод строки: <code>set stocks tickers $'AAPL\nMSFT'</code> в bash или zsh.
 
-Not simulated: other applications (the menu holds only this one), device-specific system actions, refresh timing and sleep. Host-setting and time-setting calls are supported. The interpreter memory limit is not enforced: check the build report.
-Не симулируются: другие приложения (в меню только это), действия системного API, требующие устройства, время обновления панели и сон. Вызовы настройки хоста и установки времени поддерживаются. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
+Not simulated: other applications (the menu holds only this one), device-specific system actions, refresh timing and sleep. Calls for Perinkpheral OS settings and time settings are supported. The interpreter memory limit is not enforced: check the build report.
+Не симулируются: другие приложения (в меню только это), действия системного API, требующие устройства, время обновления панели и сон. Вызовы настройки Perinkpheral OS и установки времени поддерживаются. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
 
 Common problems
 Типичные проблемы
@@ -3019,14 +3019,14 @@ Increase <code>version</code> with every change. The page offers Update when a c
 Part III. Reference
 Часть III. Справочник
 
-This part summarizes the host calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.
-Этот раздел кратко описывает вызовы хоста и экспорты для ABI 3. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.
+This part summarizes Perinkpheral OS calls and exports for ABI 3. Signatures are abbreviated. Include <code>sdk/host_api.h</code>; complete types, constants and declarations are in <code>sdk/host/*.h</code>.
+Этот раздел кратко описывает вызовы Perinkpheral OS и экспорты для ABI 3. Сигнатуры сокращены. Подключайте <code>sdk/host_api.h</code>; полные типы, константы и объявления находятся в <code>sdk/host/*.h</code>.
 
 <code>sdk/host_api.h</code> is the authoritative contract. If this document and the header disagree, the header is correct.
 <code>sdk/host_api.h</code> - основной контракт. Если этот документ и заголовочный файл расходятся, верен заголовочный файл.
 
-Host calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.
-Вызовы хоста возвращают ошибки <code>HOST_ERR_*</code> напрямую. Сетевые ошибки приходят позже в обработчик данных как статусы <code>HOST_FAILED_*</code>; см. «Ошибки запросов» в разделе 9.
+Perinkpheral OS calls return <code>HOST_ERR_*</code> errors directly. Network failures arrive later in a data handler as <code>HOST_FAILED_*</code> status values; see Failed requests in section 9.
+Вызовы Perinkpheral OS возвращают ошибки <code>HOST_ERR_*</code> напрямую. Сетевые ошибки приходят позже в обработчик данных как статусы <code>HOST_FAILED_*</code>; см. «Ошибки запросов» в разделе 9.
 
 Numeric arguments and return values are <code>int32_t</code> unless stated otherwise. A text argument is a pointer and a length in bytes; the text is UTF-8.
 Числовые аргументы и возвращаемые значения имеют тип <code>int32_t</code>, если не указано иное. Текстовый аргумент - указатель и длина в байтах; текст в UTF-8.
@@ -3034,8 +3034,8 @@ Numeric arguments and return values are <code>int32_t</code> unless stated other
 A call that returns no value of its own returns <code>HOST_OK</code> or a negative <code>HOST_ERR_*</code> code.
 Вызов без собственного возвращаемого значения возвращает <code>HOST_OK</code> или отрицательный код <code>HOST_ERR_*</code>.
 
-Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events the host calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
-Команды называют предмет, затем действие (<code>kv_get</code>, <code>gfx_draw_text</code>); запросы называют предмет и то, что требуется узнать (<code>gfx_width</code>, <code>time_now</code>); события, вызываемые хостом, используют <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
+Commands name the subject then the verb (<code>kv_get</code>, <code>gfx_draw_text</code>); queries name the subject and what is asked (<code>gfx_width</code>, <code>time_now</code>); events Perinkpheral OS calls use <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
+Команды называют предмет, затем действие (<code>kv_get</code>, <code>gfx_draw_text</code>); запросы называют предмет и то, что требуется узнать (<code>gfx_width</code>, <code>time_now</code>); события, вызываемые Perinkpheral OS, используют <code>app_on_&lt;what happened&gt;</code> (<code>app_on_load</code>, <code>app_on_picked</code>).
 
 ABI 3 compatibility
 Совместимость ABI 3
@@ -3047,7 +3047,7 @@ The supported set is {3}. The manifest ABI is retained through loading and check
 Поддерживается множество {3}. ABI манифеста передаётся до загрузки и проверяется до выполнения кода. Страница устройства вместе проверяет принадлежность ABI и минимум прошивки для Install, Update и Update all; /api/status сообщает supported_abis. Окончательное решение принимается по загруженному манифесту. При публикации каталога данные об идентичности и совместимости берутся из упакованного манифеста.
 
 tools/perinkpheral contract snapshot records the contract in sdk/abi/3.txt and package hashes separately in sdk/abi/3/fixtures.txt; contract check verifies both in host tests and CI. Recorded entries cannot change or disappear; additions are allowed. Snapshot writes refuse changes too. Frozen packages in sdk/abi/3/ are test inputs and are never rebuilt by tests: Probe, Hello, Settings with translations, and Hello state (presses = 42 as four little-endian bytes). The ABI 3 floor is 0.1.30, the first firmware of ABI 3.
-tools/perinkpheral contract snapshot записывает контракт в sdk/abi/3.txt, а хеши пакетов отдельно в sdk/abi/3/fixtures.txt; contract check проверяет оба файла в тестах хоста и CI. Записанные элементы нельзя менять или удалять; дополнения разрешены. Запись снимка тоже отклоняет изменения. Зафиксированные пакеты в sdk/abi/3/ служат входными данными тестов, которые никогда их не пересобирают: Probe, Hello, Settings с переводами и состояние Hello (presses = 42 в четырёх байтах little-endian). Нижняя граница ABI 3 - 0.1.30, первая прошивка с ABI 3.
+tools/perinkpheral contract snapshot записывает контракт в sdk/abi/3.txt, а хеши пакетов отдельно в sdk/abi/3/fixtures.txt; contract check проверяет оба файла в нативных тестах и CI. Записанные элементы нельзя менять или удалять; дополнения разрешены. Запись снимка тоже отклоняет изменения. Зафиксированные пакеты в sdk/abi/3/ служат входными данными тестов, которые никогда их не пересобирают: Probe, Hello, Settings с переводами и состояние Hello (presses = 42 в четырёх байтах little-endian). Нижняя граница ABI 3 - 0.1.30, первая прошивка с ABI 3.
 
 Binary representation and buffers
 Бинарное представление и буферы
@@ -3055,11 +3055,11 @@ Binary representation and buffers
 The contract uses wasm32 little-endian C layouts and two's complement signed integers. Pointers are unsigned 32-bit memory offsets; zero is NULL. 32-bit integers and pointers have size/alignment 4, 64-bit integers 8, bytes 1. Structs keep C field order and natural alignment with trailing padding. sdk/abi/3.txt records every size, alignment, field type and offset. String-table size, count and offsets are little-endian 16-bit words. Picture dimensions are bytes; bitmap rows are high-bit first and padded to whole bytes.
 Контракт использует раскладку C для wasm32 little-endian и дополнительный код для знаковых целых. Указатель - беззнаковое 32-битное смещение в памяти; ноль означает NULL. Размер и выравнивание 32-битных целых и указателей равны 4, 64-битных целых - 8, байтов - 1. Структуры сохраняют порядок полей C, естественное выравнивание и конечное заполнение. sdk/abi/3.txt записывает каждый размер, выравнивание, тип и смещение поля. Размер, число строк и смещения таблицы строк - 16-битные слова little-endian. Размеры картинок задаются байтами; строки битовой карты идут старшим битом вперёд и дополняются до целого числа байтов.
 
-Input buffers are consumed or copied before an import returns. The host retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.
-Входные буферы используются или копируются до возврата импорта. Хост сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_answer_info_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.
+Input buffers are consumed or copied before an import returns. Perinkpheral OS retains only the exported app_data_buffer and app_strings_buffer storage for the loaded instance; keep that storage valid until unload. Handler data is valid until the handler returns. Lengths and capacities count bytes. Text output has no appended NUL, except fixed host_answer_info_t string fields. Negative lengths/capacities or invalid memory ranges give HOST_ERR_ARGUMENT.
+Входные буферы используются или копируются до возврата импорта. Perinkpheral OS сохраняет только хранилища экспортов app_data_buffer и app_strings_buffer на время жизни загруженного экземпляра; они должны быть доступны до выгрузки. Данные обработчика действительны до его возврата. Длины и ёмкости считаются в байтах. К текстовому результату не добавляется NUL, кроме строковых полей фиксированного host_answer_info_t. Отрицательные длины и ёмкости и недопустимые диапазоны памяти дают HOST_ERR_ARGUMENT.
 
-kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, host struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.
-kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_fit_text также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. answer_info копирует min(capacity, размер структуры хоста), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.
+kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title and sys_setting_get fail with HOST_ERR_NO_SPACE without copying when the value does not fit. Capacity zero is valid for an empty value. gfx_fit_text also requires room for its whole fitted result and copies nothing on error. text_fill and time_text instead truncate between UTF-8 characters and return bytes copied; text_fill accepts zero capacity, time_text rejects it. Read/format/measurement errors leave outputs untouched; file_read may have copied a prefix before a storage error. answer_info copies min(capacity, Perinkpheral OS's struct size), accepts zero and leaves later bytes untouched. sys_app_list writes up to capacity ids but returns the total count; capacity zero is allowed.
+kv_get, answer_value, answer_element, session_get, sys_info, sys_app_title и sys_setting_get возвращают HOST_ERR_NO_SPACE, ничего не копируя, если значение не помещается. Нулевая ёмкость допустима для пустого значения. gfx_fit_text также требует места для всего подогнанного результата и ничего не копирует при ошибке. text_fill и time_text вместо этого обрезают между символами UTF-8 и возвращают число скопированных байтов; text_fill принимает нулевую ёмкость, time_text отказывает. Ошибки чтения, форматирования и измерения оставляют выходы неизменными; file_read может скопировать начало до ошибки хранилища. answer_info копирует min(capacity, размер структуры Perinkpheral OS), принимает ноль и не трогает последующие байты. sys_app_list записывает не более capacity идентификаторов, но возвращает общее число; нулевая ёмкость допустима.
 
 Install and update are consumed after loading and before the callback, including a missing callback or a trap in app_on_load or the callback. A load failure leaves the notification pending until startup or application-list reload. Updated means another module-and-manifest package id, regardless of version-string ordering.
 Уведомления об установке и обновлении считаются доставленными после загрузки и до обработчика, в том числе при отсутствии обработчика или trap в app_on_load либо обработчике. Ошибка загрузки оставляет уведомление до запуска устройства или перечитывания списка приложений. Обновление означает другой идентификатор пакета из модуля и манифеста, независимо от порядка строк версий.
@@ -3118,8 +3118,8 @@ Storage failure
 17. Exports
 17. Экспорты
 
-Export the handlers required by the features your application uses. The host skips absent handlers; the build rejects a feature without its required handler (section 4).
-Экспортируйте обработчики, нужные используемым возможностям. Хост пропускает отсутствующие обработчики; сборка отклоняет возможность без нужного обработчика (раздел 4).
+Export the handlers required by the features your application uses. Perinkpheral OS skips absent handlers; the build rejects a feature without its required handler (section 4).
+Экспортируйте обработчики, нужные используемым возможностям. Perinkpheral OS пропускает отсутствующие обработчики; сборка отклоняет возможность без нужного обработчика (раздел 4).
 
 Export
 Экспорт
@@ -3319,8 +3319,8 @@ Bitmap, one bit per pixel. Set bits are drawn in the current colour; clear bits 
 gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)
 =
 
-Bitmap read by the host from an application file, starting at <code>offset</code>
-Битовая карта, читаемая хостом из файла приложения, начиная с <code>offset</code>
+Bitmap read by Perinkpheral OS from an application file, starting at <code>offset</code>
+Битовая карта, читаемая Perinkpheral OS из файла приложения, начиная с <code>offset</code>
 
 gfx_draw_qr(x, y, cell, text, length)
 =
@@ -3337,8 +3337,8 @@ Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOO
 header_set_text(side, text, length)
 =
 
-Sets the application's text in the host header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to the host. Callable from any handler; off the screen it has no effect
-Задаёт текст приложения в заголовке хоста над его экраном: <code>HOST_HEADER_LEFT</code> или <code>HOST_HEADER_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону хосту. Можно вызвать из любого обработчика; вне экрана не действует
+Sets the application's text in Perinkpheral OS header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to Perinkpheral OS. Callable from any handler; off the screen it has no effect
+Задаёт текст приложения в заголовке Perinkpheral OS над его экраном: <code>HOST_HEADER_LEFT</code> или <code>HOST_HEADER_RIGHT</code>, до 63 байт. Длина 0 возвращает сторону Perinkpheral OS. Можно вызвать из любого обработчика; вне экрана не действует
 
 Drawing coordinates are bounded to -4096 through 4096. Both bitmap calls require positive dimensions no larger than the current surface, even if clipping would hide the excess. QR cell size is 0 - 16.
 Координаты рисования ограничены диапазоном от -4096 до 4096. Оба вызова растров требуют положительных размеров не больше текущей поверхности, даже если обрезка скрыла бы лишнее. Размер клетки QR - 0 - 16.
@@ -3457,14 +3457,14 @@ Frame with optional arrows: <code>HOST_UI_ARROW_UP</code>, <code>HOST_UI_ARROW_D
 ui_draw_picker(picker)
 =
 
-Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is the host's word in the device's language: Save, Cancel
-Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок; пустой <code>ok</code> или <code>back</code> - слово хоста на языке устройства: Сохранить, Отмена
+Picker from a <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Includes the button row; an empty <code>ok</code> or <code>back</code> is Perinkpheral OS's word in the device's language: Save, Cancel
+Выбор значения по <code>host_picker_t</code>: above[64], chosen[64], below[64], ok[32], back[32]. Включает строку кнопок; пустой <code>ok</code> или <code>back</code> - слово Perinkpheral OS на языке устройства: Сохранить, Отмена
 
 ui_draw_date(date)
 =
 
-Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is the host's word: Next or Save, Back or Cancel
-Редактор даты и времени из <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code> или <code>HOST_DATE_NONE</code>); ok[32], back[32]. Пустые <code>ok</code> и <code>back</code> заменяются словами хоста: «Далее» или «Сохранить», «Назад» или «Отмена»
+Date and time editor from a <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code>, or <code>HOST_DATE_NONE</code>); ok[32], back[32]. An empty <code>ok</code> or <code>back</code> is Perinkpheral OS's word: Next or Save, Back or Cancel
+Редактор даты и времени из <code>host_date_t</code>: year, month, day, hour, minute; has (<code>HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE</code>); selected (<code>HOST_DATE_HOUR</code> .. <code>HOST_DATE_YEAR</code> или <code>HOST_DATE_NONE</code>); ok[32], back[32]. Пустые <code>ok</code> и <code>back</code> заменяются словами Perinkpheral OS: «Далее» или «Сохранить», «Назад» или «Отмена»
 
 Chart fields and flags
 Поля и флаги графика
@@ -3664,8 +3664,8 @@ Inside <code>app_on_data()</code> and <code>app_on_picked()</code>: the item of 
 answer_info(response, capacity)
 =
 
-Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond the host struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
-В обработчике данных копирует первые min(capacity, sizeof(host_answer_info_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой хоста не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond Perinkpheral OS's struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
+В обработчике данных копирует первые min(capacity, sizeof(host_answer_info_t)) байт и возвращает их число. Отрицательная ёмкость или неверный указатель дают HOST_ERR_ARGUMENT; вне обработчика данных - HOST_ERR_NOT_FOUND. При capacity 0 ничего не записывается. Байты за структурой Perinkpheral OS не меняются. Если принимаете более короткую структуру, сначала обнулите приёмник. Поля: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]
 
 Text and logging
 Текст и журнал
@@ -3748,8 +3748,8 @@ Repeating alarm, period 60 - 86400 s. First call after <code>first_in</code> sec
 22. System API
 22. Системный API
 
-The system API is the set of <code>sys_*</code> calls. The host's own pages use it.
-Системный API - набор вызовов <code>sys_*</code>. Его используют собственные страницы хоста.
+The system API is the set of <code>sys_*</code> calls. Perinkpheral OS's own pages use it.
+Системный API - набор вызовов <code>sys_*</code>. Его используют собственные страницы Perinkpheral OS.
 
 Any application can use the system API if its manifest contains <code>"system": true</code>. The web page warns the user before installing such an application. A module that imports a <code>sys_*</code> call without this declaration is rejected.
 Системный API доступен любому приложению, в манифесте которого есть <code>"system": true</code>. Перед установкой такого приложения веб-страница предупреждает пользователя. Модуль, импортирующий вызов <code>sys_*</code> без этого объявления, отклоняется.
@@ -3763,8 +3763,8 @@ Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</
 sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)
 =
 
-A host setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key
-Настройка хоста по ключу, как текст: ключи <code>/api/settings</code> страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> и остальные). Запись проверяется, сохраняется и действует сразу, кроме имени устройства, сервера времени и названий системных приложений: они меняются после перезапуска. Пароль Wi-Fi не читается; сеть по ключу не задаётся
+A Perinkpheral OS setting by key, as text: the keys of the device page's <code>/api/settings</code> (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> and the rest). Set: checked, stored and in effect at once, but for the device name, the time server and the system applications' titles, which follow after a restart. The Wi-Fi password is never read; the network is not set by key
+Настройка Perinkpheral OS по ключу, как текст: ключи <code>/api/settings</code> страницы устройства (<code>SYS_KEY_TIME_ZONE</code>, <code>SYS_KEY_FONT</code>, <code>SYS_KEY_POWER_SAVING</code>, <code>SYS_KEY_REFRESH_FULL_EVERY</code> и остальные). Запись проверяется, сохраняется и действует сразу, кроме имени устройства, сервера времени и названий системных приложений: они меняются после перезапуска. Пароль Wi-Fi не читается; сеть по ключу не задаётся
 
 sys_setting_range(key, key_length, number)
 =
@@ -3799,8 +3799,8 @@ The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height
 sys_run(action)
 =
 
-<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. The host does not check it; use HOST_REDRAW_QUESTION on the confirmation screen
-<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Хост его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения
+<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. Perinkpheral OS does not check it; use HOST_REDRAW_QUESTION on the confirmation screen
+<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Perinkpheral OS его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения
 
 23. SDK library
 23. Библиотека SDK
@@ -3832,8 +3832,8 @@ always null-terminated
 time_text(), null-terminated
 time_text() с завершающим нулём
 
-the degree sign the host draws
-знак градуса, поддерживаемый хостом
+the degree sign Perinkpheral OS draws
+знак градуса, поддерживаемый Perinkpheral OS
 
 The buffer is always null-terminated and stays within its size. Each call leaves a terminated string; excess text is dropped at a character boundary.
 Буфер всегда завершается нулём и не выходит за свой размер. После каждого вызова строка завершена нулём; не поместившийся текст отбрасывается по границе символа.
@@ -3889,7 +3889,7 @@ length; 0: none
 toggle: true unless "0"
 toggle: true, кроме "0"
 
-"15 min", "1 h" as the host reads "every"
+"15 min", "1 h" as Perinkpheral OS reads "every"
 "15 min", "1 h": разбор по правилам поля every
 
 a place's name, before its comma
@@ -3985,8 +3985,8 @@ Lists have at most 10000 rows. app_list_button() pages by the most recently meas
 To handle BACK on these screens, export <code>app_on_back()</code> and pass <code>BTN_BACK_PRESSED</code> from it to the same button function.
 Чтобы обрабатывать BACK на этих экранах, экспортируйте <code>app_on_back()</code> и передавайте из него <code>BTN_BACK_PRESSED</code> в ту же функцию обработки кнопок.
 
-app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. The host applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.
-app_date_seconds() возвращает календарные секунды, считая выбранные поля временем UTC. Для настоящего времени Unix передайте поля в host_local_time_t в time_from_local(&amp;parts, &amp;unix_time) и проверьте HOST_OK. Хост учитывает местный часовой пояс, сдвигает пропущенное время вперёд на величину перевода часов и выбирает первое вхождение повторяющегося времени.
+app_date_seconds() returns calendar seconds as if the selected fields were UTC. For actual Unix time, pass those fields in a host_local_time_t to time_from_local(&amp;parts, &amp;unix_time) and check for HOST_OK. Perinkpheral OS applies the local zone, moves skipped times forward by the gap and chooses the earlier occurrence of repeated times.
+app_date_seconds() возвращает календарные секунды, считая выбранные поля временем UTC. Для настоящего времени Unix передайте поля в host_local_time_t в time_from_local(&amp;parts, &amp;unix_time) и проверьте HOST_OK. Perinkpheral OS учитывает местный часовой пояс, сдвигает пропущенное время вперёд на величину перевода часов и выбирает первое вхождение повторяющегося времени.
 
 app_alloc.h: arena allocation
 app_alloc.h: выделение памяти в арене
@@ -4324,8 +4324,8 @@ String table of one language
 8 KB
 8 КБ
 
-Loaded by the host
-Загружается хостом
+Loaded by Perinkpheral OS
+Загружается Perinkpheral OS
 
 Packaged manifest
 Упакованный манифест

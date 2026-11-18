@@ -168,7 +168,7 @@ After power returns, check:
 - glyph packs are whole or absent;
 - main completes probation, or recovery remains reachable and accepts a replacement
   image; there is no previous full firmware slot to roll back to;
-- host settings remain valid. `settings_start()` uses defaults for invalid stored values;
+- Perinkpheral OS settings remain valid. `settings_start()` uses defaults for invalid stored values;
   whole-settings transactional rollback is not promised.
 
 A failed write is not promised to leave storage untouched. Judge the recovered state by
@@ -232,7 +232,7 @@ OTA metadata, recovery and main. A second full flash read after recovery boot
 confirmed byte-for-byte preservation of nvs, phy_init, appkv, appcode, apps and
 glyphs. Recovery connected using the saved WPA3-SAE H2E credentials. An image header
 from the old partition layout was rejected before confirmation or writing. Physical
-BACK started main and main completed probation; host settings were unchanged.
+BACK started main and main completed probation; Perinkpheral OS settings were unchanged.
 
 The populated device also exposed heap exhaustion in GET /api/apps with thirteen
 installed applications. The response now serializes one application at a time and
@@ -241,7 +241,7 @@ before the response starts and after its first application: the former returns 5
 and the latter closes an incomplete response without a final HTTP chunk.
 The fixed debug image, 0.1.34-cb5e2ff, was installed over USB. Its OTA selection
 record was set to NEW over USB for the bench restart, retaining first-boot probation.
-After confirmation, all thirteen application records and host settings matched the
+After confirmation, all thirteen application records and Perinkpheral OS settings matched the
 pre-migration JSON, and the failed-allocation counter remained zero.
 
 The network handoff reached recovery, and a direct HTTP upload reached physical
@@ -257,16 +257,16 @@ the failed-allocation counter was zero. This also checks reinstalling the same i
 The redesigned recovery was subsequently installed with `recovery-flash`: its write
 list contained only the factory image at 0x20000. Recovery connected with the saved
 network through its read-only NVS initialization, displayed the confirmation using
-the host UI and saved Russian language, and accepted physical OK. The CLI installed
+Perinkpheral OS UI and saved Russian language, and accepted physical OK. The CLI installed
 0.1.34-fdfb88e and verified the exact uploaded image identity and completed probation.
-All thirteen application records and host settings matched the pre-update values;
+All thirteen application records and Perinkpheral OS settings matched the pre-update values;
 failed allocations remained zero. Native previews also cover both languages and a
 31-character version without truncation.
 
 The seven installed catalog applications from the reviewed batch (air, github, iss,
 life, metals, pomodoro and rates) were updated to 0.1.1. Frames captured from the
 device for air, iss and life were inspected, then the HA dashboard was restored.
-Host settings and every application's exposed settings values remained unchanged.
+Perinkpheral OS settings and every application's exposed settings values remained unchanged.
 Twenty repeated application-list requests completed without new allocation failures.
 
 During the first installation/navigation run, four allocation failures exposed a
@@ -291,7 +291,7 @@ only waiting/preparing (state 0, waiting 0), confirmation (state 2), writing (st
 and restarting (state 8). It drew no network-instruction view between preparation
 and confirmation. The owner pressed physical OK. The expected image
 `7733b19bcc532a56a435b072baea4f806bd12bd481b4cceb7b72c088b5e47579` then completed
-probation; host settings and the installed-app list compared equal before and after,
+probation; Perinkpheral OS settings and the installed-app list compared equal before and after,
 with zero failed allocations. The boot-record test exercises rollback selection,
 not an actual power cut or a failed upload. Timeout and absent-network view choices
 remain covered by host tests and English/Russian previews.

@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * The system API: the host's own settings, the installed applications,
+ * The system API: Perinkpheral OS's own settings, the installed applications,
  * the device's facts and its irreversible actions.
  */
 #pragma once
@@ -12,7 +12,7 @@
 
 /* ---- System API ----
  *
- * The sys_* calls are used by the host's own applications (Settings,
+ * The sys_* calls are used by Perinkpheral OS's own applications (Settings,
  * About). Any application can use them if its manifest contains
  * "system": true. The device web page warns the user before installing
  * such an application. A module that imports a sys_* call without this
@@ -27,7 +27,7 @@
                               access point */
 #define SYS_INFO_WIFI    4 /* one of SYS_WIFI_* */
 #define SYS_INFO_SLOT    5 /* running firmware slot: "ota_0" */
-#define SYS_INFO_FREE_MEMORY 6 /* free host memory in KB, as digits */
+#define SYS_INFO_FREE_MEMORY 6 /* free Perinkpheral OS memory in KB, as digits */
 /* 7 was the time zone: sys_setting_get(SYS_KEY_TIME_ZONE) */
 #define SYS_INFO_JOIN_CODE   8 /* QR code text that joins a phone to the setup access
                                   point: "WIFI:T:nopass;S:Perinkpheral-C7B0;;" */
@@ -48,12 +48,12 @@ HOST_SYSTEM_IMPORT(sys_draw_logo, int32_t sys_draw_logo(int32_t x, int32_t y, in
 HOST_SYSTEM_IMPORT(sys_logo_width, int32_t sys_logo_width(int32_t scale));
 HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
 
-/* The host's settings, by key: the same keys as the device page's
+/* Perinkpheral OS's settings, by key: the same keys as the device page's
  * /api/settings form, and the same rules. Only the keys listed below are
  * public; all other keys return HOST_ERR_NOT_FOUND for get, set and range.
  * A value is text: a number in decimal,
  * a flag "0" or "1". Settings on the device and the device's page are two
- * ways of writing one store; the host follows what is stored, and any
+ * ways of writing one store; Perinkpheral OS follows what is stored, and any
  * application with system access may read and write it the same way.
  *
  * sys_setting_get():   writes the value. Returns its length; HOST_ERR_NOT_FOUND

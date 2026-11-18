@@ -12,7 +12,7 @@
 /* ---- Exports (all optional) ---- */
 
 /* Called once, immediately after the module is loaded.
- * The host unloads an application every time it leaves the screen. State
+ * Perinkpheral OS unloads an application every time it leaves the screen. State
  * that must persist is kept with kv_* calls, not in global variables. */
 APP_EXPORT(app_on_load, void app_on_load(void));
 
@@ -44,7 +44,7 @@ APP_EXPORT(app_on_terminate, void app_on_terminate(void));
 APP_EXPORT(app_on_installed, void app_on_installed(void));
 APP_EXPORT(app_on_updated, void app_on_updated(void));
 
-/* Buttons, in their order on the device. The host uses these meanings on
+/* Buttons, in their order on the device. Perinkpheral OS uses these meanings on
  * all of its screens. Applications should keep them. */
 #define BTN_UP   1
 #define BTN_OK   2
@@ -68,7 +68,7 @@ APP_EXPORT(app_on_updated, void app_on_updated(void));
  * With this export, the press is delivered here. Typical handling: go one
  * page back; on the first page call screen_leave().
  * BTN_BACK_PRESSED is never delivered to app_on_button(). BTN_BACK_KEYDOWN
- * and BTN_BACK_KEYUP are. A long press of BACK always opens the host menu. */
+ * and BTN_BACK_KEYUP are. A long press of BACK always opens Perinkpheral OS menu. */
 APP_EXPORT(app_on_back, void app_on_back(void));
 
 /* A button event combines a button and an action. Each combination has a
@@ -84,7 +84,7 @@ APP_EXPORT(app_on_back, void app_on_back(void));
  *
  * BTN_OF() and BTN_ACTION_OF() split an event into its two parts.
  * BTN_BACK_LONG_PRESSED is never delivered: a long press of BACK opens
- * the host menu. */
+ * Perinkpheral OS menu. */
 #define BTN_EVENT(button, action) ((button) << 2 | (action))
 #define BTN_OF(event)             ((event) >> 2)
 #define BTN_ACTION_OF(event)      ((event) & 3)
@@ -123,7 +123,7 @@ APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
  * tools/perinkpheral generates strings.h: the constants STR_NO_EVENTS,
  * STR_STARTS_IN and the function app_string(id). English is compiled into
  * the module. Every other language is written as a table file.
- * When the application is loaded, the host copies the table of the device
+ * When the application is loaded, Perinkpheral OS copies the table of the device
  * language over the English table. A language without a table is shown
  * in English.
  * The build fails if a language is not listed in sdk/languages.json, if a
@@ -147,7 +147,7 @@ typedef struct host_text_argument {
     const char *text;
     int32_t     length;
 } host_text_argument_t;
-#ifdef __wasm__ /* a pointer: four bytes in the module, whatever the host is */
+#ifdef __wasm__ /* a pointer: four bytes in the module, regardless of the native platform's pointer size */
 HOST_LAYOUT(host_text_argument_t, 12);
 #endif
 #define HOST_TEXT_ARGUMENTS_MAX 4
@@ -164,14 +164,14 @@ APP_EXPORT(app_on_settings, void app_on_settings(void));
 
 /* Draws the complete frame from the application state. The surface is
  * white on entry. Drawing calls work only inside this handler.
- * Called after screen_redraw() and whenever the host rebuilds the frame.
- * The host compares frames and decides whether and how to refresh the
+ * Called after screen_redraw() and whenever Perinkpheral OS rebuilds the frame.
+ * Perinkpheral OS compares frames and decides whether and how to refresh the
  * panel. */
 APP_EXPORT(app_on_draw, void app_on_draw(void));
 
 /* ---- Screen ---- */
 
-/* Requests a redraw: the host calls app_on_draw().
+/* Requests a redraw: Perinkpheral OS calls app_on_draw().
  *
  * When the panel shows the frame depends on the calling handler:
  *   app_on_button(), app_on_back():  immediately;
@@ -213,11 +213,11 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
  * CLEAN, then NO_BLINK, then SOON; QUESTION is independent. Each consumed redraw with
  * QUESTION starts a new question; a consumed redraw without it ends it.
  * NORMAL cannot clear a QUESTION still pending. Use QUESTION when opening
- * a question, not for later redraws. OK KEYDOWN is consumed by the host;
+ * a question, not for later redraws. OK KEYDOWN is consumed by Perinkpheral OS;
  * later OK events are delivered only if the press began after the question
  * reached the panel. QUESTION is included in the ABI 3 firmware floor.
  *
- * The host does not limit redraw requests. Every refresh uses battery
+ * Perinkpheral OS does not limit redraw requests. Every refresh uses battery
  * energy and wears the panel. */
 #define HOST_REDRAW_NORMAL   0
 #define HOST_REDRAW_SOON     1
@@ -226,13 +226,13 @@ APP_EXPORT(app_on_draw, void app_on_draw(void));
 #define HOST_REDRAW_QUESTION 8
 HOST_IMPORT(screen_redraw, void screen_redraw(int32_t flags));
 
-/* Sets application text in the host header. The header is shown above an
- * application that is not full-screen. Host defaults: left side empty
+/* Sets application text in Perinkpheral OS header. The header is shown above an
+ * application that is not full-screen. Perinkpheral OS defaults: left side empty
  * (next to the connection icon); right side the time by default, or the
  * date when the user disables the header clock. Blank while time is unknown.
- * The text is drawn in the host font and size. A text that does not fit
+ * The text is drawn in Perinkpheral OS font and size. A text that does not fit
  * is cut with "...". The two sides never overlap.
- * Length 0 returns the side to the host. A text of one space leaves the
+ * Length 0 returns the side to Perinkpheral OS. A text of one space leaves the
  * side empty.
  * Not a drawing call: callable from any handler. The text is cleared when
  * the application leaves the screen; called off the screen, it has no
@@ -242,13 +242,13 @@ HOST_IMPORT(screen_redraw, void screen_redraw(int32_t flags));
 #define HOST_HEADER_TEXT_MAX 63
 HOST_IMPORT(header_set_text, int32_t header_set_text(int32_t side, const char *text, int32_t length));
 
-/* Sets a status in the host header: an icon and a short text shown above
+/* Sets a status in Perinkpheral OS header: an icon and a short text shown above
  * screens with a header, including the owning application's screen.
  * A screen's left text takes precedence over kept left status; kept right
  * status takes precedence over the screen's right text.
  * Use for an activity the user started, such as a countdown.
  * Layout: icon text ... text icon. On HOST_HEADER_LEFT the icon replaces
- * the host icon and the text follows it. On HOST_HEADER_RIGHT the text
+ * Perinkpheral OS icon and the text follows it. On HOST_HEADER_RIGHT the text
  * replaces the date and the icon follows it.
  * A side belongs to the application that set it last. Length 0 with
  * HOST_ICON_NONE releases the side, if this application still owns it.
@@ -262,7 +262,7 @@ HOST_IMPORT(header_set_status, int32_t header_set_status(int32_t side, int32_t i
 
 /* ---- Navigation ----
  *
- * Navigation is a stack with the menu at the bottom. A host question or
+ * Navigation is a stack with the menu at the bottom. A Perinkpheral OS question or
  * an application that took the screen is placed on top; when it closes,
  * the entry below it returns. A long press of BACK clears the stack and
  * opens the menu.
@@ -277,7 +277,7 @@ HOST_IMPORT(header_set_status, int32_t header_set_status(int32_t side, int32_t i
  *     over the current screen and returns the user to it on exit. */
 
 /* Requests the screen from a background handler (app_on_data(),
- * app_on_alarm() off the screen). The host decides whether to grant it.
+ * app_on_alarm() off the screen). Perinkpheral OS decides whether to grant it.
  * Ignored on the screen. For a streamed background response, focus is
  * considered only when delivery ends. Refused within 30 seconds of a
  * button press, over a question waiting for its answer, or within 30
@@ -294,7 +294,7 @@ HOST_IMPORT(screen_leave, void screen_leave(void));
 
 /* Where the user is in the application: a page, a selection, a value half
  * set. The application is unloaded whenever another one needs the room - a
- * delivery in the background, a question of the host - and enters again
+ * delivery in the background, a question of Perinkpheral OS - and enters again
  * from what it stored; what is worth no write of the flash goes here.
  *
  * session_set() keeps up to HOST_SESSION_MAX bytes for the application while
