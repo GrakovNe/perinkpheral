@@ -1,6 +1,8 @@
 # Jersey replacement study
 
-Status: initial font study complete; replacement not selected. Reported during acceptance on 2026-11-18.
+Status: proposal to replace Jersey, recorded during acceptance on 2026-11-18.
+Tiny5 Regular is a candidate for a trial, not an approved production replacement.
+Cyrillic support is mandatory; candidates without it are excluded.
 
 The owner observed that the Air app's cramped labels and bottom spacing depend
 on the selected font. Fix the app's layout for both current fonts; investigate
