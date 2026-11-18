@@ -46,7 +46,7 @@ static void call(app_t *app, const app_delivery_t *delivery)
     bool is_answer = delivery->kind == APP_DELIVERY_PIECE ||
                         delivery->kind == APP_DELIVERY_VALUES;
     if (is_answer) {
-        app_answer_begins(app, delivery->response, delivery->http_status,
+        app_answer_begins(app, delivery->response, delivery->headers, delivery->http_status,
                           delivery->has_item ? delivery->item : -1);
     }
     call_handler(app, delivery);

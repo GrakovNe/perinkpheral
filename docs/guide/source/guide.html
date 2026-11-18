@@ -846,6 +846,10 @@ app_text_add_fixed(&amp;text, price - previous, 2, APP_FIXED_SIGN);        /* "+
 </ul>
 
 <p>Successful response chunks share metadata. A terminal HOST_DATA_FAILED callback may have no metadata: answer_info() returns the failure code as status, length -1 and empty header strings. Invalid or incomplete picked JSON gives HOST_FAILED_NO_ANSWER even if an HTTP response arrived.</p>
+<p>From firmware 0.1.51, <code>answer_header(name, name_length, occurrence, value, capacity)</code> reads a response header inside either data handler. Names are case-insensitive HTTP tokens, 1–63 bytes. Occurrence starts at 0; repeated Set-Cookie fields remain separate, in arrival order. The result is the value length without a terminating NUL. A missing field returns HOST_ERR_NOT_FOUND; invalid arguments return HOST_ERR_ARGUMENT. A value that does not fit returns HOST_ERR_NO_SPACE without writing.</p>
+<p>Perinkpheral OS keeps up to 1024 bytes of headers, counting each name, value and two NUL separators. If the complete set does not fit, every answer_header call returns HOST_ERR_NO_SPACE, including fields received before overflow. answer_info remains available. Only the final response after redirects is exposed. No cookies are sent or stored automatically.</p>
+<p>For authentication across background unloads, save a small session record with kv_set when the session changes, not on every poll. Include the server/account identity and handshake step; restore them on load. Clear the session when settings change or the server rejects it. Declare a cookie field as secret if it belongs in settings; stored values are not encrypted. session_set and scene_state_set belong to a scene and are not a background credential store.</p>
+
 <h2 id="network-request">Requests from code</h2>
 <pre>enum { REQUEST_TOGGLE = HOST_REQUEST_FIRST };
 static const char URL[]     = "{{server}}/api/services/light/toggle";
@@ -1287,6 +1291,7 @@ gh repo create OWNER/my-perink-apps --public</pre>
   <tr><td class="c">answer_element(index, element, text, capacity)</td><td>Inside <code>app_on_picked()</code>: copies element <code>element</code> of path <code>index</code>, as <code>answer_value()</code> does</td></tr>
   <tr><td class="c">answer_item(void)</td><td>Inside <code>app_on_data()</code> and <code>app_on_picked()</code>: the item of the list a poll with <code>each</code> made this request for, from 0; -1 for any other response</td></tr>
   <tr><td class="c">answer_info(response, capacity)</td><td>Inside a data handler: copies the first min(capacity, sizeof(host_answer_info_t)) bytes and returns the byte count. Negative capacity or an invalid destination gives HOST_ERR_ARGUMENT; outside a data handler, HOST_ERR_NOT_FOUND. Capacity 0 writes nothing. Bytes beyond Perinkpheral OS's struct stay untouched. Zero the destination first if accepting a shorter struct. Fields: status, length, retry_after, content_type[48], etag[64], last_modified[32], location[128], link[192]</td></tr>
+  <tr><td class="c">answer_header(name, name_length, occurrence, value, capacity)</td><td>Header value in a data handler, without NUL. Case-insensitive name; occurrence starts at 0. Returns length, HOST_ERR_ARGUMENT, HOST_ERR_NOT_FOUND or HOST_ERR_NO_SPACE. Requires firmware 0.1.51; capture limits and authentication state are described above.</td></tr>
 </table>
 
 <h2 id="ref-text">Text and logging</h2>

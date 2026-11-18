@@ -54,6 +54,7 @@ typedef struct {
     bool only_on_screen;
     /* PIECE and VALUES: what else is known of the answer, or NULL */
     const struct host_answer_info *response;
+    const struct answer_headers *headers; /* borrowed, never retained after the handler */
     /* PIECE and VALUES of a poll with "each": the item of the list it went
      * over. Without has_item, none. */
     bool has_item;

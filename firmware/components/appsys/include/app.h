@@ -160,10 +160,12 @@ void app_draw(app_t *app, gfx_t *surface);
 struct host_answer_info; /* host_answer_info_t of host_api.h */
 
 /* Bracket the handler calls of one answer and define the result of
- * answer_info() and answer_item() between them. `response` NULL: no answer
+ * answer_info(), answer_header() and answer_item() between them. `response` NULL: no answer
  * was received; only `http_status` is known. `item`: the item of the list a
  * poll with "each" went over, or -1. */
-void app_answer_begins(app_t *app, const struct host_answer_info *response, int http_status,
+struct answer_headers;
+void app_answer_begins(app_t *app, const struct host_answer_info *response,
+                       const struct answer_headers *headers, int http_status,
                        int item);
 void app_answer_ends(app_t *app);
 

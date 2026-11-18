@@ -29,8 +29,8 @@ import javax.net.ssl.SSLHandshakeException
  * Request:  {"method", "url", "headers": {name: value}, "body": base64, "max": bytes,
  *            "timeout": seconds, "trust": [files of certificate authorities the application
  *            trusts beside the computer's own]}
- * Answer:   {"status": HTTP status, or a HOST_FAILED_* code, "headers": {name: value},
- *            "body": base64, "next": the absolute address a redirect leads to}
+ * Answer:   {"status": HTTP status, or a HOST_FAILED_* code, "headers": {name: [values]}, "headers_overflow": boolean,
+ *            "metadata": {name: firstValue}, "body": base64, "next": the absolute address a redirect leads to}
  */
 object SimulatorNetwork {
     // sdk/host_api.h
@@ -38,6 +38,8 @@ object SimulatorNetwork {
     private const val TIMEOUT = -5L
     private const val NOT_TRUSTED = -6L
     private const val TOO_LARGE = -7L
+    private const val RESPONSE_HEADERS_BYTES = 1024
+    private const val RESPONSE_HEADER_NAME_MAX = 63
     private const val USER_AGENT = "perinkpheral" // what the device sends unless the application gives its own
     private val REDIRECTS = setOf(301, 302, 303, 307, 308)
     private val KEPT_HEADERS = setOf("content-type", "content-length", "etag", "last-modified", "location", "link",
@@ -184,11 +186,25 @@ object SimulatorNetwork {
             if (isCut.get()) return mapOf("status" to TIMEOUT)
             if (content.size > most) return mapOf("status" to TOO_LARGE)
             val kept = LinkedHashMap<String, Any?>()
+            var headerBytes = 0
+            var headersOverflow = false
             for ((name, values) in response.headers().map()) {
-                if (name.lowercase() in KEPT_HEADERS && values.isNotEmpty()) kept[name.lowercase()] = values[0]
+                val accepted = ArrayList<String>()
+                for (value in values) {
+                    val bytes = name.length + value.toByteArray(Charsets.UTF_8).size + 2
+                    if (headersOverflow || name.length > RESPONSE_HEADER_NAME_MAX || headerBytes + bytes > RESPONSE_HEADERS_BYTES) {
+                        headersOverflow = true
+                        break
+                    }
+                    accepted += value
+                    headerBytes += bytes
+                }
+                if (accepted.isNotEmpty()) kept[name.lowercase()] = accepted
             }
-            val answer = linkedMapOf<String, Any?>("status" to response.statusCode().toLong(), "headers" to kept,
-                "body" to Base64.getEncoder().encodeToString(content))
+            val metadata = response.headers().map().filterKeys { it.lowercase() in KEPT_HEADERS }
+                .mapValues { it.value.firstOrNull().orEmpty() }
+            val answer = linkedMapOf<String, Any?>("status" to response.statusCode().toLong(), "headers" to kept, "headers_overflow" to headersOverflow,
+                "metadata" to metadata, "body" to Base64.getEncoder().encodeToString(content))
             val location = response.headers().firstValue("location").orElse(null)
             if (response.statusCode() in REDIRECTS && location != null) {
                 try {
