@@ -16,13 +16,13 @@ QR    := $(COMP)/qr
 BUILD := build
 
 CFLAGS := -std=c11 -Wall -Wextra -Werror \
-          -I$(GFX)/include -I$(COMP)/words/include -I$(GFX)/fonts -I$(UI)/include -I$(FW)/main -I$(QR)/include -I$(QR)/qrcodegen
+          -I$(ROOT)/recovery/main -I$(GFX)/include -I$(COMP)/words/include -I$(GFX)/fonts -I$(UI)/include -I$(FW)/main -I$(QR)/include -I$(QR)/qrcodegen
 
-SOURCES := preview.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(COMP)/words/words.c $(GFX)/font_square.c \
+SOURCES := preview.c $(ROOT)/recovery/main/screen.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(COMP)/words/words.c $(GFX)/font_square.c \
            $(UI)/notice.c $(UI)/scrollbar.c $(UI)/list.c $(UI)/kit.c $(UI)/wm.c \
            $(FW)/main/screens.c $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 
-$(BUILD)/perinkpheral-preview: $(SOURCES) $(wildcard $(GFX)/include/*.h $(GFX)/fonts/*.h $(UI)/include/*.h $(FW)/main/screens.h)
+$(BUILD)/perinkpheral-preview: $(SOURCES) $(wildcard $(GFX)/include/*.h $(GFX)/fonts/*.h $(UI)/include/*.h $(FW)/main/screens.h $(ROOT)/recovery/main/*.h)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $(SOURCES)
 

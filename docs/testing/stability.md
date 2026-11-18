@@ -125,3 +125,31 @@ faults inside ESP-IDF modem sleep. This is a historical fault observation, not a
 endurance result. No completed run of the protocol above is recorded here.
 
 [heap]: https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32c6/api-reference/system/heap_debug.html
+
+## Recovery qualification
+
+The recovery branch changes the update mechanism. Host tests and builds do not qualify
+physical power-loss behavior. Before release, run these on a bench device with backed-up
+settings and applications; the shelf device is not a power-cut test fixture.
+
+- Migrate over USB with the migration manifest: no full erase, no apps image. Compare the
+  bytes of nvs, appkv, appcode, apps and glyphs before and after migration.
+- First installation starts recovery. BACK tries the supplied main with probation. Holding
+  BACK at reset for three seconds enters recovery and preserves all user data.
+- Upload from a browser and CLI over saved WPA2 and WPA3 networks, and through the recovery
+  access point with no saved network and with damaged NVS. Verify the displayed version,
+  OK confirmation, timeout and BACK cancellation. A held key must not approve a new request.
+- Reject foreign projects, old partition layouts, another chip, oversized images, truncated
+  headers and damaged checksums. Invalid headers must leave main untouched.
+- Cut power before and during boot-metadata erasure, during each portion of main erasure and
+  writing, before and after image verification, and before and after selecting the new main.
+  An interrupted main write must return to recovery; recovery must accept another image.
+- Reset or crash main before probation confirmation, then test a network failure through the
+  probation deadline. Recovery must remain available and never automatically retry main.
+- Drop the HTTP response after a successful upload, reinstall the same version with different
+  image bytes, delay reboot, and change DHCP address. Clients must not announce success until
+  the intended image reports completed probation; unreachable devices get actionable errors.
+- In both debug and release builds inspect flash_args, app-flash_args and both web manifests.
+  Main belongs at 0x100000, recovery at 0x20000. app-flash must not include recovery or apps;
+  migration must not include user data. Deliberately oversized recovery must fail its own
+  size check even when the image would fit main.

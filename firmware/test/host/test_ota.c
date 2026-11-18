@@ -7,6 +7,7 @@
 #include "ota_health.h"
 #include "ota_stream.h"
 #include "tinytest.h"
+#include "../../../recovery/main/ota.h"
 
 /* ---- the stream, writing into memory instead of flash ---- */
 
@@ -81,6 +82,10 @@ static void make_image(const char *project_name)
         image[i] = (uint8_t)(i * 7);
     }
     image[0] = 0xE9;
+    image[1] = 1;
+    image[12] = 13;
+    image[13] = 0;
+    put_u32_le(image + 28, IMAGE_BYTES - 32);
     const uint8_t description_magic[] = { 0x32, 0x54, 0xCD, 0xAB };
     memcpy(image + 32, description_magic, sizeof description_magic);
     memset(image + 32 + 48, 0, 32);
@@ -181,10 +186,12 @@ static void test_sizes(void)
 
     /* more than was announced */
     CHECK(start(IMAGE_BYTES - 10));
+    put_u32_le(image + 28, IMAGE_BYTES - 32 - 10);
     CHECK(!feed_all(200));
     CHECK(flash.aborted == 1);
 
     /* less than was announced */
+    make_image("perinkpheral");
     CHECK(start(IMAGE_BYTES));
     CHECK(ota_stream_feed(&stream, image, 600));
     CHECK(!ota_stream_end(&stream));
@@ -197,6 +204,7 @@ static void test_edges(void)
     /* an image that is nothing but its head */
     make_image("perinkpheral");
     memset(&flash, 0, sizeof flash);
+    put_u32_le(image + 28, OTA_HEAD_BYTES - 32);
     CHECK(ota_stream_start(&stream, &WRITER, NULL, "perinkpheral", PARTITION_TABLE,
                            OTA_HEAD_BYTES, SLOT_BYTES));
     CHECK(ota_stream_feed(&stream, image, OTA_HEAD_BYTES));
@@ -204,6 +212,7 @@ static void test_edges(void)
     CHECK(flash.length == OTA_HEAD_BYTES && flash.finished == 1);
 
     /* a piece of nothing changes nothing */
+    make_image("perinkpheral");
     CHECK(start(IMAGE_BYTES));
     CHECK(ota_stream_feed(&stream, image, 0));
     CHECK(feed_all(250));
@@ -250,6 +259,100 @@ static void test_writer_failures(void)
     CHECK(!ota_stream_feed(&stream, image + 500, 500));
 }
 
+static void test_header_checks_before_erase(void)
+{
+    make_image("perinkpheral");
+    CHECK(ota_image_check_header(image, "perinkpheral", PARTITION_TABLE) == NULL);
+    const size_t corrupt[] = { 0, 1, 12, 13, 32, 80, LAYOUT_AT, LAYOUT_AT + 4 };
+    for (size_t index = 0; index < sizeof corrupt / sizeof corrupt[0]; index++) {
+        make_image("perinkpheral");
+        image[corrupt[index]] ^= 0xff;
+        CHECK(ota_image_check_header(image, "perinkpheral", PARTITION_TABLE) != NULL);
+        CHECK(start(IMAGE_BYTES));
+        CHECK(!ota_stream_feed(&stream, image, OTA_HEAD_BYTES));
+        CHECK(flash.begun == 0 && flash.aborted == 0);
+    }
+    make_image("perinkpheral");
+    put_u32_le(image + 28, 255);
+    CHECK(ota_image_check_header(image, "perinkpheral", PARTITION_TABLE) != NULL);
+    CHECK(start(IMAGE_BYTES));
+    CHECK(!feed_all(512));
+    CHECK(flash.begun == 0);
+    make_image("perinkpheral");
+    put_u32_le(image + 28, IMAGE_BYTES);
+    CHECK(start(IMAGE_BYTES));
+    CHECK(!feed_all(512));
+    CHECK(flash.begun == 0);
+
+    make_image("perinkpheral");
+    CHECK(start(IMAGE_BYTES));
+    CHECK(ota_stream_feed(&stream, image, OTA_HEAD_BYTES - 1));
+    ota_stream_abort(&stream);
+    CHECK(flash.begun == 0 && flash.aborted == 0);
+    CHECK(!ota_stream_feed(&stream, image, 1));
+
+    CHECK(start(IMAGE_BYTES));
+    CHECK(feed_all(512));
+    CHECK(ota_stream_end(&stream));
+    CHECK(ota_stream_end(&stream));
+    ota_stream_abort(&stream);
+    CHECK(flash.finished == 1 && flash.aborted == 0);
+    CHECK(!ota_stream_feed(&stream, image, 1));
+}
+
+static void test_recovery_operation_ownership(void)
+{
+    recovery_control_t control = {0};
+    CHECK(recovery_control_claim(&control, RECEIVING));
+    CHECK(!recovery_control_claim(&control, RETRYING));
+    CHECK(!recovery_control_claim(&control, RECEIVING));
+    recovery_control_set(&control, CONFIRM);
+    unsigned old_prompt = atomic_load(&control.ticket);
+    CHECK(recovery_control_change_ticket(&control, old_prompt, CANCELLED));
+    CHECK(!recovery_control_change_ticket(&control, old_prompt, ACCEPTED));
+    CHECK(!recovery_control_claim(&control, RETRYING));
+    recovery_control_set(&control, WAITING);
+    unsigned old_retry = atomic_load(&control.ticket);
+    CHECK(recovery_control_claim(&control, RECEIVING));
+    recovery_control_set(&control, CONFIRM);
+    CHECK(!recovery_control_change_ticket(&control, old_prompt, ACCEPTED));
+    CHECK(recovery_control_change(&control, CONFIRM, ACCEPTED));
+    CHECK(!recovery_control_change(&control, CONFIRM, CANCELLED));
+    CHECK(recovery_control_change(&control, ACCEPTED, WRITING));
+    CHECK(!recovery_control_claim(&control, RETRYING));
+    recovery_control_set(&control, FAILED);
+    CHECK(!recovery_control_claim_ticket(&control, old_retry, RETRYING));
+    CHECK(recovery_control_claim(&control, RETRYING));
+    CHECK(!recovery_control_claim(&control, RECEIVING));
+}
+
+static void test_recovery_requires_a_fresh_visible_confirmation(void)
+{
+    recovery_keys_t keys = {0};
+    /* Holding BACK while recovery boots is not an explicit retry. */
+    CHECK(recovery_keys_pressed(&keys, 2, WAITING, 0, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 2, WAITING, 0, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 0, WAITING, 0, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 0, WAITING, 0, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 2, WAITING, 0, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 2, WAITING, 0, false) == 2);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 1, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 1, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 1, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 0, CONFIRM, 1, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 1, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 1, true) == 1);
+    /* A new prompt can replace an old one during a slow panel refresh. */
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 2, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 2, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 0, CONFIRM, 2, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 2, false) == 0);
+    CHECK(recovery_keys_pressed(&keys, 1, CONFIRM, 2, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 0, CONFIRM, 2, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 3, CONFIRM, 2, true) == 0);
+    CHECK(recovery_keys_pressed(&keys, 3, CONFIRM, 2, true) == 3);
+}
+
 /* ---- the probation of a fresh image ---- */
 
 static void test_health(void)
@@ -292,6 +395,9 @@ int main(void)
     test_sizes();
     test_edges();
     test_writer_failures();
+    test_header_checks_before_erase();
+    test_recovery_operation_ownership();
+    test_recovery_requires_a_fresh_visible_confirmation();
     test_health();
     REPORT();
 }

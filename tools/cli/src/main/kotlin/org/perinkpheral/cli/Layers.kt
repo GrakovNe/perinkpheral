@@ -170,7 +170,7 @@ class Layers(firmwareFolder: File) {
     /** Every header of ours but the interpreter's, upstream code, by name. */
     private fun headerPaths(): Map<String, File> {
         val paths = HashMap<String, File>()
-        for (root in listOf(components, main, sdk)) {
+        for (root in listOf(components, main, sdk, File(firmware, "../recovery/main"))) {
             root.walk().filter { it.isFile && it.name.endsWith(".h") && !it.path.contains("components/wasm3") }
                 .sortedBy { it.path }.forEach { paths.putIfAbsent(it.name, it) }
         }
@@ -232,6 +232,7 @@ class Layers(firmwareFolder: File) {
 
         /** Pure: built and tested on this computer, with nothing of ESP-IDF. */
         private val PURE = listOf(
+            "../recovery/main/screen.c", "../recovery/main/control.h",
             "components/appconf/appconf.c", "components/words/words.c",
             "components/gfx/gfx.c", "components/gfx/gfx_icons.c", "components/gfx/font_square.c",
             "components/ui/wm.c", "components/ui/kit.c", "components/ui/list.c", "components/ui/notice.c",

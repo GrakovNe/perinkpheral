@@ -26,3 +26,6 @@ cmake-build-*/
 docs/guide/source/guide.*.html
 *.actual.png
 docs/guide/*.pdf
+recovery/managed_components/
+recovery/sdkconfig
+recovery/sdkconfig.old

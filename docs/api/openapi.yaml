@@ -65,7 +65,13 @@ components:
           description: Explicit supported application ABI generations; membership, never a version ceiling.
           items: { type: integer, minimum: 1 }
           examples: [[3]]
-        slot: { type: string, examples: ["ota_1"] }
+        mode: { type: string, enum: [application, recovery] }
+        ota_protocol: { type: integer, enum: [1] }
+        partition_table: { type: integer, description: Image layout identifier }
+        image_id: { type: string, description: Main image ELF SHA-256 in lowercase hexadecimal }
+        boot_id: { type: integer, description: Recovery boot identity; changes after a restart }
+        upload_state: { type: string, enum: [idle, receiving, confirming, writing, failed, restarting], description: Recovery only }
+        slot: { type: string, examples: ["ota_0"] }
         on_probation: { type: boolean, description: A new image not confirmed yet }
         wifi: { type: string, enum: [online, connecting, setup, rescue] }
         ssid: { type: string }
@@ -548,23 +554,35 @@ paths:
         "200": { $ref: "#/components/responses/Ok" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /api/ota/recovery:
+    post:
+      tags: [Firmware]
+      summary: Select recovery and restart; uploading there requires physical OK
+      description: Refused while main is on probation. Does not erase the main image or user data.
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
   /api/ota:
     post:
       tags: [Firmware]
-      summary: Upload a firmware image, confirmed on the device; the device restarts into it
+      summary: Upload firmware in recovery; main returns 409 until recovery is entered
       requestBody:
         required: true
         content:
           application/octet-stream: {}
       responses:
         "200": { $ref: "#/components/responses/Ok" }
+        "409": { $ref: "#/components/responses/Error" }
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
   /api/ota/release:
     post:
       tags: [Firmware]
-      summary: Fetch and install a release from the project's GitHub releases, confirmed on the device
+      summary: Obsolete device-side downloader; returns 409, download through the browser instead
+      deprecated: true
       requestBody:
         required: true
         content:
@@ -577,6 +595,7 @@ paths:
               required: [url, size]
       responses:
         "200": { $ref: "#/components/responses/Ok" }
+        "409": { $ref: "#/components/responses/Error" }
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 

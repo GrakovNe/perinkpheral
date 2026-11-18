@@ -90,7 +90,7 @@ Does not hold:
   the same way without the user at all.
 - **The page is plain `http`.** A token typed into it crosses the network in the clear.
 - In a build with the development tools (`APP_DEV_CONSOLE`, on by default): `/api/dev/flash`
-  replaces the firmware with nobody asked, `/api/dev/kv` writes any key of any
+  refuses direct updates (recovery requires physical OK), `/api/dev/kv` writes any key of any
   application, `/api/dev/screen` gives the screen. Such a build is for a bench; releases omit it.
 
 ### Somebody near the device with a radio, not on the network

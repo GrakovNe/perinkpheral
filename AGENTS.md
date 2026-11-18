@@ -33,10 +33,17 @@ that needs the network. After editing `main/Kconfig.projbuild` or
 adding a component: `idf.py reconfigure`.
 
 Flash: `idf.py -p $PORT flash` (bootloader, partition table, otadata,
-app, and the applications' partition `apps` with `hello` - what is
+recovery, main, and the applications' partition `apps` with `hello` - what is
 installed there is replaced). Both `flash` and `app-flash` preserve `nvs`;
-`app-flash` also preserves the apps partition. `erase-flash` erases all flash;
-flash again to boot with defaults. `esptool` v5 spells its commands with dashes
+`app-flash` also preserves recovery and the apps partition, and selects recovery
+through blank OTA metadata. Press BACK in recovery to try the installed main.
+Builds check each image against its own partition. Use the generated migration
+manifest to preserve data when moving an existing device to the recovery layout;
+never erase the whole flash or write apps.bin during migration.
+`erase-flash` erases all flash;
+flash again to boot with defaults. For the one-time migration, after building, use
+`ESPPORT="$PORT" idf.py -B <build> migration-flash` from `firmware/`. This writes
+bootloader, partition table, OTA metadata, recovery and main; no data images. `esptool` v5 spells its commands with dashes
 (`write-flash`, `read-flash`).
 
 Console capture. Opening the port does not reset the board, so a
@@ -130,8 +137,8 @@ grid. The sizes on the device are that bitmap drawn at whole multiples
 The generated header is committed.
 
 Firmware without the cable, once the device is on a network:
-`curl --data-binary @firmware/build/perinkpheral.bin
-http://<address>/api/ota`, and OK on the device's own screen within a
+`curl -X POST http://<address>/api/ota/recovery`, wait for recovery, then
+`curl --data-binary @firmware/build/perinkpheral.bin http://<address>/api/ota`, and OK on the device's own screen within a
 minute (unanswered, the upload is refused). The device restarts into the new image and
 keeps it only if it comes back reachable; `GET /api/status` says
 whether it is still on probation. The address is on the second page of About.
@@ -263,7 +270,7 @@ Board and system:
   then stops right after the button pins are reported.
 - `board_init()` drives the antenna switch before the radio starts.
 - Neither the partition table nor the bootloader can be changed over
-  the air. Only `main/ota.c` writes a slot or marks an image (`esp_ota_*`);
+  the air. Only `recovery/main/ota.c` writes the main slot; `firmware/main/ota.c` selects recovery and marks probation (`esp_ota_*`);
   others only ask which one runs. A new image is confirmed
   by the probation task, never at boot: confirming early would keep an
   image that cannot be reached to replace it.

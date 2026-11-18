@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+menu "Recovery"
+    config APP_ANTENNA_EXTERNAL
+        bool "External antenna"
+        default n
+    config APP_EPD_MOSI_GPIO
+        int
+        default 18
+    config APP_EPD_SCLK_GPIO
+        int
+        default 19
+    config APP_EPD_CS_GPIO
+        int
+        default 17
+    config APP_EPD_DC_GPIO
+        int
+        default 23
+    config APP_EPD_RST_GPIO
+        int
+        default 22
+    config APP_EPD_BUSY_GPIO
+        int
+        default 16
+endmenu

@@ -33,13 +33,17 @@ jobs:
           echo '[]' > site/flash/index.json
           for tag in $(gh release list --repo "$repo" --limit 1000 --exclude-drafts --json tagName --jq '.[].tagName'); do
             gh release download "$tag" --repo "$repo" --dir "site/flash/$tag" --pattern '*.bin' --pattern '*.json'
-            release=null; debug=null
+            release=null; debug=null; migration=null; debug_migration=null
             [ -f "site/flash/$tag/manifest.json" ] && release="\"$tag/manifest.json\""
             [ -f "site/flash/$tag/debug-manifest.json" ] && debug="\"$tag/debug-manifest.json\""
+            [ -f "site/flash/$tag/migration-manifest.json" ] && migration="\"$tag/migration-manifest.json\""
+            [ -f "site/flash/$tag/debug-migration-manifest.json" ] && debug_migration="\"$tag/debug-migration-manifest.json\""
             gh release view "$tag" --repo "$repo" --json tagName,publishedAt,body \
               | jq --argjson release "$release" --argjson debug "$debug" \
+                   --argjson migration "$migration" --argjson debug_migration "$debug_migration" \
                    '{version: (.tagName | ltrimstr("v")), date: .publishedAt[0:10], notes: .body,
-                     builds: {release: $release, debug: $debug}}' > entry.json
+                     builds: {release: $release, debug: $debug,
+                              migration: $migration, debug_migration: $debug_migration}}' > entry.json
             jq --slurpfile entry entry.json '. + $entry' site/flash/index.json > index.json
             mv index.json site/flash/index.json
           done

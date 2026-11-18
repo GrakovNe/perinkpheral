@@ -8,6 +8,7 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+#include <stdatomic.h>
 
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
@@ -42,125 +43,17 @@ _Static_assert(offsetof(esp_app_desc_t, project_name) == 48 && sizeof(esp_app_de
                "the application description is not laid out as ota_stream expects");
 
 /* True from start until a freshly installed image has proved itself. */
-static volatile bool s_on_probation;
+static atomic_bool s_on_probation;
 
-/* ---- writing an uploaded image into the spare slot ---- */
-
-static struct {
-    ota_stream_t           stream;
-    bool                   in_progress; /* from its first byte to the restart into it */
-    const esp_partition_t *slot;
-    esp_ota_handle_t       handle;
-} s_upload;
-
-static bool slot_begin(void *context, size_t image_size)
+const char *ota_enter_recovery(void)
 {
-    (void)context;
-    esp_err_t err = esp_ota_begin(s_upload.slot, image_size, &s_upload.handle);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "esp_ota_begin: %s", esp_err_to_name(err));
+    if (s_on_probation) { return "Previous update is being verified."; }
+    const esp_partition_t *factory = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
+                                                ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
+    if (!factory || esp_ota_set_boot_partition(factory) != ESP_OK) {
+        return "Recovery image unavailable. Restore it over USB.";
     }
-    return err == ESP_OK;
-}
-
-static bool slot_write(void *context, const uint8_t *data, size_t length)
-{
-    (void)context;
-    return esp_ota_write(s_upload.handle, data, length) == ESP_OK;
-}
-
-static bool slot_finish(void *context)
-{
-    (void)context;
-    /* esp_ota_end checks the image and lets go of the handle either way. */
-    esp_err_t err = esp_ota_end(s_upload.handle);
-    if (err == ESP_OK) {
-        err = esp_ota_set_boot_partition(s_upload.slot);
-    }
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "the uploaded image was rejected: %s", esp_err_to_name(err));
-    }
-    return err == ESP_OK;
-}
-
-static void slot_abort(void *context)
-{
-    (void)context;
-    esp_ota_abort(s_upload.handle);
-}
-
-static const ota_writer_t SLOT_WRITER = { slot_begin, slot_write, slot_finish, slot_abort };
-
-/* NULL when the stream is content, its error otherwise - and then the
- * upload is over. */
-/* The upload is over without an image: the device is free to sleep again. */
-static void abort_upload(void)
-{
-    if (s_upload.in_progress) {
-        s_upload.in_progress = false;
-        power_release_radio();
-        host_work_is_over();
-    }
-}
-
-static const char *upload_result(bool ok)
-{
-    if (ok) {
-        return NULL;
-    }
-    abort_upload();
-    ESP_LOGW(TAG, "upload: %s", ota_stream_error(&s_upload.stream));
-    return ota_stream_error(&s_upload.stream);
-}
-
-const char *ota_upload_begin(size_t image_size)
-{
-    if (s_upload.in_progress) {
-        return "Update in progress.";
-    }
-    if (s_on_probation) {
-        /* The spare slot holds the image to return to if this one fails:
-         * writing over it now could leave no good image at all. */
-        return "Previous update is being verified. Try again in a minute.";
-    }
-    s_upload.slot = esp_ota_get_next_update_partition(NULL);
-    if (s_upload.slot == NULL) {
-        return "No update slot.";
-    }
-    s_upload.in_progress = true;
-    /* The device stays up and on the network until the image is whole, or
-     * given up. */
-    power_hold_radio();
-    host_show_working(word(WORD_UPDATING), word(WORD_UPDATING_IN_PROGRESS));
-    ESP_LOGI(TAG, "upload of %u bytes into %s", (unsigned)image_size, s_upload.slot->label);
-    return upload_result(ota_stream_start(&s_upload.stream, &SLOT_WRITER, NULL,
-                                          esp_app_get_description()->project_name,
-                                          image_layout_partition_table(), image_size,
-                                          s_upload.slot->size));
-}
-
-const char *ota_upload_data(const uint8_t *data, size_t length)
-{
-    return upload_result(ota_stream_feed(&s_upload.stream, data, length));
-}
-
-const char *ota_upload_end(void)
-{
-    const char *error = upload_result(ota_stream_end(&s_upload.stream));
-    if (error == NULL) {
-        /* Still in progress, and the radio still held: the next thing is
-         * the restart into the image. */
-        ESP_LOGW(TAG, "the uploaded image is in place");
-    }
-    return error;
-}
-
-void ota_upload_abort(void)
-{
-    if (s_upload.in_progress) {
-        ota_stream_abort(&s_upload.stream);
-        abort_upload();
-    }
+    return NULL;
 }
 
 /* ---- the probation of a freshly installed image ---- */
@@ -190,7 +83,8 @@ static void probation_task(void *arg)
                      input.uptime_s);
             esp_ota_mark_app_invalid_rollback_and_reboot();
             /* Only reached when there is nothing to roll back to. */
-            ESP_LOGE(TAG, "nothing to roll back to, keeping this image");
+            ESP_LOGE(TAG, "recovery unavailable; image remains unconfirmed");
+            continue;
         }
         esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
         /* By its number: a release build has no names for errors, and would
@@ -201,8 +95,10 @@ static void probation_task(void *arg)
             ESP_LOGE(TAG, "image not confirmed after %" PRIu32 " s: error 0x%x", input.uptime_s,
                      (unsigned)err);
         }
-        s_on_probation = false;
-        vTaskDelete(NULL);
+        if (err == ESP_OK) {
+            s_on_probation = false;
+            vTaskDelete(NULL);
+        }
     }
 }
 

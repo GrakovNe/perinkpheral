@@ -175,7 +175,23 @@ byId("image").addEventListener("change", () => {
  * and the page read anew once the device is back with it. */
 const BACK_EVERY_MS = 2000, BACK_WITHIN_MS = 5 * 60 * 1000;
 
-async function updateFirmware(url, options) {
+/* Recovery errors can be plain text. A lost POST response is read back, never resent. */
+async function firmwarePost(path, body, timeout) {
+  let response;
+  try {
+    response = await fetch(path, { method: "POST", body, signal: AbortSignal.timeout(timeout) });
+  } catch (error) { return; }
+  if (!response.ok) {
+    let message = "HTTP " + response.status;
+    try {
+      const text = await response.text();
+      try { message = JSON.parse(text).error || text; } catch (error) { message = text; }
+    } catch (error) { /* Keep the HTTP status if the error body was interrupted. */ }
+    throw Error(message);
+  }
+}
+
+async function updateFirmware(imageSource) {
   const dialog = byId("updating");
   const started = Date.now();
   const step = (title, text) => { show("updating-title", title); show("updating-step", text); };
@@ -184,50 +200,95 @@ async function updateFirmware(url, options) {
     show("updating-timer", Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0"));
   }, 250);
   byId("updating-buttons").hidden = true;
-  step("Updating", CONFIRM_ON_DEVICE);
   dialog.showModal();
-  /* While its firmware is written, the page has nothing else to offer. */
-  dialog.addEventListener("cancel", event => event.preventDefault());
-  /* The device answers once the image is written: until then it asks, and then fetches. */
-  const asking = setTimeout(() => step("Updating", "Installing."), 15000);
+  const preventCancel = event => event.preventDefault();
+  dialog.addEventListener("cancel", preventCancel);
+  const pause = () => new Promise(resolve => setTimeout(resolve, BACK_EVERY_MS));
+  const readStatus = async () => {
+    try {
+      const response = await fetch("/api/status", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+      return response.ok ? await response.json() : null;
+    } catch (error) { return null; }
+  };
   try {
-    await ask(url, options);
+    step("Updating", "Downloading firmware.");
+    let image = imageSource;
+    if (typeof imageSource === "string") {
+      const response = await fetch(imageSource, { signal: AbortSignal.timeout(120000) });
+      if (!response.ok) throw Error("Firmware download failed. Try again after publication finishes.");
+      image = await response.blob();
+    }
+    if (!image || image.size < 304 || image.size > 2 * 1024 * 1024) throw Error("Invalid image size.");
+    const header = new Uint8Array(await image.slice(0, 304).arrayBuffer());
+    const view = new DataView(header.buffer);
+    const field = offset => new TextDecoder().decode(header.slice(offset, offset + 32)).split("\0")[0];
+    if (header[0] !== 0xe9 || view.getUint32(32, true) !== 0xabcd5432 ||
+        field(80) !== "perinkpheral" || view.getUint32(288, true) !== 0x54524150 ||
+        view.getUint32(292, true) !== status.partition_table) {
+      throw Error("Image is for another partition table. Flash over USB.");
+    }
+    const expectedVersion = field(48);
+    const expectedImage = Array.from(header.slice(176, 208), byte => byte.toString(16).padStart(2, "0")).join("");
+    if (!expectedVersion || !header.slice(48, 80).includes(0) || status.ota_protocol !== 1) {
+      throw Error("Unsupported firmware update protocol.");
+    }
+    step("Restarting", "Entering recovery.");
+    await firmwarePost("/api/ota/recovery", undefined, 15000);
+    let recovery = null;
+    const recoveryDeadline = Date.now() + 90000;
+    while (Date.now() < recoveryDeadline) {
+      await pause();
+      const current = await readStatus();
+      if (current && current.mode === "recovery") {
+        if (current.ota_protocol !== 1 || !Number.isInteger(current.boot_id) ||
+            current.partition_table !== view.getUint32(292, true)) {
+          throw Error("Unsupported firmware update protocol.");
+        }
+        recovery = current;
+        break;
+      }
+    }
+    if (!recovery) throw Error("Recovery not found. Check the address on the device screen.");
+    step("Updating", CONFIRM_ON_DEVICE);
+    await firmwarePost("/api/ota", image, 300000);
+    step("Restarting", "Checking the new firmware.");
+    const deadline = Date.now() + BACK_WITHIN_MS;
+    while (Date.now() < deadline) {
+      await pause();
+      const current = await readStatus();
+      if (!current) continue;
+      if (current.mode === "recovery") {
+        if (current.boot_id !== recovery.boot_id) {
+          throw Error("Firmware did not start. Open recovery to try again.");
+        }
+        if (["idle", "failed"].includes(current.upload_state)) {
+          throw Error("Upload stopped in recovery. Choose a file and confirm again.");
+        }
+        // The same recovery still serves HTTP while its restart screen is being drawn.
+      }
+      if (current.mode === "application" && current.on_probation === false) {
+        if (current.firmware !== expectedVersion || current.image_id !== expectedImage) {
+          throw Error("A different firmware started. The uploaded image was not confirmed.");
+        }
+        location.reload();
+        return;
+      }
+    }
+    throw Error("Device not found. Check its screen and reconnect to its Wi-Fi if needed.");
   } catch (error) {
-    /* The device said no ("Not confirmed.", "Invalid image."). One that went quiet may be
-       restarting into the image already: it is looked for. */
-    if (!(error instanceof TypeError)) {
-      clearTimeout(asking);
-      clearInterval(clock);
-      dialog.close();
-      toast(error.message, "error");
-      return;
-    }
+    step("Update stopped", error.message);
+    byId("updating-buttons").hidden = false;
+  } finally {
+    clearInterval(clock);
+    dialog.removeEventListener("cancel", preventCancel);
   }
-  clearTimeout(asking);
-  step("Restarting", "Waiting for the device.");
-  const sent = Date.now(), before = status.firmware;
-  while (Date.now() - sent < BACK_WITHIN_MS) {
-    await new Promise(resolve => setTimeout(resolve, BACK_EVERY_MS));
-    let now;
-    try { now = await (await fetch("/api/status", { cache: "no-store" })).json(); } catch (error) { continue; }
-    /* Back, and started since: another firmware, or up for less time than it was away. */
-    if (now.firmware !== before || now.uptime_s * 1000 < Date.now() - sent) {
-      step("Restarting", "Back online.");
-      clearInterval(clock);
-      location.reload();
-      return;
-    }
-  }
-  clearInterval(clock);
-  step("Restarting", "Device not found.");
-  byId("updating-buttons").hidden = false;
 }
 
 byId("updating-reload").addEventListener("click", () => location.reload());
 
 byId("custom-firmware").addEventListener("submit", event => {
   event.preventDefault();
-  updateFirmware("/api/ota", { method: "POST", body: byId("image").files[0] });
+  updateFirmware(byId("image").files[0]);
 });
 
 /* "0.1.0" and "0.1.0-da983bb": the version a build says of itself is the release's, and its commit. */
@@ -254,7 +315,18 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   show("ota-notes", isNewerOne ? notes : "");
   byId("ota-notes").hidden = !isNewerOne || !notes;
   byId("ota-update").hidden = !isNewerOne;
-  latestImage = isNewerOne ? image : null;
+  latestImage = null;
+  if (isNewerOne) {
+    const mirror = "https://grakovne.github.io/perinkpheral/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
+    let published = false;
+    try {
+      const mirrored = await fetch(mirror, { method: "HEAD", signal: AbortSignal.timeout(10000) });
+      published = mirrored.ok && Number(mirrored.headers.get("Content-Length")) === image.size;
+    } catch (error) { /* Release assets can precede their browser-accessible mirror. */ }
+    byId("ota-update").hidden = !published;
+    if (published) latestImage = mirror;
+    else toast("Firmware is being published. Check again shortly.");
+  }
   if (!isNewerOne) toast("Up to date.");
 }));
 
@@ -262,7 +334,7 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
  * written, so the page does not ask again. */
 let latestImage = null;
 byId("ota-update").addEventListener("click", () => {
-  if (latestImage) updateFirmware("/api/ota/release", post({ url: latestImage.browser_download_url, size: latestImage.size }));
+  if (latestImage) updateFirmware(latestImage);
 });
 
 /* ---- restart and reset ---- */

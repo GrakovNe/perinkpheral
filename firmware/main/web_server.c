@@ -37,6 +37,7 @@
 #include "host.h"
 #include "m3_area.h"
 #include "ota.h"
+#include "image_layout.h"
 #include "poller.h"
 #include "power.h"
 #include "reset.h"
@@ -204,6 +205,15 @@ static esp_err_t handle_status(httpd_req_t *request)
     json_t *json = json_new_object();
     json_add_string(json, "name", settings.device_name);
     json_add_string(json, "firmware", esp_app_get_description()->version);
+    char image_id[65];
+    const uint8_t *image_hash = esp_app_get_description()->app_elf_sha256;
+    for (size_t index = 0; index < 32; index++) {
+        snprintf(image_id + index * 2, 3, "%02x", image_hash[index]);
+    }
+    json_add_string(json, "image_id", image_id);
+    json_add_string(json, "mode", "application");
+    json_add_number(json, "ota_protocol", 1);
+    json_add_number(json, "partition_table", image_layout_partition_table());
     json_t *abis = json_new_array();
     for (unsigned i = 0; i < sizeof APP_SUPPORTED_ABIS / sizeof APP_SUPPORTED_ABIS[0]; i++) {
         json_array_add(abis, json_new_number(APP_SUPPORTED_ABIS[i]));
@@ -693,115 +703,31 @@ static esp_err_t handle_reset(httpd_req_t *request)
     return result;
 }
 
-/* A release of the project: the device fetches the image itself - a page
- * in a browser cannot, the file being on another site - from where the
- * project's releases are and nowhere else. */
-#define RELEASE_URL_PREFIX "https://github.com/GrakovNe/perinkpheral/releases/download/"
-#define RELEASE_URL_MAX    255
-
-static bool take_release_piece(void *context, const uint8_t *piece, size_t length)
+static esp_err_t handle_ota_recovery(httpd_req_t *request)
 {
-    const char **error = context;
-    *error = ota_upload_data(piece, length);
-    return *error == NULL;
+    /* Entering recovery is a restart. Writing an image still needs physical OK there. */
+    const char *error = ota_enter_recovery();
+    if (error) { return send_error(request, error); }
+    esp_err_t result = send_ok(request, "Entering recovery.");
+    host_stop_soon(HOST_STOP_RESTART);
+    return result;
 }
 
 static esp_err_t handle_ota_release(httpd_req_t *request)
 {
-    char body[SETTINGS_BODY_MAX];
-    if (!web_read_body(request, body, sizeof body)) {
-        return send_error(request, "Invalid request.");
-    }
-    json_t *json = json_parse(body);
-    const json_t *url = json_get(json, "url");
-    const json_t *size = json_get(json, "size");
-    char   address[RELEASE_URL_MAX + 1] = "";
-    size_t image_size = 0;
-    if (json_is_string(url) && strlen(url->text) <= RELEASE_URL_MAX &&
-        strncmp(url->text, RELEASE_URL_PREFIX, strlen(RELEASE_URL_PREFIX)) == 0 &&
-        json_is_number(size) && size->number > 0) {
-        strcpy(address, url->text);
-        image_size = (size_t)size->number;
-    }
-    json_free(json);
-    if (address[0] == '\0') {
-        return send_error(request, "Invalid request.");
-    }
-
-    if (!is_confirmed_on_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
-                                    GFX_ICON_UPDATE, word(WORD_UPDATE))) {
-        return ESP_OK;
-    }
-    ESP_LOGW(TAG, "installing the release at %s", address);
-    const char *error = ota_upload_begin(image_size);
-    if (error == NULL) {
-        int  http_status = 0;
-        bool is_whole = poller_fetch(address, image_size, take_release_piece, &error, &http_status);
-        if (error == NULL && !is_whole) {
-            error = http_status == 0 ? "GitHub unreachable." : "Download failed.";
-        }
-        if (error == NULL) {
-            error = ota_upload_end();
-        } else {
-            ota_upload_abort();
-        }
-    }
-    if (error != NULL) {
-        return send_error(request, error);
-    }
-    esp_err_t result = send_ok(request, "Installed. Restarting.");
-    host_stop_soon(HOST_STOP_RESTART);
-    return result;
-}
-
-/* The image is the request body:
- *   curl --data-binary @build/perinkpheral.bin http://<address>/api/ota */
-static esp_err_t handle_ota(httpd_req_t *request)
-{
-    if (request->content_len == 0) {
-        return send_error(request, "No image.");
-    }
-    if (!is_confirmed_on_device(request, word(WORD_UPDATE), word(WORD_UPDATE_FIRMWARE),
-                                    GFX_ICON_UPDATE, word(WORD_UPDATE))) {
-        return ESP_OK;
-    }
-    return web_server_take_firmware(request);
+    return send_failure(request, "409 Conflict", "Download the image in the browser and enter recovery.");
 }
 
 esp_err_t web_server_take_firmware(httpd_req_t *request)
 {
-    if (!web_server_has_memory(request, MEMORY_FOR_AN_UPDATE)) {
-        return ESP_OK;
-    }
-    const char *error = ota_upload_begin(request->content_len);
-    uint8_t *chunk = error == NULL ? malloc(UPLOAD_CHUNK_BYTES) : NULL;
-    if (error == NULL && chunk == NULL) {
-        ota_upload_abort();
-        error = "Out of memory.";
-    }
-    size_t remaining = request->content_len;
-    while (error == NULL && remaining > 0) {
-        int count = web_receive(request, (char *)chunk,
-                            remaining < UPLOAD_CHUNK_BYTES ? remaining : UPLOAD_CHUNK_BYTES);
-        if (count <= 0) {
-            /* The sender is gone: there is nobody to answer. */
-            ota_upload_abort();
-            free(chunk);
-            return ESP_FAIL;
-        }
-        error = ota_upload_data(chunk, (size_t)count);
-        remaining -= (size_t)count;
-    }
-    free(chunk);
-    if (error == NULL) {
-        error = ota_upload_end();
-    }
-    if (error != NULL) {
-        return send_error(request, error);
-    }
-    esp_err_t result = send_ok(request, "Installed. Restarting.");
-    host_stop_soon(HOST_STOP_RESTART);
-    return result;
+    httpd_resp_set_hdr(request, "Connection", "close");
+    send_failure(request, "409 Conflict", "Enter recovery before uploading firmware.");
+    return ESP_FAIL;
+}
+
+static esp_err_t handle_ota(httpd_req_t *request)
+{
+    return web_server_take_firmware(request);
 }
 
 /* True when the Host header names this address, with a port or without. */
@@ -843,6 +769,7 @@ static const web_route_t ROUTES[] = {
     { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/ota/recovery", HTTP_POST, handle_ota_recovery, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/ota", HTTP_POST, handle_ota, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/ota/release", HTTP_POST, handle_ota_release, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/reset", HTTP_POST, handle_reset, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },

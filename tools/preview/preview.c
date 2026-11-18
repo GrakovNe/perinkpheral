@@ -16,6 +16,7 @@
 #include "list.h"
 #include "notice.h"
 #include "screens.h"
+#include "screen.h"
 #include "wm.h"
 
 #define W 400
@@ -358,6 +359,20 @@ int main(int argc, char **argv)
         if (save(dir, SHEETS[sheet].name)) {
             return 1;
         }
+    }
+
+    const struct { const char *name; recovery_state_t state; const char *address; } recovery[] = {
+        { "recovery-waiting", WAITING, "" },
+        { "recovery-online", WAITING, "192.168.1.123" },
+        { "recovery-confirm", CONFIRM, "192.168.1.123" },
+        { "recovery-writing", WRITING, "192.168.1.123" },
+        { "recovery-failed", FAILED, "" },
+    };
+    for (size_t index = 0; index < sizeof recovery / sizeof recovery[0]; index++) {
+        gfx_init(&g, fb, W, H);
+        recovery_screen_draw(&g, recovery[index].state, "0.1.35-1234567", recovery[index].address,
+                             "perink-recovery");
+        if (save(dir, recovery[index].name)) { return 1; }
     }
 
     return 0;

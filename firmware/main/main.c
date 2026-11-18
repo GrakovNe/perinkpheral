@@ -229,10 +229,10 @@ void app_main(void)
     power_start((power_mode_t)cfg->power_saving);
     net_time_on_change(on_clock_moved);
     net_time_start(cfg->ntp_server, cfg->tz, cfg->time_auto != 0);
-    web_server_start();
     /* An image installed over the network has to prove that the network
      * still works before it is kept. */
     ota_start(cfg->wifi_ssid[0] != '\0');
+    web_server_start();
 #ifdef CONFIG_APP_DEV_CONSOLE
     devconsole_start();
 #endif

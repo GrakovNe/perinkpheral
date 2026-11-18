@@ -82,6 +82,10 @@ jobs:
         run: tools/perinkpheral > /dev/null
       - name: Host tests, frozen ABI and the layers
         run: make -C firmware/test/host test
+      - name: Recovery update clients
+        run: |
+          tools/cli/gradlew -p tools/core firmwareUpdateTest
+          node firmware/test/web/test_firmware_update.js
       - name: The applications in the simulator
         run: tools/perinkpheral sim-test firmware/test/sim
       - name: The pictures that differ
@@ -144,10 +148,21 @@ jobs:
           else
             tools/perinkpheral flash-manifest firmware/build-debug flash "$version-debug" --prefix debug-
           fi
-          # The numbers the size report compares: the image and the RAM it takes.
+          # Read the slots from the same partition binary as the flash manifest.
+          . "$IDF_PATH/export.sh"
+          table="firmware/build-${{ matrix.flavor }}/partition_table/partition-table.bin"
+          partition_size() {
+            python "$IDF_PATH/components/partition_table/parttool.py" --quiet --partition-table-file "$table" \
+              get_partition_info --partition-name "$1" --info size
+          }
+          main_slot=$(partition_size ota_0)
+          recovery_slot=$(partition_size factory)
+          test -n "$main_slot" && test -n "$recovery_slot"
           image=$(stat -c %s flash/*perinkpheral.bin)
+          recovery_image=$(stat -c %s flash/*perink_recovery.bin)
           diram=$(awk -F'","' '/^"DIRAM"/ { print $2; exit }' "size-${{ matrix.flavor }}.txt")
-          printf 'image=%s\ndiram=%s\n' "$image" "$diram" > "size-${{ matrix.flavor }}.env"
+          printf 'image=%s\ndiram=%s\nmain_slot=%s\nrecovery_slot=%s\nrecovery_image=%s\n' \
+            "$image" "$diram" "$((main_slot))" "$((recovery_slot))" "$recovery_image" > "size-${{ matrix.flavor }}.env"
       - uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.flavor }}
@@ -230,7 +245,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          slot=$((0x170000))
           before=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --branch main --status success \
                    --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -n "$before" ]; then
@@ -239,18 +253,19 @@ jobs:
           {
             echo "### Firmware size"
             echo
-            echo "| Build | Image | Against main | Free in the slot | RAM taken | Against main |"
-            echo "|---|---|---|---|---|---|"
+            echo "| Build | Main image | Against previous | Free in main | Recovery image | Free in recovery | RAM taken | Against previous |"
+            echo "|---|---|---|---|---|---|---|---|"
             for flavor in release debug; do
               . "now/size-$flavor.env"
-              now_image=$image; now_diram=$diram
+              now_image=$image; now_recovery_image=$recovery_image; now_diram=$diram
+              free=$((main_slot - now_image))
+              recovery_free=$((recovery_slot - now_recovery_image))
               was_image=""; was_diram=""
               if [ -f "was/size-$flavor/size-$flavor.env" ]; then
                 . "was/size-$flavor/size-$flavor.env"; was_image=$image; was_diram=$diram
               fi
               delta() { [ -n "$2" ] && printf '%+d' $(($1 - $2)) || echo "-"; }
-              free=$((slot - now_image))
-              echo "| $flavor | $now_image | $(delta $now_image "$was_image") | $free ($((free * 100 / slot)) %) | $now_diram | $(delta $now_diram "$was_diram") |"
+              echo "| $flavor | $now_image | $(delta $now_image "$was_image") | $free | $now_recovery_image | $recovery_free | $now_diram | $(delta $now_diram "$was_diram") |"
             done
           } > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"

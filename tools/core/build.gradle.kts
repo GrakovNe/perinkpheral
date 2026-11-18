@@ -13,3 +13,13 @@ version = "0.1.0"
 kotlin {
     jvmToolchain(21)
 }
+
+// Uses only JDK/Kotlin, including a local HTTP server for transport failure cases.
+val firmwareUpdateTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.perinkpheral.core.device.FirmwareUpdateTest")
+}
+tasks.check { dependsOn(firmwareUpdateTest) }
+// The tests above have a main entry point, not JUnit annotations.
+tasks.test { failOnNoDiscoveredTests.set(false) }

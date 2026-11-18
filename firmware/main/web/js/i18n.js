@@ -11,6 +11,21 @@
 "use strict";
 
 const RUSSIAN = {
+  /* recovery updates */
+  "Downloading firmware.": "Скачивание прошивки.",
+  "Entering recovery.": "Переход в восстановление.",
+  "Checking the new firmware.": "Проверка новой прошивки.",
+  "Update stopped": "Обновление остановлено",
+  "Invalid image size.": "Недопустимый размер прошивки.",
+  "Image is for another partition table. Flash over USB.": "Прошивка предназначена для другой разметки памяти. Установите её по USB.",
+  "Unsupported firmware update protocol.": "Неподдерживаемый протокол обновления прошивки.",
+  "Firmware download failed. Try again after publication finishes.": "Не удалось скачать прошивку. Повторите после завершения публикации.",
+  "Recovery not found. Check the address on the device screen.": "Восстановление недоступно. Проверьте адрес на экране устройства.",
+  "Firmware did not start. Open recovery to try again.": "Прошивка не запустилась. Откройте восстановление для повторной попытки.",
+  "Upload stopped in recovery. Choose a file and confirm again.": "Загрузка остановилась. Выберите файл в восстановлении и подтвердите ещё раз.",
+  "A different firmware started. The uploaded image was not confirmed.": "Запустилась другая прошивка. Загруженный образ не был подтверждён.",
+  "Device not found. Check its screen and reconnect to its Wi-Fi if needed.": "Устройство не найдено. Проверьте его экран и при необходимости подключитесь к его Wi-Fi.",
+  "Firmware is being published. Check again shortly.": "Прошивка публикуется. Проверьте ещё раз чуть позже.",
   /* the menu and the sections */
   "Apps": "Приложения", "Device": "Устройство", "Control": "Управление", "Settings": "Настройки",
   "Credits": "Лицензии",

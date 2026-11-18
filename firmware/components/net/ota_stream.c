@@ -9,6 +9,10 @@
 /* The layout of an ESP-IDF application image; ota.c asserts these against
  * the SDK's own structs. */
 #define IMAGE_MAGIC_BYTE         0xE9
+#define CHIP_ID_OFFSET           12
+#define ESP32C6_IMAGE_CHIP_ID     13
+#define SEGMENT_COUNT_MAX        16
+#define FIRST_SEGMENT_SIZE_OFFSET 28
 #define DESCRIPTION_OFFSET       (24 + 8) /* after the image and segment headers */
 #define DESCRIPTION_MAGIC_WORD   0xABCD5432u
 #define PROJECT_NAME_OFFSET      (DESCRIPTION_OFFSET + 48)
@@ -37,6 +41,10 @@ static bool head_is_ours(const ota_stream_t *stream)
     const uint8_t *name = stream->head + PROJECT_NAME_OFFSET;
     size_t our_length = strlen(stream->project_name);
     return stream->head[0] == IMAGE_MAGIC_BYTE &&
+           stream->head[1] > 0 && stream->head[1] <= SEGMENT_COUNT_MAX &&
+           stream->head[CHIP_ID_OFFSET] == ESP32C6_IMAGE_CHIP_ID &&
+           stream->head[CHIP_ID_OFFSET + 1] == 0 &&
+           read_u32_le(stream->head + FIRST_SEGMENT_SIZE_OFFSET) >= 256 + sizeof(ota_layout_t) &&
            read_u32_le(stream->head + DESCRIPTION_OFFSET) == DESCRIPTION_MAGIC_WORD &&
            our_length < PROJECT_NAME_FIELD_BYTES &&
            memcmp(name, stream->project_name, our_length) == 0 && name[our_length] == '\0';
@@ -48,6 +56,18 @@ static bool is_header_compatible(const ota_stream_t *stream)
     const uint8_t *layout = stream->head + LAYOUT_OFFSET;
     return read_u32_le(layout) == OTA_LAYOUT_MAGIC &&
            read_u32_le(layout + sizeof(uint32_t)) == stream->partition_table;
+}
+
+const char *ota_image_check_header(const uint8_t head[OTA_HEAD_BYTES],
+                                   const char *project_name, uint32_t partition_table)
+{
+    ota_stream_t stream = { .partition_table = partition_table };
+    if (strlen(project_name) > OTA_PROJECT_NAME_MAX) { return "Invalid project name."; }
+    strcpy(stream.project_name, project_name);
+    memcpy(stream.head, head, OTA_HEAD_BYTES);
+    if (!head_is_ours(&stream)) { return "Invalid image."; }
+    if (!is_header_compatible(&stream)) { return "Image is for another partition table. Flash over USB."; }
+    return NULL;
 }
 
 bool ota_stream_start(ota_stream_t *stream, const ota_writer_t *writer, void *writer_context,
@@ -83,7 +103,7 @@ static bool pass_on(ota_stream_t *stream, const uint8_t *data, size_t length)
 
 bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
 {
-    if (stream->error != NULL) {
+    if (stream->error != NULL || stream->finished) {
         return false;
     }
     if (length > stream->image_size - stream->received) {
@@ -103,11 +123,13 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
         if (already + head_bytes < OTA_HEAD_BYTES) {
             return true; /* still not enough to judge */
         }
-        if (!head_is_ours(stream)) {
-            return fail(stream, "Invalid image.");
+        const char *error = ota_image_check_header(stream->head, stream->project_name,
+                                                   stream->partition_table);
+        if (error != NULL) {
+            return fail(stream, error);
         }
-        if (!is_header_compatible(stream)) {
-            return fail(stream, "Image is for another partition table. Flash over USB.");
+        if (read_u32_le(stream->head + FIRST_SEGMENT_SIZE_OFFSET) > stream->image_size - DESCRIPTION_OFFSET) {
+            return fail(stream, "Invalid image.");
         }
         if (!stream->writer->begin(stream->writer_context, stream->image_size)) {
             return fail(stream, "Write failed.");
@@ -122,6 +144,7 @@ bool ota_stream_feed(ota_stream_t *stream, const uint8_t *data, size_t length)
 
 bool ota_stream_end(ota_stream_t *stream)
 {
+    if (stream->finished) { return true; }
     if (stream->error != NULL) {
         return false;
     }
@@ -133,12 +156,14 @@ bool ota_stream_end(ota_stream_t *stream)
         stream->writer_begun = false;
         return fail(stream, "Image verification failed.");
     }
+    stream->writer_begun = false;
+    stream->finished = true;
     return true;
 }
 
 void ota_stream_abort(ota_stream_t *stream)
 {
-    fail(stream, "Upload interrupted.");
+    if (!stream->finished) { fail(stream, "Upload interrupted."); }
 }
 
 const char *ota_stream_error(const ota_stream_t *stream)

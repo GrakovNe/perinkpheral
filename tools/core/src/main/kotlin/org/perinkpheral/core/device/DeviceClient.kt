@@ -3,10 +3,20 @@ package org.perinkpheral.core.device
 
 import java.awt.image.BufferedImage
 import java.io.IOException
+import org.perinkpheral.core.Json
 import java.net.URI
 import java.net.URLEncoder
 import java.net.HttpURLConnection
 import java.nio.charset.StandardCharsets
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CancellationException
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /** The panel's frame as rows of pixels, true where there is ink; its number, and whether a
  * newer one is waiting for the panel. */
@@ -46,11 +56,15 @@ class DeviceClient(val host: String) {
     @Volatile
     private var isAborted = false
 
+    @Volatile
+    private var firmwareRequest: CompletableFuture<HttpResponse<ByteArray>>? = null
+
     /** Cuts the request under way, an upload of minutes included, and refuses the ones after:
      * for whoever stops the work. */
     fun abort() {
         isAborted = true
         current?.disconnect()
+        firmwareRequest?.cancel(true)
     }
 
     private class Response(val body: ByteArray, private val connection: HttpURLConnection) {
@@ -214,11 +228,70 @@ class DeviceClient(val host: String) {
 
     private fun encode(text: String): String = URLEncoder.encode(text, StandardCharsets.UTF_8)
 
-    /** Uploads a firmware image; the device installs it and restarts. */
-    fun flash(image: ByteArray): String =
-        String(send("/api/dev/flash", "POST", image, 180_000).body, StandardCharsets.UTF_8)
+    /** Uploads once, then waits for the exact image to finish probation. */
+    fun flash(image: ByteArray): String = flash(image) { false }
+
+    fun flash(image: ByteArray, isCancelled: () -> Boolean): String {
+        fun checkCancelled() {
+            if (isAborted || isCancelled()) throw InterruptedException("cancelled")
+        }
+        fun state(): Map<*, *> {
+            checkCancelled()
+            val text = String(send("/api/status", timeoutMs = 4_000).body, StandardCharsets.UTF_8)
+            return try {
+                Json.parse(text) as? Map<*, *> ?: throw IOException("invalid firmware status")
+            } catch (error: Json.Error) {
+                throw IOException("invalid firmware status", error)
+            }
+        }
+        val before = state()
+        if (before["ota_protocol"] == null && before["mode"] != "recovery") {
+            return String(send("/api/dev/flash", "POST", image, 180_000).body, StandardCharsets.UTF_8)
+        }
+        return FirmwareUpdate(::state, { path, body, timeout ->
+            firmwarePost(path, body, timeout, isCancelled)
+        }, {
+            checkCancelled()
+            Thread.sleep(1_000)
+        }).install(image, before)
+    }
+
+    /* HttpURLConnection's read timeout does not bound writing a stalled request body. */
+    private fun firmwarePost(path: String, body: ByteArray?, timeoutMs: Int, isCancelled: () -> Boolean) {
+        if (isAborted || isCancelled()) throw InterruptedException("cancelled")
+        val publisher = if (body == null) HttpRequest.BodyPublishers.noBody()
+                        else HttpRequest.BodyPublishers.ofByteArray(body)
+        val request = HttpRequest.newBuilder(URI.create(base + path))
+            .timeout(Duration.ofMillis(timeoutMs.toLong()))
+            .header("Content-Type", "application/octet-stream").POST(publisher).build()
+        val pending = FIRMWARE_HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+        firmwareRequest = pending
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.toLong())
+        try {
+            while (true) {
+                if (isAborted || isCancelled()) throw InterruptedException("cancelled")
+                if (System.nanoTime() >= deadline) throw IOException("firmware request timed out")
+                val response = try { pending.get(250, TimeUnit.MILLISECONDS) }
+                    catch (_: TimeoutException) { continue }
+                    catch (_: CancellationException) { throw InterruptedException("cancelled") }
+                    catch (error: ExecutionException) {
+                        throw IOException("firmware connection interrupted", error.cause)
+                    }
+                if (response.statusCode() !in 200..299) {
+                    val said = String(response.body(), StandardCharsets.UTF_8).take(200)
+                    throw FirmwareUpdate.Rejected("HTTP ${response.statusCode()} from $path: $said")
+                }
+                return
+            }
+        } finally {
+            pending.cancel(true)
+            firmwareRequest = null
+        }
+    }
 
     companion object {
+        private val FIRMWARE_HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3))
+            .version(HttpClient.Version.HTTP_1_1).build()
         private const val BUSY_RETRIES = 3
         private const val UPLOAD_TIMEOUT_MS = 120_000
         private const val RESTART_WAIT_MS = 60_000L

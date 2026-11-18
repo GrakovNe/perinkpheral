@@ -52,7 +52,8 @@ object Applications {
     /** Sends a firmware image; the device installs it and restarts. Returns what it says when
      * it is back. */
     fun flash(client: DeviceClient, image: File, say: (String) -> Unit, isCancelled: () -> Boolean = { false }): String {
-        say(client.flash(image.readBytes()).trim())
+        say("Entering recovery; confirm installation with OK on the device when asked.")
+        say(client.flash(image.readBytes(), isCancelled).trim())
         val status = Json.parse(client.waitUntilBack(isCancelled)) as? Map<*, *>
         return "back: firmware ${status?.get("firmware")} in ${status?.get("slot")}" +
             if (status?.get("on_probation") == true) ", on probation" else ""

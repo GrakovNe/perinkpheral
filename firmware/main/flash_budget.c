@@ -16,7 +16,7 @@
 #define BLOCK MANIFEST_FILE_BLOCK_BYTES
 
 /* ---- firmware: two slots, so that an update has where to go ---- */
-_Static_assert(PARTITION_OTA_0_BYTES == PARTITION_OTA_1_BYTES, "the two firmware slots are one size");
+_Static_assert(PARTITION_OTA_0_BYTES == 2 * 1024 * 1024, "main firmware has two MiB");
 
 /* ---- appcode: modules in whole sectors, one piece each ----
  * No module is promised a place: an install looks for room. What is held

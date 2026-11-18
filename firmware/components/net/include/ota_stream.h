@@ -57,8 +57,13 @@ typedef struct {
     size_t              received;
     uint8_t             head[OTA_HEAD_BYTES];
     bool                writer_begun;
+    bool                finished;
     const char         *error; /* NULL while all is well */
 } ota_stream_t;
+
+/* Validate the complete fixed header before asking for physical confirmation. */
+const char *ota_image_check_header(const uint8_t head[OTA_HEAD_BYTES],
+                                   const char *project_name, uint32_t partition_table);
 
 /* False, with the reason in ota_stream_error(), when the size alone rules
  * the image out. slot_size is the room there is for it. */
