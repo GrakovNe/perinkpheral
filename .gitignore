@@ -4,6 +4,8 @@
 *.pyc
 __pycache__/
 render/
+# OrcaSlicer command-line report; never a source input.
+/result.json
 ROADMAP.md
 CHANGELOG.md
 hardware/render

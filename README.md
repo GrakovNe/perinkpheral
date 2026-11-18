@@ -9,6 +9,7 @@ with four buttons. Applications are WebAssembly modules using ABI 3.
 [Getting started](https://perinkpheral.dev/start) -
 [Hardware](https://perinkpheral.dev/hardware) -
 [Web flasher](https://perinkpheral.dev/flash) -
+[Device setup](https://perinkpheral.dev/setup) -
 [Firmware documentation](https://perinkpheral.dev/firmware) -
 [Developer documentation](https://perinkpheral.dev/sdk).
 
@@ -62,8 +63,21 @@ install the matching main firmware separately when the change needs both.
 - `recovery/` - independent firmware updater, built with the main firmware.
 - `sdk/` - host API, application library, CMake support and Hello sample.
 - `tools/` - command line, shared Kotlin core, simulator and screen preview.
-- `docs/` - application guide and web API reference.
-- `hardware/` - panel notes, assembly files and case model.
+- [docs/](docs/README.md) - documentation index, application guide and web API reference.
+- [hardware/](hardware/README.md) - panel notes, case model, print files and separate design studies.
+
+## Related repositories
+
+| Repository | Owns |
+|---|---|
+| [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps) | Applications, their simulator scenarios and the published catalog |
+| [perinkpheral-clion-plugin](https://github.com/GrakovNe/perinkpheral-clion-plugin) | IDE integration using this repository's `tools/core` |
+| [perinkpheral-hacs](https://github.com/GrakovNe/perinkpheral-hacs) | Home Assistant integration for the catalog's HA Companion app |
+| [perinkpheral-dev-portal](https://github.com/GrakovNe/perinkpheral-dev-portal) | The bilingual site, assembly guide and browser flasher |
+
+Firmware recovery is part of this repository under `recovery/`; it has no separate
+source repository. Published firmware assets and flasher manifests come from this
+repository's release workflows.
 
 ## License
 
