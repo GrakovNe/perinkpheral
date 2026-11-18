@@ -156,6 +156,15 @@ approved installation, and the intended image completed probation. The returned
 0.1.34-39c9b26 image identity matched the uploaded header, `usb_host` was false and
 the failed-allocation counter was zero. This also checks reinstalling the same image.
 
+The redesigned recovery was subsequently installed with `recovery-flash`: its write
+list contained only the factory image at 0x20000. Recovery connected with the saved
+network through its read-only NVS initialization, displayed the confirmation using
+the host UI and saved Russian language, and accepted physical OK. The CLI installed
+0.1.34-fdfb88e and verified the exact uploaded image identity and completed probation.
+All thirteen application records and host settings matched the pre-update values;
+failed allocations remained zero. Native previews also cover both languages and a
+31-character version without truncation.
+
 The seven installed catalog applications from the reviewed batch (air, github, iss,
 life, metals, pomodoro and rates) were updated to 0.1.1. Frames captured from the
 device for air, iss and life were inspected, then the HA dashboard was restored.
