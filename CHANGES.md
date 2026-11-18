@@ -4,6 +4,12 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.57
+
+- Offer English and Russian from the firmware's language list; the device page
+  uses that list directly. Reject unsupported language settings without losing
+  saved Wi-Fi when upgrading from a version that accepted them.
+
 ## 0.1.54
 
 - Applications can invert their whole screen, including the header and bottom margin.

@@ -281,15 +281,15 @@ class Layers(firmwareFolder: File) {
     }
 }
 
-/** The firmware's list of languages is the SDK's: sdk/languages.json is the one place, and
- * appconf.c repeats it for a device that has no file to read. Returns how many agree. */
+/** Selectable OS languages must have matching SDK translation/glyph metadata.
+ * The SDK also supports application text in languages without an OS translation. */
 fun checkLanguages(root: File): Int {
     val known = dev.perinkpheral.core.Json.parse(File(root, "sdk/languages.json").readText()) as Map<*, *>
     val wanted = (known["languages"] as List<*>).map { (it as Map<*, *>).let { language -> language["code"] as String to language["name"] as String } }
     val have = Regex("""\{ "([a-z]{2})",\s+"([A-Za-z]+)" \}""")
         .findAll(File(root, "firmware/components/appconf/appconf.c").readText()).map { it.groupValues[1] to it.groupValues[2] }.toList()
-    if (wanted != have) {
-        throw dev.perinkpheral.core.BuildError("appconf.c and sdk/languages.json name different languages:\n  $have\n  $wanted")
+    if (have.isEmpty() || have.distinctBy { it.first }.size != have.size || have.any { it !in wanted }) {
+        throw dev.perinkpheral.core.BuildError("appconf.c languages must be unique and match SDK metadata:\n  $have\n  $wanted")
     }
-    return wanted.size
+    return have.size
 }

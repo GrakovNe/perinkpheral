@@ -372,8 +372,40 @@ static void test_log_level(void)
     CHECK(!appconf_validate(&config, why, sizeof why));
 }
 
+static void test_system_languages(void)
+{
+    int count;
+    const appconf_language_t *languages = appconf_languages(&count);
+    CHECK(count == 2);
+    CHECK_STR(languages[0].code, "en");
+    CHECK_STR(languages[1].code, "ru");
+    appconf_t config;
+    appconf_defaults(&config, ID);
+    strcpy(config.wifi_ssid, "Saved network");
+    strcpy(config.device_name, "Desk");
+    char why[APPCONF_PROBLEM_MAX];
+    for (int i = 0; i < count; i++) {
+        strcpy(config.language, languages[i].code);
+        CHECK(appconf_validate(&config, why, sizeof why));
+        appconf_t before = config;
+        appconf_restore_language(&config);
+        CHECK(memcmp(&before, &config, sizeof config) == 0);
+    }
+    const char *unsupported[] = { "uk", "de", "el", "xx" };
+    for (size_t i = 0; i < sizeof unsupported / sizeof unsupported[0]; i++) {
+        strcpy(config.language, unsupported[i]);
+        CHECK(!appconf_validate(&config, why, sizeof why));
+        appconf_t expected = config;
+        strcpy(expected.language, "en");
+        appconf_restore_language(&config);
+        CHECK(memcmp(&expected, &config, sizeof config) == 0);
+        CHECK(appconf_validate(&config, why, sizeof why));
+    }
+}
+
 int main(void)
 {
+    test_system_languages();
     test_log_level();
     test_application_surface();
     test_fields();

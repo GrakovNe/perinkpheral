@@ -65,7 +65,7 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
                                               a font into a header of one bit a pixel
     perinkpheral cities [--check]             Settings' cities.h made of cities.json
     perinkpheral check-layers [firmware dir]  the firmware's layers, by its includes and calls
-    perinkpheral check-languages              the firmware's languages are the SDK's
+    perinkpheral check-languages              OS languages match SDK translation metadata
     perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
     perinkpheral flash-manifest <build> <out> <version> [--prefix debug-]
                                               the files of a first flash and their manifest

@@ -68,8 +68,8 @@ enum { APPCONF_LOG_NONE, APPCONF_LOG_ERROR, APPCONF_LOG_WARN, APPCONF_LOG_INFO }
 
 #define APPCONF_LANGUAGE_MAX 7
 
-/* The languages the system knows - the same as sdk/languages.json, which a
- * test holds it to. */
+/* Selectable Perinkpheral OS languages. SDK translation/glyph metadata may
+ * describe more languages than the operating system has translations for. */
 typedef struct {
     const char *code;
     const char *name;
@@ -119,6 +119,10 @@ void appconf_device_id(const uint8_t mac[APPCONF_MAC_BYTES], char out[APPCONF_DE
 void appconf_default_name(const char device_id[APPCONF_DEVICE_ID_SIZE], char *out, size_t out_sz);
 
 void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]);
+
+/* On loading stored settings, replace an unsupported language with English.
+ * Request validation remains strict; no other settings are changed. */
+void appconf_restore_language(appconf_t *config);
 
 /* The mDNS host from the name: lower case, letters and digits, runs of
  * anything else become one dash. Falls back to "perinkpheral-<id>". */

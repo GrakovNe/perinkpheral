@@ -1,5 +1,5 @@
 {
-  "_": "The languages the system knows and the glyph packs each needs; the code points of a pack as ranges, both ends in. One place: tools/perinkpheral glyph-packs makes the packs of it, tools/perinkpheral checks translations against it, the firmware's list is checked against it by a test.",
+  "_": "Application translation languages and their glyph packs; pack code points are inclusive ranges. Tools build glyph packs and check application translations against this metadata. Selectable OS languages are defined by appconf_languages() in the firmware and checked against this metadata; glyph coverage alone does not make an OS translation available.",
   "packs": {
     "latin": [
       [161, 175],

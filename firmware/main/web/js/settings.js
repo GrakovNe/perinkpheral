@@ -79,9 +79,9 @@ async function loadSettings() {
   byId("ssid").value = settings.wifi_ssid;
   showWifiNetworks([], settings.wifi_ssid);
   byId("hostname").value = settings.hostname ? settings.hostname + ".local" : "";
-  byId("language-choice").replaceChildren(...(settings.languages || []).filter(language => ["en", "ru"].includes(language.code)).map(
+  byId("language-choice").replaceChildren(...(settings.languages || []).map(
     language => make("option", { value: language.code, textContent: language.name })));
-  byId("language-choice").value = ["en", "ru"].includes(settings.language) ? settings.language : "en";
+  byId("language-choice").value = settings.language;
   drawClock();
   drawDefaultApp();
   drawStatus();

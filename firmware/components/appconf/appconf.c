@@ -17,16 +17,27 @@
 const appconf_language_t *appconf_languages(int *count)
 {
     static const appconf_language_t LANGUAGES[] = {
-        { "en", "English" },   { "ru", "Russian" },    { "uk", "Ukrainian" }, { "be", "Belarusian" },
-        { "sr", "Serbian" },   { "bg", "Bulgarian" },  { "kk", "Kazakh" },    { "el", "Greek" },
-        { "de", "German" },    { "fr", "French" },     { "es", "Spanish" },   { "it", "Italian" },
-        { "pt", "Portuguese" }, { "nl", "Dutch" },     { "pl", "Polish" },    { "cs", "Czech" },
-        { "sk", "Slovak" },    { "hu", "Hungarian" },  { "ro", "Romanian" },  { "tr", "Turkish" },
-        { "sv", "Swedish" },   { "da", "Danish" },     { "no", "Norwegian" }, { "fi", "Finnish" },
-        { "lt", "Lithuanian" }, { "lv", "Latvian" },   { "et", "Estonian" },
+        { "en", "English" }, { "ru", "Russian" },
     };
     *count = (int)(sizeof LANGUAGES / sizeof LANGUAGES[0]);
     return LANGUAGES;
+}
+
+static bool language_is_supported(const char *code)
+{
+    int count;
+    const appconf_language_t *languages = appconf_languages(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(languages[i].code, code) == 0) return true;
+    }
+    return false;
+}
+
+void appconf_restore_language(appconf_t *config)
+{
+    /* Older firmware accepted untranslated languages. Keep the other settings,
+     * especially Wi-Fi, when loading one of those records. */
+    if (!language_is_supported(config->language)) strcpy(config->language, "en");
 }
 
 static bool str_fits(const char *s, size_t cap)
@@ -256,13 +267,7 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
         BAD("Clock in header must be 0 or 1.");
     }
     {
-        int  count;
-        bool is_known = false;
-        const appconf_language_t *languages = appconf_languages(&count);
-        for (int i = 0; i < count && !is_known; i++) {
-            is_known = strcmp(languages[i].code, c->language) == 0;
-        }
-        if (!is_known) {
+        if (!language_is_supported(c->language)) {
             BAD("Unknown language.");
         }
     }

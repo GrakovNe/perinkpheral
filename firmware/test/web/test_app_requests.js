@@ -358,5 +358,6 @@ async function testAuthors() {
   assert(result.requests.slice(0, 4).every(request => request.url.endsWith("app=iss")));
   assert(result.requests.slice(4).every(request => request.url.endsWith("app=clock")));
   await require("./test_app_install_queue.js")();
+  await require("./test_settings_languages.js")();
   console.log("App requests: retry, exhaustion, update all and refusal checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

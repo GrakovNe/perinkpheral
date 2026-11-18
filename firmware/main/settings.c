@@ -126,6 +126,7 @@ static void load(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
     }
     nvs_close(h);
 
+    appconf_restore_language(c);
     appconf_derive(c, device_id);
     char why[APPCONF_PROBLEM_MAX];
     if (!appconf_validate(c, why, sizeof why)) {
