@@ -653,6 +653,23 @@ HOST_FUNCTION(screen_redraw)
     m3ApiSuccess();
 }
 
+HOST_FUNCTION(screen_set_inverted)
+{
+    m3ApiReturnType(int32_t);
+    m3ApiGetArg(int32_t, inverted);
+    app_t *app = APP_OF(runtime);
+    bool enabled = inverted != 0;
+    if (app->screen_inverted != enabled) {
+        app->redraw_requested = true;
+    }
+    app->screen_inverted = enabled;
+    app->screen_inversion_set = true;
+    if (app->session != NULL && app->session_is_writable && !app->session->is_closed) {
+        app->session->screen_inverted = enabled;
+    }
+    m3ApiReturn(HOST_OK);
+}
+
 HOST_FUNCTION(header_set_text)
 {
     m3ApiReturnType(int32_t);

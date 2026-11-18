@@ -432,6 +432,36 @@ static void test_fullscreen_frame(void)
     CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == 0);
 }
 
+static void test_inverted_frame(void)
+{
+    start(&menu.scene);
+    menu.scene.inverted = true;
+    wm_draw(&wm, &screen);
+    CHECK(black_pixels(0, 0, SCREEN_W, WM_HEADER_HEIGHT) == SCREEN_W * WM_HEADER_HEIGHT);
+    CHECK(black_pixels(0, WM_HEADER_HEIGHT, SCREEN_W, SCREEN_H - WM_BOTTOM_EDGE) == 0);
+    CHECK(black_pixels(0, SCREEN_H - WM_BOTTOM_EDGE, SCREEN_W, SCREEN_H) == SCREEN_W * WM_BOTTOM_EDGE);
+    wm_draw(&wm, &screen);
+    CHECK(black_pixels(0, 0, SCREEN_W, WM_HEADER_HEIGHT) == SCREEN_W * WM_HEADER_HEIGHT);
+    wm_open(&wm, &app.scene);
+    wm_draw(&wm, &screen);
+    CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == SCREEN_W * SCREEN_H);
+    app.scene.inverted = true;
+    wm_draw(&wm, &screen);
+    CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == 0);
+    menu.scene.inverted = false;
+    app.scene.inverted = false;
+    /* An offset viewport changes only its own pixels, including partial bytes. */
+    gfx_clear(&screen, false);
+    gfx_t viewport;
+    gfx_viewport(&screen, &viewport, 3, 2, 11, 3);
+    gfx_invert(&viewport);
+    CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == 33);
+    CHECK(gfx_get(&screen, 3, 2) && gfx_get(&screen, 13, 4));
+    CHECK(!gfx_get(&screen, 2, 2) && !gfx_get(&screen, 14, 4));
+    gfx_invert(&viewport);
+    CHECK(black_pixels(0, 0, SCREEN_W, SCREEN_H) == 0);
+}
+
 static void test_header_share(void)
 {
     int left, right;
@@ -726,6 +756,7 @@ int main(void)
     test_stack();
     test_leaving_the_stack();
     test_drop();
+    test_inverted_frame();
     test_header_share();
     test_first_scene();
     test_buttons_reach_the_scene();

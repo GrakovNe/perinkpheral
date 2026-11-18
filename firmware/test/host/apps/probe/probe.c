@@ -41,6 +41,8 @@
 #define BUTTON_KEEP_SCENE    13
 #define BUTTON_CHECK_SCENE   14
 #define BUTTON_CLEAR_SCENE   15
+#define BUTTON_INVERT       100
+#define BUTTON_NORMAL       101
 #define TIMER_ON_FOCUS      1
 #define UNKNOWN_FONT        7
 #define FAKE_UPTIME_MS      1234 /* what test_app.c's clocks answer */
@@ -171,6 +173,10 @@ void app_on_button(int32_t event)
             scene_state_get(scene_data, 0) == 0 && session_get(scene_data, 0) == HOST_ERR_NO_SPACE;
         return;
     }
+    if (button == BUTTON_INVERT || button == BUTTON_NORMAL) {
+        if (screen_set_inverted(button == BUTTON_INVERT ? -1 : 0) != HOST_OK) { __builtin_trap(); }
+        return;
+    }
     if (button == BUTTON_TRAP) {
         __builtin_trap();
     }
@@ -217,6 +223,10 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 {
     if (flags & HOST_DATA_FAILED) {
         data_failed = request;
+        return;
+    }
+    if (request == 40) {
+        screen_set_inverted(0);
         return;
     }
     if (request == 30) {

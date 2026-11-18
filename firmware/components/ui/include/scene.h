@@ -75,6 +75,7 @@ typedef struct {
 
 struct scene {
     const scene_ops_t *ops;
+    bool               inverted; /* invert the completed frame, including shared chrome */
     bool               fullscreen; /* false: the host header is drawn above the scene */
     /* A press here is irreversible. The scene receives only presses that
      * began after its picture reached the panel. */

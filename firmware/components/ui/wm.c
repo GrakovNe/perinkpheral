@@ -365,12 +365,15 @@ void wm_draw(wm_t *wm, gfx_t *screen)
     gfx_clear(screen, false);
     if (wm->current->fullscreen) {
         wm->current->ops->draw(wm->current, screen);
-        return;
+    } else {
+        gfx_t header, content;
+        wm_split(screen, &header, &content);
+        wm->draw_header(&header, wm->current, wm->header_context);
+        wm->current->ops->draw(wm->current, &content);
     }
-    gfx_t header, content;
-    wm_split(screen, &header, &content);
-    wm->draw_header(&header, wm->current, wm->header_context);
-    wm->current->ops->draw(wm->current, &content);
+    if (wm->current->inverted) {
+        gfx_invert(screen);
+    }
 }
 
 void wm_shown(wm_t *wm)

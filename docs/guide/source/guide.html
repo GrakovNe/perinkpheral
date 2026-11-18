@@ -151,6 +151,7 @@
 <ul>
   <li>Storage: a key-value store, kept across restarts and reinstalls, and files, kept across restarts</li>
   <li>Design system: lists, notices, pickers, cells and a button row, drawn by Perinkpheral OS</li>
+  <li>Screen inversion: an application can invert its complete screen, including Perinkpheral OS header</li>
   <li>Notifications: shown by Perinkpheral OS over any screen</li>
   <li>Settings: declared in the manifest, edited on the device's web page</li>
   <li>Localization: strings per language, loaded by Perinkpheral OS; Extended Latin, Cyrillic and Greek</li>
@@ -548,6 +549,17 @@ response:  { "quote": { "name": "Apple Inc.", "closes": [356.11, 356.40, null, 3
   <li><code>gfx_set_color()</code> sets the colour for the following calls, from <code>HOST_PAPER</code> (0) to <code>HOST_INK</code> (16). The colour is <code>HOST_INK</code> at the start of each <code>app_on_draw()</code>. Intermediate values are dithered greys. Use greys for filled areas only: thin lines and small text become unreadable.</li>
   <li>The standard margin is <code>HOST_UI_MARGIN</code> (16 px). Use it at the left and right edges.</li>
 </ul>
+
+<h2 id="screen-inversion">Whole-screen inversion</h2>
+<p>Since firmware 0.1.54, <code>screen_set_inverted(inverted)</code> selects normal colours with 0 or inverted colours with any nonzero value. It returns <code>HOST_OK</code>; changing the value requests a redraw. Draw on the usual white surface with the usual colours. Perinkpheral OS inverts the completed frame, including its header, the bottom margin and any footer or telemetry drawn by the application. Full-screen applications use the same call.</p>
+<p>The preference belongs to the current scene. It survives temporary unloads for background delivery and covering the scene with another screen, and is restored when the scene returns. Closing the scene clears it. It does not change the menu, other applications or a global theme. The call is allowed outside <code>app_on_draw()</code>; background handlers return <code>HOST_OK</code> but cannot change the retained foreground preference.</p>
+<p>Call this helper from <code>app_on_draw()</code>: <code>draw_scene(0)</code> draws a normal screen, <code>draw_scene(1)</code> an inverted one. Choose the argument from the application state; the drawing code is identical.</p>
+<pre>static void draw_scene(int32_t inverted)
+{
+    screen_set_inverted(inverted);
+    gfx_draw_text(HOST_UI_MARGIN, HOST_UI_MARGIN,
+                  HOST_FONT_TEXT, "Example", 7);
+}</pre>
 
 <h2 id="screen-fonts">Fonts</h2>
 <p>A font constant selects a size. The typeface is a user setting: Departure Mono (monospaced) or Jersey (proportional). Character widths differ between the two, so layout is based on measured widths.</p>
@@ -1205,6 +1217,7 @@ gh repo create OWNER/my-perink-apps --public</pre>
   <tr><td class="c">gfx_draw_bitmap_file(x, y, w, h, name, name_length, offset)</td><td>Bitmap read by Perinkpheral OS from an application file, starting at <code>offset</code></td></tr>
   <tr><td class="c">gfx_draw_qr(x, y, cell, text, length)</td><td>QR code of up to 200 bytes. Returns the number of modules per side. Cell 0: measure only</td></tr>
   <tr><td class="c">void screen_redraw(flags)</td><td>Requests a redraw. Flags: <code>HOST_REDRAW_NORMAL</code>, <code>HOST_REDRAW_SOON</code>, <code>HOST_REDRAW_CLEAN</code>, <code>HOST_REDRAW_NO_BLINK</code>, <code>HOST_REDRAW_QUESTION</code>. QUESTION accepts OK only from a press begun after the question reached the panel</td></tr>
+  <tr><td class="c">int32_t screen_set_inverted(int32_t inverted)</td><td>Since 0.1.54 (ABI 3). 0: normal; nonzero: invert the completed frame, including Perinkpheral OS header. Returns <code>HOST_OK</code>; a change requests a redraw. Scene lifetime and background rules: <a href="#screen-inversion">Whole-screen inversion</a></td></tr>
   <tr><td class="c">header_set_text(side, text, length)</td><td>Sets the application's text in Perinkpheral OS header above its screen: <code>HOST_HEADER_LEFT</code> or <code>HOST_HEADER_RIGHT</code>, up to 63 bytes. Length 0 returns the side to Perinkpheral OS. Callable from any handler; off the screen it has no effect</td></tr>
 </table>
 

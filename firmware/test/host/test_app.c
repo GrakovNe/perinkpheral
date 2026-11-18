@@ -756,6 +756,38 @@ static void test_values(void)
     app_unload(app);
 }
 
+static void test_screen_inversion(void)
+{
+    app_session_t session = {0};
+    app_t *app = load_probe();
+    CHECK(!app_screen_inverted(app));
+    app_attach_session(app, &session, true);
+    app_button(app, 100, BTN_PRESSED);
+    CHECK(app_screen_inverted(app) && session.screen_inverted);
+    CHECK(app_take_redraw_request(app));
+    app_button(app, 100, BTN_PRESSED);
+    CHECK(!app_take_redraw_request(app));
+    app_unload(app);
+    app = load_probe();
+    app_attach_session(app, &session, false);
+    CHECK(app_screen_inverted(app));
+    app_button(app, 101, BTN_PRESSED);
+    CHECK(!app_screen_inverted(app) && session.screen_inverted);
+    app_unload(app);
+    app = load_probe();
+    app_attach_session(app, &session, true);
+    CHECK(app_screen_inverted(app));
+    app_button(app, 101, BTN_PRESSED);
+    CHECK(!app_screen_inverted(app) && !session.screen_inverted);
+    session.is_closed = true;
+    app_button(app, 100, BTN_PRESSED);
+    CHECK(!session.screen_inverted);
+    app_unload(app);
+    app = load_probe_as("another");
+    CHECK(!app_screen_inverted(app));
+    app_unload(app);
+}
+
 static void test_redraw_flags(void)
 {
     app_t *app = load_probe();
@@ -871,6 +903,7 @@ static void test_frozen_hello_state(void)
 
 int main(void)
 {
+    test_screen_inversion();
     test_probe_contract();
     test_scene_state();
     test_response_headers();
