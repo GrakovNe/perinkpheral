@@ -180,6 +180,24 @@ failed allocations, a 28,244-byte minimum free heap, and three temporary memory
 refusals which returned 503 and succeeded on subsequent attempts. This is a short
 functional check, not an endurance or power-loss qualification.
 
+The startup-screen fix was checked on 2026-11-18 in `0.1.37-ui-a8d6d2f` with USB
+connected. A complete flash backup preceded writing only main, recovery and OTA
+metadata. A deliberately prepared PENDING_VERIFY boot record became ABORTED in the
+bootloader (verified by reading it back), which selected recovery. Its first view
+was "Recovery / Connecting to Wi-Fi", followed by the page address after the saved
+WPA3 network connected; it never claimed to be preparing an update.
+
+After main was started with a NEW record and completed probation, the normal CLI
+OTA exercised the one-use hint. The recovery console reported `entry: update` and
+only waiting/preparing (state 0, waiting 0), confirmation (state 2), writing (state 4)
+and restarting (state 8). It drew no network-instruction view between preparation
+and confirmation. The owner pressed physical OK. The expected image
+`7733b19bcc532a56a435b072baea4f806bd12bd481b4cceb7b72c088b5e47579` then completed
+probation; host settings and the installed-app list compared equal before and after,
+with zero failed allocations. The boot-record test exercises rollback selection,
+not an actual power cut or a failed upload. Timeout and absent-network view choices
+remain covered by host tests and English/Russian previews.
+
 Recovery changes the update mechanism. Host tests and successful battery OTA do not
 qualify physical power-loss behavior. The owner cannot disconnect the shelf device's
 battery; removing its USB cable does not cut power. Controlled power cuts remain
@@ -197,9 +215,9 @@ below, including those already recorded above, with settings and applications ba
   through connection and header receipt, then asks for confirmation; manual entry, failed
   probation and interrupted writes show recovery rather than preparation. A requested
   update which never uploads exposes network help after 30 seconds. Without saved Wi-Fi,
-  access-point instructions appear immediately. The one-use hint and these screen choices
-  have host tests and reviewed English/Russian previews; this revision still needs USB
-  installation and hardware verification of both entry paths.
+  access-point instructions appear immediately. Host tests and reviewed English/Russian
+  previews cover these choices; the hardware record above covers planned OTA and the
+  bootloader's fallback from an unconfirmed image.
 - Reject foreign projects, old partition layouts, another chip, oversized images, truncated
   headers and damaged checksums. Invalid headers must leave main untouched.
 - Cut power before and during boot-metadata erasure, during each portion of main erasure and

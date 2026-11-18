@@ -4,6 +4,16 @@ What each release of the firmware brings, newest first. Every push to `main` is 
 section of its version, when written, is the release's notes on GitHub, in the web flasher and on
 the device's page - without one, the notes are the commits since the release before.
 
+## 0.1.38
+
+- Normal firmware updates keep a single preparation screen until the confirmation
+  question, without flashing access-point or device-page instructions in between.
+- Manual recovery and failed startup show recovery immediately. Saved Wi-Fi gets
+  time to connect before access-point instructions appear. A stalled update exposes
+  connection help after 30 seconds.
+- This screen fix changes both main and recovery. Existing devices need a USB
+  recovery update; an ordinary OTA updates main only and cannot replace recovery.
+
 ## 0.1.35
 
 - Independent recovery replaces the second full firmware slot. Main firmware now has
