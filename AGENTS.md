@@ -64,11 +64,21 @@ Host tests: `cd firmware/test/host && make test`. With `WASI_SDK_PATH`
 set they include the ABI 3 snapshot and frozen package checks, `test_app`,
 which builds a real module (`firmware/test/host/apps/probe`, from the repository root)
 and runs it in the real interpreter, and
-`test_delivery`, the whole way of an answer to an application. Nothing of
-ESP-IDF is needed.
+`test_delivery`, the whole way of an answer to an application. ESP-IDF is
+not needed; Java 21 or later is, even without wasi-sdk, because `make test`
+also runs the tools' language, layer and city-table checks.
 
-Browser update and manual recovery flows have a separate Node.js suite:
-`node firmware/test/web/test_firmware_update.js`, from the repository root.
+Recovery update clients have separate suites, run from the repository root:
+
+```bash
+tools/cli/gradlew -p tools/core firmwareUpdateTest
+node firmware/test/web/test_firmware_update.js
+```
+
+The first tests the shared Kotlin client used by the CLI and CLion plugin;
+the second tests the browser update and manual recovery flows. Neither is
+part of `make test`. The firmware's simulator cases are separate too:
+`tools/perinkpheral sim-test firmware/test/sim`.
 
 The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
@@ -80,7 +90,7 @@ image of the `apps` partition; `idf.py flash` writes it with the
 firmware.
 
 Views before flashing, from the repository root: `tools/perinkpheral preview [dir]` compiles
-`gfx`, the window manager and `firmware/main/screens.c` natively
+`gfx`, the window manager, `firmware/main/screens.c` and `recovery/main/screen.c` natively
 (`tools/preview/Makefile`) and writes a PNG per screen. Look at them; the panel shows exactly that.
 
 Generated files, from the repository root:
@@ -128,9 +138,13 @@ development build. Status, log and firmware OTA also work in release builds.
   restarts the device and opens it - the loop for working on an
   application, no reflashing;
 - `flash` uploads `firmware/build/perinkpheral.bin` and waits for the
-  device to come back; after a change to `sdk/host_api.h` use `flash
-  --apps`, which uploads the applications of `sdk/apps` built anew; the
-  catalog's are installed again from the page; `status` and `log` print what the names say.
+  device to come back; it asks for OK on the device before installation.
+  `flash --apps` also rebuilds and uploads the applications of `sdk/apps`
+  through the development routes, so the uploaded firmware must be a
+  development build. Compatible ABI 3 additions do not require reinstalling
+  existing applications; rebuild and reinstall an application when it needs
+  the new API. Catalog applications are installed from the page.
+  `status` and `log` print what the names say.
 
 Verify a change on the real device this way, not only in the preview.
 With no network, `tools/perinkpheral usb $PORT --keys 3,2 --out
@@ -178,6 +192,10 @@ and says the version alone:
         -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.release" build
 
 `build-release/perinkpheral.bin` is the asset of the release on GitHub.
+This is a local build recipe, not the CI version calculation: CI takes the
+greater of `VERSION` and the latest version tag with its patch incremented.
+Every push to `main` publishes a release after the checks pass; other branches
+build without publishing (`.github/workflows/ci.yml`).
 
 ### An IDE (CLion, or any that reads CMake)
 
@@ -224,14 +242,16 @@ Code:
   reset erases it whole (`reset.c`), and `app_kv.c` moves what an old
   firmware kept there;
   applications get their own namespaces through the host API `kv_*`.
-- `sdk/host_api.h` is the only contract between host and applications.
-  An import is added in three places and nowhere else: the header, its
-  `HOST_FUNCTION` in the `appsys/app_api_<area>.c` of its kind (the table
+- `sdk/host_api.h` is the only contract between host and applications; it
+  includes the declarations split by subject in `sdk/host/*.h`.
+  An import is added in three places and nowhere else: the appropriate
+  subject header, its `HOST_FUNCTION` in the `appsys/app_api_<area>.c` of its kind (the table
   that links it is made from the header), and a case in
   `test/host/apps/probe` with its check in `test_app.c`. An export the
   host calls is added to the header and called in `appsys/app.c`, whose
-  count of them stops the build until it is. After the first release,
-  changing a signature means a new `HOST_API_VERSION`. Commands use subject
+  count of them stops the build until it is. ABI 3 is already frozen:
+  changing an existing signature, meaning, privilege, layout or constant
+  requires a new ABI, not just a firmware version. Commands use subject
   then verb (`kv_get`, `gfx_draw_text`); queries name the subject and what
   is asked (`gfx_width`, `time_now`); events are `app_on_<what happened>`
   (`app_on_load`, `app_on_picked`). ABI 3 requires firmware 0.1.30;
