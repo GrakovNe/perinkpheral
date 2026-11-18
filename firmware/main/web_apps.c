@@ -36,6 +36,7 @@
 #include "units.h"
 
 static const char *TAG = "web_apps";
+static const char FETCH_NO_MEMORY[] = "Not enough memory.";
 
 #define APP_NAME_BUFFER (APP_NAME_MAX + 1)
 #define BODY_MAX        2048
@@ -665,6 +666,9 @@ static esp_err_t handle_catalog(httpd_req_t *request)
     bool      is_whole = poller_fetch(url, CATALOG_INDEX_MAX_BYTES, pass_on, &passing,
                                       &http_status);
     if (!passing.has_started) {
+        if (http_status == HOST_FAILED_NO_MEMORY) {
+            return web_send_message(request, "503 Service Unavailable", "error", FETCH_NO_MEMORY);
+        }
         char message[WEB_MESSAGE_MAX];
         snprintf(message, sizeof message, "Source unavailable (HTTP %d).",
                  http_status);
@@ -740,7 +744,9 @@ static const char *install_file(const char *source, const char *app_name, const 
     mbedtls_sha256_free(&download.hash);
     bool stored = fclose(download.file) == 0;
     const char *problem = NULL;
-    if (!fetched || !stored) {
+    if (http_status == HOST_FAILED_NO_MEMORY) {
+        problem = FETCH_NO_MEMORY;
+    } else if (!fetched || !stored) {
         problem = "Download failed.";
     } else if (download.received != (size_t)size->number ||
                memcmp(hash, wanted_hash, SHA256_BYTES) != 0) {
@@ -990,7 +996,8 @@ static esp_err_t handle_install(httpd_req_t *request)
         bool is_conflict = strcmp(problem, "Not enough storage.") == 0 ||
                            strcmp(problem, "Update the firmware.") == 0 ||
                            strcmp(problem, "Update the app.") == 0;
-        const char *status = strcmp(problem, "Device busy.") == 0     ? "503 Service Unavailable"
+        const char *status = problem == FETCH_NO_MEMORY ||
+                             strcmp(problem, "Device busy.") == 0      ? "503 Service Unavailable"
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
                              : is_conflict                            ? "409 Conflict"
                              : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden"

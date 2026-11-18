@@ -46,6 +46,8 @@ static const char *TAG = "poller";
 #define TASK_PRIORITY        PRIORITY_BACKGROUND
 #define RADIO_WAIT_MS        20000 /* for the network to be joined before the radio is given back */
 #define MEMORY_LOOK_AGAIN_MS 1000  /* no memory for a session just now */
+#define MEMORY_LOOKS_MAX     6
+#define FETCH_MEMORY_WAIT_MS (MEMORY_LOOKS_MAX * MEMORY_LOOK_AGAIN_MS)
 /* A TLS session takes about 45 KB while it is open; below this the
  * request waits for a better moment instead of taking the device down. */
 /* And its largest buffer is one piece of 16 KB: the sum is not enough. */
@@ -226,13 +228,18 @@ static volatile bool s_is_resting;
  * asked to look again comes. */
 static void rest(void)
 {
+    TickType_t timeout = portMAX_DELAY;
     if (s_recheck_in_ms == NEVER) {
         deadlines_cancel(DEADLINE_POLLER_LOOK, 0, 0);
-    } else {
-        deadlines_set_in(DEADLINE_POLLER_LOOK, 0, 0, s_recheck_in_ms);
+    } else if (!deadlines_set_in(DEADLINE_POLLER_LOOK, 0, 0, s_recheck_in_ms)) {
+        /* Keep the recheck bounded even when the deadline table is full. */
+        timeout = pdMS_TO_TICKS(s_recheck_in_ms);
+        if (timeout == 0) {
+            timeout = 1;
+        }
     }
     s_is_resting = s_recheck_in_ms == NEVER;
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    ulTaskNotifyTake(pdTRUE, timeout);
     s_is_resting = false;
 }
 
@@ -391,6 +398,8 @@ typedef struct {
     void          *context;
     int            http_status;
     bool           is_whole;
+    int64_t        retry_at_ms;
+    int64_t        wait_until_ms;
 } fetch_job_t;
 
 static fetch_job_t      *s_fetch_job;  /* the one waiting to be done, or NULL */
@@ -401,13 +410,43 @@ static bool run_fetch_job(void)
 {
     lock();
     fetch_job_t *job = s_fetch_job;
-    s_fetch_job = NULL;
     unlock();
     if (job == NULL) {
         return false;
     }
-    job->is_whole = poller_net_fetch(job->url, job->max_bytes, job->take, job->context,
-                                     &job->http_status);
+
+    bool online = wifi_is_online();
+    int64_t now = uptime_ms();
+    if (online && now < job->retry_at_ms) {
+        schedule_recheck(job->retry_at_ms - now);
+        rest();
+        return true;
+    }
+    bool has_room = online && memory_has(MEMORY_FOR_A_SESSION);
+    if (online && !has_room) {
+        if (job->wait_until_ms == 0) {
+            job->wait_until_ms = now + FETCH_MEMORY_WAIT_MS;
+        }
+        if (now < job->wait_until_ms) {
+            int64_t left = job->wait_until_ms - now;
+            int64_t delay = left < MEMORY_LOOK_AGAIN_MS ? left : MEMORY_LOOK_AGAIN_MS;
+            job->retry_at_ms = now + delay;
+            schedule_recheck(delay);
+            rest();
+            return true;
+        }
+        job->http_status = HOST_FAILED_NO_MEMORY;
+    }
+
+    /* The waiting caller keeps the job, callback and context alive until
+     * this task is done, including when TLS was refused. */
+    lock();
+    s_fetch_job = NULL;
+    unlock();
+    if (has_room) {
+        job->is_whole = poller_net_fetch(job->url, job->max_bytes, job->take, job->context,
+                                         &job->http_status);
+    }
     xSemaphoreGive(s_fetch_done);
     return true;
 }
@@ -485,8 +524,6 @@ void poller_network_is_back(void)
 
 /* A request waits for memory this many looks and is then told there is
  * none: an answer, which waiting for ever is not. */
-#define MEMORY_LOOKS_MAX 6
-
 static int s_memory_looks;
 
 static bool has_memory_for_session(void)
