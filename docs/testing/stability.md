@@ -153,6 +153,21 @@ keep-alive socket; each OTA POST now owns a fresh client, with deadline and canc
 tests against a stalled server. A successful physical OTA upload and the remaining
 qualification cases below are still pending; USB installation is not evidence for them.
 
+The seven installed catalog applications from the reviewed batch (air, github, iss,
+life, metals, pomodoro and rates) were updated to 0.1.1. Frames captured from the
+device for air, iss and life were inspected, then the HA dashboard was restored.
+Host settings and every application's exposed settings values remained unchanged.
+Twenty repeated application-list requests completed without new allocation failures.
+
+During the first installation/navigation run, four allocation failures exposed a
+second admission gap: direct catalog downloads bypassed the poller's TLS memory
+check. The guarded path was tested on the device in 0.1.34-39c9b26, again installed
+over USB with a NEW OTA record and completed probation. Reinstalling all seven
+applications while switching through air, iss, life and ha completed with zero
+failed allocations, a 28,244-byte minimum free heap, and three temporary memory
+refusals which returned 503 and succeeded on subsequent attempts. This is a short
+functional check, not an endurance or power-loss qualification.
+
 The recovery branch changes the update mechanism. Host tests and builds do not qualify
 physical power-loss behavior. Before release, run these on a bench device with backed-up
 settings and applications; the shelf device is not a power-cut test fixture.
