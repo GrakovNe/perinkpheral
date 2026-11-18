@@ -42,7 +42,8 @@ checks, not a release-readiness certificate. The owner stopped the endurance run
   static data use, with identical decoded frames. This is not a panel frame-rate claim.
 - GitHub 0.1.3 includes the padded-calendar parser, verified with a 368-day response,
   and requests data after app updates without duplicating a request already made
-  by the new instance. Physical confirmation is still pending.
+  by the new instance. The owner confirmed that the calendar appeared on the
+  physical panel after installation of 0.1.3.
 - ISS 0.1.9 uses one light/dark screen palette according to day/night below the station,
   a thin dashed observed track, metre altitude and the approved centered telemetry.
   Its Russian description is exactly “МКС на мировой карте”.
@@ -68,10 +69,10 @@ probation complete. Settings and other installed applications matched their
 pre-update snapshots; ISS settings were preserved. Public catalog package hashes
 were also verified. These checks do not establish what the physical panel shows.
 
-- Confirm GitHub's calendar on the real panel. The last forced request returned
-  HTTP 200; native tests and the published WASM accept the saved reply. Those facts
-  alone do not prove what the panel now shows. Tokens and private replies are not
-  included in the repository.
+- GitHub's calendar is confirmed on the physical panel by the owner. The forced
+  request returned HTTP 200; native tests and the published WASM accept the saved
+  reply. The precise cause of the earlier stale error was not isolated. Tokens
+  and private replies are not included in the repository.
 - Check the new ISS palette/track and the ESP locating stops on the physical build.
 - Repeated `HTTP_CLIENT invalid host` messages remain unattributed. An empty Status
   app URL is a code-backed candidate, not a confirmed diagnosis; the observed GitHub
