@@ -39,6 +39,10 @@ section.current { display: block; }
 .head { display: flex; align-items: center; gap: 1rem; min-height: 2.75rem; margin-bottom: 1.5rem; }
 .head h2 { font-size: 1.75rem; flex: 1; }
 .head button { margin: 0; } /* in the line of the title, not under it */
+.apps-head { flex-wrap: wrap; }
+.apps-heading { display: inline-block; white-space: nowrap; }
+#app-capacity { display: block; height: 3px; margin-top: 6px; background: var(--line); }
+#app-capacity > span { display: block; height: 100%; width: 0; background: var(--ink); }
 h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bottom: 1px solid var(--ink); }
 .count { color: var(--dim); }
 .note { color: var(--dim); margin: .5rem 0 0; }
