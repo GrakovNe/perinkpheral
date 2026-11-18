@@ -55,9 +55,22 @@ static void test_urls(void)
     CHECK(catalog_url("https://a.example/c", "weather", "app.wasm", enough, sizeof enough));
 }
 
+static void test_authors(void)
+{
+    CHECK(catalog_author_is_allowed(NULL, 1));
+    CHECK(catalog_author_is_allowed("", 1));
+    CHECK(catalog_author_is_allowed("Ada", 1));
+    CHECK(catalog_author_is_allowed("Perinkpheral", 0));
+    CHECK(catalog_author_is_allowed("PERINKPHERAL", 0));
+    CHECK(!catalog_author_is_allowed("Perinkpheral", 1));
+    CHECK(!catalog_author_is_allowed("pErInKpHeRaL", 2));
+    CHECK(!catalog_author_is_allowed("Perinkpheral", -1));
+}
+
 int main(void)
 {
     test_sources();
     test_urls();
+    test_authors();
     REPORT();
 }

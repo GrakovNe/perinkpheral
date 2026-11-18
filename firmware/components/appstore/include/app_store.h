@@ -33,6 +33,9 @@ extern "C" {
  * the rest are passed over. Never more than `capacity`. */
 int app_store_list(const char *root, app_manifest_t *manifests, int capacity);
 
+/* False while a package commit is unfinished or its marker cannot be checked. */
+bool app_store_is_ready(const char *root, const char *name);
+
 /* Sorts them by their titles again: once the titles are the device's language's. */
 void app_store_sort_by_title(app_manifest_t *manifests, int count);
 

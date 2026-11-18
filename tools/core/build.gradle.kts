@@ -7,7 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
 }
 
-group = "org.perinkpheral"
+group = "dev.perinkpheral"
 version = "0.1.0"
 
 kotlin {
@@ -18,8 +18,34 @@ kotlin {
 val firmwareUpdateTest by tasks.registering(JavaExec::class) {
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
-    mainClass.set("org.perinkpheral.core.device.FirmwareUpdateTest")
+    mainClass.set("dev.perinkpheral.core.device.FirmwareUpdateTest")
 }
 tasks.check { dependsOn(firmwareUpdateTest) }
+val enduranceTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.device.EnduranceTest")
+}
+tasks.check { dependsOn(enduranceTest) }
+val builderSafetyTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.BuilderSafetyTest")
+}
+tasks.check { dependsOn(builderSafetyTest) }
 // The tests above have a main entry point, not JUnit annotations.
 tasks.test { failOnNoDiscoveredTests.set(false) }
+
+val publisherTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.catalog.PublisherTest")
+}
+tasks.check { dependsOn(publisherTest) }
+
+val manifestAuthorTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.ManifestAuthorTest")
+}
+tasks.check { dependsOn(manifestAuthorTest) }

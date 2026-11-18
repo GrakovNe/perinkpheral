@@ -5,10 +5,10 @@ Everything learned about the panel and the board on the bench: the working drive
 ## What has been verified
 - Full refresh: the image settles in a single pass, BUSY releases after 2190 ms.
 - Partial refresh of the whole frame (Waveshare Display_Partial): BUSY 410 ms consistently, old digits are erased cleanly.
-- Buttons: all four, idle level 1, debounce 20 ms (4 polls of 5 ms each) - no false or double triggers, including during fast bursts.
+- Buttons: all four, idle level 1, debounce 20 ms (4 polls of 5 ms each). No false or double triggers were observed during these bench checks, including fast bursts.
 
 ## Display driver (SSD1683, working sequence)
-This is exactly the Waveshare code `Arduino/epd4in2_V2` / `RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2_V2.c`, ported to ESP-IDF. The implementation is the driver linked above.
+The driver follows the initialization and refresh commands in Waveshare's `Arduino/epd4in2_V2` and `RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2_V2.c`. ESP-IDF timing, bounded waits and partial-refresh adaptations are described below.
 
 - SPI mode 0, the bytes clocked out by hand over GPIO: at most about 6 MHz, 75 ns and more to each half of the clock (the datasheet allows 20 MHz and asks for 25 ns; CS setup and hold 60 ns, CS high 100 ns). CS goes low and high on EVERY byte, as in Waveshare's `EpdIf::SpiTransfer`. See the pitfalls below - this is a mandatory condition.
 - HW reset: RST 1 (100 ms) -> 0 (2 ms) -> 1 (100 ms), wait for BUSY low. **The low part must really be 2 ms.** The module's reset circuit takes a longer low for "power off": the panel then keeps BUSY high through everything that follows and no refresh happens. A scheduler's delay is "at least" - while the flash is erased (a firmware update) it was about 20 ms - so the firmware counts the 2 ms itself with interrupts off (found 2026-11-12: "Updating in progress" never appeared).
@@ -32,10 +32,10 @@ More modes from the Waveshare code (present in the vendor driver; only the confi
 Temperature: `0x18` after reset = `0x48` (external sensor, which the module does not have), `0x80` = built-in. Waveshare V2 does not touch this register (it relies on OTP), GxEPD2 sets `0x80`. Datasheet: if the measured temperature falls into none of the OTP ranges, there will be no refresh at all. Fast mode works around this by writing `0x1A` manually.
 
 ## Pitfalls (all caught on this bench)
-1. CS over the whole data block = does not work. If CS is held low for the whole frame transfer (DMA blocks of 4000 bytes), the refresh starts, but BUSY hangs HIGH for >30 s, the image goes gray and fades with every run. With CS per byte everything is normal. The datasheet requires CS high for at least 100 ns between transfers; why exactly the block breaks the cycle is not established (GxEPD2 holds CS over the block and works on GDEY042T81). Do not economize on this.
+1. CS over the whole data block = does not work. If CS is held low for the whole frame transfer (DMA blocks of 4000 bytes), the refresh starts, but BUSY hangs HIGH for >30 s, the image goes gray and fades with every run. With CS per byte everything is normal. The datasheet requires CS high for at least 100 ns between transfers; why exactly the block breaks the cycle is not established (GxEPD2 holds CS over the block and works on GDEY042T81). Keep CS toggling per byte.
 2. In ESP-IDF you cannot attach two `spi_bus_add_device` to one CS pin: the second device takes over the GPIO matrix, the first one's CS stops toggling, the display silently stops hearing commands (BUSY 0 everywhere, "no reaction"). One device or manual CS.
 3. The default FreeRTOS tick is 100 Hz: `pdMS_TO_TICKS(5) == 0`, a polling task with such a delay does not yield the CPU and hangs everything else (seen as the log cutting off after startup). In `sdkconfig.defaults`: `CONFIG_FREERTOS_HZ=1000`.
-4. GPIO16/GPIO17 on the ESP32-C6 are U0TXD/U0RXD, that is, our BUSY and CS. The console must be on USB-JTAG: `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, `CONFIG_ESP_CONSOLE_SECONDARY_NONE=y` (set in `sdkconfig.defaults`). The ROM bootloader still prints the boot log to GPIO16 on every reset (tens of ms) - straight into the display's BUSY output. The panel survives it. The efuse that disables ROM printing is irreversible - do not touch.
+4. GPIO16/GPIO17 on the ESP32-C6 are U0TXD/U0RXD, that is, our BUSY and CS. The console must be on USB-JTAG: `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, `CONFIG_ESP_CONSOLE_SECONDARY_NONE=y` (set in `sdkconfig.defaults`). The ROM bootloader still prints the boot log to GPIO16 on every reset (tens of ms) - straight into the display's BUSY output. No panel failure was observed on this bench; keep the USB-JTAG console configuration. The efuse that disables ROM printing is irreversible - do not touch.
 5. SPI2 IOMUX on the C6: CS0 = GPIO16, MISO = GPIO2 - they coincide with our BUSY and button 3. We are on the GPIO matrix, so it does not interfere, but keep it in mind when rewiring.
 6. Buttons: input without internal pull-up (pull-up on the module), active LOW. GPIO0-2 are the LP group.
 7. Not broken out to the header and not to be touched: GPIO9 (BOOT), GPIO15 (LED), GPIO3/GPIO14 (antenna switch: GPIO3=LOW enables the switch, GPIO14 LOW=ceramic, HIGH=U.FL), GPIO12/13 (USB).
@@ -43,7 +43,7 @@ Temperature: `0x18` after reset = `0x48` (external sensor, which the module does
 
 ## Panel limitations (Waveshare wiki + datasheet)
 - Do not leave the display powered without sleep: after a refresh `0x10` or removing power is mandatory, otherwise the panel holds high voltage and degrades irreversibly. The controller turns the voltages off itself at the end of every refresh (`0x22 0xF7` / `0xFF` end with it), which is why the firmware may leave it awake 1.5 s for the next partial refresh.
-- The recommended interval between refreshes is at least 180 s, and at least one refresh per day. You cannot live on partial refreshes indefinitely - a full one periodically.
+- The recommended interval between refreshes is at least 180 s, and at least one refresh per day. Use periodic full refreshes according to this vendor guidance.
 - Operating temperature 0..50 C, storage -25..70 C, humidity 35-65 %. Not in sunlight and no UV - the particles dry out irreversibly. Clear the screen before long storage.
 - Panel supply 2.3-3.6 V (not below 2.5 V), logic 3.3 V. Power during refresh 26.4 mW typ., standby < 0.01 µA. Controller logic ~1 mA in operation.
 - Do not bend the flex cable toward the front side or perpendicularly; secure it for the duration of development.

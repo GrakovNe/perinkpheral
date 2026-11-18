@@ -6,6 +6,7 @@
 #include "priorities.h"
 #include "web_server.h"
 #include "crash_note.h"
+#include "captive_portal.h"
 
 #include <inttypes.h>
 #include <stdatomic.h>
@@ -171,8 +172,30 @@ static esp_err_t send_ok(httpd_req_t *request, const char *message)
     return web_send_message(request, "200 OK", "ok", message);
 }
 
+static bool should_open_portal(httpd_req_t *request)
+{
+    char host[HOST_HEADER_MAX] = "";
+    httpd_req_get_hdr_value_str(request, "Host", host, sizeof host);
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    appconf_t configuration;
+    settings_read(&configuration);
+    return request->method == HTTP_GET &&
+           captive_portal_redirect(wifi_phase_has_access_point(wifi.phase), host, request->uri,
+                                   wifi.address, configuration.hostname);
+}
+
+static esp_err_t open_portal(httpd_req_t *request)
+{
+    httpd_resp_set_status(request, "302 Found");
+    httpd_resp_set_hdr(request, "Location", CAPTIVE_PORTAL_URL);
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_send(request, NULL, 0);
+}
+
 static esp_err_t handle_page(httpd_req_t *request)
 {
+    if (should_open_portal(request)) { return open_portal(request); }
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
     return httpd_resp_send(request, index_html_start, index_html_end - index_html_start);
@@ -511,6 +534,30 @@ static esp_err_t handle_wifi(httpd_req_t *request)
     return change_settings_as_asked(request, edit_network, true, &ASKED);
 }
 
+static esp_err_t handle_wifi_scan(httpd_req_t *request)
+{
+    wifi_network_t networks[WIFI_SCAN_NETWORKS_MAX];
+    uint16_t count = 0;
+    power_hold_radio();
+    wifi_scan_result_t scanned = wifi_scan_networks(networks, WIFI_SCAN_NETWORKS_MAX, &count);
+    power_release_radio();
+    if (scanned != WIFI_SCAN_OK) {
+        return send_failure(request, STATUS_BUSY, scanned == WIFI_SCAN_BUSY
+            ? "Wi-Fi is busy. Try again shortly." : "Could not scan networks. Try again.");
+    }
+    json_t *json = json_new_object();
+    json_t *found = json_new_array();
+    for (uint16_t index = 0; index < count; index++) {
+        json_t *network = json_new_object();
+        json_add_string(network, "ssid", networks[index].ssid);
+        json_add_number(network, "rssi", networks[index].rssi);
+        json_add_bool(network, "secured", networks[index].secured);
+        json_array_add(found, network);
+    }
+    json_add_item(json, "networks", found);
+    return web_send_json(request, "200 OK", json);
+}
+
 /* The time zone takes effect at once: the header and the applications
  * read local time anew whenever they draw. */
 static bool edit_time_zone(const json_t *json, appconf_t *wanted)
@@ -734,14 +781,6 @@ static esp_err_t handle_ota(httpd_req_t *request)
     return web_server_take_firmware(request);
 }
 
-/* True when the Host header names this address, with a port or without. */
-static bool is_address(const char *host, const char *address)
-{
-    size_t length = strlen(address);
-    return length > 0 && strncmp(host, address, length) == 0 &&
-           (host[length] == '\0' || host[length] == ':');
-}
-
 /* A phone on the setup access point asks for pages of its own to find out
  * whether it is online; every name leads here (captive_dns), and being
  * sent to the device's page is what makes it show that page. Anybody who
@@ -750,19 +789,8 @@ static bool is_address(const char *host, const char *address)
 static esp_err_t handle_not_found(httpd_req_t *request, httpd_err_code_t error)
 {
     (void)error;
-    char host[HOST_HEADER_MAX];
-    bool has_host = httpd_req_get_hdr_value_str(request, "Host", host, sizeof host) == ESP_OK;
-    wifi_status_t wifi;
-    wifi_get_status(&wifi);
-    bool access_point_is_up = wifi.phase == WIFI_PHASE_SETUP || wifi.phase == WIFI_PHASE_RESCUE;
-    bool asked_us_by_address = has_host && (is_address(host, WIFI_SETUP_ADDRESS) ||
-                                            is_address(host, wifi.address));
-    if (!access_point_is_up || asked_us_by_address) {
-        return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
-    }
-    httpd_resp_set_status(request, "302 Found");
-    httpd_resp_set_hdr(request, "Location", "http://" WIFI_SETUP_ADDRESS "/");
-    return httpd_resp_send(request, NULL, 0);
+    if (should_open_portal(request)) { return open_portal(request); }
+    return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
 }
 
 /* The page, the device and its settings. */
@@ -771,6 +799,7 @@ static const web_route_t ROUTES[] = {
     { "/api/status", HTTP_GET, handle_status, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/log", HTTP_GET, handle_log, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/wifi", HTTP_POST, handle_wifi, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },
+    { "/api/wifi/scan", HTTP_GET, handle_wifi_scan, MEMORY_FOR_A_PAGE, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/time", HTTP_POST, handle_time, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/clock", HTTP_POST, handle_clock, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/ota/recovery", HTTP_POST, handle_ota_recovery, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_WAITS },

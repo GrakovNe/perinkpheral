@@ -24,10 +24,13 @@ nav { border-right: 1px solid var(--ink); padding: 1.5rem 0; display: flex; flex
 .brand { display: flex; align-items: center; gap: .7rem; margin: 0 1.25rem 2rem; color: var(--ink); }
 .brand .mark { width: 22px; height: 22px; flex: none; } /* two pixels a cell: every stroke as thick */
 .brand .wordmark { height: .95rem; width: auto; }
-nav a:not(.brand) { display: block; padding: .55rem 1.25rem; color: var(--ink); text-decoration: none; }
-nav a:not(.brand):hover { background: var(--line); }
-nav a.current { background: var(--ink); color: var(--paper); }
-nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+nav .links a { display: block; padding: .55rem 1.25rem; color: var(--ink); text-decoration: none; }
+nav .links a:hover { background: var(--line); }
+nav .links a.current { background: var(--ink); color: var(--paper); }
+nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere;
+        text-align: center; }
+
+nav p a { color: inherit; }
 
 main { padding: 2rem 2.5rem 4rem; min-width: 0; }
 section { display: none; }
@@ -46,10 +49,14 @@ h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bot
 .panel { border: 1px solid var(--ink); padding: 1.1rem 1.25rem; background: var(--paper); min-width: 0; }
 .panel h3 { margin: 0 0 .75rem; padding: 0; border: none; font-size: .85rem; letter-spacing: .08em;
             text-transform: uppercase; color: var(--dim); }
-.groups { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+.groups { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr);
           align-items: start; }
 /* Two columns: the device's own, the longest, beside the network and the memory one over the other. */
-@media (min-width: 66rem) { .groups > :first-child { grid-row: span 2; } }
+@media (min-width: 66rem) {
+  .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .groups > :first-child { grid-row: span 2; align-self: stretch; }
+  .groups > :last-child { align-self: end; }
+}
 
 /* ---- what happened, in the corner ---- */
 .toasts { position: fixed; top: 1rem; right: 1rem; z-index: 10; display: grid; gap: .6rem;
@@ -76,7 +83,7 @@ input, select { height: 2.75rem; }
 textarea { resize: vertical; }
 :focus { outline: none; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
-button:focus-visible, a:focus-visible, label.file:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+button:focus-visible, a:focus-visible, label.file input:focus-visible + .button { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* A list's arrow is the page's own: a chevron of two strokes. */
 select { appearance: none; padding-right: 2.4rem; cursor: pointer;
          background: no-repeat right .8rem center / .7rem .45rem
@@ -290,7 +297,7 @@ details[open] summary::before { content: "- "; }
   nav .links { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; }
   nav .links::-webkit-scrollbar { display: none; }
   nav .links a { flex: none; white-space: nowrap; }
-  nav a:not(.brand) { padding: .55rem 1rem; }
+  nav .links a { padding: .55rem 1rem; }
   nav p { display: none; }
   main { padding: 1.5rem 1rem 3rem; }
   .head h2 { font-size: 1.4rem; }

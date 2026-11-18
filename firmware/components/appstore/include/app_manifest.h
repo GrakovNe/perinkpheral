@@ -31,6 +31,7 @@ extern "C" {
 #define APP_NAME_MAX    MANIFEST_NAME_MAX
 #define APP_TITLE_MAX   MANIFEST_TITLE_MAX
 #define APP_VERSION_MAX MANIFEST_VERSION_MAX
+#define APP_AUTHOR_MAX  MANIFEST_AUTHOR_MAX
 
 /* What the host fetches for the application and how often. A poll is
  * known to the application by its number in the manifest. */
@@ -57,6 +58,7 @@ typedef struct {
     /* What the menu shows: APP_TITLE_MAX characters, UTF-8. */
     char title[APP_TITLE_MAX * MANIFEST_TEXT_BYTES_PER_CHARACTER + 1];
     char version[APP_VERSION_MAX + 1]; /* empty when the manifest has none */
+    char author[APP_AUTHOR_MAX + 1]; /* empty for legacy packages */
     /* The least firmware it runs on, as app_version_number() reads "0.1.8": the
      * SDK it was built with says so. 0: any. */
     uint32_t firmware;

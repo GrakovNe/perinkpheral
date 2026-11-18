@@ -5,14 +5,13 @@
   "setup_mode": "Настройка",
   "ip_address": "IP-адрес",
   "firmware": "Прошивка",
-  "slot": "Слот",
   "unit_kb_free": " КБ свободно",
   "ram": "RAM",
   "flash": "Флеш",
   "store": "KV",
   "unit_h": " ч ",
   "unit_min": " мин",
-  "uptime": "Аптайм",
+  "uptime": "Время работы",
   "manifest": {
     "title": "О системе"
   }

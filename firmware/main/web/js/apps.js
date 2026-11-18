@@ -258,7 +258,16 @@ async function install(button, offer) {
                                            : "{0} trusts its own certificate authority: {1}.",
                          offerSays(offer, "title"), trusts.join(", ")), "Install")) return;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-  if (await send(button, url, post({ files: offer.app.files }), askForApp)) await loadApps();
+  const isUpdate = installed.some(app => app.name === offer.app.name);
+  if (await busy(button, async () => {
+    try {
+      await askForApp(url, post({ files: offer.app.files, version: offer.app.version }));
+    } catch (error) {
+      throw new Error(offerSays(offer, "title") + ": " +
+        (error.message === "Failed to fetch" ? t("Device unreachable.") : error.message));
+    }
+    toast(isUpdate ? t("{0} updated to {1}.", offerSays(offer, "title"), offer.app.version) : "Installed.");
+  })) await loadApps();
 }
 
 /* An icon is eleven rows of eleven cells; what a catalog gives that is not one is no icon. */
@@ -410,6 +419,8 @@ function drawCatalog() {
       text.append(make("b", { textContent: offerSays(offer, "title"), translate: false }));
       if (offerSays(offer, "description"))
         text.append(make("span", { className: "about", textContent: offerSays(offer, "description"), translate: false }));
+      if (offer.app.author)
+        text.append(make("small", { textContent: offer.app.author, translate: false }));
       text.append(make("small", { textContent: offer.app.version + (kept(offer) ? " - " + t("settings kept") : "") +
                                                 (needed ? " - " + needed : "") }));
       const have = installed.find(app => app.name === offer.app.name);
@@ -439,6 +450,7 @@ function inMenuOrder(apps) {
 }
 
 function drawTiles() {
+  byId("auto-update-apps").setAttribute("aria-pressed", String(Boolean(settings.app_auto_update)));
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
   byId("tiles").replaceChildren(...tiles);
   show("app-count", t("{0} of {1}", installed.length, CATALOG_INSTALLED_MAX));
@@ -453,10 +465,25 @@ byId("update-all").addEventListener("click", async () => {
   await busy(button, async () => {
     for (const offer of updates()) {
       const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
-      await askForApp(url, post({ files: offer.app.files }));
+      try {
+        await askForApp(url, post({ files: offer.app.files, version: offer.app.version }));
+      } catch (error) {
+        throw new Error(offerSays(offer, "title") + ": " +
+          (error.message === "Failed to fetch" ? t("Device unreachable.") : error.message));
+      }
+      toast(t("{0} updated to {1}.", offerSays(offer, "title"), offer.app.version));
     }
   });
   await loadApps();
+});
+
+byId("auto-update-apps").addEventListener("click", async () => {
+  const button = byId("auto-update-apps");
+  const enabled = settings.app_auto_update ? 0 : 1;
+  if (await send(button, "/api/settings", post({ app_auto_update: enabled }))) {
+    settings.app_auto_update = enabled;
+    button.setAttribute("aria-pressed", String(Boolean(enabled)));
+  }
 });
 
 async function loadApps() {
@@ -474,12 +501,22 @@ async function loadSources() {
                                       input: { placeholder: "https://" } });
 }
 
+function catalogAuthorIsAllowed(author, source) {
+  if (author === undefined) return true; // Legacy packages predate author metadata.
+  return typeof author === "string" && author.length > 0 &&
+    new TextEncoder().encode(author).length <= MANIFEST_AUTHOR_MAX && !/[\x00-\x1f\x7f]/.test(author) &&
+    !author.startsWith(" ") && !author.endsWith(" ") &&
+    (author.toLowerCase() !== "perinkpheral" || source === 0);
+}
+
 async function loadCatalogs() {
   await loadSources();
   const found = [], silent = [];
   for (let source = 0; source < sources.length; source++) {
     try {
       const catalog = await askForApp("/api/catalog?source=" + source);
+      if (!catalog.apps.every(app => catalogAuthorIsAllowed(app.author, source)))
+        throw new Error("Invalid app author.");
       /* The first catalog that has an application is the one it comes from. */
       for (const app of catalog.apps)
         if (!found.some(offer => offer.app.name === app.name)) found.push({ app, source });

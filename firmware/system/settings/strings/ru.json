@@ -5,14 +5,6 @@
   "wifi": "Wi-Fi",
   "restart": "Перезагрузка",
   "reset": "Сброс",
-  "buttons": "Кнопки",
-  "hold_back": "Держать BACK",
-  "menu": "Меню",
-  "hold_ok": "Держать OK в меню",
-  "move": "Переставить",
-  "hold_up_down": "Держать UP, DOWN",
-  "page": "Страница",
-  "up_back": "UP + BACK 10 с",
   "date_time": "Дата и время",
   "time_zone": "Часовой пояс",
   "power_saving": "Экономия батареи",
@@ -61,5 +53,6 @@
   "restart_what": "устройства?",
   "manifest": {
     "title": "Настройки"
-  }
+  },
+  "appearance": "Внешний вид"
 }

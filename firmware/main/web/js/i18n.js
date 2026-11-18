@@ -11,6 +11,12 @@
 "use strict";
 
 const RUSSIAN = {
+  "Auto-update": "Автообновление",
+  "Wi-Fi network": "Сеть Wi-Fi", "Scan networks": "Найти сети",
+  "Choose a network": "Выберите сеть", "Enter network name": "Ввести название сети",
+  "No networks found.": "Сети не найдены.",
+  "Wi-Fi is busy. Try again shortly.": "Wi-Fi занят. Повторите чуть позже.",
+  "Could not scan networks. Try again.": "Не удалось найти сети. Повторите попытку.",
   /* recovery updates */
   "Downloading firmware.": "Скачивание прошивки.",
   "Entering recovery.": "Переход в восстановление.",
@@ -32,6 +38,11 @@ const RUSSIAN = {
   "Firmware is being published. Check again shortly.": "Прошивка публикуется. Проверьте ещё раз чуть позже.",
   "Firmware download size does not match the release. Try again.": "Размер скачанной прошивки не совпадает с релизом. Повторите загрузку.",
   "Could not check the firmware download. Try again.": "Не удалось проверить доступность прошивки. Повторите попытку.",
+  "Restart device?": "Перезагрузить устройство?",
+  "Logging enabled": "Журналирование включено",
+  "Log level": "Уровень логирования",
+  "Warnings": "Предупреждения", "Information": "Информация",
+  "{0} updated to {1}.": "Приложение {0} обновлено до {1}.",
   /* the menu and the sections */
   "Apps": "Приложения", "Device": "Устройство", "Control": "Управление", "Settings": "Настройки",
   "Credits": "Лицензии",
@@ -64,15 +75,13 @@ const RUSSIAN = {
   "not set": "не задано",
 
   /* the device */
-  "Firmware": "Прошивка", "Built": "Сборка", "Slot": "Слот", "Time": "Время", "Uptime": "Аптайм",
+  "Firmware": "Прошивка", "Built": "Сборка", "Time": "Время", "Uptime": "Время работы",
   "Last start": "Последний запуск", "Last fault": "Последний сбой", "Language": "Язык",
   "Network": "Сеть", "IP address": "IP-адрес", "Hostname": "Имя хоста",
   "Memory": "Память", "Free": "Свободно", "Lowest": "Минимум", "Largest block": "Наибольший блок",
   "Errors": "Ошибки", "App area": "Область приложений", "Storage": "Хранилище", "Error": "Ошибка",
   "{0} (verifying)": "{0} (проверка)", "Code {0}": "Код {0}",
   "{0} refused": "отказов: {0}", "{0} failed": "сбоев выделения: {0}",
-  "{0}, {1} - {2} start ago": "{0}, {1} - {2} запуск назад",
-  "{0}, {1} - {2} starts ago": "{0}, {1} - запусков назад: {2}",
   "Power on": "Включение", "Reset pin": "Кнопка сброса", "Restart": "Перезагрузить",
   "Restarted": "Перезагрузка",
   "Fault": "Сбой", "Interrupt watchdog": "Watchdog прерываний", "Task watchdog": "Watchdog задач",
@@ -87,7 +96,7 @@ const RUSSIAN = {
   "Custom firmware": "Своя прошивка", "Choose file": "Выбрать файл", "No file chosen": "Файл не выбран",
   "Log": "Журнал", "Refresh": "Обновить", "Follow": "Следить", "Reset": "Сброс",
   "Search": "Поиск", "Clear": "Очистить", "Device log": "Журнал устройства",
-  "tag, text, address": "источник, текст, адрес", "{0} lines": "строк: {0}", "restart": "перезапуск",
+  "tag, text, address": "источник, текст, адрес", "restart": "перезапуск",
   "Nothing found.": "Ничего не найдено.", "Empty.": "Пусто.",
   "Factory reset": "Сбросить к заводским настройкам",
   "No releases.": "Нет релизов.", "Up to date.": "Обновлений нет.", "Update to {0}?": "Обновить до {0}?",

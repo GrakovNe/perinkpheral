@@ -5,6 +5,7 @@
 #include "app_code.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -120,9 +121,15 @@ static int extent_of(const char *app_name)
     return -1;
 }
 
-const uint8_t *app_code_find(const char *app_name, size_t *size)
+const uint8_t *app_code_find(const char *apps_root, const char *app_name, size_t *size)
 {
-    if (s_partition == NULL) {
+    char path[APP_STORE_PATH_MAX];
+    struct stat module;
+    /* An unadopted file is the authoritative version, even if replacing
+     * the old cached module failed before its first sector was erased. */
+    if (s_partition == NULL || !app_store_is_ready(apps_root, app_name) ||
+        snprintf(path, sizeof path, "%s/%s/" APP_FILE_MODULE, apps_root, app_name) >= (int)sizeof path ||
+        stat(path, &module) == 0 || errno != ENOENT) {
         return NULL;
     }
     scan();
@@ -290,10 +297,13 @@ static void pack(const char *apps_root)
         char name[APP_NAME_MAX + 1];
         char path[APP_STORE_PATH_MAX];
         strlcpy(name, header_at(s_extents[extent].start)->name, sizeof name);
+        if (!app_store_is_ready(apps_root, name)) {
+            return;
+        }
+        struct stat existing;
         if (snprintf(path, sizeof path, "%s/%s/" APP_FILE_MODULE, apps_root, name) >=
                 (int)sizeof path ||
-            !write_back(extent, path)) {
-            remove(path);
+            stat(path, &existing) == 0 || errno != ENOENT || !write_back(extent, path)) {
             ESP_LOGW(TAG, "\"%s\" cannot be moved: no room for it as a file", name);
             return;
         }
@@ -314,7 +324,7 @@ static void forget_orphans(const char *apps_root)
         struct stat folder;
         if (snprintf(path, sizeof path, "%s/%s", apps_root, header_at(s_extents[i].start)->name) <
                 (int)sizeof path &&
-            stat(path, &folder) != 0) {
+            stat(path, &folder) != 0 && errno == ENOENT) {
             forget(i);
         }
     }
@@ -342,15 +352,20 @@ void app_code_adopt(const char *apps_root)
     if (s_partition == NULL) {
         return;
     }
-    forget_orphans(apps_root);
     DIR *directory = opendir(apps_root);
     if (directory == NULL) {
         return;
     }
-    struct dirent *entry;
-    while ((entry = readdir(directory)) != NULL) {
+    bool was_read = false;
+    for (;;) {
+        errno = 0;
+        struct dirent *entry = readdir(directory);
+        if (entry == NULL) {
+            was_read = errno == 0;
+            break;
+        }
         char path[APP_STORE_PATH_MAX];
-        if (!app_manifest_is_valid_name(entry->d_name) ||
+        if (!app_store_is_ready(apps_root, entry->d_name) ||
             snprintf(path, sizeof path, "%s/%s/" APP_FILE_MODULE, apps_root, entry->d_name) >=
                 (int)sizeof path) {
             continue;
@@ -370,5 +385,11 @@ void app_code_adopt(const char *apps_root)
             ESP_LOGW(TAG, "\"%s\" found no room: it runs from its file", entry->d_name);
         }
     }
-    closedir(directory);
+    if (closedir(directory) == 0 && was_read) {
+        /* Only an available directory can establish that an app was removed. */
+        struct stat root;
+        if (stat(apps_root, &root) == 0 && S_ISDIR(root.st_mode)) {
+            forget_orphans(apps_root);
+        }
+    }
 }

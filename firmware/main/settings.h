@@ -33,6 +33,10 @@ bool settings_save_app_record(const char *app_name, const settings_app_record_t 
 /* Removed: nothing of it stays. */
 void settings_forget_app_record(const char *app_name);
 
+/* Last automatic catalog attempt, UTC seconds; zero before the first. */
+uint32_t settings_load_app_update_time(void);
+bool settings_save_app_update_time(uint32_t seconds);
+
 /* The host's settings have one owner, this module, and one place they are
  * changed from, the host loop. Everybody else reads a copy.
  *

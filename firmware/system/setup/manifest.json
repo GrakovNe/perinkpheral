@@ -1,6 +1,7 @@
 {
   "name": "setup",
   "title": "Wi-Fi setup",
+  "author": "Perinkpheral",
   "version": "1.0.1",
   "abi": 3,
   "system": true

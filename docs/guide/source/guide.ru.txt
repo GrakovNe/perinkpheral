@@ -43,8 +43,8 @@ Memory
 Build and upload
 Сборка и загрузка
 
-about 10 s, no reflashing
-около 10 с, без перепрошивки
+build and upload without reflashing
+сборка и загрузка без перепрошивки
 
 <b>I</b>Datasheet: parameters and execution model
 <b>I</b>Техническое описание: параметры и модель исполнения
@@ -403,8 +403,8 @@ Performed by the host
 HTTPS trust
 Доверие HTTPS
 
-browser root set
-корневые сертификаты браузеров
+ESP-IDF's root certificate bundle
+набор корневых сертификатов ESP-IDF
 
 Plus up to 2 roots an application brings, for its own requests. Self-signed server certificates are rejected. Plain <code>http</code> is available for home networks
 Плюс до 2 корневых сертификатов, которые приложение приносит для своих запросов. Самоподписанные сертификаты серверов отклоняются. В домашней сети доступен обычный <code>http</code>
@@ -457,8 +457,8 @@ Streamed response
 4 MB
 4 МБ
 
-Pieces of up to 1024 bytes; about 90 KB/s over plain HTTP
-Фрагменты до 1024 байт; около 90 КБ/с по обычному HTTP
+Pieces of up to 1024 bytes; observed throughput about 90 KB/s over plain HTTP
+Фрагменты до 1024 байт; в измерениях около 90 КБ/с по обычному HTTP
 
 Redirects
 Перенаправления
@@ -469,8 +469,8 @@ Redirects
 HTTPS request time
 Время запроса HTTPS
 
-about 6 s
-около 6 с
+about 6 s in bench measurements
+около 6 с в стендовых измерениях
 
 Mostly the TLS handshake
 В основном TLS-рукопожатие
@@ -724,14 +724,14 @@ Requirements
 <b>wasi-sdk</b> 34 or newer. It provides clang for the wasm32 target. Set <code>WASI_SDK_PATH</code> to its location.
 <b>wasi-sdk</b> версии 34 или новее. Содержит clang для цели wasm32. Укажите путь к нему в <code>WASI_SDK_PATH</code>.
 
-<b>Java 21</b> or later, for <code>tools/perinkpheral</code>: the tools, built on first use. The CLion plugin carries the same tools and needs nothing else.
-<b>Java 21</b> или новее, для <code>tools/perinkpheral</code>: инструменты, собираются при первом запуске. Плагин для CLion несёт те же инструменты, и больше ему ничего не нужно.
+<b>Java 21</b> or later, for <code>tools/perinkpheral</code>: the tools, built on first use. The CLion plugin bundles these Java tools; its setup downloads the SDK and wasi-sdk.
+<b>Java 21</b> или новее, для <code>tools/perinkpheral</code>: инструменты, собираются при первом запуске. Плагин CLion содержит эти Java-инструменты; его настройка скачивает SDK и wasi-sdk.
 
 A checkout of the <b>perinkpheral</b> repository. It contains <code>sdk/</code> and <code>tools/</code>.
 Копия репозитория <b>perinkpheral</b>. Содержит <code>sdk/</code> и <code>tools/</code>.
 
-A <b>device</b> on the same network, running a firmware with the development tools enabled (the default). The device shows its address on the second page of About. Set <code>PERINKPHERAL_HOST</code> to this address.
-<b>Устройство</b> в той же сети с прошивкой, в которой включены инструменты разработки (по умолчанию). Адрес устройства показан на второй странице «О системе». Укажите этот адрес в <code>PERINKPHERAL_HOST</code>.
+A <b>device</b> on the same network, running a debug firmware image with development tools enabled. The device shows its address on the second page of About. Set <code>PERINKPHERAL_HOST</code> to this address.
+<b>Устройство</b> в той же сети с отладочной прошивкой, в которой включены инструменты разработки. Адрес устройства показан на второй странице «О системе». Укажите этот адрес в <code>PERINKPHERAL_HOST</code>.
 
 Without a device: the <b>simulator</b> (section 14). It needs a C compiler to be built, or comes built with the CLion plugin.
 Без устройства: <b>симулятор</b> (раздел 14). Для сборки ему нужен компилятор C; с плагином для CLion он поставляется собранным.
@@ -754,8 +754,8 @@ Run in the simulator
 Open the development page
 Открытие страницы разработки
 
-<code>run</code> builds the application, uploads it, restarts the device and opens the application. This takes about ten seconds. The firmware is not reflashed.
-<code>run</code> собирает приложение, загружает его, перезапускает устройство и открывает приложение. Это занимает около десяти секунд. Прошивка не перезаписывается.
+<code>run</code> builds the application, uploads it, restarts the device and opens the application. The firmware is not reflashed.
+<code>run</code> собирает приложение, загружает его, перезапускает устройство и открывает приложение. Прошивка не перезаписывается.
 
 The build treats compiler warnings as errors (<code>-Wall -Wextra -Werror</code>). An unused parameter is marked with <code>(void)name;</code>.
 Сборка считает предупреждения компилятора ошибками (<code>-Wall -Wextra -Werror</code>). Неиспользуемый параметр помечается <code>(void)name;</code>.
@@ -1036,8 +1036,8 @@ certificates
 up to 2 files of <code>files/</code>
 до 2 файлов из <code>files/</code>
 
-Certificate authorities trusted for this application's own requests, beside the browser root set (section 9). The web page names them before installation
-Центры сертификации, которым хост доверяет при выполнении запросов этого приложения, помимо набора корневых сертификатов браузеров (раздел 9). Веб-страница называет их перед установкой
+Certificate authorities trusted for this application's own requests, beside the ESP-IDF's root certificate bundle (section 9). The web page names them before installation
+Центры сертификации, которым хост доверяет при выполнении запросов этого приложения, помимо набора корневых сертификатов ESP-IDF (раздел 9). Веб-страница называет их перед установкой
 
 The packaged manifest is at most 8192 bytes, including formatting and the firmware version written by the build.
 Упакованный манифест занимает не более 8192 байт, включая форматирование и версию прошивки, записанную сборкой.
@@ -2215,8 +2215,8 @@ Requests from code
 Requests are allowed only to the hosts listed in the manifest. <code>{{key}}</code> placeholders work in the URL and in header values, so the code does not need to read the token.
 Запросы разрешены только на адреса, перечисленные в манифесте. Подстановки <code>{{key}}</code> работают в URL и в значениях заголовков, поэтому коду не нужно читать токен.
 
-An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). With more to ask, queue the next ones as responses arrive; every request is made in the end. Applications take turns, and polls take turns with requests. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.
-У приложения может ждать 16 запросов (<code>HOST_HTTP_PENDING_MAX</code>). Если нужно больше, ставьте следующие по мере прихода ответов; в конце концов выполняется каждый запрос. Приложения чередуются, и опросы чередуются с запросами. <code>HOST_ERR_NO_SPACE</code> означает, что ждут 16 или что у устройства нет памяти ещё на один.
+An application can have 16 requests waiting (<code>HOST_HTTP_PENDING_MAX</code>). Queue additional requests as responses arrive. Applications and polls take turns while queued work remains valid. <code>HOST_ERR_NO_SPACE</code> means that 16 are waiting, or that the device has no memory for another.
+У приложения может ждать 16 запросов (<code>HOST_HTTP_PENDING_MAX</code>). Добавляйте следующие запросы по мере прихода ответов. Приложения и опросы обслуживаются по очереди, пока ожидающие запросы остаются действительными. <code>HOST_ERR_NO_SPACE</code> означает, что ждут 16 или что у устройства нет памяти ещё на один.
 
 The host sends <code>User-Agent: perinkpheral</code>. A <code>User-Agent</code> header given by the application replaces it, in a poll and in a request.
 Хост отправляет <code>User-Agent: perinkpheral</code>. Заголовок <code>User-Agent</code> от приложения заменяет его, в опросе и в запросе.
@@ -2239,8 +2239,8 @@ The 16-request ceiling is per application, with no reserved slots. All queued re
 Certificate authorities of the application
 Центры сертификации приложения
 
-The host verifies HTTPS servers against the browser root set. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:
-Хост проверяет HTTPS-серверы по набору корневых сертификатов браузеров. Запрос к серверу, сертификат которого выдан центром сертификации вне этого набора, завершается с <code>HOST_FAILED_NOT_TRUSTED</code>. Приложение, которому нужен такой сервер, приносит корневой сертификат этого центра в своём пакете и называет его в манифесте:
+The host verifies HTTPS servers against the ESP-IDF's root certificate bundle. A server certified by an authority outside that set fails with <code>HOST_FAILED_NOT_TRUSTED</code>. An application that needs such a server brings the authority's root certificate in its package and names it in the manifest:
+Хост проверяет HTTPS-серверы по набору корневых сертификатов ESP-IDF. Запрос к серверу, сертификат которого выдан центром сертификации вне этого набора, завершается с <code>HOST_FAILED_NOT_TRUSTED</code>. Приложение, которому нужен такой сервер, приносит корневой сертификат этого центра в своём пакете и называет его в манифесте:
 
 files/russian-root-ca.pem
 =
@@ -2248,14 +2248,14 @@ files/russian-root-ca.pem
 Each file is a root certificate of an authority, in PEM or DER, up to 4 KB. The build rejects a file that is missing, is not a certificate, is a server's certificate, or has expired.
 Каждый файл - корневой сертификат центра сертификации в PEM или DER, до 4 КБ. Сборка отклоняет файл, которого нет, который не является сертификатом, является сертификатом сервера или просрочен.
 
-The roots are trusted for this application's polls and requests only, in addition to the browser root set. Other applications and the host do not trust them.
-Этим корневым сертификатам доверяют только опросы и запросы этого приложения, в дополнение к набору браузеров. Другие приложения и хост им не доверяют.
+The roots are trusted for this application's polls and requests only, in addition to the ESP-IDF's root certificate bundle. Other applications and the host do not trust them.
+Этим корневым сертификатам доверяют только опросы и запросы этого приложения, в дополнение к набору корневых сертификатов ESP-IDF. Другие приложения и хост им не доверяют.
 
 The web page names the authorities before installation, as it does for system access, and on the application's card. The catalog index carries their names.
 Веб-страница называет эти центры перед установкой, как и системный доступ, и в карточке приложения. Индекс каталога содержит их имена.
 
-Take a root from its authority's own publication and compare its fingerprint with the one the server presents.
-Берите корневой сертификат из публикации самого центра сертификации и сверяйте его отпечаток с тем, что предъявляет сервер.
+Obtain the root certificate from its authority and verify its fingerprint against that authority's published fingerprint.
+Получите корневой сертификат у центра сертификации и сверьте отпечаток с опубликованным этим центром.
 
 Failed requests
 Неудавшиеся запросы
@@ -2629,8 +2629,8 @@ Use common words: "Save", "Remove", "Not set up". If a label needs an explanatio
 Minimize code size before data size.
 Сокращайте сначала размер кода, затем размер данных.
 
-Each byte of executed code uses about four bytes of the interpreter's 64 KB. Each byte of data uses one byte of the 64 KB page, which is mostly free. Prefer a table to a chain of <code>if</code> statements, the kit to custom drawing, <code>pick</code> to a custom parser, and <code>time_text()</code> to custom date formatting.
-Каждый байт исполненного кода занимает около четырёх байт из 64 КБ интерпретатора. Каждый байт данных занимает один байт страницы 64 КБ, которая в основном свободна. Предпочитайте таблицу цепочке операторов <code>if</code>, Kit - собственной отрисовке, <code>pick</code> - собственному разборщику, <code>time_text()</code> - собственному форматированию дат.
+Each byte of executed code uses about four bytes of the interpreter's 64 KB. Each byte of data uses one byte of the 64 KB page. Prefer a table to a chain of <code>if</code> statements, the kit to custom drawing, <code>pick</code> to a custom parser, and <code>time_text()</code> to custom date formatting.
+Каждый байт исполненного кода занимает около четырёх байт из 64 КБ интерпретатора. Каждый байт данных занимает один байт страницы 64 КБ. Предпочитайте таблицу цепочке операторов <code>if</code>, Kit - собственной отрисовке, <code>pick</code> - собственному разборщику, <code>time_text()</code> - собственному форматированию дат.
 
 Keep shared helpers out of line.
 Не встраивайте общие вспомогательные функции.
@@ -2719,7 +2719,7 @@ tools/perinkpheral build &lt;dir&gt; --out &lt;dir&gt;
 Builds one application: compile, link with the SDK library, check, measure
 Собирает одно приложение: компиляция, компоновка с библиотекой SDK, проверка, измерение
 
-tools/perinkpheral new &lt;dir&gt; [--title T]
+tools/perinkpheral new &lt;dir&gt; --author NAME [--title T]
 =
 
 Creates a new application folder from the SDK sample
@@ -2821,8 +2821,8 @@ Log bytes outside printable ASCII, including UTF-8 bytes and line breaks, are re
 Simulator
 Симулятор
 
-The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. A frame in the simulator is the frame the panel shows. It runs on macOS and Linux.
-Симулятор запускает одно приложение на компьютере, используя интерпретатор, API хоста, элементы интерфейса, заголовок и шрифты самой прошивки. Кадр в симуляторе - это кадр, который показывает панель. Работает на macOS и Linux.
+The simulator runs one application on a computer, with the firmware's own interpreter, host API, kit, header and fonts. It uses the firmware rendering code but does not model physical panel refreshes. It runs on macOS and Linux.
+Симулятор запускает одно приложение на компьютере, используя интерпретатор, API хоста, элементы интерфейса, заголовок и шрифты самой прошивки. Он использует код отрисовки прошивки, но не моделирует физическое обновление панели. Работает на macOS и Linux.
 
 It answers on <code>127.0.0.1:8401</code> like a device. The other commands work with it through <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. The address opened in a browser shows the page of <code>serve</code>, with the simulator's own requests (below) as buttons.
 Он отвечает на <code>127.0.0.1:8401</code> как устройство. Остальные команды работают с ним через <code>--host 127.0.0.1:8401</code>: <code>shot</code>, <code>press</code>, <code>log</code>, <code>set</code>, <code>serve</code>. Адрес, открытый в браузере, показывает страницу <code>serve</code>, а собственные запросы симулятора (ниже) на ней стоят кнопками.
@@ -2911,11 +2911,11 @@ The network sends <code>User-Agent: perinkpheral</code>, as the device does. The
 Ctrl+C stops the simulator as a restart stops the device: <code>app_on_terminate()</code> is called. A process that is killed loses what was not saved, as at a power loss.
 Ctrl+C останавливает симулятор, как перезапуск останавливает устройство: вызывается <code>app_on_terminate()</code>. Убитый процесс теряет несохранённое, как при пропаже питания.
 
-<code>set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in a POSIX shell.
-<code>set</code> принимает список пунктами через перевод строки: <code>set stocks tickers $'AAPL\nMSFT'</code> в POSIX-оболочке.
+<code>set</code> takes a list as its items with line breaks: <code>set stocks tickers $'AAPL\nMSFT'</code> in bash or zsh.
+<code>set</code> принимает список пунктами через перевод строки: <code>set stocks tickers $'AAPL\nMSFT'</code> в bash или zsh.
 
-Not simulated: other applications (the menu holds only this one), the system API, refresh timing, sleep. The interpreter memory limit is not enforced: check the build report.
-Не симулируются: другие приложения (в меню только это), системный API, время обновления панели, сон. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
+Not simulated: other applications (the menu holds only this one), device-specific system actions, refresh timing and sleep. Host-setting and time-setting calls are supported. The interpreter memory limit is not enforced: check the build report.
+Не симулируются: другие приложения (в меню только это), действия системного API, требующие устройства, время обновления панели и сон. Вызовы настройки хоста и установки времени поддерживаются. Ограничение памяти интерпретатора не соблюдается: смотрите отчёт сборки.
 
 Common problems
 Типичные проблемы
@@ -2947,8 +2947,8 @@ Executed code exceeds the interpreter memory. See the build warning and "Memory"
 "&lt;title&gt; cannot start", "Update the app."
 "&lt;title&gt; не запускается", "Нужно обновить."
 
-Built against a different <code>host_api.h</code> than the device firmware. Rebuild and reinstall
-Собрано с другим <code>host_api.h</code>, чем прошивка устройства. Пересоберите и переустановите
+The package uses an unsupported ABI; install a compatible build. If the device asks to update firmware, update firmware instead
+Пакет использует неподдерживаемый ABI; установите совместимую сборку. Если устройство просит обновить прошивку, обновите её
 
 Poll fails with HOST_FAILED_NOT_READY (-3)
 Опрос завершается с HOST_FAILED_NOT_READY (-3)
@@ -2959,8 +2959,8 @@ A <code>{{setting}}</code> in its URL or headers is empty
 HTTPS fails with HOST_FAILED_NOT_TRUSTED (-6)
 HTTPS завершается с HOST_FAILED_NOT_TRUSTED (-6)
 
-Self-signed or expired server certificate, or an authority outside the browser root set. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network
-Самоподписанный или просроченный сертификат сервера либо центр сертификации вне набора браузеров. Принесите корневой сертификат центра в <code>certificates</code> или используйте <code>http</code> в домашней сети
+Self-signed or expired server certificate, or an authority outside the ESP-IDF's root certificate bundle. Bring the authority's root in <code>certificates</code>, or use <code>http</code> within a home network
+Самоподписанный или просроченный сертификат сервера либо центр сертификации вне набора корневых сертификатов ESP-IDF. Принесите корневой сертификат центра в <code>certificates</code> или используйте <code>http</code> в домашней сети
 
 <code>http_send()</code> returns HOST_ERR_NO_SPACE (-4)
 <code>http_send()</code> возвращает HOST_ERR_NO_SPACE (-4)
@@ -4338,3 +4338,39 @@ Formatting and firmware stamp included
 
 perINKpheral / application guide
 perINKpheral / руководство разработчика
+
+Publish to your GitHub repository
+Публикация в своём репозитории GitHub
+
+Install Git and <a href="https://cli.github.com/">GitHub CLI</a>. Sign in, then create a public repository once. Replace <code>OWNER</code> with your GitHub username.
+Установите Git и <a href="https://cli.github.com/">GitHub CLI</a>. Войдите в аккаунт и один раз создайте публичный репозиторий. Вместо <code>OWNER</code> укажите свой логин GitHub.
+
+Publish the applications in your local <code>apps</code> folder:
+Опубликуйте приложения из своей локальной папки <code>apps</code>:
+
+The command builds the applications, checks their packages and updates <code>catalog/</code> on the repository's default branch. The repository must be public and your account must have write access. Files outside <code>catalog/</code> stay unchanged.
+Команда собирает приложения, проверяет пакеты и обновляет <code>catalog/</code> в основной ветке репозитория. Репозиторий должен быть публичным, а у вашего аккаунта должны быть права на запись. Файлы вне <code>catalog/</code> сохраняются.
+
+Each run replaces the whole catalog. Supply all folders whose applications you want to publish; applications omitted from them are removed from the catalog. Repeating the command without changes creates no commit.
+Каждый запуск заменяет каталог целиком. Укажите все папки с приложениями для публикации; отсутствующие в них приложения удаляются из каталога. Повторный запуск без изменений не создаёт коммит.
+
+Copy the repository link printed by the command. On the device page, open <b>Catalog → Sources</b> (the gear), add the link and save. The applications appear with an Install button.
+Скопируйте ссылку на репозиторий из вывода команды. На странице устройства откройте <b>Каталог → Источники</b> (шестерёнка), добавьте ссылку и сохраните. Приложения появятся с кнопкой «Установить».
+
+For an update, increase <code>version</code> in <code>manifest.json</code>, run <code>publish</code> again and refresh the catalog on the device page.
+Для обновления увеличьте <code>version</code> в <code>manifest.json</code>, снова выполните <code>publish</code> и обновите каталог на странице устройства.
+
+Other hosting
+Другой хостинг
+
+To host the catalog elsewhere, build it locally and upload the output folder to an HTTPS server:
+Для размещения на другом хостинге соберите каталог локально и загрузите выходную папку на HTTPS-сервер:
+
+1 - 63 UTF-8 bytes
+1 - 63 байта UTF-8
+
+Author shown in the catalog. Required for publishing. Perinkpheral is reserved for the official catalog
+Автор, указанный в каталоге. Обязателен для публикации. Имя Perinkpheral зарезервировано для официального каталога
+
+author
+author

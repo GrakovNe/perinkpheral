@@ -15,6 +15,9 @@ extern "C" {
 #define BOARD_GPIO_RF_SWITCH   3  /* low enables the antenna switch */
 #define BOARD_GPIO_RF_SELECT   14 /* low: ceramic antenna, high: U.FL */
 
+/* Temporary radio stability experiment; see docs/testing/stability.md. */
+#define BOARD_WIFI_TX_POWER_DBM 15
+
 /* Antenna switch to the antenna chosen in menuconfig. Before Wi-Fi. */
 void board_init(void);
 

@@ -37,6 +37,8 @@
 #include "crash_note.h"
 #include "ota.h"
 #include "settings.h"
+#include "app_install.h"
+#include "app_update.h"
 #include "status.h"
 #include "storage.h"
 #include "sysinfo.h"
@@ -152,8 +154,11 @@ static void follow_panel(const appconf_t *before, const appconf_t *now)
     display_set_policy(&policy);
 }
 
-static void follow_clock(const appconf_t *before, const appconf_t *now)
+static void follow_services(const appconf_t *before, const appconf_t *now)
 {
+    if (before->log_level != now->log_level || before->log_enabled != now->log_enabled) {
+        esp_log_level_set("*", (esp_log_level_t)(now->log_enabled ? now->log_level : APPCONF_LOG_NONE));
+    }
     if (strcmp(before->tz, now->tz) != 0) {
         net_time_set_zone(now->tz);
     }
@@ -190,10 +195,15 @@ void app_main(void)
     settings_start(device_id);
     /* The clock first: whoever follows the settings after it reads the time
      * in the zone just set. */
-    settings_watch(follow_clock);
+    settings_watch(follow_services);
     static appconf_t settings; /* as they are at start: what is told once is told from here */
     settings_read(&settings);
     const appconf_t *cfg = &settings;
+    _Static_assert((int)APPCONF_LOG_INFO == (int)ESP_LOG_INFO &&
+                   (int)APPCONF_LOG_WARN == (int)ESP_LOG_WARN &&
+                   (int)APPCONF_LOG_ERROR == (int)ESP_LOG_ERROR &&
+                   (int)APPCONF_LOG_NONE == (int)ESP_LOG_NONE, "log levels must match ESP-IDF");
+    esp_log_level_set("*", (esp_log_level_t)(cfg->log_enabled ? cfg->log_level : APPCONF_LOG_NONE));
     ESP_LOGI(TAG, "device %s: name \"%s\", hostname %s.local",
              device_id, cfg->device_name, cfg->hostname);
 
@@ -212,6 +222,7 @@ void app_main(void)
     storage_start();
     app_code_start();
     glyphs_start();
+    app_install_start();
 
     wifi_config_in_t wifi = {
         .ssid = cfg->wifi_ssid,
@@ -233,6 +244,7 @@ void app_main(void)
      * still works before it is kept. */
     ota_start(cfg->wifi_ssid[0] != '\0');
     web_server_start();
+    app_update_start();
 #ifdef CONFIG_APP_DEV_CONSOLE
     devconsole_start();
 #endif

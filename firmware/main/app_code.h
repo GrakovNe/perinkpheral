@@ -31,9 +31,10 @@ extern "C" {
 void app_code_start(void);
 
 /* The module of the application, where it is mapped; NULL when it has
- * none here. The pointer is good until the list of applications is read
+ * none here, its package is incomplete, or its newer file remains unadopted.
+ * The pointer is good until the list of applications is read
  * anew: app_code_adopt() may move it. */
-const uint8_t *app_code_find(const char *app_name, size_t *size);
+const uint8_t *app_code_find(const char *apps_root, const char *app_name, size_t *size);
 
 /* Whether a module of so many bytes would find room, the one the
  * application has now given up for it: in one piece, or after the rest

@@ -1,18 +1,13 @@
 # Threats
 
-What the device has that is worth taking, who could take it, what stands in the way today
-and what does not. Checked against the current code: every
-"holds" below names what enforces it, and every "does not hold" is a thing an attacker can
-do now. `CLAUDE.md` is the specification; where this file says the code falls short of it,
-the accepted scope is recorded below.
-
-Nothing here has been tried by anybody who meant harm. It is a reading.
+Assets, threats, implemented controls and accepted limitations.
+This assessment is based on code review, not adversarial testing.
+`CLAUDE.md` defines the project scope; accepted tradeoffs are recorded below.
 
 ## What is worth taking
 
-1. **The secrets of applications**: a Home Assistant token that can do anything in the
-   house, a calendar's private address. In the `appkv` partition, in the
-   clear.
+1. **Application credentials**: the Home Assistant integration's screen secret,
+   private calendar URLs and other application tokens. Stored unencrypted in `appkv`.
 2. **The Wi-Fi password.** In the `nvs` partition, in the clear.
 3. **The device itself**: what runs on it, what it shows, whether it still answers.
 4. **A foothold in the home network**: the device makes requests from inside it.
@@ -22,7 +17,7 @@ Nothing here has been tried by anybody who meant harm. It is a reading.
 
 ### An application the user installed
 
-It is not trusted, and it is the attacker the design was built against.
+Applications are untrusted. The interpreter and host API enforce their isolation.
 
 Holds:
 - It runs in the interpreter with 64 KB of its own. Every pointer, length and coordinate
@@ -44,8 +39,8 @@ Does not hold:
   list before installation.** It reads the token with `kv_get`; `hosts` is its own word; the page says
   nothing about `hosts` before installing, and the catalog's index does not carry them
   (once it is installed, the Info button on its tile does).
-  An application that asks for a Home Assistant token and lists `evil.example` beside
-  `{{server}}` installs with one click. This is the largest hole there is.
+  For example, an application can request a token and list both `{{server}}` and
+  another host in its manifest. Installation does not warn about that destination.
 - It can ask for the screen every 30 seconds, write lines into the log that look like
   the host's, and wear the flash with writes to its store and files. Nuisance, not theft.
 - It can ask the home network: `"hosts": ["192.168.1.1"]` is a manifest like any other.
@@ -88,11 +83,10 @@ Does not hold:
   physical OK after recovery has shown the image's version. Main refuses direct
   firmware uploads; recovery cannot write its own image, the bootloader or the
   partition table through its HTTP API.
-- **They can replace a secret, and move a server.** Settings of an application are
-  written without a question: point HA Companion's `server` at their own machine and the
-  secrets are forgotten, as designed - but the user, seeing "Access denied", types the
-  token in again, and now it goes to them. Adding a catalog and installing from it works
-  the same way without the user at all.
+- **They can change application credentials and servers.** The settings API does not
+  require confirmation. A network peer can disrupt pairing or redirect later requests.
+  Changing a server clears stored secrets; HA Companion's hidden fields are normally
+  provisioned by its integration. A peer can also add a catalog and install an application.
 - **The page is plain `http`.** A token typed into it crosses the network in the clear.
 - In a build with the development tools (`APP_DEV_CONSOLE`, on by default): `/api/dev/flash`
   refuses direct updates (recovery requires physical OK), `/api/dev/kv` writes any key of any
@@ -111,16 +105,15 @@ Does not hold:
   checks and physical confirmation; it has no settings, application or development
   API. It reads saved settings and glyph packs without modifying them.
 
-### Somebody with the device in their hands
+### Somebody with physical access
 
-- Nothing holds. The flash is not encrypted and the boot is not verified: a cable reads
-  the Wi-Fi password and every token, and writes any firmware. The buttons reach
-  everything in Settings. For a thing on a desk at home this is accepted; it should be
-  said to whoever builds one.
+- Flash encryption and secure boot are not enabled. USB access allows reading stored
+  credentials and replacing firmware. The buttons provide access to Settings.
+  Physical access is outside the project's accepted protection scope.
 
 ### A server the device talks to
 
-Holds: HTTPS is verified against the browsers' roots; an answer over 256 KB is cut off, 4 MB for one handed on in pieces; a
+Holds: HTTPS is verified against ESP-IDF's root certificate bundle; an answer over 256 KB is cut off, 4 MB for one handed on in pieces; a
 JSON answer is picked apart by the host in a stream, with bounds; text that is not ASCII
 is drawn from glyph packs, spelled in ASCII or shown as `?`, never run.
 
@@ -137,13 +130,11 @@ same trick as above, played on a user who trusts the form.
 
 ## The level, and what follows from it
 
-The owner's word (2026-11-13): this is a display on a desk at home. Nobody jams a Wi-Fi
-network or sits in the house's network to take a token from it, and the device is not
-defended against that. What is written above stays as a description of how things are,
-not as a list of work.
+The accepted scope, set on 2026-11-13, trusts the local network and physical access.
+It does not defend against radio jamming or a malicious network peer. The limitations
+above describe that scope; they are not a backlog of promised protections.
 
-One attacker is real at this level, because it needs nobody near the house: **an
-application from somebody else's catalog**. Against it:
+The sandbox addresses **untrusted applications from third-party catalogs**:
 
 1. **The owner's decision, 2026-11-13.** **What an application is, in words, for whoever
    wants to look**: a button on its tile beside the gear opens its manifest as a person

@@ -24,6 +24,8 @@ extern "C" {
 #define APPCONF_CITY_MAX   31 /* a city of Settings' list, by its English name */
 #define APPCONF_APP_NAME_MAX 13 /* an application's name: MANIFEST_NAME_MAX */
 
+enum { APPCONF_LOG_NONE, APPCONF_LOG_ERROR, APPCONF_LOG_WARN, APPCONF_LOG_INFO };
+
 #define APPCONF_NTP_DEFAULT     "pool.ntp.org"
 #define APPCONF_TZ_DEFAULT      "UTC0"
 
@@ -93,6 +95,9 @@ typedef struct {
     uint8_t  font;                  /* the typeface: 0 Departure Mono, 1 Jersey */
     uint8_t  dither;                /* 1: applications' greys are dithered; 0: black or white */
     uint8_t  time_auto;             /* 1: the clock is set from the network; 0: by hand */
+    uint8_t  log_enabled;           /* 0: suppress ordinary logs regardless of level */
+    uint8_t  log_level;             /* host log threshold; applied without restarting */
+    uint8_t  app_auto_update;       /* host-only daily catalog updates */
     uint8_t  power_saving;          /* an APPCONF_POWER_*: plugged in, from its battery, or
                                        from its battery and asleep between polls */
 

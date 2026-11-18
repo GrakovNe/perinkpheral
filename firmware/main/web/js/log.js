@@ -42,18 +42,12 @@ function logRow(line) {
   return row;
 }
 
-function drawLogCount(shown) {
-  const lines = logLines.filter(line => !line.restart).length;
-  show("log-count", logSearched() ? t("{0} of {1}", shown, lines) : lines ? t("{0} lines", lines) : "");
-}
-
 /* The whole log anew: a search changed, or lines were let go of. */
 function drawLog() {
   const view = byId("log-lines"), wanted = logSearched();
   const rows = logLines.filter(line => logMatches(line, wanted)).map(logRow);
   view.replaceChildren(...rows);
   if (!rows.length) view.append(make("p", { className: "note", textContent: t(logLines.length ? "Nothing found." : "Empty.") }));
-  drawLogCount(rows.filter(row => !row.classList.contains("restart")).length);
   view.scrollTop = view.scrollHeight;
 }
 
@@ -68,7 +62,6 @@ function addLogLines(lines) {
   }
   view.querySelector(":scope > .note")?.remove();
   view.append(...lines.filter(line => logMatches(line, wanted)).map(logRow));
-  drawLogCount(view.querySelectorAll(".log-row:not(.restart)").length);
   /* A reader who scrolled up to read is left where they are. */
   if (atEnd) view.scrollTop = view.scrollHeight;
 }

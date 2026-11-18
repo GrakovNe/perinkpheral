@@ -25,6 +25,28 @@ static const char *TAG = "settings";
 #define KEY_LAST_APP   "last_app"
 #define KEY_SOURCES    "sources"
 #define KEY_MENU_ORDER "menu_order"
+#define KEY_APP_UPDATE "app_update_time"
+
+uint32_t settings_load_app_update_time(void)
+{
+    nvs_handle_t handle;
+    uint32_t seconds = 0;
+    if (nvs_open(CFG_NS, NVS_READONLY, &handle) == ESP_OK) {
+        nvs_get_u32(handle, KEY_APP_UPDATE, &seconds);
+        nvs_close(handle);
+    }
+    return seconds;
+}
+
+bool settings_save_app_update_time(uint32_t seconds)
+{
+    nvs_handle_t handle;
+    if (nvs_open(CFG_NS, NVS_READWRITE, &handle) != ESP_OK) return false;
+    esp_err_t result = nvs_set_u32(handle, KEY_APP_UPDATE, seconds);
+    if (result == ESP_OK) result = nvs_commit(handle);
+    nvs_close(handle);
+    return result == ESP_OK;
+}
 
 void settings_nvs_init(void)
 {

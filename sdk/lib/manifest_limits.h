@@ -19,6 +19,7 @@
 #define MANIFEST_TITLE_MAX   23
 #define MANIFEST_DESCRIPTION_MAX 95 /* what the application does, in a line: the catalog shows it */
 #define MANIFEST_VERSION_MAX 15
+#define MANIFEST_AUTHOR_MAX 63 /* UTF-8 bytes */
 
 /* Polls. */
 #define MANIFEST_POLLS_MAX        4

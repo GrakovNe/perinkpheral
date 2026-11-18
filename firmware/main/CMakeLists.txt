@@ -1,6 +1,7 @@
 set(srcs "main.c" "settings.c" "reset.c" "crash_note.c" "flash_budget.c" "deadline_budget.c" "events.c" "timers.c" "host.c" "host_notices.c" "host_apps.c" "app_host.c" "app_system.c" "app_kv.c" "app_code.c" "glyphs.c"
          "storage.c" "sysinfo.c" "status.c" "screens.c" "header.c" "menu_order.c" "ota.c" "web_server.c" "web_util.c" "web_apps.c" "log_ring.c" "log_capture.c"
-         "scene_menu.c" "scene_splash.c" "scene_storage.c" "scene_confirm.c" "scene_notify.c" "scene_working.c" "launcher.c" "poller.c" "poller_net.c" "image_layout.c" "power.c" "memory.c")
+         "scene_menu.c" "scene_splash.c" "scene_storage.c" "scene_confirm.c" "scene_notify.c" "scene_working.c" "launcher.c" "poller.c" "poller_net.c" "image_layout.c" "power.c" "memory.c"
+         "app_install.c" "app_update.c")
 if(CONFIG_APP_DEV_CONSOLE)
     list(APPEND srcs "devconsole.c" "devtools.c")
 endif()
@@ -18,7 +19,7 @@ idf_component_register(SRCS ${srcs}
 # browser as it is: every browser unpacks gzip.
 set(web_dir "${CMAKE_CURRENT_LIST_DIR}/web")
 file(GLOB_RECURSE web_parts CONFIGURE_DEPENDS "${web_dir}/*.html" "${web_dir}/*.css" "${web_dir}/*.js" "${web_dir}/*.woff2"
-                                              "${CMAKE_CURRENT_LIST_DIR}/../../tools/cli/src/main/kotlin/org/perinkpheral/cli/FirmwareTools.kt"
+                                              "${CMAKE_CURRENT_LIST_DIR}/../../tools/cli/src/main/kotlin/dev/perinkpheral/cli/FirmwareTools.kt"
                                               "${CMAKE_CURRENT_LIST_DIR}/../system/settings/cities.json"
                                               "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/catalog.h"
                                               "${CMAKE_CURRENT_LIST_DIR}/../../sdk/lib/manifest_limits.h")

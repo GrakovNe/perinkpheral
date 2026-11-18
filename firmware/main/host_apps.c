@@ -122,6 +122,14 @@ void host_reload_apps(void)
     tell_new_versions();
 }
 
+void host_open_installed_app(const char *app_name)
+{
+    scene_t *scene = launcher_app_scene(app_name);
+    if (scene != NULL) {
+        host_open_from_menu(scene);
+    }
+}
+
 static bool s_reload_is_due;
 /* An application another one asked to remove: not from inside that one's handler, where
  * closing the scene removed could unload the interpreter running the handler. */

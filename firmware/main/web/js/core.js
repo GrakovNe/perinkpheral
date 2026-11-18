@@ -214,7 +214,7 @@ function showSection() {
   else openInside(inside);
   for (const section of document.querySelectorAll("section"))
     section.classList.toggle("current", section.dataset.section === name);
-  for (const link of document.querySelectorAll("nav a:not(.brand)")) {
+  for (const link of document.querySelectorAll("nav .links a")) {
     link.classList.toggle("current", link.hash === "#" + name);
     /* On a phone the menu is a line that scrolls: the section open is brought into it. */
     if (link.hash === "#" + name)

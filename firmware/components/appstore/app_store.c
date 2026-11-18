@@ -5,6 +5,7 @@
 #include "app_store.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,7 @@
 #define MANIFEST_MAX_BYTES (8 * 1024)
 #define PATH_MAX_BYTES     APP_STORE_PATH_MAX
 #define INCOMING_SUFFIX    ".new"
+#define COMMIT_MARK        ".commit"
 #define FOLDER_MODE        0755
 
 /* The whole file plus a terminator, in memory the caller frees. NULL when
@@ -52,11 +54,21 @@ static bool path_of(char *path, const char *root, const char *name, const char *
     return written > 0 && written < PATH_MAX_BYTES;
 }
 
+bool app_store_is_ready(const char *root, const char *name)
+{
+    char path[PATH_MAX_BYTES];
+    struct stat found;
+    if (!app_manifest_is_valid_name(name) || !path_of(path, root, name, COMMIT_MARK)) {
+        return false;
+    }
+    return stat(path, &found) != 0 && errno == ENOENT;
+}
+
 static bool read_manifest(const char *root, const char *folder, app_manifest_t *manifest)
 {
     char path[PATH_MAX_BYTES];
     size_t size;
-    uint8_t *json = path_of(path, root, folder, MANIFEST_FILE)
+    uint8_t *json = app_store_is_ready(root, folder) && path_of(path, root, folder, MANIFEST_FILE)
                         ? read_file(path, MANIFEST_MAX_BYTES, &size)
                         : NULL;
     if (json == NULL) {
@@ -100,15 +112,15 @@ void app_store_sort_by_title(app_manifest_t *manifests, int count)
 uint8_t *app_store_read_module(const char *root, const char *name, size_t *size)
 {
     char path[PATH_MAX_BYTES];
-    return path_of(path, root, name, MODULE_FILE) ? read_file(path, APP_MODULE_MAX_BYTES, size)
-                                                  : NULL;
+    return app_store_is_ready(root, name) && path_of(path, root, name, MODULE_FILE)
+               ? read_file(path, APP_MODULE_MAX_BYTES, size) : NULL;
 }
 
 char *app_store_read_manifest(const char *root, const char *name)
 {
     char   path[PATH_MAX_BYTES];
     size_t size;
-    if (!app_manifest_is_valid_name(name) || !path_of(path, root, name, MANIFEST_FILE)) {
+    if (!app_store_is_ready(root, name) || !path_of(path, root, name, MANIFEST_FILE)) {
         return NULL;
     }
     return (char *)read_file(path, MANIFEST_MAX_BYTES, &size);
@@ -119,7 +131,7 @@ char *app_store_read_translation(const char *root, const char *name, const char 
     char   file[APP_FILE_NAME_MAX + 1];
     char   path[PATH_MAX_BYTES];
     size_t size;
-    if (!app_manifest_is_valid_name(name) ||
+    if (!app_store_is_ready(root, name) ||
         snprintf(file, sizeof file, "manifest.%s", language) >= (int)sizeof file ||
         !app_store_is_file_name(file) || !path_of(path, root, name, file)) {
         return NULL;
@@ -202,7 +214,6 @@ bool app_store_commit_file(const char *root, const char *name, const char *file)
  * one whose new files were all here and checked, and the rest of them are
  * put in place then. Without the mark, new files are what a download left
  * unfinished, and go. The mark's name is none a file may have. */
-#define COMMIT_MARK ".commit"
 
 static bool is_incoming(const char *file)
 {
@@ -211,22 +222,30 @@ static bool is_incoming(const char *file)
            strcmp(file + length - (sizeof INCOMING_SUFFIX - 1), INCOMING_SUFFIX) == 0;
 }
 
-/* The name of one new file in the folder; false when there is none. */
-static bool find_incoming(const char *folder, char file[APP_STORE_PATH_MAX])
+/* One new file, no more files, or an unreadable directory. */
+static int find_incoming(const char *folder, char file[APP_STORE_PATH_MAX])
 {
     DIR *directory = opendir(folder);
     if (directory == NULL) {
-        return false;
+        return -1;
     }
-    bool           found = false;
-    struct dirent *entry;
-    while (!found && (entry = readdir(directory)) != NULL) {
+    int found = 0;
+    for (;;) {
+        errno = 0;
+        struct dirent *entry = readdir(directory);
+        if (entry == NULL) {
+            found = errno == 0 ? 0 : -1;
+            break;
+        }
         if (is_incoming(entry->d_name) && strlen(entry->d_name) < APP_STORE_PATH_MAX) {
             strcpy(file, entry->d_name);
-            found = true;
+            found = 1;
+            break;
         }
     }
-    closedir(directory);
+    if (closedir(directory) != 0) {
+        return -1;
+    }
     return found;
 }
 
@@ -245,7 +264,8 @@ static bool replace_with(const char *incoming, const char *installed)
 static bool settle_incoming(const char *folder, bool keeps)
 {
     char file[APP_STORE_PATH_MAX];
-    while (find_incoming(folder, file)) {
+    int found;
+    while ((found = find_incoming(folder, file)) > 0) {
         char incoming[2 * PATH_MAX_BYTES], installed[2 * PATH_MAX_BYTES];
         snprintf(incoming, sizeof incoming, "%s/%s", folder, file);
         snprintf(installed, sizeof installed, "%s/%.*s", folder,
@@ -254,7 +274,7 @@ static bool settle_incoming(const char *folder, bool keeps)
             return false;
         }
     }
-    return true;
+    return found == 0;
 }
 
 static bool folder_of(char folder[PATH_MAX_BYTES], char mark[PATH_MAX_BYTES + sizeof COMMIT_MARK],
@@ -292,8 +312,15 @@ bool app_store_drop_incoming(const char *root, const char *name)
      * mark says so. Left in place, the mark would vouch at the next start
      * for whatever this install leaves half-written. */
     struct stat found;
-    if (stat(mark, &found) == 0 && (!settle_incoming(folder, true) || remove(mark) != 0)) {
+    if (stat(mark, &found) == 0) {
+        return settle_incoming(folder, true) && remove(mark) == 0;
+    }
+    if (errno != ENOENT) {
         return false;
+    }
+    /* A first install has no folder yet. */
+    if (stat(folder, &found) != 0) {
+        return errno == ENOENT;
     }
     return settle_incoming(folder, false);
 }
@@ -312,6 +339,9 @@ void app_store_recover(const char *root)
         }
         struct stat found;
         bool        was_commit_interrupted = stat(mark, &found) == 0;
+        if (!was_commit_interrupted && errno != ENOENT) {
+            continue;
+        }
         if (settle_incoming(folder, was_commit_interrupted) && was_commit_interrupted) {
             remove(mark);
         }

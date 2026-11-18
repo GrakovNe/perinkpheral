@@ -4,6 +4,8 @@
 #include <string.h>
 #include <strings.h>
 #include "board.h"
+#include "captive_dns.h"
+#include "captive_portal.h"
 #include "deadlines.h"
 #include "display.h"
 #include "gfx.h"
@@ -88,8 +90,33 @@ static esp_err_t failure(httpd_req_t *request, const char *message)
     return ESP_FAIL;
 }
 
+static bool should_open_portal(httpd_req_t *request)
+{
+    char host[128] = "", address[16];
+    httpd_req_get_hdr_value_str(request, "Host", host, sizeof host);
+    station_address(address, sizeof address);
+    return request->method == HTTP_GET &&
+           captive_portal_redirect(true, host, request->uri, address, settings.hostname);
+}
+
+static esp_err_t open_portal(httpd_req_t *request)
+{
+    httpd_resp_set_status(request, "302 Found");
+    httpd_resp_set_hdr(request, "Location", CAPTIVE_PORTAL_URL);
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_send(request, NULL, 0);
+}
+
+static esp_err_t page_not_found(httpd_req_t *request, httpd_err_code_t error)
+{
+    (void)error;
+    if (should_open_portal(request)) { return open_portal(request); }
+    return httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
+}
+
 static esp_err_t get_page(httpd_req_t *request)
 {
+    if (should_open_portal(request)) { return open_portal(request); }
     if (!own_request(request)) { return failure(request, "Forbidden."); }
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
@@ -219,6 +246,9 @@ static void start_network(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_ap();
+    static const uint8_t portal_address[] = { 192, 168, 4, 1 };
+    captive_dns_start(portal_address);
+    captive_dns_enable(true);
     if (settings.wifi_ssid[0]) {
         station = esp_netif_create_default_wifi_sta();
         ESP_ERROR_CHECK(esp_netif_set_hostname(station, settings.hostname));
@@ -248,6 +278,10 @@ static void start_network(void)
         }
     }
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(BOARD_WIFI_TX_POWER_DBM * 4));
+    int8_t tx_power;
+    ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&tx_power));
+    ESP_LOGI("recovery", "TX power limit: %d quarter-dBm", tx_power);
     boot_id = esp_random();
     if (mdns_init() == ESP_OK) {
         if (mdns_hostname_set(settings.hostname) != ESP_OK ||
@@ -271,6 +305,7 @@ static void start_network(void)
     for (size_t index = 0; index < sizeof routes / sizeof routes[0]; index++) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(server, &routes[index]));
     }
+    ESP_ERROR_CHECK(httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, page_not_found));
 }
 
 static bool due(void) { return true; }

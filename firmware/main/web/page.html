@@ -27,7 +27,7 @@
   <a href="#settings">Settings</a>
   <a href="#about">Credits</a>
   </div>
-  <p translate="no"><span id="nav-name"></span><br><span id="nav-firmware"></span></p>
+  <p translate="no"><a id="nav-name" href="https://perinkpheral.dev" target="_blank" rel="noopener"></a><br><a id="nav-firmware" href="https://github.com/GrakovNe/perinkpheral/releases" target="_blank" rel="noopener"></a></p>
 </nav>
 <main>
 
@@ -35,6 +35,7 @@
   <div class="head">
     <h2>Installed apps</h2>
     <span class="count" id="app-count"></span>
+    <button class="quiet toggle" id="auto-update-apps" aria-pressed="false">Auto-update</button>
     <button class="quiet" id="update-all" hidden>Update all</button>
   </div>
   <div class="tiles" id="tiles"><p class="note">Loading</p></div>
@@ -75,7 +76,6 @@
     <div class="head"><h2>Firmware</h2></div>
     <dl class="ota">
       <dt>Version</dt><dd id="ota-installed"></dd>
-      <dt>Slot</dt><dd id="ota-slot"></dd>
     </dl>
 
     <h3>OTA</h3>
@@ -98,7 +98,6 @@
 <section data-section="log">
   <div class="head">
     <h2>Log</h2>
-    <span class="count" id="log-count"></span>
   </div>
   <div class="search">
     <label for="log-search">Search</label>
@@ -139,6 +138,7 @@
     <button data-pane="display">Display</button>
     <button data-pane="network">Network</button>
     <button data-pane="language">Language</button>
+    <button data-pane="logging">Log</button>
   </div>
 
   <form class="pane" id="general">
@@ -161,6 +161,17 @@
       <option value="0">Disabled</option>
       <option value="1">Always</option>
       <option value="2">Auto</option>
+    </select>
+    <button>Save</button>
+  </form>
+
+  <form class="pane" id="logging">
+    <button type="button" class="quiet toggle" id="log_enabled" aria-pressed="true">Logging enabled</button>
+    <label for="log_level">Log level</label>
+    <select id="log_level">
+      <option value="1">Errors</option>
+      <option value="2">Warnings</option>
+      <option value="3">Information</option>
     </select>
     <button>Save</button>
   </form>
@@ -217,8 +228,15 @@
     <dl class="panel" id="network-now"></dl>
     <form id="wifi">
       <h3>Change network</h3>
-      <label for="ssid">SSID</label>
-      <input id="ssid" maxlength="32" autocomplete="off" required>
+      <label for="wifi-networks">Wi-Fi network</label>
+      <div class="rows"><div>
+        <select id="wifi-networks" required></select>
+        <button type="button" class="quiet" id="scan-networks">Scan networks</button>
+      </div></div>
+      <div id="wifi-manual" hidden>
+        <label for="ssid">SSID</label>
+        <input id="ssid" maxlength="32" autocomplete="off">
+      </div>
       <label for="password">Password</label>
       <input id="password" type="password" maxlength="64" autocomplete="off">
       <button>Connect</button>
@@ -295,7 +313,7 @@
 <div class="toasts" id="toasts"></div>
 
 <!-- data: CITIES ../../system/settings/cities.json -->
-<!-- defines: ../../components/appstore/include/catalog.h CATALOG_INSTALLED_MAX CATALOG_SOURCES_MAX ../../../sdk/lib/manifest_limits.h MANIFEST_SETTING_VALUE_MAX MANIFEST_LIST_ITEM_MAX -->
+<!-- defines: ../../components/appstore/include/catalog.h CATALOG_INSTALLED_MAX CATALOG_SOURCES_MAX ../../../sdk/lib/manifest_limits.h MANIFEST_SETTING_VALUE_MAX MANIFEST_LIST_ITEM_MAX MANIFEST_AUTHOR_MAX -->
 <!-- script: js/i18n.js js/core.js js/compatibility.js js/apps.js js/device.js js/log.js js/settings.js js/main.js -->
 </body>
 </html>

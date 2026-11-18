@@ -5,6 +5,7 @@
 #include "app_manifest.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "host_api.h"
 #include "tinytest.h"
@@ -83,6 +84,36 @@ static void test_other_fields(void)
           APP_MANIFEST_BAD_FIELD);
     /* a zero inside a string would cut it short unnoticed */
     CHECK(parse("{\"name\":\"good\\u0000x\",\"title\":\"T\",\"abi\":3}") != APP_MANIFEST_OK);
+}
+
+static void test_author(void)
+{
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3}") == APP_MANIFEST_OK);
+    CHECK_STR(manifest.author, "");
+    CHECK(parse("{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"author\":\"Иван Иванов\"}") == APP_MANIFEST_OK);
+    CHECK_STR(manifest.author, "Иван Иванов");
+    const char *invalid[] = { "null", "42", "\"\"", "\" Ada\"", "\"Ada \"", "\"Ada\\nLovelace\"", "\"Ada\\u007f\"" };
+    char text[256];
+    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        snprintf(text, sizeof text, "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"author\":%s}", invalid[i]);
+        CHECK(parse(text) == APP_MANIFEST_BAD_FIELD);
+    }
+    char author[APP_AUTHOR_MAX + 2];
+    memset(author, 'a', sizeof author);
+    author[APP_AUTHOR_MAX] = '\0';
+    snprintf(text, sizeof text, "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"author\":\"%s\"}", author);
+    CHECK(parse(text) == APP_MANIFEST_OK);
+    author[APP_AUTHOR_MAX] = 'a';
+    author[APP_AUTHOR_MAX + 1] = '\0';
+    snprintf(text, sizeof text, "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"author\":\"%s\"}", author);
+    CHECK(parse(text) == APP_MANIFEST_BAD_FIELD);
+    /* The limit counts UTF-8 bytes, not displayed characters. */
+    for (size_t i = 0; i < 32; i++) {
+        author[i * 2] = (char)0xd0;
+        author[i * 2 + 1] = (char)0x90;
+    }
+    snprintf(text, sizeof text, "{\"name\":\"a\",\"title\":\"T\",\"abi\":3,\"author\":\"%s\"}", author);
+    CHECK(parse(text) == APP_MANIFEST_BAD_FIELD);
 }
 
 static void test_abi(void)
@@ -495,6 +526,7 @@ int main(void)
     test_name();
     test_title();
     test_other_fields();
+    test_author();
     test_abi();
     test_firmware();
     test_settings();

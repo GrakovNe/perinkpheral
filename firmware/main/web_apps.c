@@ -17,6 +17,7 @@
 #include "app_delivery.h"
 #include "app_kv.h"
 #include "app_code.h"
+#include "app_install.h"
 #include "app_manifest.h"
 #include "app_room.h"
 #include "app_store.h"
@@ -621,7 +622,8 @@ static esp_err_t handle_set_sources(httpd_req_t *request)
 }
 
 /* The source the request names by its number, as an address. */
-static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MAX + 1])
+static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MAX + 1],
+                         int *source_index)
 {
     char number[INT32_TEXT_BYTES];
     if (!web_query_value(request, "source", number, sizeof number)) {
@@ -632,7 +634,11 @@ static bool asked_source(httpd_req_t *request, char source[CATALOG_SOURCE_URL_MA
         return false;
     }
     settings_load_sources(sources, CATALOG_SOURCES_TEXT_MAX);
-    bool found = catalog_source_at(sources, atoi(number), source, CATALOG_SOURCE_URL_MAX + 1);
+    int index = atoi(number);
+    bool found = catalog_source_at(sources, index, source, CATALOG_SOURCE_URL_MAX + 1);
+    if (found && source_index != NULL) {
+        *source_index = index;
+    }
     free(sources);
     return found;
 }
@@ -657,7 +663,7 @@ static bool pass_on(void *context, const uint8_t *piece, size_t length)
 static esp_err_t handle_catalog(httpd_req_t *request)
 {
     char source[CATALOG_SOURCE_URL_MAX + 1], url[CATALOG_URL_MAX + 1];
-    if (!asked_source(request, source) ||
+    if (!asked_source(request, source, NULL) ||
         !catalog_url(source, NULL, CATALOG_INDEX_FILE, url, sizeof url)) {
         return web_send_message(request, "404 Not Found", "error", "Source not found.");
     }
@@ -679,127 +685,6 @@ static esp_err_t handle_catalog(httpd_req_t *request)
     return is_whole ? httpd_resp_send_chunk(request, NULL, 0) : ESP_FAIL;
 }
 
-/* ---- installing one ---- */
-
-typedef struct {
-    FILE                  *file;
-    mbedtls_sha256_context hash;
-    size_t                 received;
-} download_t;
-
-static bool store_piece(void *context, const uint8_t *piece, size_t length)
-{
-    download_t *download = context;
-    download->received += length;
-    return mbedtls_sha256_update(&download->hash, piece, length) == 0 &&
-           fwrite(piece, 1, length, download->file) == length;
-}
-
-/* "0af3…" as the bytes it stands for; false when it is not SHA-256 in hex. */
-static bool read_hash(const char *hex, uint8_t hash[SHA256_BYTES])
-{
-    if (strlen(hex) != 2 * SHA256_BYTES) {
-        return false;
-    }
-    for (int i = 0; i < SHA256_BYTES; i++) {
-        char byte[3] = { hex[2 * i], hex[2 * i + 1], '\0' }, *end;
-        hash[i] = (uint8_t)strtoul(byte, &end, 16);
-        if (*end != '\0') {
-            return false;
-        }
-    }
-    return true;
-}
-
-/* One file of the application from the source to its place on the
- * device, taken only if it is what the index said it would be. The
- * manifest is also read: the device installs nothing it would not list. */
-static const char *install_file(const char *source, const char *app_name, const json_t *entry,
-                                bool *asks_for_system, bool *writes_files)
-{
-    const json_t *name = json_get(entry, "name");
-    const json_t *size = json_get(entry, "size");
-    const json_t *sha256 = json_get(entry, "sha256");
-    uint8_t      wanted_hash[SHA256_BYTES], hash[SHA256_BYTES];
-    char         url[CATALOG_URL_MAX + 1], path[APP_STORE_PATH_MAX];
-    if (!json_is_string(name) || !json_is_number(size) || !json_is_string(sha256) ||
-        !app_store_is_file_name(name->text) || !read_hash(sha256->text, wanted_hash) ||
-        size->number < 1 || size->number > app_store_file_max_bytes(name->text) ||
-        !catalog_url(source, app_name, name->text, url, sizeof url)) {
-        return "Invalid catalog entry.";
-    }
-    if (!app_store_begin_file(STORAGE_APPS_ROOT, app_name, name->text, path)) {
-        return "Storage error.";
-    }
-    download_t download = { .file = fopen(path, "wb") };
-    if (download.file == NULL) {
-        return "Storage error.";
-    }
-    mbedtls_sha256_init(&download.hash);
-    mbedtls_sha256_starts(&download.hash, 0);
-    int  http_status;
-    bool fetched = poller_fetch(url, (size_t)size->number, store_piece, &download,
-                                &http_status);
-    mbedtls_sha256_finish(&download.hash, hash);
-    mbedtls_sha256_free(&download.hash);
-    bool stored = fclose(download.file) == 0;
-    const char *problem = NULL;
-    if (http_status == HOST_FAILED_NO_MEMORY) {
-        problem = FETCH_NO_MEMORY;
-    } else if (!fetched || !stored) {
-        problem = "Download failed.";
-    } else if (download.received != (size_t)size->number ||
-               memcmp(hash, wanted_hash, SHA256_BYTES) != 0) {
-        problem = "Checksum mismatch.";
-    } else if (strcmp(name->text, APP_FILE_MANIFEST) == 0) {
-        /* Still under its temporary name: read it there. */
-        char          *text = malloc(download.received + 1);
-        FILE          *incoming = text != NULL ? fopen(path, "rb") : NULL;
-        app_manifest_t manifest;
-        bool is_read = incoming != NULL &&
-                       fread(text, 1, download.received, incoming) == download.received;
-        if (incoming != NULL) {
-            fclose(incoming);
-        }
-        if (is_read) {
-            text[download.received] = '\0';
-        }
-        app_manifest_result_t result = is_read ? app_manifest_parse(text, &manifest)
-                                               : APP_MANIFEST_NOT_JSON;
-        if (result == APP_MANIFEST_OTHER_ABI) {
-            problem = "Update the app.";
-        } else if (result != APP_MANIFEST_OK || strcmp(manifest.name, app_name) != 0) {
-            problem = "Invalid manifest.";
-        } else if (!app_manifest_runs_on(&manifest, esp_app_get_description()->version)) {
-            problem = "Update the firmware.";
-        } else {
-            *asks_for_system = manifest.system;
-            *writes_files = manifest.writes_files;
-        }
-        free(text);
-    }
-    /* It stays under its temporary name: the host loop puts it in place. */
-    if (problem != NULL) {
-        remove(path);
-    }
-    return problem;
-}
-
-/* Asked of the host loop: what was fetched takes the place of what was
- * there, and the list of applications is read anew - in one step, with
- * nothing of the host looking at the folder meanwhile. */
-typedef struct {
-    const char *app_name;
-    bool        is_done;
-} install_command_t;
-
-static void commit_install(void *argument)
-{
-    install_command_t *command = argument;
-    command->is_done = app_store_commit_all(STORAGE_APPS_ROOT, command->app_name);
-    host_reload_apps();
-}
-
 typedef struct {
     const char *app_name;
     bool        forgets; /* what it stored goes too */
@@ -815,196 +700,46 @@ static void remove_command(void *argument)
 }
 
 
-/* The files as the page read them from the index: the module first, the
- * manifest last, and both there. */
-static bool is_sound_file_list(const json_t *files)
+static const char *confirm_system_install(void)
 {
-    int count = json_is_array(files) ? json_count(files) : 0;
-    if (count < 2 || count > CATALOG_APP_FILES_MAX) {
-        return false;
-    }
-    const json_t *first = json_get(json_at(files, 0), "name");
-    const json_t *last =
-        json_get(json_at(files, count - 1), "name");
-    if (!json_is_string(first) || strcmp(first->text, APP_FILE_MODULE) != 0 ||
-        !json_is_string(last) || strcmp(last->text, APP_FILE_MANIFEST) != 0) {
-        return false;
-    }
-    /* The two have a size, as the room for them is reckoned from it. */
-    const json_t *first_size = json_get(json_at(files, 0), "size");
-    const json_t *last_size = json_get(json_at(files, count - 1), "size");
-    if (!json_is_number(first_size) || first_size->number < 0 ||
-        first_size->number > APP_MODULE_MAX_BYTES || !json_is_number(last_size) ||
-        last_size->number < 0 || last_size->number > app_store_file_max_bytes(APP_FILE_MANIFEST)) {
-        return false;
-    }
-    /* What lies between them is the application's files, and all of them
-     * together have a share, each counted as the whole blocks it takes: a
-     * catalog cannot bring more than an application may write. */
-    long taken = 0;
-    for (int i = 1; i < count - 1; i++) {
-        const json_t *size = json_get(json_at(files, i), "size");
-        /* Bounded before it is made a whole number: a size beyond any
-         * number cannot be one. */
-        if (!json_is_number(size) || size->number < 0 ||
-            size->number > APP_FILES_MAX_BYTES) {
-            return false;
-        }
-        long blocks = ((long)size->number + MANIFEST_FILE_BLOCK_BYTES - 1) /
-                      MANIFEST_FILE_BLOCK_BYTES;
-        taken += blocks * MANIFEST_FILE_BLOCK_BYTES;
-    }
-    return taken <= APP_FILES_MAX_BYTES;
-}
-
-/* What the files of the list take on the device, each in whole blocks:
- * the module's, and the data files' between it and the manifest. */
-static long bytes_in_blocks(double bytes)
-{
-    return ((long)bytes + MANIFEST_FILE_BLOCK_BYTES - 1) / MANIFEST_FILE_BLOCK_BYTES *
-           MANIFEST_FILE_BLOCK_BYTES;
-}
-
-static long data_files_bytes(const json_t *files)
-{
-    long taken = 0;
-    for (int i = 1; i < json_count(files) - 1; i++) {
-        taken += bytes_in_blocks(json_get(json_at(files, i), "size")->number);
-    }
-    return taken;
-}
-
-/* Whether the files promised to the applications that write, the one being
- * installed among them when `writes_files`, and the file system's own
- * spare, are still free beside what is on the device now. An application
- * that is replaced is counted as it will be. */
-static bool files_room_holds(const char *app_name, bool writes_files, long files_bytes,
-                             long more_bytes)
-{
-    int             count;
-    app_manifest_t *installed = read_installed(&count);
-    if (installed == NULL) {
-        return false;
-    }
-    app_room_files_t apps[LAUNCHER_INSTALLED_MAX + 1];
-    int listed = 0;
-    for (int i = 0; i < count; i++) {
-        if (strcmp(installed[i].name, app_name) != 0) {
-            apps[listed++] = (app_room_files_t){
-                installed[i].writes_files,
-                app_store_files_bytes(STORAGE_APPS_ROOT, installed[i].name) };
-        }
-    }
-    free(installed);
-    apps[listed++] = (app_room_files_t){ writes_files, files_bytes };
-    size_t used = 0, total = 0;
-    storage_usage(&used, &total);
-    long free_bytes = (long)total - (long)used;
-    return free_bytes >= more_bytes + app_room_promised(apps, listed) + APP_ROOM_FILES_SPARE_BYTES;
+    host_answer_t answer = host_confirm_on_device(word(WORD_INSTALL), word(WORD_INSTALL_SYSTEM_APP),
+                                                  GFX_ICON_GEAR, word(WORD_INSTALL));
+    return answer == HOST_ANSWER_CONFIRMED ? NULL :
+           answer == HOST_ANSWER_BUSY ? "Device busy." : "Not confirmed.";
 }
 
 static esp_err_t handle_install(httpd_req_t *request)
 {
     char app_name[APP_NAME_BUFFER], source[CATALOG_SOURCE_URL_MAX + 1];
-    if (!asked_source(request, source) || !web_query_value(request, "app", app_name, sizeof app_name) ||
+    int source_index;
+    if (!asked_source(request, source, &source_index) || !web_query_value(request, "app", app_name, sizeof app_name) ||
         !app_manifest_is_valid_name(app_name)) {
         return web_send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
-    int             count;
-    app_manifest_t *installed = read_installed(&count);
-    if (installed == NULL) {
-        return web_send_message(request, "503 Service Unavailable", "error", "Not enough memory.");
-    }
-    free(installed);
-    bool was_installed = is_installed(app_name);
-    char  *body = web_read_body_alloc(request, BODY_MAX);
+    char *body = web_read_body_alloc(request, BODY_MAX);
     json_t *json = body != NULL ? json_parse(body) : NULL;
     free(body);
-    const json_t *files = json_get(json, "files");
-    if (!is_sound_file_list(files)) {
+    const json_t *files = json_get(json, "files"), *version = json_get(json, "version");
+    if (!app_install_files_are_valid(files) || (version != NULL && !json_is_string(version))) {
         json_free(json);
-        return web_send_message(request, "400 Bad Request", "error",
-                            "Invalid request.");
+        return web_send_message(request, "400 Bad Request", "error", "Invalid request.");
     }
-    /* Room, before a byte is fetched: a store for one more (every one has
-     * its store's share kept), its code, and its files beside what is
-     * promised to those that write. Whether it writes itself is known
-     * when its manifest is here. */
-    long module_bytes = (long)json_get(json_at(files, 0), "size")->number;
-    long files_bytes = data_files_bytes(files);
-    long manifest_bytes = bytes_in_blocks(json_get(json_at(files, json_count(files) - 1), "size")->number);
-    /* What an install that failed left behind is not this one's, and is not counted against it. */
-    app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
-    if ((!was_installed && count >= CATALOG_INSTALLED_MAX) ||
-        !app_code_has_room(app_name, (size_t)module_bytes) ||
-        !files_room_holds(app_name, false, files_bytes,
-                          bytes_in_blocks((double)module_bytes) + files_bytes + manifest_bytes)) {
-        json_free(json);
-        return web_send_message(request, "409 Conflict", "error", "Not enough storage.");
-    }
-    const char  *problem = NULL;
-    const json_t *entry;
-    bool         asks_for_system = false, writes_files = false;
-    /* The device stays on the network until the last file is here. */
-    power_hold_radio();
-    json_for_each(entry, files)
-    {
-        problem = install_file(source, app_name, entry, &asks_for_system, &writes_files);
-        if (problem != NULL) {
-            break;
-        }
-    }
-    power_release_radio();
-    /* Here, it takes what it fetched; one that writes has its share kept
-     * from now on. */
-    if (problem == NULL && writes_files &&
-        (files_bytes + manifest_bytes > HOST_FILES_WRITER_MAX || !files_room_holds(app_name, true, files_bytes, 0))) {
-        problem = "Not enough storage."; /* one that writes has 32 KB, its package's files in it */
-    }
-    /* An application with the system API can do what the network may not
-     * do unasked - reset the device, forget its network: installing one is
-     * asked about like those. */
-    if (problem == NULL && asks_for_system) {
-        host_answer_t answer = host_confirm_on_device(word(WORD_INSTALL), word(WORD_INSTALL_SYSTEM_APP),
-                                                      GFX_ICON_GEAR, word(WORD_INSTALL));
-        problem = answer == HOST_ANSWER_CONFIRMED ? NULL
-                  : answer == HOST_ANSWER_BUSY    ? "Device busy."
-                                                  : "Not confirmed.";
-    }
-    if (problem == NULL) {
-        install_command_t command = { .app_name = app_name };
-        if (!events_call(commit_install, &command)) {
-            problem = "Device busy.";
-        } else if (!command.is_done) {
-            problem = "Storage error.";
-        }
-    }
+    app_install_options_t options = {
+        .version = version != NULL ? version->text : NULL,
+        .confirm_system = confirm_system_install,
+    };
+    const char *problem = app_install_run(source, source_index, app_name, files, &options);
     json_free(json);
     if (problem != NULL) {
-        /* What was fetched and not put in place is nothing: a new
-         * application's folder goes, an installed one stays as it was. */
-        if (!was_installed) {
-            remove_command_t undo = { .app_name = app_name };
-            events_call(remove_command, &undo);
-        } else {
-            app_store_drop_incoming(STORAGE_APPS_ROOT, app_name);
-        }
-        ESP_LOGW(TAG, "\"%s\" not installed: %s", app_name, problem);
-        /* Whose fault: the device's being busy, its storage's, its firmware's
-         * being older than the application, or the source's, which sent
-         * something else than its index promised. */
-        bool is_conflict = strcmp(problem, "Not enough storage.") == 0 ||
-                           strcmp(problem, "Update the firmware.") == 0 ||
-                           strcmp(problem, "Update the app.") == 0;
-        const char *status = problem == FETCH_NO_MEMORY ||
-                             strcmp(problem, "Device busy.") == 0      ? "503 Service Unavailable"
+        bool conflict = strcmp(problem, "Not enough storage.") == 0 ||
+                        strcmp(problem, "Update the firmware.") == 0 || strcmp(problem, "Update the app.") == 0;
+        const char *status = strcmp(problem, "Not enough memory.") == 0 || strcmp(problem, "Device busy.") == 0
+                                ? "503 Service Unavailable"
                              : strcmp(problem, "Storage error.") == 0 ? "500 Internal Server Error"
-                             : is_conflict                            ? "409 Conflict"
-                             : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden"
-                                                                      : "502 Bad Gateway";
+                             : conflict ? "409 Conflict"
+                             : strcmp(problem, "Not confirmed.") == 0 ? "403 Forbidden" : "502 Bad Gateway";
         return web_send_message(request, status, "error", problem);
     }
-    ESP_LOGI(TAG, "\"%s\" installed", app_name);
     return web_send_message(request, "200 OK", "ok", "Installed.");
 }
 
@@ -1018,8 +753,13 @@ static esp_err_t handle_remove(httpd_req_t *request)
         return web_send_message(request, "404 Not Found", "error", "App not found.");
     }
     web_query_value(request, "forget", forget, sizeof forget);
+    if (!app_install_begin(NULL)) {
+        return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
+    }
     remove_command_t command = { .app_name = app_name, .forgets = strcmp(forget, "1") == 0 };
-    if (!events_call(remove_command, &command)) {
+    bool answered = events_call(remove_command, &command);
+    app_install_end();
+    if (!answered) {
         return web_send_message(request, "503 Service Unavailable", "error", "Device busy.");
     }
     if (!command.is_done) {

@@ -3,9 +3,12 @@
  * Copyright (c) 2026 GrakovNe
  */
 #include "priorities.h"
+#include "board.h"
 #include "wifi.h"
+#include "wifi_credentials.h"
 
 #include <string.h>
+#include <stdatomic.h>
 
 #include "esp_event.h"
 #include "esp_log.h"
@@ -14,6 +17,7 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/event_groups.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
@@ -29,6 +33,10 @@ static const char *TAG = "wifi";
 #define ACCESS_POINT_CLIENTS    4
 #define EVENT_QUEUE_LENGTH      8
 #define TASK_STACK_BYTES        STACK_WIFI_PLAN
+#define SCAN_WAIT_MS            8000
+#define SCAN_CHANNEL_MS         120
+#define SCAN_HOME_MS            30
+#define SCAN_DONE_BIT           BIT0
 
 static struct {
     char ssid[WIFI_SSID_MAX + 1];
@@ -40,6 +48,13 @@ static struct {
     QueueHandle_t      events;
     bool               access_point_up;
     bool               radio_off; /* the Wi-Fi task's alone */
+    /* Scan holds this while driver work is in progress, delaying retries and
+     * power changes without blocking the ESP event task that completes scans. */
+    SemaphoreHandle_t driver_lock;
+    bool               connecting;
+    EventGroupHandle_t scan_events;
+    atomic_bool        scan_pending;
+    atomic_uint        scan_status;
 
     /* What other tasks may ask about, under the lock. */
     SemaphoreHandle_t lock;
@@ -135,7 +150,27 @@ static void on_station_started(void *arg, esp_event_base_t base, int32_t id, voi
     (void)base;
     (void)id;
     (void)data;
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(BOARD_WIFI_TX_POWER_DBM * 4));
+    int8_t power;
+    ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&power));
+    ESP_LOGI(TAG, "TX power limit: %d quarter-dBm", power);
     post(WIFI_EVENT_STARTED);
+}
+
+static void on_scan_done(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg;
+    (void)base;
+    (void)id;
+    if (!atomic_load(&s_wifi.scan_pending)) {
+        return;
+    }
+    const wifi_event_sta_scan_done_t *done = data;
+    atomic_store(&s_wifi.scan_status, done->status);
+    xEventGroupSetBits(s_wifi.scan_events, SCAN_DONE_BIT);
+    /* Keep a timed-out scan claimed until its final event has been consumed:
+     * a late completion must never wake the next caller. */
+    atomic_store(&s_wifi.scan_pending, false);
 }
 
 void wifi_retry_is_due(void)
@@ -148,8 +183,8 @@ void wifi_retry_is_due(void)
 static void start_access_point(void)
 {
     wifi_config_t config = { 0 };
-    strlcpy((char *)config.ap.ssid, s_wifi.access_point_name, sizeof config.ap.ssid);
-    config.ap.ssid_len = (uint8_t)strlen(s_wifi.access_point_name);
+    config.ap.ssid_len = (uint8_t)wifi_copy_field(config.ap.ssid, sizeof config.ap.ssid,
+                                                s_wifi.access_point_name);
     config.ap.channel = ACCESS_POINT_CHANNEL;
     config.ap.authmode = WIFI_AUTH_OPEN;
     config.ap.max_connection = ACCESS_POINT_CLIENTS;
@@ -183,8 +218,8 @@ static void stop_access_point(void)
 static void connect(void)
 {
     wifi_config_t config = { 0 };
-    strlcpy((char *)config.sta.ssid, s_wifi.ssid, sizeof config.sta.ssid);
-    strlcpy((char *)config.sta.password, s_wifi.password, sizeof config.sta.password);
+    wifi_copy_field(config.sta.ssid, sizeof config.sta.ssid, s_wifi.ssid);
+    wifi_copy_field(config.sta.password, sizeof config.sta.password, s_wifi.password);
     config.sta.threshold.authmode =
         s_wifi.password[0] != '\0' ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
     s_is_looking_in_one_place =
@@ -202,9 +237,7 @@ static void connect(void)
     if (err == ESP_OK) {
         err = esp_wifi_connect();
     }
-    if (err == ESP_ERR_WIFI_CONN) {
-        return; /* an attempt is under way already: its outcome will come */
-    }
+    s_wifi.connecting = err == ESP_OK;
     if (err != ESP_OK) {
         /* The plan hears of it as of any other failed attempt. */
         ESP_LOGW(TAG, "cannot start connecting: %s", esp_err_to_name(err));
@@ -255,6 +288,42 @@ static void publish_phase(bool failed_last)
     }
 }
 
+static void handle_event(wifi_plan_event_t event)
+{
+    if (event == RADIO_OFF_ASKED) {
+        /* Only a device that is where it should be may go dark. */
+        if (!s_wifi.radio_off && s_wifi.plan.has_network &&
+            !wifi_phase_has_access_point(s_wifi.plan.phase)) {
+            s_wifi.radio_off = true;
+            s_wifi.connecting = false;
+            deadlines_cancel(DEADLINE_WIFI_RETRY, 0, 0);
+            esp_wifi_stop();
+        }
+        publish_phase(false);
+        return;
+    }
+    if (event == RADIO_ON_ASKED) {
+        if (s_wifi.radio_off) {
+            s_wifi.radio_off = false;
+            /* A new run of attempts: the old failures are not counted. */
+            wifi_plan_init(&s_wifi.plan, true);
+            esp_wifi_start(); /* and the radio says when it has started */
+        }
+        publish_phase(false);
+        return;
+    }
+    if (s_wifi.radio_off) {
+        return; /* the last words of a radio that was turned off */
+    }
+    if (event == WIFI_EVENT_CONNECTED || event == WIFI_EVENT_DISCONNECTED) {
+        s_wifi.connecting = false;
+    }
+    bool failed = event == WIFI_EVENT_DISCONNECTED;
+    wifi_plan_actions_t actions = wifi_plan_step(&s_wifi.plan, event, now_ms());
+    carry_out(&actions);
+    publish_phase(failed);
+}
+
 static void wifi_task(void *arg)
 {
     (void)arg;
@@ -262,34 +331,9 @@ static void wifi_task(void *arg)
         /* The first event is the radio saying it has started. */
         wifi_plan_event_t event;
         xQueueReceive(s_wifi.events, &event, portMAX_DELAY);
-        if (event == RADIO_OFF_ASKED) {
-            /* Only a device that is where it should be may go dark. */
-            if (!s_wifi.radio_off && s_wifi.plan.has_network &&
-                !wifi_phase_has_access_point(s_wifi.plan.phase)) {
-                s_wifi.radio_off = true;
-                deadlines_cancel(DEADLINE_WIFI_RETRY, 0, 0);
-                esp_wifi_stop();
-            }
-            publish_phase(false);
-            continue;
-        }
-        if (event == RADIO_ON_ASKED) {
-            if (s_wifi.radio_off) {
-                s_wifi.radio_off = false;
-                /* A new run of attempts: the old failures are not counted. */
-                wifi_plan_init(&s_wifi.plan, true);
-                esp_wifi_start(); /* and the radio says when it has started */
-            }
-            publish_phase(false);
-            continue;
-        }
-        if (s_wifi.radio_off) {
-            continue; /* the last words of a radio that was turned off */
-        }
-        bool failed = event == WIFI_EVENT_DISCONNECTED;
-        wifi_plan_actions_t actions = wifi_plan_step(&s_wifi.plan, event, now_ms());
-        carry_out(&actions);
-        publish_phase(failed);
+        xSemaphoreTake(s_wifi.driver_lock, portMAX_DELAY);
+        handle_event(event);
+        xSemaphoreGive(s_wifi.driver_lock);
     }
 }
 
@@ -304,8 +348,11 @@ void wifi_start(const wifi_config_in_t *config)
     s_wifi.phase = s_wifi.plan.phase;
 
     s_wifi.lock = xSemaphoreCreateMutex();
+    s_wifi.driver_lock = xSemaphoreCreateMutex();
+    s_wifi.scan_events = xEventGroupCreate();
     s_wifi.events = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(wifi_plan_event_t));
-    configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL);
+    configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL &&
+                 s_wifi.driver_lock != NULL && s_wifi.scan_events != NULL);
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -329,6 +376,8 @@ void wifi_start(const wifi_config_in_t *config)
                                                         on_station_started, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, on_station_disconnected, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        WIFI_EVENT, WIFI_EVENT_SCAN_DONE, on_scan_done, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                                         on_got_address, NULL, NULL));
     /* The settings are the host's to keep, not the Wi-Fi library's. */
@@ -369,4 +418,83 @@ bool wifi_is_online(void)
     wifi_status_t status;
     wifi_get_status(&status);
     return status.phase == WIFI_PHASE_ONLINE;
+}
+
+wifi_scan_result_t wifi_scan_networks(wifi_network_t *records, uint16_t capacity,
+                                      uint16_t *count)
+{
+    if (count != NULL) {
+        *count = 0;
+    }
+    if (records == NULL || count == NULL || capacity == 0 || s_wifi.driver_lock == NULL) {
+        return WIFI_SCAN_FAILED;
+    }
+    if (capacity > WIFI_SCAN_NETWORKS_MAX) {
+        capacity = WIFI_SCAN_NETWORKS_MAX;
+    }
+    if (xSemaphoreTake(s_wifi.driver_lock, 0) != pdTRUE) {
+        return WIFI_SCAN_BUSY;
+    }
+    if (s_wifi.radio_off || s_wifi.connecting || s_wifi.plan.phase == WIFI_PHASE_CONNECTING ||
+        atomic_load(&s_wifi.scan_pending)) {
+        xSemaphoreGive(s_wifi.driver_lock);
+        return WIFI_SCAN_BUSY;
+    }
+    xEventGroupClearBits(s_wifi.scan_events, SCAN_DONE_BIT);
+    atomic_store(&s_wifi.scan_pending, true);
+    wifi_scan_config_t config = {
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time.active = { .min = 0, .max = SCAN_CHANNEL_MS },
+        .home_chan_dwell_time = SCAN_HOME_MS,
+    };
+    esp_err_t error = esp_wifi_scan_start(&config, false);
+    wifi_scan_result_t result = WIFI_SCAN_FAILED;
+    if (error != ESP_OK) {
+        atomic_store(&s_wifi.scan_pending, false);
+        result = error == ESP_ERR_WIFI_STATE ? WIFI_SCAN_BUSY : WIFI_SCAN_FAILED;
+        ESP_LOGW(TAG, "cannot start network scan: %s", esp_err_to_name(error));
+        goto finished;
+    }
+    EventBits_t completed = xEventGroupWaitBits(s_wifi.scan_events, SCAN_DONE_BIT,
+                                               pdTRUE, pdFALSE, pdMS_TO_TICKS(SCAN_WAIT_MS));
+    if (!(completed & SCAN_DONE_BIT)) {
+        ESP_LOGW(TAG, "network scan timed out");
+        error = esp_wifi_scan_stop();
+        if (error != ESP_OK) {
+            ESP_LOGW(TAG, "cannot stop network scan: %s", esp_err_to_name(error));
+        }
+        goto clear_results;
+    }
+    if (atomic_load(&s_wifi.scan_status) != 0) {
+        goto clear_results;
+    }
+    uint16_t found = 0;
+    if (esp_wifi_scan_get_ap_num(&found) != ESP_OK) {
+        goto clear_results;
+    }
+    for (uint16_t index = 0; index < found; index++) {
+        wifi_ap_record_t access_point;
+        if (esp_wifi_scan_get_ap_record(&access_point) != ESP_OK) {
+            *count = 0;
+            goto clear_results;
+        }
+        wifi_network_t network = {
+            .rssi = access_point.rssi,
+            .secured = access_point.authmode != WIFI_AUTH_OPEN,
+        };
+        memcpy(network.ssid, access_point.ssid, WIFI_SSID_MAX);
+        wifi_networks_add(records, capacity, count, &network);
+    }
+    result = WIFI_SCAN_OK;
+clear_results:
+    /* Single-record reads free each record; also clear on timeout and errors. */
+    error = esp_wifi_clear_ap_list();
+    if (error != ESP_OK) {
+        ESP_LOGW(TAG, "cannot clear network scan: %s", esp_err_to_name(error));
+        result = WIFI_SCAN_FAILED;
+        *count = 0;
+    }
+finished:
+    xSemaphoreGive(s_wifi.driver_lock);
+    return result;
 }
