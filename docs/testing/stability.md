@@ -128,6 +128,31 @@ endurance result. No completed run of the protocol above is recorded here.
 
 ## Recovery qualification
 
+On 2026-11-18 the assembled ESP32-C6 was migrated over USB from 0.1.33 after a
+complete 4 MiB backup. The migration target wrote only bootloader, partition table,
+OTA metadata, recovery and main. A second full flash read after recovery boot
+confirmed byte-for-byte preservation of nvs, phy_init, appkv, appcode, apps and
+glyphs. Recovery connected using the saved WPA3-SAE H2E credentials. An image header
+from the old partition layout was rejected before confirmation or writing. Physical
+BACK started main and main completed probation; host settings were unchanged.
+
+The populated device also exposed heap exhaustion in GET /api/apps with thirteen
+installed applications. The response now serializes one application at a time and
+keeps a compact 1,852-byte metadata snapshot. Allocation-failure checks cover errors
+before the response starts and after its first application: the former returns 503,
+and the latter closes an incomplete response without a final HTTP chunk.
+The fixed debug image, 0.1.34-cb5e2ff, was installed over USB. Its OTA selection
+record was set to NEW over USB for the bench restart, retaining first-boot probation.
+After confirmation, all thirteen application records and host settings matched the
+pre-migration JSON, and the failed-allocation counter remained zero.
+
+The network handoff reached recovery, and a direct HTTP upload reached physical
+confirmation and expired with "Not confirmed" without erasing main. Two CLI attempts
+stopped before confirmation. A regression test reproduced reuse of the handoff's
+keep-alive socket; each OTA POST now owns a fresh client, with deadline and cancellation
+tests against a stalled server. A successful physical OTA upload and the remaining
+qualification cases below are still pending; USB installation is not evidence for them.
+
 The recovery branch changes the update mechanism. Host tests and builds do not qualify
 physical power-loss behavior. Before release, run these on a bench device with backed-up
 settings and applications; the shelf device is not a power-cut test fixture.
