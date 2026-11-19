@@ -81,17 +81,17 @@ were also verified. These checks do not establish what the physical panel shows.
   but frequent maintenance resets prevent a multi-hour stability conclusion. The
   continuous run remains stopped. Follow [the existing plan](stability.md) when asked.
 
-Reviewed changes: firmware PRs [7](https://github.com/GrakovNe/perinkpheral/pull/7),
-[8](https://github.com/GrakovNe/perinkpheral/pull/8),
-[9](https://github.com/GrakovNe/perinkpheral/pull/9),
-[10](https://github.com/GrakovNe/perinkpheral/pull/10);
-apps PRs [6](https://github.com/GrakovNe/perinkpheral-apps/pull/6),
-[7](https://github.com/GrakovNe/perinkpheral-apps/pull/7),
-[8](https://github.com/GrakovNe/perinkpheral-apps/pull/8),
-[9](https://github.com/GrakovNe/perinkpheral-apps/pull/9);
-portal PRs [6](https://github.com/GrakovNe/perinkpheral-dev-portal/pull/6),
-[7](https://github.com/GrakovNe/perinkpheral-dev-portal/pull/7);
-[CLion PR 2](https://github.com/GrakovNe/perinkpheral-clion-plugin/pull/2).
+Reviewed changes: firmware PRs [7](https://github.com/Perinkpheral/perinkpheral/pull/7),
+[8](https://github.com/Perinkpheral/perinkpheral/pull/8),
+[9](https://github.com/Perinkpheral/perinkpheral/pull/9),
+[10](https://github.com/Perinkpheral/perinkpheral/pull/10);
+apps PRs [6](https://github.com/Perinkpheral/perinkpheral-apps/pull/6),
+[7](https://github.com/Perinkpheral/perinkpheral-apps/pull/7),
+[8](https://github.com/Perinkpheral/perinkpheral-apps/pull/8),
+[9](https://github.com/Perinkpheral/perinkpheral-apps/pull/9);
+portal PRs [6](https://github.com/Perinkpheral/perinkpheral-dev-portal/pull/6),
+[7](https://github.com/Perinkpheral/perinkpheral-dev-portal/pull/7);
+[CLion PR 2](https://github.com/Perinkpheral/perinkpheral-clion-plugin/pull/2).
 
 ## Whole-screen inversion
 

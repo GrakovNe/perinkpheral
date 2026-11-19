@@ -96,7 +96,7 @@ async function loadStatus() {
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
   const release = (status.firmware || "").match(/^(\d+\.\d+\.\d+)(?:-debug)?$/);
-  byId("nav-firmware").href = "https://github.com/GrakovNe/perinkpheral/releases" +
+  byId("nav-firmware").href = "https://github.com/Perinkpheral/perinkpheral/releases" +
     (release ? "/tag/v" + release[1] : "");
   show("ota-installed", status.firmware || "");
 }

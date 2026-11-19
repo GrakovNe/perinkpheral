@@ -15,9 +15,9 @@ modules using ABI 3.
 [Firmware documentation](https://perinkpheral.dev/firmware) -
 [Developer documentation](https://perinkpheral.dev/sdk).
 
-Application guide (PDF): [English](https://github.com/GrakovNe/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf),
-[Russian](https://github.com/GrakovNe/perinkpheral/releases/latest/download/perinkpheral-app-guide.ru.pdf).
-Official applications and catalog: [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps).
+Application guide (PDF): [English](https://github.com/Perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf),
+[Russian](https://github.com/Perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.ru.pdf).
+Official applications and catalog: [perinkpheral-apps](https://github.com/Perinkpheral/perinkpheral-apps).
 
 ## Build
 
@@ -39,7 +39,7 @@ make -C firmware/test/host test
 ```
 
 CI builds and tests every push. Each successful push to `main` creates a
-[release](https://github.com/GrakovNe/perinkpheral/releases) with release and debug firmware.
+[release](https://github.com/Perinkpheral/perinkpheral/releases) with release and debug firmware.
 
 Devices with the old two-slot layout need a one-time USB migration. Choose **Keep data**
 in the [web flasher](https://perinkpheral.dev/flash), then press BACK on the device to start
@@ -72,10 +72,10 @@ install the matching main firmware separately when the change needs both.
 
 | Repository | Owns |
 |---|---|
-| [perinkpheral-apps](https://github.com/GrakovNe/perinkpheral-apps) | Applications, their simulator scenarios and the published catalog |
-| [perinkpheral-clion-plugin](https://github.com/GrakovNe/perinkpheral-clion-plugin) | IDE integration using this repository's `tools/core` |
-| [perinkpheral-hacs](https://github.com/GrakovNe/perinkpheral-hacs) | Home Assistant integration for the catalog's HA Companion app |
-| [perinkpheral-dev-portal](https://github.com/GrakovNe/perinkpheral-dev-portal) | The bilingual site, assembly guide and browser flasher |
+| [perinkpheral-apps](https://github.com/Perinkpheral/perinkpheral-apps) | Applications, their simulator scenarios and the published catalog |
+| [perinkpheral-clion-plugin](https://github.com/Perinkpheral/perinkpheral-clion-plugin) | IDE integration using this repository's `tools/core` |
+| [perinkpheral-hacs](https://github.com/Perinkpheral/perinkpheral-hacs) | Home Assistant integration for the catalog's HA Companion app |
+| [perinkpheral-dev-portal](https://github.com/Perinkpheral/perinkpheral-dev-portal) | The bilingual site, assembly guide and browser flasher |
 
 Firmware recovery is part of this repository under `recovery/`; it has no separate
 source repository. Published firmware assets and flasher manifests come from this

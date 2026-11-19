@@ -3,7 +3,7 @@
 Start with the [device guide](https://perinkpheral.dev/start) for assembly,
 [USB flashing](https://perinkpheral.dev/flash) and
 [Wi-Fi and application setup](https://perinkpheral.dev/setup).
-The site's source lives in [perinkpheral-dev-portal](https://github.com/GrakovNe/perinkpheral-dev-portal).
+The site's source lives in [perinkpheral-dev-portal](https://github.com/Perinkpheral/perinkpheral-dev-portal).
 
 ## Source references
 
@@ -27,7 +27,7 @@ The site's source lives in [perinkpheral-dev-portal](https://github.com/GrakovNe
 ## Generated and local material
 
 Guide PDFs are built from the sources above and attached to
-[firmware releases](https://github.com/GrakovNe/perinkpheral/releases/latest).
+[firmware releases](https://github.com/Perinkpheral/perinkpheral/releases/latest).
 They are not committed. Fonts, icon tables, guide screenshots and frozen ABI
 fixtures are deliberate tracked inputs or outputs; see [the checking recipes](../AGENTS.md).
 Do not remove them as build debris.
