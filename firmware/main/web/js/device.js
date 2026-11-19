@@ -318,7 +318,7 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   byId("ota-update").hidden = true;
   latestImage = null;
   if (isNewerOne) {
-    const mirror = "https://grakovne.github.io/perinkpheral/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
+    const mirror = "https://perinkpheral.github.io/perinkpheral/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
     let mirrored;
     try {
       mirrored = await fetch(mirror, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(10000) });
