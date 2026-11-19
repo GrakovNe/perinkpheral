@@ -36,7 +36,7 @@ extern "C" {
 /* The official applications: always the first source, and not one the
  * user can take away. What a device stores is the sources added to it. */
 #define CATALOG_OFFICIAL_SOURCE \
-    "https://raw.githubusercontent.com/GrakovNe/perinkpheral-apps/HEAD/catalog"
+    "https://raw.githubusercontent.com/Perinkpheral/perinkpheral-apps/HEAD/catalog"
 #define CATALOG_ADDED_SOURCES_MAX (CATALOG_SOURCES_MAX - 1)
 
 /* True for a few lines, each an https address in printable ASCII of at
