@@ -14,6 +14,8 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 - The page is usable sooner: the installed apps no longer wait for the list of removed ones, the
   catalog shows what it had at the last visit while the sources are read - nothing is installed
   from it until they answer - and the glyph packs are asked for when Language is opened.
+- A source's address is shown whole in Sources, on as many lines as it takes. The buttons of a
+  dialog stay at its bottom edge when the dialog is taller than the screen.
 
 ## 0.1.67
 

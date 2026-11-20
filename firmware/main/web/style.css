@@ -106,7 +106,7 @@ select { appearance: none; padding-right: 2.4rem; cursor: pointer;
 /* A number is typed, not stepped with the browser's arrows. */
 input[type=number] { -moz-appearance: textfield; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-input:disabled { color: var(--dim); border-color: var(--line); }
+input:disabled, textarea:disabled { color: var(--dim); border-color: var(--line); }
 input::placeholder { color: var(--dim); opacity: 1; }
 /* A box with a square of ink in it, the way the panel would draw one. */
 label.check { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; color: var(--ink);
@@ -138,7 +138,10 @@ label.file .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis;
 .rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; margin-top: .75rem; }
 label + .rows { margin-top: 0; } /* under its label as an input is */
 .rows div { display: flex; gap: .6rem; }
-.rows div > input, .rows div > select { flex: 1; min-width: 0; } /* the field gives way, its button stays whole */
+.rows div > input, .rows div > select, .rows div > textarea { flex: 1; min-width: 0; } /* the field gives way, its button stays whole */
+/* An address is read whole: its field takes the lines it needs, and its button stays at its first. */
+.rows div > textarea { display: block; min-height: 2.75rem; resize: none; overflow: hidden; overflow-wrap: anywhere; }
+.rows div:has(> textarea) { align-items: flex-start; }
 /* A date and time is never cut: without room for both, its button goes under it. */
 .rows div:has(> input[type=datetime-local]) { flex-wrap: wrap; }
 .rows div > input[type=datetime-local] { min-width: 13.5rem; }
@@ -261,7 +264,8 @@ html:lang(ru) pre:empty::before { content: "Пусто."; }
 .keys button.held { background: var(--ink); color: var(--paper); }
 
 /* ---- dialogs: a box above the page ---- */
-dialog { width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 3rem); padding: 1.5rem 1.6rem;
+dialog { --side: 1.6rem; --foot: 1.5rem;
+         width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 3rem); padding: 1.5rem var(--side) var(--foot);
          color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0;
          box-shadow: 8px 8px 0 var(--ink); }
 dialog::backdrop { background: rgba(20, 20, 19, .5); }
@@ -272,13 +276,18 @@ dialog::backdrop { background: rgba(20, 20, 19, .5); }
 .updating h2 { margin-bottom: .5rem; }
 .updating .timer { font-size: 2.75rem; margin: 0 0 .5rem; font-variant-numeric: tabular-nums; }
 .updating p { margin: 0; }
-.updating .buttons { justify-content: center; margin-top: 1.25rem; }
+.updating .buttons { justify-content: center; }
 .ota { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: .9rem; }
 .ota dd { text-align: left; }
 dialog h2 { font-size: 1.35rem; margin-bottom: 1rem; }
 dialog p { margin: 0 0 .5rem; }
 dialog .notes { margin: .75rem 0 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; font: inherit; font-size: .9rem; }
-dialog .buttons { justify-content: flex-end; margin-top: 1.5rem; }
+/* The buttons stand at the dialog's bottom edge, whatever its height: a form taller than the
+ * screen scrolls above them, under a line (core.js says when it is). */
+dialog .buttons { justify-content: flex-end; position: sticky; bottom: calc(-1 * var(--foot)); background: var(--paper);
+                  margin: 1.5rem calc(-1 * var(--side)) calc(-1 * var(--foot)); padding: 0 var(--side) var(--foot); }
+dialog.tall .buttons { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--ink); }
+.updating .buttons { position: static; margin: 1.25rem 0 0; padding: 0; }
 /* What the firmware is made with: a row a part, as the portal lists them. */
 table.credits { width: 100%; border-collapse: collapse; table-layout: fixed; }
 /* The same columns in every table of the page. */
@@ -357,5 +366,6 @@ details[open] summary::before { content: "- "; }
   .log-row { grid-template-columns: auto 1ch minmax(0, 1fr); gap: .5rem; padding: .2rem 1rem; }
   .log-row .text { grid-column: 1 / -1; }
   dialog .buttons > button { padding-left: .5rem; padding-right: .5rem; }
-  dialog { padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink); max-height: calc(100dvh - 2rem); }
+  dialog { --side: 1.25rem; --foot: 1.25rem; padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink);
+           max-height: calc(100dvh - 2rem); }
 }

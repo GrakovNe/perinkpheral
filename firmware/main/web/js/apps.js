@@ -619,7 +619,7 @@ async function loadSources() {
     if (stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
     throw error;
   }
-  editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true,
+  editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true, wraps: true,
                                       input: { placeholder: "https://" } });
 }
 
