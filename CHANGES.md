@@ -16,6 +16,7 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
   `HOST_ERR_NOT_FOUND` and does not restart.
 - The setup access point names its page in the DHCP lease (option 114), for phones that
   read it.
+- The device's page on a phone: rows fold instead of leaving the screen, in both languages.
 
 ## 0.1.65
 
