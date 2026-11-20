@@ -647,7 +647,9 @@ static void ask_network(request_t *request, const char *app_name, int number, in
         tell_failure(app_name, number, wants_values, HOST_FAILED_NOT_ALLOWED);
     } else if (err != ESP_OK || http_status <= 0) {
         int why = why_no_answer(client, err);
-        ESP_LOGW(TAG, "%s/%d: no answer (%d): %s", app_name, number, why, esp_err_to_name(err));
+        /* A poll over a list is one number for every item: which of them did not answer. */
+        ESP_LOGW(TAG, "%s/%d%s%s: no answer (%d): %s", app_name, number,
+                 request->item[0] != '\0' ? " " : "", request->item, why, esp_err_to_name(err));
         note_network_use(false);
         tell_failure(app_name, number, wants_values, why);
     } else {
