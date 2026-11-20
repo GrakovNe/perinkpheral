@@ -179,6 +179,7 @@ static int32_t change(const appconf_t *wanted)
 
 int32_t app_system_time_set(int64_t unix_seconds)
 {
+    status_expect_set();
     if (!net_time_set(unix_seconds)) {
         return HOST_ERR_FAILED;
     }

@@ -343,7 +343,8 @@ function wrappingField(properties) {
   field.addEventListener("keydown", event => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    if (field.form) field.form.requestSubmit();
+    /* With its button named: a submit with no submitter has no button to show the work on. */
+    if (field.form) field.form.requestSubmit(field.form.querySelector("button:not([type])") || undefined);
   });
   /* Its height is known once it is in sight, and changes with its width. */
   new ResizeObserver(fit).observe(field);

@@ -38,6 +38,12 @@ window.addEventListener("hashchange", showSection);
 showPane("general");
 showSection();
 /* What the browser kept of the catalog is in sight before the device is asked anything. */
-showKeptCatalog();
-drawTiles();
+try {
+  showKeptCatalog();
+  drawTiles();
+} catch (error) {
+  /* What was kept cannot be drawn: it is dropped, and the page starts as it does without it. */
+  forgetKeptCatalog();
+  drawTiles();
+}
 loadAll().catch(() => afterRestart("Connecting", 2000));

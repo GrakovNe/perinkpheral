@@ -4,6 +4,8 @@
  */
 #include "status.h"
 
+#include <stdatomic.h>
+
 #include <stdio.h>
 
 #include <string.h>
@@ -87,8 +89,20 @@ static void expect_next_day(void)
     deadlines_set_at(DEADLINE_DATE, 0, 0, (int64_t)mktime(&local) * MS_PER_SECOND);
 }
 
+/* Somebody is setting the clock by hand: the check the clock's own change makes on the way is
+ * theirs too, or a time set within two seconds of the old one waited for the panel's pace. */
+static atomic_bool s_set_by_hand;
+
+void status_expect_set(void)
+{
+    atomic_store(&s_set_by_hand, true);
+}
+
 static void check(event_kind_t tell_as)
 {
+    if (atomic_exchange(&s_set_by_hand, false)) {
+        tell_as = EVENT_STATUS_SET;
+    }
     status_t now;
     status_read(&now);
     /* Whoever calls this may have set the clock or the zone. */

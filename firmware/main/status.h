@@ -35,6 +35,9 @@ void status_check(void);
  * when the panel's pace for data allows - they wait for it. */
 void status_check_set(void);
 
+/* Before the clock is set by hand: the next check is shown at once, whoever makes it. */
+void status_expect_set(void);
+
 #ifdef __cplusplus
 }
 #endif
