@@ -443,6 +443,9 @@ function paceOf(app, every) {
 /* The host of an address; "{{server}}" is wherever the user said the server is. */
 function hostOf(app, address) {
   const key = (address.match(/^\{\{(\w+)\}\}/) || [])[1];
+  /* A host made of a setting inside the address - an item of the user's list - is whatever
+   * the user wrote there: said so, not shown as the template it is in the manifest. */
+  if (!key && /^(?:\w+:\/\/)?[^/]*\{\{\w+\}\}/.test(address)) return t("Set by the user");
   /* An address the device keeps to itself - a calendar's - is named, not shown. */
   if (key && typeof app.values[key] !== "string") {
     const kept = app.settings.find(have => have.key === key);

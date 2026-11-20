@@ -4,6 +4,10 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.72
+
+- An application's info names a host taken from the user's own list as "Set by the user".
+
 ## 0.1.71
 
 - A catalog entry the page cannot draw no longer stops the page, now or at the next visit.

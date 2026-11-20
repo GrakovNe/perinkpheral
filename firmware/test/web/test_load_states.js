@@ -157,6 +157,12 @@ async function testCatalog() {
   assert.equal(context.isDrawable({ name: "a", version: "1", title: 5 }), false);
   assert.equal(context.isDrawable({ name: "a", version: 1 }), false);
   assert.equal(context.isDrawable(null), false);
+  /* Where an application connects: a host of the user's own list is said to be the user's. */
+  context.URL = URL;
+  vm.runInContext(apps.slice(apps.indexOf("function hostOf("), apps.indexOf("function appFacts(")), context);
+  const listed = { settings: [{ key: "services", type: "list" }], values: { services: "a.example\nb.example" } };
+  assert.equal(context.hostOf(listed, "https://{{services}}/api/v2/status.json"), context.t("Set by the user"));
+  assert.equal(context.hostOf(listed, "https://api.example.org/v1?q={{services}}"), "api.example.org");
   context.keepCatalog(null, [], []);
   context.keepCatalog(store, [], [{ source: 0, app: { name: "a", version: "1", description: "x".repeat(200001) } }]);
   assert.equal(kept.has("perinkpheral-catalog"), false, "too large to keep");
