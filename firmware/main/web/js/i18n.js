@@ -71,7 +71,7 @@ const RUSSIAN = {
   "Name": "Название", "Version": "Версия", "Connects to": "Подключается к", "Nothing": "Никуда",
   "Updates": "Обновления", "On request": "По запросу", "None": "Нет",
   "Starts with device": "Запуск с устройством", "System access": "Системный доступ",
-  "Writes files": "Пишет файлы", "Yes, 32 KB": "Да, 32 КБ", "Yes": "Да", "No": "Нет",
+  "Writes files": "Запись файлов", "Set by the user": "Задано пользователем", "Yes, 32 KB": "Да, 32 КБ", "Yes": "Да", "No": "Нет",
   "Own certificate authorities": "Свои центры сертификации", "Screen": "Экран", "Full": "Весь",
   "With header": "С заголовком", "Set up page": "Страница настройки",
   "Every {0}": "Каждые {0}", "settings kept": "настройки сохранены", "needs firmware {0}": "нужна прошивка {0}",
