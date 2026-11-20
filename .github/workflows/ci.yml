@@ -1,6 +1,7 @@
 # Every push and pull request: the host tests and the layers, the applications in the simulator
 # against the pictures kept of them, the firmware built twice - for release, and for debugging
-# with the development tools - and its size against the last build of main.
+# with the development tools, both with the applications firmware/preinstalled.properties
+# names - and its size against the last build of main.
 #
 # Every push to main is a release, once the tests pass: the next version - VERSION, or the last
 # release's with its patch one up, whichever is greater - with both builds and the files of a
@@ -160,11 +161,24 @@ jobs:
       - name: The tools
         shell: bash
         run: tools/perinkpheral > /dev/null
+      # The applications a first flash carries: the catalog repository at the commit the list
+      # pins, read from there and not from the network by the build.
+      - name: The preinstalled applications' pin
+        id: preinstalled
+        shell: bash
+        run: tools/perinkpheral preinstalled pin firmware/preinstalled.properties >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.preinstalled.outputs.repository }}
+          ref: ${{ steps.preinstalled.outputs.commit }}
+          path: preinstalled-catalog
       - name: Build
         shell: bash
         working-directory: firmware
         run: |
           . "$IDF_PATH/export.sh"
+          export PERINKPHERAL_APPS="$GITHUB_WORKSPACE/preinstalled-catalog"
+          git config --global --add safe.directory "$PERINKPHERAL_APPS"
           if [ "${{ matrix.flavor }}" = release ]; then
             # What a device updates itself to: no development tools.
             export APP_VERSION="${{ needs.version.outputs.build }}"
