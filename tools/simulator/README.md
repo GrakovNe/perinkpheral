@@ -8,6 +8,10 @@ UI kit and window manager. It exposes the rendered framebuffer and simulated inp
 It answers on `http://127.0.0.1:8401` as the device does: `tools/perinkpheral --host
 127.0.0.1:8401 shot | press | log | serve`, and the CLion plugin, work against it.
 
+The binary's `--port 0` takes a port of the system's choice and `--port-file <file>` writes
+its number there once the simulator listens. `sim-test` starts every simulator this way, so
+no two of them, and no other program, can be given the same port.
+
 | Device | Simulator |
 |---|---|
 | Panel | a frame in memory, `/api/dev/screen`; its address in a browser shows the page of `perinkpheral serve` - the screen, the buttons, the log, and the requests below as buttons |

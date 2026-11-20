@@ -9,8 +9,8 @@ import dev.perinkpheral.core.device.Bmp
 import dev.perinkpheral.core.device.DeviceButton
 import dev.perinkpheral.core.device.DeviceClient
 import dev.perinkpheral.core.simulator.SimulatorNetwork
+import dev.perinkpheral.core.simulator.SimulatorPort
 import java.io.File
-import java.net.ServerSocket
 import java.nio.file.Files
 import javax.imageio.ImageIO
 
@@ -68,8 +68,6 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
         return File(folder, "build/perinkpheral-sim").path
     }
 
-    private fun freePort(): Int = ServerSocket(0).use { it.localPort }
-
     @Suppress("UNCHECKED_CAST")
     private fun runOne(folder: File, binary: String, update: Boolean): Int {
         val scenario = Json.parse(File(folder, "scenario.json").readText()) as Map<String, Any?>
@@ -82,9 +80,11 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
             (scenario["store"] as? Map<String, Any?>).orEmpty().forEach { (key, value) ->
                 File(store, key.toByteArray().joinToString("") { "%02x".format(it) }).writeText(value.toString())
             }
-            val port = freePort()
+            // The simulator binds a port of the system's choice and says which: one chosen here
+            // and bound there could be taken in between.
+            val portFile = File(state, "sim.port")
             val command = mutableListOf(binary, "--apps", File(state, "apps").path, "--app", name, "--state", state.path,
-                "--port", port.toString(), "--language", scenario["language"] as? String ?: "en",
+                "--port", SimulatorPort.ANY.toString(), "--port-file", portFile.path, "--language", scenario["language"] as? String ?: "en",
                 "--font", scenario["font"] as? String ?: "departure", "--fetcher-port", SimulatorNetwork.port().toString())
             (scenario["at"] as? Long)?.let { command += listOf("--at", it.toString()) }
             if (scenario["clock"] == true) command += "--clock"
@@ -98,8 +98,7 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
             builderOfProcess.environment()["TZ"] = scenario["tz"] as? String ?: "UTC"
             val process = builderOfProcess.start()
             try {
-                val client = DeviceClient("127.0.0.1:$port")
-                waitForStart(client, process, File(state, "sim.log"))
+                val client = waitForStart(portFile, process, File(state, "sim.log"))
                 var shots = 0
                 for (step in (scenario["steps"] as? List<String>).orEmpty()) {
                     val words = step.trim().split(Regex("\\s+"))
@@ -129,14 +128,16 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
         }
     }
 
-    private fun waitForStart(client: DeviceClient, process: Process, log: File) {
+    private fun waitForStart(portFile: File, process: Process, log: File): DeviceClient {
         val deadline = System.currentTimeMillis() + START_TIMEOUT_MS
+        var client: DeviceClient? = null
         while (System.currentTimeMillis() < deadline) {
             if (!process.isAlive) throw BuildError("the simulator stopped: ${log.readText().takeLast(400)}")
-            if (runCatching { client.status() }.isSuccess) {
+            client = client ?: SimulatorPort.read(portFile)?.let { DeviceClient("127.0.0.1:$it") }
+            if (client != null && runCatching { client.status() }.isSuccess) {
                 // As a device after its start: the first frame and the first answers in.
                 Thread.sleep(SETTLE_MS)
-                return
+                return client
             }
             Thread.sleep(POLL_MS)
         }
