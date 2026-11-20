@@ -40,6 +40,7 @@
 #include "timers.h"
 #include "wifi.h"
 #include "wm.h"
+#include "back_switch.h"
 #include "words.h"
 #include "units.h"
 
@@ -210,6 +211,21 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
     host_end_background_answer();
+    /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press. */
+    static back_switch_state_t s_back_switch;
+    back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
+    if (chord == BACK_SWITCH_PREVIOUS || chord == BACK_SWITCH_NEXT) {
+        scene_t *neighbour = scene_menu_neighbour(wm->current, chord == BACK_SWITCH_NEXT ? 1 : -1);
+        if (neighbour != NULL) {
+            ESP_LOGI(TAG, "BACK with button %d: the %s application", index + 1,
+                     chord == BACK_SWITCH_NEXT ? "next" : "previous");
+            host_open_from_menu(neighbour);
+        }
+        return;
+    }
+    if (chord == BACK_SWITCH_SWALLOW) {
+        return;
+    }
     /* The long press on BACK is the user's own way out of anything. */
     bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
     if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {

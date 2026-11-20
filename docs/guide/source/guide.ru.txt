@@ -4395,3 +4395,9 @@ int32_t screen_set_inverted(int32_t inverted)
 
 For authentication across background unloads, save a small session record with kv_set when the session changes, not on every poll. Include the server/account identity and handshake step; restore them on load. Clear the session when settings change or the server rejects it. Declare a cookie field as secret if it belongs in settings; stored values are not encrypted. session_set belongs to a scene and is not a background credential store.
 Для авторизации между фоновыми выгрузками сохраняйте небольшую запись сессии через kv_set при её изменении, а не при каждом опросе. Храните адрес сервера, учётную запись и шаг авторизации; восстанавливайте их при загрузке. Очищайте сессию при смене настроек или отказе сервера. Если поле cookie входит в настройки, объявите его secret; сохранённые значения не зашифрованы. session_set принадлежит сцене и не служит фоновым хранилищем учётных данных.
+
+BACK held, UP or DOWN
+BACK удерживается, UP или DOWN
+
+Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. Not delivered to applications. Firmware 0.1.63
+Обрабатывается Perinkpheral OS: открывает предыдущее или следующее приложение в порядке меню; системные страницы пропускаются. Приложениям не доставляется. Прошивка 0.1.63
