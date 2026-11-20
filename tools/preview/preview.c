@@ -135,7 +135,7 @@ int main(int argc, char **argv)
     if (save(dir, "notice-question")) {
         return 1;
     }
-    const notice_t joining = { .first = "Join", .second = "GrakovNe Home?", .icon = GFX_ICON_SIGNAL,
+    const notice_t joining = { .first = "Join", .second = "Home Wi-Fi?", .icon = GFX_ICON_SIGNAL,
         .ok = "Join", .back = "Cancel" };
     memset(fb, 0xFF, sizeof fb);
     notice_draw(&g, &joining);
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
             return 1;
         }
         const char *const facts[] = { "Network", "Address", "Firmware", "Uptime" };
-        const char *const told[] = { "GrakovNe Home", "192.168.1.70", "0.1.0", "3 h 12 min" };
+        const char *const told[] = { "Home Wi-Fi", "192.168.1.70", "0.1.0", "3 h 12 min" };
         start_screen(&online, &content);
         for (int i = 0; i < 4; i++) {
             list_row_t row = { facts[i], told[i], LIST_NO_ICON, NULL };

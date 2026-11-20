@@ -259,9 +259,11 @@ Code:
   that links it is made from the header), and a case in
   `test/host/apps/probe` with its check in `test_app.c`. An export
   Perinkpheral OS calls is added to the header and called in `appsys/app.c`, whose
-  count of them stops the build until it is. ABI 3 is already frozen:
+  count of them stops the build until it is. ABI 3 is held as frozen:
   changing an existing signature, meaning, privilege, layout or constant
-  requires a new ABI, not just a firmware version. Commands use subject
+  requires a new ABI, not just a firmware version - or, until the first public
+  release, the owner's word and `tools/perinkpheral contract snapshot --unfrozen`.
+  Record every added call with `contract snapshot`: the check refuses an unrecorded one. Commands use subject
   then verb (`kv_get`, `gfx_draw_text`); queries name the subject and what
   is asked (`gfx_width`, `time_now`); events are `app_on_<what happened>`
   (`app_on_load`, `app_on_picked`). ABI 3 requires firmware 0.1.30;

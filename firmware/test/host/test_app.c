@@ -335,7 +335,7 @@ static void test_scene_state(void)
     app_attach_session(app, &session, true);
     app_button(app, 13, BTN_PRESSED);
     app_blur(app);
-    CHECK(session.scene_state_length == HOST_SCENE_STATE_MAX);
+    CHECK(session.length == HOST_SESSION_MAX);
     app_unload(app);
 
     app = load_probe();
@@ -348,7 +348,7 @@ static void test_scene_state(void)
     app_button(app, 15, BTN_PRESSED);
     draw(app);
     CHECK(gfx_get(&surface, 6, ROW_SCENE_STATE));
-    CHECK(session.scene_state_length == 0 && session.scene_state == NULL);
+    CHECK(session.length == 0 && session.bytes == NULL);
     app_unload(app);
 }
 

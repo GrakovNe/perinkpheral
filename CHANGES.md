@@ -4,6 +4,15 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.61
+
+- One session for where the user is: `session_set` / `session_get` keep up to 1024 bytes,
+  allocated when first set. `scene_state_set` / `scene_state_get` are removed; ISS and Life
+  use the session and need this firmware. Update them from the catalog after updating.
+- `contract check` refuses a call that is not recorded in the ABI snapshot;
+  `screen_set_inverted` is now recorded.
+- "Check for updates" asks the Perinkpheral organization's repository.
+
 ## 0.1.57
 
 - Offer English and Russian from the firmware's language list; the device page

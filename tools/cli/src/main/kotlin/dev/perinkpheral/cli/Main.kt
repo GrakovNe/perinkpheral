@@ -181,7 +181,7 @@ private fun simulator(arguments: Arguments): Int {
 }
 
 private fun run(raw: Array<String>): Int {
-    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update", "check"))
+    val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update", "check", "unfrozen"))
     when (arguments.words.firstOrNull()) {
         "build" -> {
             builder().build(File(arguments.word(1, "the application's folder")),
@@ -205,9 +205,10 @@ private fun run(raw: Array<String>): Int {
         "contract" -> {
             val sdk = Sdk(root())
             val action = arguments.word(1, "snapshot or check")
-            if (action !in setOf("snapshot", "check")) fail("contract snapshot|check [--out file]")
+            if (action !in setOf("snapshot", "check")) fail("contract snapshot|check [--out file] [--unfrozen]")
             ContractSnapshot.run(sdk, File(System.getenv("WASI_SDK_PATH") ?: fail("WASI_SDK_PATH is not set")),
-                File(arguments.option("out") ?: File(sdk.sdk, "abi/${sdk.hostApiVersion}.txt").path), action == "check")
+                File(arguments.option("out") ?: File(sdk.sdk, "abi/${sdk.hostApiVersion}.txt").path), action == "check",
+                arguments.has("unfrozen"))
         }
         "check-wasm" -> {
             dev.perinkpheral.core.build.Wasm(File(arguments.word(1, "the module"))).checkTypes(Sdk(root()).contract)

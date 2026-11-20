@@ -7,17 +7,21 @@ import java.security.MessageDigest
 import java.io.File
 import java.nio.file.Files
 
-/** Recorded entries stay fixed; the icon count grows only with appended icon IDs. */
+/** Recorded entries stay fixed; the icon count grows only with appended icon IDs. A check also
+ * fails on an entry of the contract that is not recorded: an unrecorded call could change
+ * unnoticed. Until ABI 3 is frozen, `unfrozen` lets a snapshot rewrite recorded entries. */
 object ContractSnapshot {
     private val ignored = setOf("HOST_IMPORT", "HOST_SYSTEM_IMPORT", "HOST_LAYOUT")
 
-    fun run(sdk: Sdk, wasi: File, out: File, check: Boolean) {
+    fun run(sdk: Sdk, wasi: File, out: File, check: Boolean, unfrozen: Boolean = false) {
         val current = entries(sdk, wasi)
         val packages = File(sdk.sdk, "abi/${sdk.hostApiVersion}")
         val fixtures = File(packages, "fixtures.txt")
         val hashes = fixtureEntries(packages, fixtures)
-        checkRecorded(current, out, check, "Frozen ABI")
-        checkRecorded(hashes, fixtures, check, "Frozen fixtures")
+        if (check || !unfrozen) {
+            checkRecorded(current, out, check, "Frozen ABI")
+            checkRecorded(hashes, fixtures, check, "Frozen fixtures")
+        }
         if (!check) {
             write(current, out, "ABI ${sdk.hostApiVersion}")
             write(hashes, fixtures, "ABI ${sdk.hostApiVersion} fixture hashes")
@@ -36,6 +40,9 @@ object ContractSnapshot {
             if (broken.isNotEmpty()) throw BuildError("$label changed:\n" + broken.entries.joinToString("\n") {
                 "  ${it.key}: recorded ${it.value}; now ${current[it.key] ?: "missing"}"
             })
+            val unrecorded = current.keys - recorded.keys
+            if (check && unrecorded.isNotEmpty()) throw BuildError("$label has unrecorded entries; run " +
+                "tools/perinkpheral contract snapshot:\n" + unrecorded.sorted().joinToString("\n") { "  $it" })
         } else if (check) throw BuildError("Missing $label: ${out.path}")
     }
 

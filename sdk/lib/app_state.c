@@ -34,15 +34,9 @@ bool app_session_save(const void *state, int32_t size)
 
 bool app_session_load(void *state, int32_t size)
 {
-    uint8_t kept[HOST_SESSION_MAX];
-    if (size > HOST_SESSION_MAX || session_get(kept, sizeof kept) != size) {
-        return false;
-    }
-    uint8_t *into = state;
-    for (int32_t i = 0; i < size; i++) {
-        into[i] = kept[i];
-    }
-    return true;
+    /* Read straight into the caller's struct: a copy of HOST_SESSION_MAX bytes on the way
+     * would be an eighth of the stack. */
+    return size <= HOST_SESSION_MAX && session_get(state, size) == size;
 }
 
 int32_t app_setting(const char *key, char *text, int32_t text_size)
