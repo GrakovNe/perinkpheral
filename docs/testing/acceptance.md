@@ -75,7 +75,6 @@ Open each, wait for its data, press every button it uses.
 | Application | Shows data | Buttons | Russian | Result |
 |---|---|---|---|---|
 | air | | | | |
-| badapple | | | | |
 | calendar | | | | |
 | clock | | | | |
 | ha | | | | |
