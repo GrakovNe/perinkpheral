@@ -212,6 +212,8 @@ static const char *phase_name(wifi_phase_t phase)
         return "online";
     case WIFI_PHASE_RESCUE:
         return "rescue";
+    case WIFI_PHASE_OFF:
+        return "off";
     }
     return "?";
 }
@@ -521,11 +523,15 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
 
 static bool edit_network(const json_t *json, appconf_t *wanted)
 {
-    return take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
-           take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
-           take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
-           (json_get(json, "tz_city") == NULL ||
-            take_string(json, "tz_city", wanted->tz_city, sizeof wanted->tz_city));
+    bool had_network = wanted->wifi_ssid[0] != '\0';
+    bool fits = take_string(json, "ssid", wanted->wifi_ssid, sizeof wanted->wifi_ssid) &&
+                take_string(json, "password", wanted->wifi_password, sizeof wanted->wifi_password) &&
+                take_string(json, "tz", wanted->tz, sizeof wanted->tz) &&
+                (json_get(json, "tz_city") == NULL ||
+                 take_string(json, "tz_city", wanted->tz_city, sizeof wanted->tz_city));
+    /* An empty name forgets the network, as Settings on the device does. */
+    appconf_follow_network(had_network, wanted);
+    return fits;
 }
 
 static esp_err_t handle_wifi(httpd_req_t *request)

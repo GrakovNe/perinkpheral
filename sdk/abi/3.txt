@@ -173,6 +173,8 @@ constant HOST_REDRAW_SOON	1
 constant HOST_REQUEST_FIRST	16
 constant HOST_REQUEST_LAST	255
 constant HOST_SESSION_MAX	1024
+constant HOST_SINCE_SYS_DO_WIFI_SETUP	"0.1.66"
+constant HOST_SINCE_SYS_WIFI_OFF	"0.1.66"
 constant HOST_SINCE_answer_header	"0.1.51"
 constant HOST_SINCE_screen_set_inverted	"0.1.54"
 constant HOST_STATUS_TEXT_MAX	31
@@ -242,6 +244,7 @@ constant SYS_APP_LIST_MAX	32
 constant SYS_DO_FACTORY_RESET	2
 constant SYS_DO_FORGET_NETWORK	1
 constant SYS_DO_RESTART	0
+constant SYS_DO_WIFI_SETUP	3
 constant SYS_INFO_ADDRESS	3
 constant SYS_INFO_FREE_FLASH	9
 constant SYS_INFO_FREE_MEMORY	6
@@ -274,6 +277,7 @@ constant SYS_LOGO_SCALE_MAX	5
 constant SYS_REFRESH_FULL_NEVER	255
 constant SYS_SETTING_MAX	64
 constant SYS_WIFI_CONNECTING	"connecting"
+constant SYS_WIFI_OFF	"off"
 constant SYS_WIFI_ONLINE	"online"
 constant SYS_WIFI_SETUP	"setup"
 export app_data_buffer	i()

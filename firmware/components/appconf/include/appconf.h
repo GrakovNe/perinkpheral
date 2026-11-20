@@ -80,6 +80,9 @@ typedef struct {
     char device_name[APPCONF_NAME_MAX + 1];
     char wifi_ssid[APPCONF_SSID_MAX + 1];
     char wifi_password[APPCONF_PASS_MAX + 1];
+    /* 1: no network on purpose - the user forgot it. No setup access point
+     * until asked for; a stored network comes first. */
+    uint8_t wifi_off;
     char ntp_server[APPCONF_HOST_MAX + 1];
     char tz[APPCONF_TZ_MAX + 1]; /* POSIX TZ string, "MSK-3" */
     /* The city the zone was chosen by, by its English name ("St Petersburg"): several share a
@@ -123,6 +126,11 @@ void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]
 /* On loading stored settings, replace an unsupported language with English.
  * Request validation remains strict; no other settings are changed. */
 void appconf_restore_language(appconf_t *config);
+
+/* The network in `wanted` is about to be stored; `had_network`: one was
+ * stored before. A network forgotten leaves Wi-Fi off, a network given
+ * ends the off state, and with none before and none now nothing changes. */
+void appconf_follow_network(bool had_network, appconf_t *wanted);
 
 /* The mDNS host from the name: lower case, letters and digits, runs of
  * anything else become one dash. Falls back to "perinkpheral-<id>". */

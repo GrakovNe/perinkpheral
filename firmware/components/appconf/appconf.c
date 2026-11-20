@@ -172,6 +172,15 @@ void appconf_defaults(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE]
     appconf_derive(c, device_id);
 }
 
+void appconf_follow_network(bool had_network, appconf_t *wanted)
+{
+    if (wanted->wifi_ssid[0] != '\0') {
+        wanted->wifi_off = 0;
+    } else if (had_network) {
+        wanted->wifi_off = 1;
+    }
+}
+
 void appconf_derive(appconf_t *c, const char device_id[APPCONF_DEVICE_ID_SIZE])
 {
     appconf_hostname(c->device_name, device_id, c->hostname, sizeof c->hostname);
@@ -226,6 +235,9 @@ bool appconf_validate(const appconf_t *c, char *err, size_t err_sz)
     size_t pass_len = strlen(c->wifi_password);
     if (c->wifi_ssid[0] != '\0' && pass_len > 0 && pass_len < WPA_PASSWORD_MIN) {
         BAD("Wi-Fi password must be at least 8 characters.");
+    }
+    if (c->wifi_off > 1) {
+        BAD("Wi-Fi off must be 0 or 1.");
     }
 
     if (!str_fits(c->ntp_server, APPCONF_HOST_MAX)) {
@@ -326,6 +338,9 @@ static const appconf_field_t FIELDS[] = {
     TEXT("device_name", "name", device_name, APPCONF_RESTART),
     TEXT("wifi_ssid", "wssid", wifi_ssid, APPCONF_RESTART | APPCONF_OWN_WAY),
     TEXT("wifi_password", "wpass", wifi_password, APPCONF_RESTART | APPCONF_OWN_WAY | APPCONF_SECRET),
+    /* Follows the network: appconf_follow_network(). */
+    { "wifi_off", "wifi_off", APPCONF_FLAG, APPCONF_RESTART | APPCONF_OWN_WAY,
+      offsetof(appconf_t, wifi_off), sizeof(((appconf_t *)0)->wifi_off), 0, 1, APPCONF_NO_ALSO },
     TEXT("ntp_server", "ntp", ntp_server, APPCONF_RESTART),
     TEXT("tz", "tz", tz, 0),
     TEXT("tz_city", "tz_city", tz_city, 0),

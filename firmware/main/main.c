@@ -63,6 +63,10 @@ static bool              s_name_is_announced;
 
 static void announce_name(bool is_wanted)
 {
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    /* With Wi-Fi off there is nobody to hear it, and the timer still runs. */
+    is_wanted = is_wanted && wifi_phase_has_radio(wifi.phase);
     xSemaphoreTake(s_name_lock, portMAX_DELAY);
     if (is_wanted && !s_name_is_announced) {
         static appconf_t settings; /* too large for a stack; under the lock */
@@ -232,6 +236,7 @@ void app_main(void)
     wifi_config_in_t wifi = {
         .ssid = cfg->wifi_ssid,
         .password = cfg->wifi_password,
+        .is_off = cfg->wifi_off != 0,
         .hostname = cfg->hostname,
         .access_point_name = cfg->device_name,
         .on_change = on_wifi_changed,

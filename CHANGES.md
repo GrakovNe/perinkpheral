@@ -4,6 +4,20 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.66
+
+- Forget network turns Wi-Fi off: no setup access point, and the device starts with its
+  default or last application, or the menu. The clock keeps running and can be set by hand.
+- With Wi-Fi off, Settings > Wi-Fi has Connect to Wi-Fi: the device restarts with its setup
+  access point and the setup screen. Joining a network there turns Wi-Fi on again.
+- A new device and a device after a factory reset start with the setup access point, as before.
+- System API: `SYS_WIFI_OFF` is the Wi-Fi state while it is off; `sys_run(SYS_DO_WIFI_SETUP)`
+  turns it on again. `SYS_DO_FORGET_NETWORK` with no network stored returns
+  `HOST_ERR_NOT_FOUND` and does not restart.
+- The setup access point names its page in the DHCP lease (option 114), for phones that
+  read it.
+- The device's page on a phone: rows fold instead of leaving the screen, in both languages.
+
 ## 0.1.65
 
 - A poll whose address setting was saved empty is no longer attempted.

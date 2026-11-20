@@ -6,10 +6,10 @@
 
 ota_health_t ota_health(const ota_health_input_t *input)
 {
-    bool reachable = input->network_stored
-                         ? input->online
-                         : input->access_point_up &&
-                               input->uptime_s >= OTA_HEALTH_SETUP_SETTLE_S;
+    bool settled = input->uptime_s >= OTA_HEALTH_SETUP_SETTLE_S;
+    bool reachable = input->wifi_off         ? settled
+                     : input->network_stored ? input->online
+                                             : input->access_point_up && settled;
     if (input->web_server_up && reachable) {
         return OTA_HEALTH_CONFIRM;
     }

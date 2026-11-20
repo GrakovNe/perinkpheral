@@ -383,6 +383,13 @@ static bool has_network(void)
     return network[0] != '\0';
 }
 
+static bool wifi_is_off(void)
+{
+    char state[TEXT_MAX + 1];
+    read_info(SYS_INFO_WIFI, state);
+    return is_same(state, SYS_WIFI_OFF);
+}
+
 static int32_t row_count(page_t page)
 {
     switch (page) {
@@ -405,7 +412,8 @@ static int32_t row_count(page_t page)
     case PAGE_DEFAULT_APP:
         return 1 + app_count();
     case PAGE_WIFI:
-        return has_network() ? 4 : 3; /* nothing to forget without a network */
+        /* Being set up, there is nothing to forget and nothing to turn on. */
+        return has_network() || wifi_is_off() ? 4 : 3;
     default:
         return 0;
     }
@@ -483,7 +491,8 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         break;
     }
     case PAGE_WIFI:
-        copy_text(label, TEXT_MAX + 1, app_string(WIFI[row]));
+        copy_text(label, TEXT_MAX + 1,
+                  app_string(row == 3 && wifi_is_off() ? STR_CONNECT_WIFI : WIFI[row]));
         if (row == 0) {
             read_info(SYS_INFO_NETWORK, value);
             if (value[0] == '\0') {
@@ -494,7 +503,8 @@ static void describe_row(page_t page, int32_t row, char label[TEXT_MAX + 1],
         } else if (row == 2) {
             read_info(SYS_INFO_WIFI, value);
             copy_text(value, TEXT_MAX + 1,
-                      app_string(is_same(value, SYS_WIFI_ONLINE)       ? STR_ONLINE
+                      app_string(wifi_is_off()                         ? STR_WIFI_OFF
+                                 : is_same(value, SYS_WIFI_ONLINE)     ? STR_ONLINE
                                  : is_same(value, SYS_WIFI_CONNECTING) ? STR_CONNECTING
                                                                        : STR_SETUP_MODE));
         }
@@ -693,7 +703,9 @@ static void activate(page_t page, int32_t row)
         edit_value(&VALUE_SETTINGS[DISPLAY_SETTINGS[row]]);
         break;
     case PAGE_WIFI:
-        if (row == 3) {
+        if (row == 3 && wifi_is_off()) {
+            tell_result(sys_run(SYS_DO_WIFI_SETUP));
+        } else if (row == 3) {
             open(PAGE_FORGET, 0);
         }
         break;

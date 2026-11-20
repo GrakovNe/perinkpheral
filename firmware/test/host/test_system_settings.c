@@ -26,8 +26,12 @@ void screen_leave(void) {}
 int32_t header_set_text(int32_t side, const char *text, int32_t length)
 { (void)side; (void)text; return length; }
 int32_t sys_run(int32_t action) { action_count++; last_action = action; return HOST_OK; }
+static const char *wifi_state = SYS_WIFI_ONLINE, *network = "Home";
 int32_t sys_info(int32_t what, char *value, int32_t capacity)
-{ (void)what; (void)value; (void)capacity; return 0; }
+{
+    const char *known = what == SYS_INFO_WIFI ? wifi_state : what == SYS_INFO_NETWORK ? network : "";
+    return snprintf(value, capacity, "%s", known);
+}
 int32_t sys_setting_get(const char *key, int32_t length, char *value, int32_t capacity)
 { (void)key; (void)length; (void)value; (void)capacity; return 0; }
 int32_t sys_setting_range(const char *key, int32_t length, sys_number_t *number)
@@ -176,10 +180,60 @@ static void test_destructive_actions_require_confirmation(void)
     }
 }
 
+static void wifi_row(int32_t row, char label[TEXT_MAX + 1], char value[TEXT_MAX + 1])
+{
+    describe_row(PAGE_WIFI, row, label, value);
+}
+
+static void test_wifi_page(void)
+{
+    char label[TEXT_MAX + 1], value[TEXT_MAX + 1];
+
+    /* a network: it can be forgotten, after a question */
+    app_on_load();
+    action_count = 0;
+    CHECK(row_count(PAGE_WIFI) == 4);
+    wifi_row(2, label, value);
+    CHECK_STR(value, "Online");
+    wifi_row(3, label, value);
+    CHECK_STR(label, "Forget network");
+    open(PAGE_WIFI, 3);
+    app_on_button(BTN_OK_PRESSED);
+    CHECK(HERE.page == PAGE_FORGET && action_count == 0);
+
+    /* being set up: nothing to forget, nothing to turn on */
+    wifi_state = SYS_WIFI_SETUP;
+    network = "";
+    CHECK(row_count(PAGE_WIFI) == 3);
+    wifi_row(2, label, value);
+    CHECK_STR(value, "Setup mode");
+
+    /* turned off: one action, done at once */
+    wifi_state = SYS_WIFI_OFF;
+    app_on_load();
+    CHECK(row_count(PAGE_WIFI) == 4);
+    wifi_row(0, label, value);
+    CHECK_STR(value, "Not set");
+    wifi_row(1, label, value);
+    CHECK_STR(value, "");
+    wifi_row(2, label, value);
+    CHECK_STR(value, "Off");
+    wifi_row(3, label, value);
+    CHECK_STR(label, "Connect to Wi-Fi");
+    open(PAGE_WIFI, 3);
+    app_on_button(BTN_OK_PRESSED);
+    CHECK(action_count == 1 && last_action == SYS_DO_WIFI_SETUP);
+    CHECK(HERE.page == PAGE_NOTICE && notice_is_final);
+
+    wifi_state = SYS_WIFI_ONLINE;
+    network = "Home";
+}
+
 int main(void)
 {
     test_sections();
     test_all_lists_wrap();
     test_destructive_actions_require_confirmation();
+    test_wifi_page();
     REPORT();
 }

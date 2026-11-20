@@ -24,6 +24,7 @@ extern "C" {
 typedef struct {
     const char *ssid;              /* empty: no network is stored */
     const char *password;          /* empty: an open network */
+    bool        is_off;            /* Wi-Fi was turned off; it matters with no network stored */
     const char *hostname;
     const char *access_point_name; /* what the setup access point is called */
     /* Called from the Wi-Fi task whenever the phase changes; it must not
@@ -40,7 +41,9 @@ typedef struct {
     bool         was_reached;    /* the last attempt to join the network succeeded */
 } wifi_status_t;
 
-/* The strings are copied. */
+/* The strings are copied. With Wi-Fi off (WIFI_PHASE_OFF) the driver is
+ * not started: no radio, no access point, no name server. The network
+ * stack itself is, for the sockets of those who do not ask first. */
 void wifi_start(const wifi_config_in_t *config);
 
 void wifi_get_status(wifi_status_t *status);

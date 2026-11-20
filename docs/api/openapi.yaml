@@ -85,7 +85,7 @@ components:
         upload_state: { type: string, enum: [idle, receiving, confirming, writing, failed, restarting], description: Recovery only }
         slot: { type: string, examples: ["ota_0"] }
         on_probation: { type: boolean, description: A new image not confirmed yet }
-        wifi: { type: string, enum: [online, connecting, setup, rescue] }
+        wifi: { type: string, enum: [online, connecting, setup, rescue, off], description: "off: Wi-Fi turned off by forgetting the network; this API is not reachable then" }
         ssid: { type: string }
         address: { type: string }
         tz: { type: string, description: POSIX TZ string }
@@ -121,6 +121,7 @@ components:
         device_name: { type: string }
         hostname: { type: string, readOnly: true }
         wifi_ssid: { type: string, readOnly: true }
+        wifi_off: { type: boolean, readOnly: true, description: "No network on purpose: no setup access point. Follows /api/wifi" }
         ntp_server: { type: string }
         tz: { type: string, description: POSIX TZ string }
         tz_city: { type: string, description: "The city the zone was chosen by, by its English name; empty for a zone of its own" }
@@ -342,6 +343,10 @@ paths:
     post:
       tags: [Settings]
       summary: Join another Wi-Fi network, confirmed on the device; the device restarts
+      description: >-
+        An empty ssid on a device with a network forgets it and turns Wi-Fi off: the device
+        restarts with no access point. Connect to Wi-Fi in Settings on the device brings the
+        setup access point back.
       requestBody:
         required: true
         content:

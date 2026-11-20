@@ -82,6 +82,7 @@ static void probation_task(void *arg)
         wifi_status_t wifi;
         wifi_get_status(&wifi);
         ota_health_input_t input = {
+            .wifi_off = wifi.phase == WIFI_PHASE_OFF,
             .network_stored = s_network_stored,
             .online = wifi.phase == WIFI_PHASE_ONLINE,
             .access_point_up = wifi_phase_has_access_point(wifi.phase),

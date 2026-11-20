@@ -22,6 +22,7 @@
 #include "freertos/task.h"
 
 #include "captive_dns.h"
+#include "captive_portal.h"
 #include "deadlines.h"
 #include "units.h"
 
@@ -175,6 +176,9 @@ static void on_scan_done(void *arg, esp_event_base_t base, int32_t id, void *dat
 
 void wifi_retry_is_due(void)
 {
+    if (s_wifi.events == NULL) {
+        return; /* Wi-Fi is off */
+    }
     if (!post(WIFI_EVENT_RETRY_DUE)) {
         deadlines_set_in(DEADLINE_WIFI_RETRY, 0, 0, RETRY_TOLD_AGAIN_MS);
     }
@@ -306,7 +310,7 @@ static void handle_event(wifi_plan_event_t event)
         if (s_wifi.radio_off) {
             s_wifi.radio_off = false;
             /* A new run of attempts: the old failures are not counted. */
-            wifi_plan_init(&s_wifi.plan, true);
+            wifi_plan_init(&s_wifi.plan, true, false);
             esp_wifi_start(); /* and the radio says when it has started */
         }
         publish_phase(false);
@@ -337,6 +341,29 @@ static void wifi_task(void *arg)
     }
 }
 
+/* The lease names the portal (DHCP option 114, RFC 8910), so a phone
+ * that reads it need not find the portal by probing. The server keeps
+ * the pointer, and takes an option only while stopped. Without it the
+ * name server and the redirect still lead there. */
+static void advertise_portal(esp_netif_t *access_point)
+{
+    static char portal[] = CAPTIVE_PORTAL_URL;
+    esp_err_t stopped = esp_netif_dhcps_stop(access_point);
+    if (stopped != ESP_OK && stopped != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        ESP_LOGW(TAG, "portal not advertised: %s", esp_err_to_name(stopped));
+        return;
+    }
+    esp_err_t set = esp_netif_dhcps_option(access_point, ESP_NETIF_OP_SET,
+                                           ESP_NETIF_CAPTIVEPORTAL_URI, portal,
+                                           sizeof portal - 1);
+    if (set != ESP_OK) {
+        ESP_LOGW(TAG, "portal not advertised: %s", esp_err_to_name(set));
+    }
+    if (stopped == ESP_OK) {
+        esp_netif_dhcps_start(access_point);
+    }
+}
+
 void wifi_start(const wifi_config_in_t *config)
 {
     strlcpy(s_wifi.ssid, config->ssid, sizeof s_wifi.ssid);
@@ -344,19 +371,26 @@ void wifi_start(const wifi_config_in_t *config)
     strlcpy(s_wifi.access_point_name, config->access_point_name,
             sizeof s_wifi.access_point_name);
     s_wifi.on_change = config->on_change;
-    wifi_plan_init(&s_wifi.plan, s_wifi.ssid[0] != '\0');
+    wifi_plan_init(&s_wifi.plan, s_wifi.ssid[0] != '\0', config->is_off);
     s_wifi.phase = s_wifi.plan.phase;
 
     s_wifi.lock = xSemaphoreCreateMutex();
+    configASSERT(s_wifi.lock != NULL);
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    if (!wifi_phase_has_radio(s_wifi.plan.phase)) {
+        /* No queue and no driver lock: what is asked of the radio from
+         * here on finds neither and does nothing. */
+        ESP_LOGI(TAG, "Wi-Fi is off");
+        return;
+    }
     s_wifi.driver_lock = xSemaphoreCreateMutex();
     s_wifi.scan_events = xEventGroupCreate();
     s_wifi.events = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(wifi_plan_event_t));
-    configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL &&
-                 s_wifi.driver_lock != NULL && s_wifi.scan_events != NULL);
+    configASSERT(s_wifi.events != NULL && s_wifi.driver_lock != NULL &&
+                 s_wifi.scan_events != NULL);
 
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
+    advertise_portal(esp_netif_create_default_wifi_ap());
     /* A phone that joins the access point is told that every name is the
      * device, so it opens the device's page without being asked. */
     static const uint8_t SETUP_ADDRESS[4] = { 192, 168, 4, 1 };

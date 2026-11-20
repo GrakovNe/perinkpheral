@@ -15,7 +15,7 @@ static wifi_plan_actions_t step(wifi_plan_event_t event, int64_t now_ms)
 
 static void test_no_network_is_setup(void)
 {
-    wifi_plan_init(&plan, false);
+    wifi_plan_init(&plan, false, false);
     wifi_plan_actions_t actions = step(WIFI_EVENT_STARTED, 0);
     CHECK(actions.start_access_point && !actions.connect && actions.retry_in_ms == 0);
     CHECK(plan.phase == WIFI_PHASE_SETUP);
@@ -28,9 +28,44 @@ static void test_no_network_is_setup(void)
     CHECK(!actions.connect);
 }
 
+static void test_off_does_nothing(void)
+{
+    wifi_plan_init(&plan, false, true);
+    CHECK(plan.phase == WIFI_PHASE_OFF);
+    CHECK(!wifi_phase_has_radio(plan.phase));
+    CHECK(!wifi_phase_has_access_point(plan.phase));
+
+    /* no radio is started, and nothing it could say raises anything */
+    const wifi_plan_event_t events[] = { WIFI_EVENT_STARTED, WIFI_EVENT_DISCONNECTED,
+                                         WIFI_EVENT_RETRY_DUE, WIFI_EVENT_CONNECTED };
+    int64_t now = 0;
+    for (unsigned i = 0; i < sizeof events / sizeof events[0]; i++) {
+        /* past the two minutes that bring the rescue access point up */
+        now += 200 * 1000;
+        wifi_plan_actions_t actions = step(events[i], now);
+        CHECK(!actions.start_access_point && !actions.stop_access_point && !actions.connect &&
+              actions.retry_in_ms == 0);
+        CHECK(plan.phase == WIFI_PHASE_OFF);
+    }
+}
+
+static void test_off_gives_way_to_a_network(void)
+{
+    /* stored by a firmware that knew no such state: the network comes first */
+    wifi_plan_init(&plan, true, true);
+    CHECK(wifi_phase_has_radio(plan.phase));
+    CHECK(step(WIFI_EVENT_STARTED, 0).connect);
+    CHECK(plan.phase == WIFI_PHASE_CONNECTING);
+
+    /* and every other phase has its radio */
+    wifi_plan_init(&plan, false, false);
+    CHECK(wifi_phase_has_radio(plan.phase));
+    CHECK(wifi_phase_has_radio(WIFI_PHASE_ONLINE) && wifi_phase_has_radio(WIFI_PHASE_RESCUE));
+}
+
 static void test_connects_at_once(void)
 {
-    wifi_plan_init(&plan, true);
+    wifi_plan_init(&plan, true, false);
     wifi_plan_actions_t actions = step(WIFI_EVENT_STARTED, 0);
     CHECK(actions.connect && !actions.start_access_point);
     CHECK(plan.phase == WIFI_PHASE_CONNECTING);
@@ -42,7 +77,7 @@ static void test_connects_at_once(void)
 
 static void test_retries_back_off(void)
 {
-    wifi_plan_init(&plan, true);
+    wifi_plan_init(&plan, true, false);
     step(WIFI_EVENT_STARTED, 0);
 
     const uint32_t expected_ms[] = { 2000, 4000, 8000, 16000, 30000, 30000 };
@@ -60,7 +95,7 @@ static void test_retries_back_off(void)
 
 static void test_rescue_after_two_minutes(void)
 {
-    wifi_plan_init(&plan, true);
+    wifi_plan_init(&plan, true, false);
     step(WIFI_EVENT_STARTED, 0);
 
     wifi_plan_actions_t actions = step(WIFI_EVENT_DISCONNECTED, 119 * 1000);
@@ -82,7 +117,7 @@ static void test_rescue_after_two_minutes(void)
 
 static void test_lost_network_starts_a_fresh_run(void)
 {
-    wifi_plan_init(&plan, true);
+    wifi_plan_init(&plan, true, false);
     step(WIFI_EVENT_STARTED, 0);
     step(WIFI_EVENT_CONNECTED, 1000);
 
@@ -103,6 +138,8 @@ static void test_lost_network_starts_a_fresh_run(void)
 int main(void)
 {
     test_no_network_is_setup();
+    test_off_does_nothing();
+    test_off_gives_way_to_a_network();
     test_connects_at_once();
     test_retries_back_off();
     test_rescue_after_two_minutes();

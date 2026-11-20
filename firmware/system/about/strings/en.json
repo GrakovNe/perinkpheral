@@ -3,6 +3,7 @@
   "wifi": "Wi-Fi",
   "connecting": "Connecting",
   "setup_mode": "Setup mode",
+  "off": "Off",
   "ip_address": "IP address",
   "firmware": "Firmware",
   "unit_kb_free": " KB free",

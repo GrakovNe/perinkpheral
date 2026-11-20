@@ -9,9 +9,9 @@
 #define RESCUE_AFTER_MS    (120 * 1000)
 #define RESCUE_RETRY_MS    (60 * 1000)
 
-void wifi_plan_init(wifi_plan_t *plan, bool has_network)
+void wifi_plan_init(wifi_plan_t *plan, bool has_network, bool is_off)
 {
-    plan->phase = WIFI_PHASE_SETUP;
+    plan->phase = is_off && !has_network ? WIFI_PHASE_OFF : WIFI_PHASE_SETUP;
     plan->has_network = has_network;
     plan->trying_since_ms = 0;
     plan->failed_attempts = 0;
@@ -20,6 +20,11 @@ void wifi_plan_init(wifi_plan_t *plan, bool has_network)
 bool wifi_phase_has_access_point(wifi_phase_t phase)
 {
     return phase == WIFI_PHASE_SETUP || phase == WIFI_PHASE_RESCUE;
+}
+
+bool wifi_phase_has_radio(wifi_phase_t phase)
+{
+    return phase != WIFI_PHASE_OFF;
 }
 
 /* 2 s, 4 s, 8 s ... and no longer than half a minute. */
@@ -63,6 +68,9 @@ static wifi_plan_actions_t on_disconnected(wifi_plan_t *plan, int64_t now_ms)
 wifi_plan_actions_t wifi_plan_step(wifi_plan_t *plan, wifi_plan_event_t event, int64_t now_ms)
 {
     wifi_plan_actions_t actions = { 0 };
+    if (plan->phase == WIFI_PHASE_OFF) {
+        return actions;
+    }
     if (!plan->has_network) {
         /* Nothing to connect to: the access point from the start, and
          * nothing else ever. */

@@ -115,7 +115,10 @@ network on the shelf device unless this pass is meant to include them.
 |---|---|---|---|
 | 7.1 | Device page, Enter recovery; leave it without updating | Recovery screen in the saved language; back to main with settings intact | |
 | 7.2 | BACK held three seconds at reset | Recovery | |
-| 7.3 | Setup access point from a phone (only on a device being set up) | The portal opens by itself on iOS and on Android | |
+| 7.3 | A device never set up, or after a factory reset: join its access point from a phone, by the QR code | The setup screen with the QR code; the portal opens by itself on iOS and on Android. Write down the phone and the seconds from joining to the portal | |
+| 7.4 | Settings, Wi-Fi, Forget network, OK | The device restarts into its default or last application, or the menu - not the setup screen. No `Perinkpheral-XXXX` network in a phone's list. The header's Wi-Fi icon is struck through; the clock runs; an application that needs the network says "No network". Settings, Wi-Fi: Network "Not set", Status "Off", and Connect to Wi-Fi in place of Forget network. About: Wi-Fi "Off", no address | |
+| 7.5 | With Wi-Fi off: restart the device; then General, Date & time, set the time by hand | It starts the same way, still with no access point; the header shows the time set | |
+| 7.6 | With Wi-Fi off: Settings, Wi-Fi, Connect to Wi-Fi; join a network through the portal | The device restarts to the setup screen with its access point up, as in 7.3. After joining it is on the network, the page opens at its address, and the applications and their settings are as before | |
 
 ## 8. Alarms, notifications, power
 
