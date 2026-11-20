@@ -4,10 +4,15 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
-## 0.1.67
+## 0.1.68
 
 - On a phone the page's menu and the tabs of Settings show every section: they take
   another row instead of scrolling sideways.
+
+## 0.1.67
+
+- The enclosure's frame print file names its parts, Frame and Logo, and puts the lettering on
+  the second filament. No change to the firmware.
 
 ## 0.1.66
 
