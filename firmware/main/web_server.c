@@ -193,9 +193,40 @@ static esp_err_t open_portal(httpd_req_t *request)
     return httpd_resp_send(request, NULL, 0);
 }
 
+/* The page is a part of the image, so the image's hash names it: a browser that has this
+ * page is told so in a line instead of being sent its 55 KB again. Always asked, never taken
+ * on trust for a while - after an update an old page would talk to a new API. */
+#define PAGE_TAG_HASH_BYTES 8
+#define PAGE_TAG_LENGTH     (2 + 2 * PAGE_TAG_HASH_BYTES) /* the quotes and the hash in hex */
+
+static const char *page_tag(void)
+{
+    static char tag[PAGE_TAG_LENGTH + 1];
+    if (tag[0] == '\0') {
+        const uint8_t *hash = esp_app_get_description()->app_elf_sha256;
+        char *at = tag;
+        *at++ = '"';
+        for (int index = 0; index < PAGE_TAG_HASH_BYTES; index++, at += 2) {
+            snprintf(at, 3, "%02x", hash[index]);
+        }
+        *at++ = '"';
+        *at = '\0';
+    }
+    return tag;
+}
+
 static esp_err_t handle_page(httpd_req_t *request)
 {
     if (should_open_portal(request)) { return open_portal(request); }
+    const char *tag = page_tag();
+    httpd_resp_set_hdr(request, "ETag", tag);
+    httpd_resp_set_hdr(request, "Cache-Control", "no-cache");
+    char has[PAGE_TAG_LENGTH + 1] = "";
+    if (httpd_req_get_hdr_value_str(request, "If-None-Match", has, sizeof has) == ESP_OK &&
+        strcmp(has, tag) == 0) {
+        httpd_resp_set_status(request, "304 Not Modified");
+        return httpd_resp_send(request, NULL, 0);
+    }
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
     return httpd_resp_send(request, index_html_start, index_html_end - index_html_start);
