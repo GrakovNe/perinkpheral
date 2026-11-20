@@ -29,6 +29,8 @@ nav .links a:hover { background: var(--line); }
 nav .links a.current { background: var(--ink); color: var(--paper); }
 nav p { margin: auto 1.25rem 0; color: var(--dim); font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere;
         text-align: center; }
+/* A screen too low for the menu: it goes with the page, not standing in it with its end cut off. */
+@media (max-height: 32rem) { nav { position: static; height: auto; } }
 
 nav p a { color: inherit; }
 
@@ -198,9 +200,8 @@ button.icon:hover:not(:disabled) { border-color: var(--ink); background: var(--p
 #info-description { margin: -.25rem 0 1.1rem; }
 .offer button { margin: 0; }
 
-/* ---- settings: tabs over forms ---- */
-.tabs { display: flex; gap: .25rem; border-bottom: 1px solid var(--ink); margin-bottom: 1.5rem; overflow-x: auto;
-        scrollbar-width: none; }
+/* ---- settings: tabs over forms; a tab is never out of sight: without room they take another row ---- */
+.tabs { display: flex; flex-wrap: wrap; gap: .25rem; border-bottom: 1px solid var(--ink); margin-bottom: 1.5rem; }
 .tabs button { margin: 0; flex: none; min-width: 7rem; color: var(--ink); background: transparent;
                border: 1px solid transparent; border-bottom: none; }
 .tabs button:hover:not(:disabled) { transform: none; box-shadow: none; border-color: var(--ink); }
@@ -279,9 +280,12 @@ table.credits { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .credits td { padding: .55rem 1rem .55rem 0; border-top: 1px solid var(--line); vertical-align: top;
               overflow-wrap: anywhere; }
 .credits td:first-child { white-space: nowrap; }
-/* Without room for the longest name in the first column - a phone, and a tablet beside the menu -
- * a part is a block: its name, who wrote it, its license, one under the other. */
+/* A phone, and a tablet beside the menu. The tabs do not fit a row: three a row, a box each, so
+ * that none stands a row away from the line it opens. Without room for the longest name in the
+ * first column a part is a block: its name, who wrote it, its license, one under the other. */
 @media (max-width: 60rem) {
+  .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: none; }
+  .tabs button { min-width: 0; padding: 0 .25rem; border: 1px solid var(--ink); white-space: nowrap; }
   .credits, .credits tbody, .credits tr, .credits td { display: block; }
   .credits thead { display: none; }
   .credits tr { padding: .55rem 0; border-top: 1px solid var(--line); }
@@ -305,10 +309,9 @@ details[open] summary::before { content: "- "; }
   nav { border-right: none; border-bottom: 1px solid var(--ink); padding: 1rem 0 0; flex-direction: row;
         flex-wrap: wrap; align-items: center; position: static; height: auto; }
   .brand { margin: 0 1rem .9rem; width: 100%; }
-  /* The sections in one line that scrolls sideways, as the tabs of Settings do. */
-  nav .links { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; }
-  nav .links::-webkit-scrollbar { display: none; }
-  nav .links a { flex: none; white-space: nowrap; padding: .55rem 1rem; }
+  /* Every section in sight: the links take as many rows as they need. */
+  nav .links { display: flex; flex-wrap: wrap; width: 100%; padding: 0 .25rem; }
+  nav .links a { white-space: nowrap; padding: .55rem .75rem; }
   nav p { display: none; }
   main { padding: 1.5rem 1rem 3rem; }
   .head { flex-wrap: wrap; gap: .6rem 1rem; }
@@ -329,10 +332,6 @@ details[open] summary::before { content: "- "; }
   .offer { flex-wrap: wrap; gap: .6rem 1rem; }
   .offer > div:not(.picture) { flex-basis: 12rem; }
   .offer > button, .catalog .offer button { margin-left: auto; }
-  /* One row that scrolls, the last tab cut at the edge: wrapped, the chosen
-   * tab stood a row away from the line it opens. */
-  .tabs { gap: .15rem; }
-  .tabs button { min-width: 0; padding: 0 .5rem; white-space: nowrap; }
   /* A field and the button that belongs to it: the button under the field. */
   .pane .rows div, .file-row, label.file { flex-direction: column; align-items: stretch; }
   .pane .rows div > * { flex: none; }
