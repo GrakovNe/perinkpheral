@@ -25,6 +25,16 @@ optional TPU feet are in a separate file, washer down. Every object starts at
 Z=0; neighbouring objects are 5 mm apart. The files contain millimetre geometry
 and grouping, with no printer, filament or slicing profiles.
 
+The frame's file also names its two parts for slicers of the Bambu Studio family
+and gives the lettering the second filament (`Metadata/model_settings.config`):
+`Frame` on filament 1, `Logo` on filament 2. Such a slicer reads that only from a
+file that claims to come from one, so the model says `Application: BambuStudio-...`.
+Keep the lettering a part of the frame's object. Split into an object of its own,
+it gets the first layer's elephant foot compensation apart from the frame, and a gap
+of about a nozzle opens around every letter (measured with Bambu Studio 2.9,
+compensation 0.15 mm: 28 mm2 of the lettering's first layer left uncovered against 7).
+Other slicers ignore both the claim and the description.
+
 OCCT meshes the original surfaces with an absolute linear deflection of
 0.001 mm and an angular deflection of 2 degrees. No mesh decimation is used.
 Closed edges, winding, triangle areas and volume are checked before output. The mesh volume

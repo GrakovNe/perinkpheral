@@ -26,7 +26,10 @@ def tetrahedron(name="Slab"):
 def read_meshes(path):
     with zipfile.ZipFile(path) as archive:
         model = xml.fromstring(archive.read("3D/3dmodel.model"))
-        assert sorted(archive.namelist()) == ["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]
+        names = sorted(archive.namelist())
+        # Only a file of several parts carries the slicer's description of them, and nothing else.
+        assert names in (["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"],
+                         ["3D/3dmodel.model", "Metadata/model_settings.config", "[Content_Types].xml", "_rels/.rels"])
     meshes = {}
     for obj in model.findall("m:resources/m:object", NAMESPACE):
         mesh = obj.find("m:mesh", NAMESPACE)
@@ -78,6 +81,30 @@ class GeometryTests(unittest.TestCase):
             mesh.triangles = triangles
             with self.assertRaises(ValueError):
                 exporter.validate_mesh(mesh)
+
+    def test_parts_are_named_and_the_lettering_has_its_own_filament(self):
+        groups = [[tetrahedron("Slab"), tetrahedron("Logo")], [tetrahedron("BackPlate")]]
+        model = xml.fromstring(exporter.model_xml(groups, "test"))
+        metadata = {item.attrib["name"]: item.text for item in model.findall("m:metadata", NAMESPACE)}
+        # Without this line the slicer does not read the description of the parts at all.
+        self.assertTrue(metadata["Application"].startswith("BambuStudio-"))
+        parts = xml.fromstring(exporter.parts_xml(groups))
+        objects = parts.findall("object")
+        self.assertEqual([obj.attrib["id"] for obj in objects], ["3"])  # the object of the two meshes 1 and 2
+        described = {part.attrib["id"]: {item.attrib["key"]: item.attrib["value"] for item in part.findall("metadata")}
+                     for part in objects[0].findall("part")}
+        self.assertEqual(described, {"1": {"name": "Frame", "extruder": "1"}, "2": {"name": "Logo", "extruder": "2"}})
+        # The ids are the model's own: the object and its components.
+        composite = [obj for obj in model.findall("m:resources/m:object", NAMESPACE) if obj.find("m:components", NAMESPACE) is not None]
+        self.assertEqual(composite[0].attrib["id"], "3")
+        self.assertEqual([c.attrib["objectid"] for c in composite[0].find("m:components", NAMESPACE)], ["1", "2"])
+        with zipfile.ZipFile(BytesIO(exporter.package_3mf(exporter.model_xml(groups, "test"), exporter.parts_xml(groups)))) as archive:
+            self.assertIn("Metadata/model_settings.config", archive.namelist())
+        # A file of single bodies says nothing of a slicer.
+        single = [[tetrahedron("BackPlate")]]
+        self.assertIsNone(exporter.parts_xml(single))
+        plain = xml.fromstring(exporter.model_xml(single, "test"))
+        self.assertNotIn("Application", {item.attrib["name"] for item in plain.findall("m:metadata", NAMESPACE)})
 
     def test_archive_is_reproducible_and_has_no_settings(self):
         model = exporter.model_xml([[tetrahedron()]], "test")
