@@ -319,21 +319,17 @@ HOST_IMPORT(screen_leave, void screen_leave(void));
  * smaller. The session is attached after app_on_load() returns: read it in
  * app_on_focus() or a background delivery handler. session_set() in
  * app_on_load() returns HOST_ERR_ARGUMENT. sdk/lib/app_state.h keeps one struct
- * this way. */
-#define HOST_SESSION_MAX 128
+ * this way.
+ *
+ * The room is taken from Perinkpheral OS's memory when first set and grown
+ * when more is asked: HOST_ERR_NO_SPACE when it cannot be given, the bytes
+ * kept before staying as they were. Keep it small - a few fields; a packed
+ * board of a game is the most it is for. Firmware before 0.1.61 keeps 128
+ * bytes: an application that keeps more names "firmware": "0.1.61" in its
+ * manifest. */
+#define HOST_SESSION_MAX 1024
 HOST_IMPORT(session_set, int32_t session_set(const void *data, int32_t length));
 HOST_IMPORT(session_get, int32_t session_get(void *buffer, int32_t capacity));
-
-/* A larger buffer for scene state, such as a packed game board. Lives in
- * RAM with the same lifetime and access rules as session_set()/session_get(),
- * independently of their 128 bytes. Storage is allocated when first used.
- * scene_state_set() returns HOST_ERR_NO_SPACE if allocation fails and keeps
- * the previous value. Length 0 releases the buffer. */
-#define HOST_SCENE_STATE_MAX 1024
-#define HOST_SINCE_scene_state_set "0.1.34"
-#define HOST_SINCE_scene_state_get "0.1.34"
-HOST_IMPORT(scene_state_set, int32_t scene_state_set(const void *data, int32_t length));
-HOST_IMPORT(scene_state_get, int32_t scene_state_get(void *buffer, int32_t capacity));
 
 /* One-shot timer: app_on_timer(id) after `milliseconds`. 0 cancels.
  * Setting a running timer restarts it. id: 0..HOST_TIMER_COUNT-1.

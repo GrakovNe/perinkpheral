@@ -3,7 +3,7 @@
  * the development tools, its firmware, its log, a restart and a reset. */
 "use strict";
 
-const RELEASES = "https://api.github.com/repos/GrakovNe/perinkpheral/releases/latest";
+const RELEASES = "https://api.github.com/repos/Perinkpheral/perinkpheral/releases/latest";
 const RELEASE_IMAGE = "perinkpheral.bin";
 let status = {}, statusAt = 0; /* statusAt: when it was read, for the log's clock */
 

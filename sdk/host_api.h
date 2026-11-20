@@ -10,7 +10,8 @@
  * privileges, layouts, values and meanings remain available on later
  * firmware. Changing a signature or meaning requires a new ABI; additions
  * after the 0.1.30 floor use HOST_SINCE_<name> and a firmware minimum.
- * ABI 2 is unsupported.
+ * ABI 2 is unsupported. One removal preceded the first public release:
+ * scene_state_set and scene_state_get, in 0.1.61, replaced by a larger session.
  * Commands use subject then verb (gfx_draw_text); queries name what is
  * asked (gfx_width); events called by Perinkpheral OS are app_on_<what happened>.
  *

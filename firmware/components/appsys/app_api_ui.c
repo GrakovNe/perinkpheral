@@ -740,8 +740,6 @@ HOST_FUNCTION(screen_request)
     m3ApiSuccess();
 }
 
-_Static_assert(APP_SESSION_BYTES == HOST_SESSION_MAX, "the session's room is the contract's");
-
 HOST_FUNCTION(session_set)
 {
     m3ApiReturnType(int32_t);
@@ -749,14 +747,30 @@ HOST_FUNCTION(session_set)
     m3ApiGetArg(int32_t, length);
     app_t         *app = APP_OF(runtime);
     const uint8_t *data = app_memory_at(runtime, _mem, offset, length);
-    if (data == NULL || length < 0 || length > HOST_SESSION_MAX || app->session == NULL ||
+    app_session_t *session = app->session;
+    if (data == NULL || length < 0 || length > HOST_SESSION_MAX || session == NULL ||
         !app->session_is_writable) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
-    if (!app->session->is_closed) { /* left the stack: what its last blur says is over */
-        memcpy(app->session->bytes, data, (size_t)length);
-        app->session->length = length;
+    if (session->is_closed) { /* left the stack: what its last blur says is over */
+        m3ApiReturn(HOST_OK);
     }
+    if (length == 0) {
+        free(session->bytes);
+        session->bytes = NULL;
+    } else {
+        /* The room is taken when first asked for and grown when more is: most applications
+         * keep a few bytes or none. One that cannot be given keeps what it had. */
+        if (length > session->length) {
+            uint8_t *storage = realloc(session->bytes, (size_t)length);
+            if (storage == NULL) {
+                m3ApiReturn(HOST_ERR_NO_SPACE);
+            }
+            session->bytes = storage;
+        }
+        memcpy(session->bytes, data, (size_t)length);
+    }
+    session->length = length;
     m3ApiReturn(HOST_OK);
 }
 
@@ -766,7 +780,7 @@ HOST_FUNCTION(session_get)
     m3ApiGetArg(uint32_t, offset);
     m3ApiGetArg(int32_t, capacity);
     app_t   *app = APP_OF(runtime);
-    uint8_t *buffer = (uint8_t *)app_memory_at(runtime, _mem, offset, capacity);
+    uint8_t *buffer = app_memory_to_fill(runtime, _mem, offset, capacity);
     if (buffer == NULL || capacity < 0) {
         m3ApiReturn(HOST_ERR_ARGUMENT);
     }
@@ -774,58 +788,8 @@ HOST_FUNCTION(session_get)
     if (length > capacity) {
         m3ApiReturn(HOST_ERR_NO_SPACE);
     }
-    if (length > 0) { memcpy(buffer, app->session->bytes, (size_t)length); }
-    m3ApiReturn(length);
-}
-
-HOST_FUNCTION(scene_state_set)
-{
-    m3ApiReturnType(int32_t);
-    m3ApiGetArg(uint32_t, offset);
-    m3ApiGetArg(int32_t, length);
-    app_t *app = APP_OF(runtime);
-    const uint8_t *data = app_memory_at(runtime, _mem, offset, length);
-    app_session_t *session = app->session;
-    if (data == NULL || length < 0 || length > HOST_SCENE_STATE_MAX || session == NULL ||
-        !app->session_is_writable) {
-        m3ApiReturn(HOST_ERR_ARGUMENT);
-    }
-    if (session->is_closed) {
-        m3ApiReturn(HOST_OK);
-    }
-    if (length == 0) {
-        free(session->scene_state);
-        session->scene_state = NULL;
-    } else {
-        if (length > session->scene_state_length) {
-            uint8_t *storage = realloc(session->scene_state, (size_t)length);
-            if (storage == NULL) {
-                m3ApiReturn(HOST_ERR_NO_SPACE);
-            }
-            session->scene_state = storage;
-        }
-        memcpy(session->scene_state, data, (size_t)length);
-    }
-    session->scene_state_length = length;
-    m3ApiReturn(HOST_OK);
-}
-
-HOST_FUNCTION(scene_state_get)
-{
-    m3ApiReturnType(int32_t);
-    m3ApiGetArg(uint32_t, offset);
-    m3ApiGetArg(int32_t, capacity);
-    app_t *app = APP_OF(runtime);
-    uint8_t *buffer = app_memory_to_fill(runtime, _mem, offset, capacity);
-    if (buffer == NULL || capacity < 0) {
-        m3ApiReturn(HOST_ERR_ARGUMENT);
-    }
-    int32_t length = app->session != NULL && !app->session->is_closed ? app->session->scene_state_length : 0;
-    if (length > capacity) {
-        m3ApiReturn(HOST_ERR_NO_SPACE);
-    }
     if (length > 0) {
-        memcpy(buffer, app->session->scene_state, (size_t)length);
+        memcpy(buffer, app->session->bytes, (size_t)length);
     }
     m3ApiReturn(length);
 }

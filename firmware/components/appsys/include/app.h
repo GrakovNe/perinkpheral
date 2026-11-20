@@ -127,14 +127,11 @@ void app_unload(app_t *app);
 /* Where the user is in an application (session_set, host/app.h): kept by its scene, which
  * outlives the instance. Closed between the scene leaving the stack and its next entry, so
  * that the last app_on_blur() does not write it back. */
-#define APP_SESSION_BYTES 128 /* HOST_SESSION_MAX: held equal where both are seen */
 typedef struct {
-    uint8_t bytes[APP_SESSION_BYTES];
-    int32_t length;
-    bool    is_closed;
-    bool    screen_inverted;
-    uint8_t *scene_state;
-    int32_t scene_state_length;
+    uint8_t *bytes; /* allocated when first set, up to HOST_SESSION_MAX; NULL for none */
+    int32_t  length;
+    bool     is_closed;
+    bool     screen_inverted;
 } app_session_t;
 
 /* The instance reads and writes `session`; one loaded off the screen only reads it. */

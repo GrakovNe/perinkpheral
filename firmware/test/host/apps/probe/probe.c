@@ -56,8 +56,7 @@ static int32_t fired_timer = -1;
 static int32_t result_outside_draw;
 static int32_t found_on_start;
 static bool keep_scene, reads_empty, reads_scene, refuses_scene_write, clears_scene;
-static uint8_t scene_data[HOST_SCENE_STATE_MAX + 1];
-static const uint8_t SESSION_VALUE = 42;
+static uint8_t scene_data[HOST_SESSION_MAX + 1];
 
 /* What app_on_data saw of request 1: the lengths add up, the bytes too. */
 static int32_t data_bytes, data_sum, data_pieces, data_status;
@@ -119,7 +118,7 @@ void app_on_load(void)
 {
     uint8_t kept;
     found_on_start = kv_get("kept", 4, &kept, sizeof kept) == 1 && kept == 7;
-    reads_empty = scene_state_get(scene_data, 0) == 0 && session_get(scene_data, 0) == 0;
+    reads_empty = session_get(scene_data, 0) == 0;
     log_write(HOST_LOG_INFO, "init", 4);
 }
 
@@ -143,9 +142,8 @@ void app_on_focus(void)
 void app_on_blur(void)
 {
     if (keep_scene) {
-        scene_data[HOST_SCENE_STATE_MAX - 1] = 37;
-        scene_state_set(scene_data, HOST_SCENE_STATE_MAX);
-        session_set(&SESSION_VALUE, sizeof SESSION_VALUE);
+        scene_data[HOST_SESSION_MAX - 1] = 37;
+        session_set(scene_data, HOST_SESSION_MAX);
     }
     log_write(HOST_LOG_INFO, "blur", 4);
 }
@@ -159,18 +157,15 @@ void app_on_button(int32_t event)
     }
     if (button == BUTTON_CHECK_SCENE) {
         uint8_t small = 5;
-        uint8_t session = 0;
-        reads_scene = scene_state_get(&small, sizeof small) == HOST_ERR_NO_SPACE &&
-            small == 5 && scene_state_get(scene_data, sizeof scene_data) == HOST_SCENE_STATE_MAX &&
-            scene_data[HOST_SCENE_STATE_MAX - 1] == 37 &&
-            session_get(&session, sizeof session) == sizeof session && session == SESSION_VALUE;
-        refuses_scene_write = scene_state_set(scene_data, sizeof scene_data) == HOST_ERR_ARGUMENT &&
-            scene_state_get((void *)0xffffff00u, 1) == HOST_ERR_ARGUMENT;
+        reads_scene = session_get(&small, sizeof small) == HOST_ERR_NO_SPACE &&
+            small == 5 && session_get(scene_data, sizeof scene_data) == HOST_SESSION_MAX &&
+            scene_data[HOST_SESSION_MAX - 1] == 37;
+        refuses_scene_write = session_set(scene_data, sizeof scene_data) == HOST_ERR_ARGUMENT &&
+            session_get((void *)0xffffff00u, 1) == HOST_ERR_ARGUMENT;
         return;
     }
     if (button == BUTTON_CLEAR_SCENE) {
-        clears_scene = scene_state_set(scene_data, 0) == HOST_OK &&
-            scene_state_get(scene_data, 0) == 0 && session_get(scene_data, 0) == HOST_ERR_NO_SPACE;
+        clears_scene = session_set(scene_data, 0) == HOST_OK && session_get(scene_data, 0) == 0;
         return;
     }
     if (button == BUTTON_INVERT || button == BUTTON_NORMAL) {

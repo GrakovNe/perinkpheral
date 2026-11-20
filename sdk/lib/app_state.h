@@ -31,8 +31,8 @@ bool app_state_forget(const char *key);
  * set - kept while it is in the stack, in memory (session_set, host/app.h).
  * Save it in app_on_blur(), load it in app_on_focus(). The struct is at most
  * HOST_SESSION_MAX bytes: APP_SESSION_FITS(type) says so when it builds.
- * app_session_load() is true when what is kept is exactly `size` bytes, and
- * leaves `state` as it was otherwise. */
+ * app_session_load() is true when what is kept is exactly `size` bytes. On
+ * false `state` may hold a shorter session of another shape: initialise it. */
 bool app_session_save(const void *state, int32_t size);
 bool app_session_load(void *state, int32_t size);
 #define APP_SESSION_FITS(type) \

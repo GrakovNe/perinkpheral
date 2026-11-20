@@ -172,11 +172,9 @@ constant HOST_REDRAW_QUESTION	8
 constant HOST_REDRAW_SOON	1
 constant HOST_REQUEST_FIRST	16
 constant HOST_REQUEST_LAST	255
-constant HOST_SCENE_STATE_MAX	1024
-constant HOST_SESSION_MAX	128
+constant HOST_SESSION_MAX	1024
 constant HOST_SINCE_answer_header	"0.1.51"
-constant HOST_SINCE_scene_state_get	"0.1.34"
-constant HOST_SINCE_scene_state_set	"0.1.34"
+constant HOST_SINCE_screen_set_inverted	"0.1.54"
 constant HOST_STATUS_TEXT_MAX	31
 constant HOST_TEXT_ARGUMENTS_MAX	4
 constant HOST_TEXT_MAX	127
@@ -205,6 +203,7 @@ constant HOST_UI_TEXT	0
 constant HOST_UI_TITLE	1
 constant HOST_UI_VALUE	3
 constant HOST_VALUE_MAX	63
+constant MANIFEST_AUTHOR_MAX	63
 constant MANIFEST_CERTIFICATES_MAX	2
 constant MANIFEST_CERTIFICATE_MAX_BYTES	4096
 constant MANIFEST_DESCRIPTION_MAX	95
@@ -537,11 +536,10 @@ import log_write	v(iii) grant=none
 import notification_post	i(i) grant=none
 import poll_run	i(i) grant=none
 import poll_set_interval	i(ii) grant=none
-import scene_state_get	i(ii) grant=none
-import scene_state_set	i(ii) grant=none
 import screen_leave	v() grant=none
 import screen_redraw	v(i) grant=none
 import screen_request	v() grant=none
+import screen_set_inverted	i(i) grant=none
 import session_get	i(ii) grant=none
 import session_set	i(ii) grant=none
 import sys_app_get_default	i() grant=system
@@ -594,8 +592,7 @@ macro BTN_ACTION_OF	(event) ((event) & 3)
 macro BTN_EVENT	(button, action) ((button) << 2 | (action))
 macro BTN_OF	(event) ((event) >> 2)
 since answer_header	0.1.51
-since scene_state_get	0.1.34
-since scene_state_set	0.1.34
+since screen_set_inverted	0.1.54
 struct host_answer_info_t align	4
 struct host_answer_info_t size	476
 struct host_cell_t align	4
