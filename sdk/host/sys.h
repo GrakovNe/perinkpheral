@@ -38,7 +38,7 @@
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
 #define SYS_WIFI_SETUP      "setup" /* waiting for network settings on the setup access point */
-#define HOST_SINCE_SYS_WIFI_OFF "0.1.65"
+#define HOST_SINCE_SYS_WIFI_OFF "0.1.66"
 #define SYS_WIFI_OFF        "off"   /* turned off by forgetting the network: no access point
                                        and no address, until SYS_DO_WIFI_SETUP */
 HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t capacity));
@@ -185,9 +185,9 @@ HOST_SYSTEM_IMPORT(sys_app_set_default, int32_t sys_app_set_default(uint32_t id)
                                    point, and the device starts as it does with a network.
                                    HOST_ERR_NOT_FOUND with no network stored */
 #define SYS_DO_FACTORY_RESET  2 /* erases the settings and all application stores */
-#define HOST_SINCE_SYS_DO_WIFI_SETUP "0.1.65"
+#define HOST_SINCE_SYS_DO_WIFI_SETUP "0.1.66"
 #define SYS_DO_WIFI_SETUP     3 /* Wi-Fi on again: the device starts with its setup access
                                    point, to be given a network. HOST_ERR_ARGUMENT while a
                                    network is stored: forget it first. Before firmware
-                                   0.1.65 sys_run() answers HOST_ERR_ARGUMENT to it */
+                                   0.1.66 sys_run() answers HOST_ERR_ARGUMENT to it */
 HOST_SYSTEM_IMPORT(sys_run, int32_t sys_run(int32_t action));

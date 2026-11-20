@@ -4,7 +4,7 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
-## 0.1.65
+## 0.1.66
 
 - Forget network turns Wi-Fi off: no setup access point, and the device starts with its
   default or last application, or the menu. The clock keeps running and can be set by hand.
@@ -16,6 +16,10 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
   `HOST_ERR_NOT_FOUND` and does not restart.
 - The setup access point names its page in the DHCP lease (option 114), for phones that
   read it.
+
+## 0.1.65
+
+- A poll whose address setting was saved empty is no longer attempted.
 
 ## 0.1.64
 

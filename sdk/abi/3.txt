@@ -173,8 +173,8 @@ constant HOST_REDRAW_SOON	1
 constant HOST_REQUEST_FIRST	16
 constant HOST_REQUEST_LAST	255
 constant HOST_SESSION_MAX	1024
-constant HOST_SINCE_SYS_DO_WIFI_SETUP	"0.1.65"
-constant HOST_SINCE_SYS_WIFI_OFF	"0.1.65"
+constant HOST_SINCE_SYS_DO_WIFI_SETUP	"0.1.66"
+constant HOST_SINCE_SYS_WIFI_OFF	"0.1.66"
 constant HOST_SINCE_answer_header	"0.1.51"
 constant HOST_SINCE_screen_set_inverted	"0.1.54"
 constant HOST_STATUS_TEXT_MAX	31
