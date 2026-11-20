@@ -569,7 +569,11 @@ static bool s_is_holding_radio; /* the task's alone: it asked for the radio and 
 static void keep_radio_for_work(void)
 {
     static int64_t held_since_ms, retry_at_ms;
-    bool wanted = power_is_saving() && wants_network();
+    wifi_status_t wifi;
+    wifi_get_status(&wifi);
+    /* With Wi-Fi off there is no radio to hold: holding it made every poll wait out the
+     * twenty seconds before being told there is no network. */
+    bool wanted = power_is_saving() && wants_network() && wifi_phase_has_radio(wifi.phase);
     if (wanted && !s_is_holding_radio) {
         if (uptime_ms() >= retry_at_ms) {
             power_hold_radio();

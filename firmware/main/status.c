@@ -93,9 +93,9 @@ static void expect_next_day(void)
  * theirs too, or a time set within two seconds of the old one waited for the panel's pace. */
 static atomic_bool s_set_by_hand;
 
-void status_expect_set(void)
+void status_expect_set(bool expected)
 {
-    atomic_store(&s_set_by_hand, true);
+    atomic_store(&s_set_by_hand, expected);
 }
 
 static void check(event_kind_t tell_as)
