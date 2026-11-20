@@ -16,15 +16,19 @@
  * asked (gfx_width); events called by Perinkpheral OS are app_on_<what happened>.
  *
  * The contract is written by subject in host/, and this header includes all
- * of it: an application includes this one. The tools read the headers in
- * the order they are included here.
+ * of it. An application includes this header and no file of host/: which
+ * declaration stands in which of them is not part of the contract and may
+ * change. The tools read the headers in the order they are included here.
  */
 #pragma once
 
 #include "host/base.h"
 #include "host/app.h"
+#include "host/buttons.h"
+#include "host/text.h"
 #include "host/gfx.h"
 #include "host/ui.h"
+#include "host/screen.h"
 #include "host/net.h"
 #include "host/store.h"
 #include "host/time.h"
