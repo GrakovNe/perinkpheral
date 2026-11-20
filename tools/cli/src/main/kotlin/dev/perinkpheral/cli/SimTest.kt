@@ -8,10 +8,13 @@ import dev.perinkpheral.core.build.AppBuilder
 import dev.perinkpheral.core.device.Bmp
 import dev.perinkpheral.core.device.DeviceButton
 import dev.perinkpheral.core.device.DeviceClient
+import dev.perinkpheral.core.simulator.InOrder
 import dev.perinkpheral.core.simulator.SimulatorNetwork
 import dev.perinkpheral.core.simulator.SimulatorPort
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.file.Files
+import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 
 /**
@@ -25,6 +28,7 @@ import javax.imageio.ImageIO
  *       "at": 1794832200,                    the clock's start, Unix seconds
  *       "tz": "Europe/Moscow",               the computer's zone for the run
  *       "font": "departure", "language": "en", "clock": false, "glyphs": "glyphs",
+ *       "serial": true,                      run while no other scenario does; absent: among others
  *       "store": { "lat": "59.93" },         the application's store before it starts
  *       "mocks": { "https://api...*": { "body": "..." } },  the network, as `sim --mocks` takes it,
  *                                            or the name of such a file beside the scenario
@@ -35,47 +39,102 @@ import javax.imageio.ImageIO
  * `forward <seconds>` (the simulator's clock moved on) or `shot <name>`: the frame against
  * <name>.png. A frame that differs is written beside it as <name>.actual.png; --update writes
  * the expected pictures instead.
+ *
+ * Scenarios run several at a time and are told in their own order. Each has a simulator, a
+ * port and a state folder of its own, and writes only into its own folder of pictures. The
+ * simulator's clock is the computer's and `wait` is real time: what a scenario counts on
+ * within a wait, it counts on from a computer that may be busy. So the applications are all
+ * built before the first simulator starts, and a scenario that cannot share the computer
+ * says `"serial": true`.
  */
 class SimTest(private val root: File, private val builder: () -> AppBuilder) {
 
-    private class Failure(val scenario: String, val why: String)
-
-    /** Runs every test under `folder`; returns what failed, as lines. */
-    fun run(folder: File, update: Boolean): List<String> {
-        val scenarios = folder.walk().filter { it.name == "scenario.json" }.map { it.parentFile }.sortedBy { it.path }.toList()
-        if (scenarios.isEmpty()) throw BuildError("${folder.path}: no scenario.json under it")
-        val binary = simulatorBinary()
-        val failures = ArrayList<Failure>()
-        var shots = 0
-        for (scenario in scenarios) {
-            val name = scenario.relativeTo(folder).path.ifEmpty { scenario.name }
-            try {
-                shots += runOne(scenario, binary, update)
-            } catch (error: Exception) {
-                failures += Failure(name, error.message ?: error.toString())
-            }
-            println("${if (failures.lastOrNull()?.scenario == name) "FAIL" else "ok  "} $name")
-        }
-        println("${scenarios.size} scenarios, $shots pictures, ${failures.size} failed")
-        return failures.map { "${it.scenario}: ${it.why}" }
+    /** A test as it was read; `steps` is why it could not be, when it could not. */
+    private class Scenario(val number: Int, val folder: File, val name: String, val steps: Result<Map<String, Any?>>) {
+        val appDir: File? get() = (steps.getOrNull()?.get("app") as? String)?.let { File(it).canonicalFile }
+        val isSerial: Boolean get() = steps.getOrNull()?.get("serial") == true
     }
 
+    /** An application built once for every scenario of it. */
+    private class Package(val name: String, val folder: File)
+
+    private val simulators = ConcurrentHashMap.newKeySet<Process>()
+
+    /** Runs every test under `folder`, `workers` of them at a time; returns what failed, as lines. */
+    @Suppress("UNCHECKED_CAST")
+    fun run(folder: File, update: Boolean, workers: Int = defaultWorkers()): List<String> {
+        val folders = folder.walk().filter { it.name == "scenario.json" }.map { it.parentFile }.sortedBy { it.path }.toList()
+        if (folders.isEmpty()) throw BuildError("${folder.path}: no scenario.json under it")
+        val binary = simulatorBinary()
+        val scratch = Files.createTempDirectory("perinkpheral-simtest").toFile()
+        // Stopped from outside, the run leaves no simulator behind.
+        val cleanup = Thread {
+            simulators.forEach { it.destroyForcibly() }
+            scratch.deleteRecursively()
+        }
+        Runtime.getRuntime().addShutdownHook(cleanup)
+        try {
+            val scenarios = folders.mapIndexed { number, scenario ->
+                Scenario(number, scenario, scenario.relativeTo(folder).path.ifEmpty { scenario.name },
+                    runCatching { Json.parse(File(scenario, "scenario.json").readText()) as Map<String, Any?> })
+            }
+            val packages = build(scenarios.mapNotNull { it.appDir }.distinct(), File(scratch, "packages"), workers)
+            val failures = ArrayList<String>()
+            var shots = 0
+            InOrder.run(scenarios, workers, isAlone = { it.isSerial },
+                work = { runOne(it, packages, File(scratch, "state-${it.number}"), binary, update) }) { scenario, result ->
+                result.onSuccess { shots += it }
+                    .onFailure { failures += "${scenario.name}: ${it.message ?: it.toString()}" }
+                println("${if (result.isSuccess) "ok  " else "FAIL"} ${scenario.name}")
+            }
+            println("${scenarios.size} scenarios, $shots pictures, ${failures.size} failed")
+            return failures
+        } finally {
+            scratch.deleteRecursively()
+            Runtime.getRuntime().removeShutdownHook(cleanup)
+        }
+    }
+
+    /** The simulator, built before any scenario needs it. Two runs of one checkout at once
+     * build it one after the other: the lock is the file's, so it holds between programs. */
     private fun simulatorBinary(): String {
         val folder = File(root, "tools/simulator")
-        if (ProcessBuilder("make", "-s", "-C", folder.path).inheritIO().start().waitFor() != 0) {
-            throw BuildError("the simulator could not be built: it needs a C compiler")
+        val lock = File(folder, "build/.sim-test.lock").apply { parentFile.mkdirs() }
+        RandomAccessFile(lock, "rw").channel.use { channel ->
+            channel.lock().use {
+                if (ProcessBuilder("make", "-s", "-C", folder.path).inheritIO().start().waitFor() != 0) {
+                    throw BuildError("the simulator could not be built: it needs a C compiler")
+                }
+            }
         }
         return File(folder, "build/perinkpheral-sim").path
     }
 
+    /** Every application the scenarios name, built once, before the first simulator starts:
+     * the compiler is the one part of a run that keeps the processors busy, and a scenario
+     * waits in real time. An application that does not build fails its scenarios, each with
+     * the build's words. */
+    private fun build(appDirs: List<File>, into: File, workers: Int): Map<File, Result<Package>> {
+        val packages = HashMap<File, Result<Package>>()
+        val numbered = appDirs.withIndex().toList()
+        InOrder.run(numbered, minOf(workers, Runtime.getRuntime().availableProcessors()), work = { (number, appDir) ->
+            val name = Applications.nameOf(appDir)
+            val folder = File(into, number.toString())
+            builder().build(appDir, folder)
+            Package(name, folder)
+        }) { (_, appDir), result -> packages[appDir] = result }
+        return packages
+    }
+
     @Suppress("UNCHECKED_CAST")
-    private fun runOne(folder: File, binary: String, update: Boolean): Int {
-        val scenario = Json.parse(File(folder, "scenario.json").readText()) as Map<String, Any?>
-        val appDir = File(scenario["app"] as? String ?: throw BuildError("no \"app\"")).absoluteFile
-        val name = Applications.nameOf(appDir)
-        val state = Files.createTempDirectory("perinkpheral-simtest").toFile()
+    private fun runOne(test: Scenario, packages: Map<File, Result<Package>>, state: File, binary: String,
+                       update: Boolean): Int {
+        val folder = test.folder
+        val scenario = test.steps.getOrThrow()
+        val built = packages[test.appDir ?: throw BuildError("no \"app\"")]!!.getOrThrow()
+        val name = built.name
         try {
-            Applications.toSimulator(builder(), appDir, state)
+            Applications.install(built.folder, name, state)
             val store = File(state, "store/$name").apply { mkdirs() }
             (scenario["store"] as? Map<String, Any?>).orEmpty().forEach { (key, value) ->
                 File(store, key.toByteArray().joinToString("") { "%02x".format(it) }).writeText(value.toString())
@@ -97,6 +156,7 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
             val builderOfProcess = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(File(state, "sim.log"))
             builderOfProcess.environment()["TZ"] = scenario["tz"] as? String ?: "UTC"
             val process = builderOfProcess.start()
+            simulators += process
             try {
                 val client = waitForStart(portFile, process, File(state, "sim.log"))
                 var shots = 0
@@ -122,6 +182,7 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
             } finally {
                 process.destroy()
                 process.waitFor()
+                simulators -= process
             }
         } finally {
             state.deleteRecursively()
@@ -166,6 +227,9 @@ class SimTest(private val root: File, private val builder: () -> AppBuilder) {
     private fun luminance(rgb: Int): Int = ((rgb shr 16 and 0xFF) * 299 + (rgb shr 8 and 0xFF) * 587 + (rgb and 0xFF) * 114) / 1000
 
     companion object {
+        /** How many scenarios run at once when nobody says. */
+        fun defaultWorkers(): Int = Runtime.getRuntime().availableProcessors()
+
         private const val START_TIMEOUT_MS = 60_000L
         private const val SETTLE_MS = 6_000L
         private const val POLL_MS = 300L

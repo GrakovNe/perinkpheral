@@ -63,3 +63,10 @@ val simulatorPortTest by tasks.registering(JavaExec::class) {
     mainClass.set("dev.perinkpheral.core.simulator.SimulatorPortTest")
 }
 tasks.check { dependsOn(simulatorPortTest) }
+
+val inOrderTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.simulator.InOrderTest")
+}
+tasks.check { dependsOn(inOrderTest) }

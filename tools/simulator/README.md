@@ -19,7 +19,7 @@ no two of them, and no other program, can be given the same port.
 | Store (NVS) | a folder, a file per key, the device's limits |
 | Files (LittleFS) | the application's folder |
 | Network | that of the program that started it - tools/perinkpheral, or the CLion plugin in the IDE's own process - asked a JSON line an exchange on `--fetcher-port`; a redirect is followed by the simulator itself, by the firmware's rules (`app_manifest_is_same_host`, `app_manifest_allows_url`): a GET three times at most, a request of the application's own inside its hosts, its headers not to another host; an application's own certificate authorities (`certificates`) trusted for its requests beside the computer's; answers replaced by mocks |
-| Clock | the computer's; moved on by `/api/sim/forward` |
+| Clock | the computer's, in real time; moved on by `/api/sim/forward` |
 
 Beyond the device's API:
 

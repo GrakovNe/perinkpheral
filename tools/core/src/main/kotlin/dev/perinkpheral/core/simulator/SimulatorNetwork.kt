@@ -40,6 +40,7 @@ object SimulatorNetwork {
     private const val TOO_LARGE = -7L
     private const val RESPONSE_HEADERS_BYTES = 1024
     private const val RESPONSE_HEADER_NAME_MAX = 63
+    private const val WAITING_CONNECTIONS = 128
     private const val USER_AGENT = "perinkpheral" // what the device sends unless the application gives its own
     private val REDIRECTS = setOf(301, 302, 303, 307, 308)
     private val KEPT_HEADERS = setOf("content-type", "content-length", "etag", "last-modified", "location", "link",
@@ -96,7 +97,9 @@ object SimulatorNetwork {
     @Synchronized
     fun port(): Int {
         server?.let { return it.localPort }
-        val socket = ServerSocket(0, 4, InetAddress.getLoopbackAddress())
+        // Room for every simulator of a parallel run to connect at once: one that finds the
+        // queue full is answered a second later, which a scenario's wait may not have.
+        val socket = ServerSocket(0, WAITING_CONNECTIONS, InetAddress.getLoopbackAddress())
         server = socket
         val thread = Thread({
             while (!socket.isClosed) {

@@ -71,15 +71,21 @@ object Applications {
         val packed = Files.createTempDirectory("perinkpheral-app").toFile()
         try {
             val built = builder.build(appDir, packed)
-            val installed = File(File(state, "apps"), built.name)
-            installed.listFiles().orEmpty().filter { PACKAGE_ONLY.matches(it.name) }.forEach { it.delete() }
-            installed.mkdirs()
-            for (file in AppBuilder.packageFiles(packed)) {
-                File(packed, file).copyTo(File(installed, file), overwrite = true)
-            }
+            install(packed, built.name, state)
             return built.name
         } finally {
             packed.deleteRecursively()
+        }
+    }
+
+    /** A package as the build left it in `packed`, into a simulator's state; `packed` is only
+     * read, so one build serves several simulators. */
+    fun install(packed: File, name: String, state: File) {
+        val installed = File(File(state, "apps"), name)
+        installed.listFiles().orEmpty().filter { PACKAGE_ONLY.matches(it.name) }.forEach { it.delete() }
+        installed.mkdirs()
+        for (file in AppBuilder.packageFiles(packed)) {
+            File(packed, file).copyTo(File(installed, file), overwrite = true)
         }
     }
 

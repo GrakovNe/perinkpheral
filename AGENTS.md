@@ -79,7 +79,10 @@ The first tests the shared Kotlin client used by the CLI and CLion plugin;
 the second tests the browser update and manual recovery flows; the third tests
 catalog and app-install retries, their limits and permanent refusals. None is
 part of `make test`. The firmware's simulator cases are separate too:
-`tools/perinkpheral sim-test firmware/test/sim`.
+`tools/perinkpheral sim-test firmware/test/sim`. Its scenarios run several at a time, one
+a processor; `--jobs N` sets how many and `--jobs 1` runs them one by one. A `wait` step
+is real time on the computer's clock, so a scenario must not depend on how long the
+computer took: move the clock with `forward`, or mark the scenario `"serial": true`.
 
 `tools/cli/gradlew -p tools/core check` also runs the builder safety and endurance
 observer tests, plus catalog publishing against local Git repositories. They use
