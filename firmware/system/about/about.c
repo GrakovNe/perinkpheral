@@ -122,9 +122,12 @@ static void draw_state_page(void)
     draw_row(row++, app_string(STR_NAME), value);
 
     /* On its network, or still looking for it, or waiting to be told one:
-     * then it is found on its own access point, at the address below. */
+     * then it is found on its own access point, at the address below.
+     * Turned off, it has no address. */
     read_info(SYS_INFO_WIFI, value);
-    if (is_text(value, SYS_WIFI_ONLINE)) {
+    if (is_text(value, SYS_WIFI_OFF)) {
+        draw_row(row++, app_string(STR_WIFI), app_string(STR_OFF));
+    } else if (is_text(value, SYS_WIFI_ONLINE)) {
         read_info(SYS_INFO_NETWORK, value);
         draw_row(row++, app_string(STR_WIFI), value);
     } else {

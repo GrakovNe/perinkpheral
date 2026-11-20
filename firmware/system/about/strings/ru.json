@@ -3,6 +3,7 @@
   "wifi": "Wi-Fi",
   "connecting": "Подключение",
   "setup_mode": "Настройка",
+  "off": "Выключен",
   "ip_address": "IP-адрес",
   "firmware": "Прошивка",
   "unit_kb_free": " КБ свободно",

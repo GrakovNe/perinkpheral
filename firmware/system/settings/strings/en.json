@@ -14,6 +14,8 @@
   "ip_address": "IP address",
   "status": "Status",
   "forget_network": "Forget network",
+  "connect_wifi": "Connect to Wi-Fi",
+  "wifi_off": "Off",
   "font": "Font",
   "full_refresh": "Full refresh",
   "refresh_interval": "Refresh interval",

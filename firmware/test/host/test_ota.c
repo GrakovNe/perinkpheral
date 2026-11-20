@@ -385,6 +385,15 @@ static void test_health(void)
     CHECK(ota_health(&setup) == OTA_HEALTH_WAIT);
     setup.uptime_s = OTA_HEALTH_DEADLINE_S;
     CHECK(ota_health(&setup) == OTA_HEALTH_ROLL_BACK);
+
+    /* Wi-Fi off: nothing to reach it by, so having run is the proof */
+    ota_health_input_t off = { .wifi_off = true, .web_server_up = true };
+    off.uptime_s = OTA_HEALTH_SETUP_SETTLE_S - 1;
+    CHECK(ota_health(&off) == OTA_HEALTH_WAIT);
+    off.uptime_s = OTA_HEALTH_SETUP_SETTLE_S;
+    CHECK(ota_health(&off) == OTA_HEALTH_CONFIRM);
+    off.uptime_s = OTA_HEALTH_DEADLINE_S;
+    CHECK(ota_health(&off) == OTA_HEALTH_CONFIRM);
 }
 
 int main(void)

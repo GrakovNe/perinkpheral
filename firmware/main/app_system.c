@@ -56,12 +56,15 @@ int32_t app_system_info(int what, char *text, int32_t capacity)
         break;
     case SYS_INFO_ADDRESS:
         wifi_get_status(&wifi);
-        known = wifi.phase == WIFI_PHASE_ONLINE ? wifi.address : WIFI_SETUP_ADDRESS;
+        known = wifi.phase == WIFI_PHASE_ONLINE ? wifi.address
+                : wifi.phase == WIFI_PHASE_OFF  ? "" /* no page anywhere */
+                                                : WIFI_SETUP_ADDRESS;
         break;
     case SYS_INFO_WIFI:
         wifi_get_status(&wifi);
         known = wifi.phase == WIFI_PHASE_ONLINE       ? SYS_WIFI_ONLINE
                 : wifi.phase == WIFI_PHASE_CONNECTING ? SYS_WIFI_CONNECTING
+                : wifi.phase == WIFI_PHASE_OFF        ? SYS_WIFI_OFF
                                                       : SYS_WIFI_SETUP;
         break;
     case SYS_INFO_SLOT:
@@ -250,12 +253,29 @@ int32_t app_system_do(int action)
     case SYS_DO_FORGET_NETWORK: {
         appconf_t wanted;
         settings_read(&wanted);
+        if (wanted.wifi_ssid[0] == '\0') {
+            return HOST_ERR_NOT_FOUND; /* nothing to forget, and no restart for nothing */
+        }
         wanted.wifi_ssid[0] = '\0';
         wanted.wifi_password[0] = '\0';
+        appconf_follow_network(true, &wanted);
         if (change(&wanted) != HOST_OK) {
             return HOST_ERR_FAILED;
         }
-        ESP_LOGW(TAG, "the network is forgotten, restarting");
+        ESP_LOGW(TAG, "the network is forgotten, Wi-Fi off, restarting");
+        break;
+    }
+    case SYS_DO_WIFI_SETUP: {
+        appconf_t wanted;
+        settings_read(&wanted);
+        if (wanted.wifi_ssid[0] != '\0') {
+            return HOST_ERR_ARGUMENT; /* it has a network: that one is forgotten first */
+        }
+        wanted.wifi_off = 0;
+        if (change(&wanted) != HOST_OK) {
+            return HOST_ERR_FAILED;
+        }
+        ESP_LOGW(TAG, "Wi-Fi setup asked for, restarting");
         break;
     }
     case SYS_DO_FACTORY_RESET:

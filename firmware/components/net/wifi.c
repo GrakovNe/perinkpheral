@@ -176,6 +176,9 @@ static void on_scan_done(void *arg, esp_event_base_t base, int32_t id, void *dat
 
 void wifi_retry_is_due(void)
 {
+    if (s_wifi.events == NULL) {
+        return; /* Wi-Fi is off */
+    }
     if (!post(WIFI_EVENT_RETRY_DUE)) {
         deadlines_set_in(DEADLINE_WIFI_RETRY, 0, 0, RETRY_TOLD_AGAIN_MS);
     }
@@ -307,7 +310,7 @@ static void handle_event(wifi_plan_event_t event)
         if (s_wifi.radio_off) {
             s_wifi.radio_off = false;
             /* A new run of attempts: the old failures are not counted. */
-            wifi_plan_init(&s_wifi.plan, true);
+            wifi_plan_init(&s_wifi.plan, true, false);
             esp_wifi_start(); /* and the radio says when it has started */
         }
         publish_phase(false);
@@ -368,18 +371,25 @@ void wifi_start(const wifi_config_in_t *config)
     strlcpy(s_wifi.access_point_name, config->access_point_name,
             sizeof s_wifi.access_point_name);
     s_wifi.on_change = config->on_change;
-    wifi_plan_init(&s_wifi.plan, s_wifi.ssid[0] != '\0');
+    wifi_plan_init(&s_wifi.plan, s_wifi.ssid[0] != '\0', config->is_off);
     s_wifi.phase = s_wifi.plan.phase;
 
     s_wifi.lock = xSemaphoreCreateMutex();
+    configASSERT(s_wifi.lock != NULL);
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    if (!wifi_phase_has_radio(s_wifi.plan.phase)) {
+        /* No queue and no driver lock: what is asked of the radio from
+         * here on finds neither and does nothing. */
+        ESP_LOGI(TAG, "Wi-Fi is off");
+        return;
+    }
     s_wifi.driver_lock = xSemaphoreCreateMutex();
     s_wifi.scan_events = xEventGroupCreate();
     s_wifi.events = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(wifi_plan_event_t));
-    configASSERT(s_wifi.lock != NULL && s_wifi.events != NULL &&
-                 s_wifi.driver_lock != NULL && s_wifi.scan_events != NULL);
+    configASSERT(s_wifi.events != NULL && s_wifi.driver_lock != NULL &&
+                 s_wifi.scan_events != NULL);
 
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     advertise_portal(esp_netif_create_default_wifi_ap());
     /* A phone that joins the access point is told that every name is the
      * device, so it opens the device's page without being asked. */

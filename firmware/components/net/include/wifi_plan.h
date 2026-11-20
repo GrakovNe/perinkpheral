@@ -22,6 +22,9 @@ typedef enum {
      * point is up as well, so that the user can correct it, and the device
      * keeps trying. */
     WIFI_PHASE_RESCUE,
+    /* No network is stored, on purpose: no access point and no radio. Only
+     * a restart leaves it. */
+    WIFI_PHASE_OFF,
 } wifi_phase_t;
 
 typedef enum {
@@ -45,12 +48,17 @@ typedef struct {
     int          failed_attempts;  /* in that run */
 } wifi_plan_t;
 
-void wifi_plan_init(wifi_plan_t *plan, bool has_network);
+/* `is_off`: the user turned Wi-Fi off. A stored network comes first: a
+ * firmware that knew no such state may have stored one since. */
+void wifi_plan_init(wifi_plan_t *plan, bool has_network, bool is_off);
 
 wifi_plan_actions_t wifi_plan_step(wifi_plan_t *plan, wifi_plan_event_t event, int64_t now_ms);
 
 /* The setup access point is up in this phase. */
 bool wifi_phase_has_access_point(wifi_phase_t phase);
+
+/* The radio is wanted in this phase: false only with Wi-Fi off. */
+bool wifi_phase_has_radio(wifi_phase_t phase);
 
 #ifdef __cplusplus
 }

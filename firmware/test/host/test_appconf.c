@@ -62,9 +62,48 @@ static void test_defaults(void)
     CHECK_STR(c.tz, "UTC0");
     CHECK(c.wifi_ssid[0] == '\0');
     CHECK(c.wifi_password[0] == '\0');
+    CHECK(c.wifi_off == 0); /* a new device is to be set up */
 
     char err[128];
     CHECK(appconf_validate(&c, err, sizeof err));
+}
+
+static void test_wifi_off_follows_the_network(void)
+{
+    appconf_t c;
+    appconf_defaults(&c, ID);
+
+    /* never set up, and nothing given: still to be set up */
+    appconf_follow_network(false, &c);
+    CHECK(c.wifi_off == 0);
+
+    /* a network forgotten: off */
+    appconf_follow_network(true, &c);
+    CHECK(c.wifi_off == 1);
+    char err[128];
+    CHECK(appconf_validate(&c, err, sizeof err));
+
+    /* nothing to forget any more: it stays off */
+    appconf_follow_network(false, &c);
+    CHECK(c.wifi_off == 1);
+
+    /* a network given ends it, whatever was there before */
+    c.wifi_off = 1;
+    strcpy(c.wifi_ssid, "Home");
+    appconf_follow_network(false, &c);
+    CHECK(c.wifi_off == 0);
+    c.wifi_off = 1;
+    appconf_follow_network(true, &c);
+    CHECK(c.wifi_off == 0);
+
+    c.wifi_off = 2;
+    CHECK(!appconf_validate(&c, err, sizeof err));
+
+    /* stored and shown, but set only along with the network, and by no application */
+    const appconf_field_t *off = appconf_field("wifi_off", 8);
+    CHECK(off != NULL && off->kind == APPCONF_FLAG);
+    CHECK((off->flags & APPCONF_OWN_WAY) != 0 && (off->flags & APPCONF_RESTART) != 0);
+    CHECK(appconf_application_field("wifi_off", 8) == NULL);
 }
 
 static void test_derive(void)
@@ -417,6 +456,7 @@ int main(void)
     test_derive();
     test_validate_name();
     test_validate_wifi();
+    test_wifi_off_follows_the_network();
     test_validate_ntp_tz();
     REPORT();
 }

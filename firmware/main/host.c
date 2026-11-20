@@ -357,13 +357,13 @@ static scene_t *take_start_once(void)
 }
 
 /* Where the device goes after the splash at power-up: to be set up when
- * it has no network, else to the application the development tools asked for, else to the
+ * it has no network and Wi-Fi was not turned off, else to the application the development tools asked for, else to the
  * default application, else back to the application it showed last, else to the menu. */
 static scene_t *scene_with_storage(scene_t *menu)
 {
     wifi_status_t wifi;
     wifi_get_status(&wifi);
-    if (wifi.ssid[0] == '\0') {
+    if (wifi.ssid[0] == '\0' && wifi.phase != WIFI_PHASE_OFF) {
         /* A firmware without the screen that says how leaves the user at the
          * menu: Device has the access point's address. */
         return launcher_setup() != NULL ? launcher_setup() : menu;

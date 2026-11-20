@@ -14,6 +14,8 @@
   "ip_address": "IP-адрес",
   "status": "Состояние",
   "forget_network": "Забыть сеть",
+  "connect_wifi": "Подключиться к Wi-Fi",
+  "wifi_off": "Выключен",
   "font": "Шрифт",
   "full_refresh": "Полное обновл.",
   "refresh_interval": "Интервал",

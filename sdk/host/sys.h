@@ -19,7 +19,8 @@
  * declaration is rejected. */
 /* Device information as text. Returns the length; HOST_ERR_NO_SPACE if
  * the buffer is too small; 0 if the value is currently unknown. Off its
- * network the address is the setup access point's, 192.168.4.1. */
+ * network the address is the setup access point's, 192.168.4.1; with
+ * Wi-Fi turned off there is none, and its length is 0. */
 #define SYS_INFO_VERSION 0 /* firmware version of the build */
 #define SYS_INFO_NAME    1 /* "Perinkpheral-C7B0" */
 #define SYS_INFO_NETWORK 2 /* configured Wi-Fi network */
@@ -37,6 +38,9 @@
 #define SYS_WIFI_ONLINE     "online"
 #define SYS_WIFI_CONNECTING "connecting"
 #define SYS_WIFI_SETUP      "setup" /* waiting for network settings on the setup access point */
+#define HOST_SINCE_SYS_WIFI_OFF "0.1.65"
+#define SYS_WIFI_OFF        "off"   /* turned off by forgetting the network: no access point
+                                       and no address, until SYS_DO_WIFI_SETUP */
 HOST_SYSTEM_IMPORT(sys_info, int32_t sys_info(int32_t what, char *text, int32_t capacity));
 
 /* Draws the wordmark "perINKpheraL" in the square font. (x, y) is the top
@@ -94,7 +98,8 @@ HOST_SYSTEM_IMPORT(sys_logo_height, int32_t sys_logo_height(int32_t scale));
  * default_app: text 0..13, a-z/0-9/'_'/'-'; empty means none.
  * device_name: text 1..32, no control characters; restart required.
  * ntp_server: text 1..64, letters, digits, dots, colons and hyphens; restart required.
- * wifi_ssid: text 0..32, read only here; empty means unconfigured.
+ * wifi_ssid: text 0..32, read only here; empty means unconfigured, or
+ *     Wi-Fi turned off.
  * wifi_password: secret text 0..64; neither read nor written here
  *     (HOST_ERR_ARGUMENT). Change the network on the page, or forget it
  *     with SYS_DO_FORGET_NETWORK; either restarts the device.
@@ -173,8 +178,16 @@ HOST_SYSTEM_IMPORT(sys_app_remove, int32_t sys_app_remove(uint32_t id));
 HOST_SYSTEM_IMPORT(sys_app_get_default, uint32_t sys_app_get_default(void));
 HOST_SYSTEM_IMPORT(sys_app_set_default, int32_t sys_app_set_default(uint32_t id));
 
-/* Irreversible actions. The device restarts after each. */
+/* Irreversible actions. The device restarts after each that returns
+ * HOST_OK; one refused changes nothing and does not restart. */
 #define SYS_DO_RESTART        0
-#define SYS_DO_FORGET_NETWORK 1 /* the device starts with its setup access point */
+#define SYS_DO_FORGET_NETWORK 1 /* forgets the stored network and turns Wi-Fi off: no access
+                                   point, and the device starts as it does with a network.
+                                   HOST_ERR_NOT_FOUND with no network stored */
 #define SYS_DO_FACTORY_RESET  2 /* erases the settings and all application stores */
+#define HOST_SINCE_SYS_DO_WIFI_SETUP "0.1.65"
+#define SYS_DO_WIFI_SETUP     3 /* Wi-Fi on again: the device starts with its setup access
+                                   point, to be given a network. HOST_ERR_ARGUMENT while a
+                                   network is stored: forget it first. Before firmware
+                                   0.1.65 sys_run() answers HOST_ERR_ARGUMENT to it */
 HOST_SYSTEM_IMPORT(sys_run, int32_t sys_run(int32_t action));

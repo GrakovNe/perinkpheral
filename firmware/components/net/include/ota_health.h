@@ -30,6 +30,9 @@ typedef enum {
 } ota_health_t;
 
 typedef struct {
+    /* Off on purpose: the next update comes through recovery, entered with
+     * a button, so having run without a fault is the proof there is. */
+    bool     wifi_off;
     bool     network_stored;
     bool     online;
     bool     access_point_up;

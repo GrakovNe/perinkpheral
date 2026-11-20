@@ -3742,8 +3742,8 @@ Any application can use the system API if its manifest contains <code>"system": 
 sys_info(what, text, capacity)
 =
 
-Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code>
-Сведения об устройстве как текст: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code>
+Device information as text: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup", and "off" since firmware 0.1.65), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code>
+Сведения об устройстве как текст: <code>SYS_INFO_VERSION</code>, <code>SYS_INFO_NAME</code>, <code>SYS_INFO_NETWORK</code>, <code>SYS_INFO_ADDRESS</code>, <code>SYS_INFO_WIFI</code> ("online", "connecting", "setup", а с прошивки 0.1.65 и "off"), <code>SYS_INFO_SLOT</code>, <code>SYS_INFO_FREE_MEMORY</code>, <code>SYS_INFO_FREE_FLASH</code>, <code>SYS_INFO_FREE_STORE</code>, <code>SYS_INFO_JOIN_CODE</code>
 
 sys_setting_get(key, key_length, value, capacity), sys_setting_set(key, key_length, value, length)
 =
@@ -3784,8 +3784,8 @@ The wordmark perINKpheraL in square letters, scale 1 - 5: draw, width, height
 sys_run(action)
 =
 
-<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. The application must obtain confirmation before calling. Perinkpheral OS does not check it; use HOST_REDRAW_QUESTION on the confirmation screen
-<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code>, <code>SYS_DO_FACTORY_RESET</code>. Приложение должно получить подтверждение перед вызовом. Perinkpheral OS его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения
+<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code> (Wi-Fi is then off), <code>SYS_DO_FACTORY_RESET</code>, <code>SYS_DO_WIFI_SETUP</code> (firmware 0.1.65: Wi-Fi on again, with the setup access point). The application must obtain confirmation before calling. Perinkpheral OS does not check it; use HOST_REDRAW_QUESTION on the confirmation screen
+<code>SYS_DO_RESTART</code>, <code>SYS_DO_FORGET_NETWORK</code> (после него Wi-Fi выключен), <code>SYS_DO_FACTORY_RESET</code>, <code>SYS_DO_WIFI_SETUP</code> (прошивка 0.1.65: Wi-Fi снова включён, с точкой доступа для настройки). Приложение должно получить подтверждение перед вызовом. Perinkpheral OS его не проверяет; используйте HOST_REDRAW_QUESTION на экране подтверждения
 
 23. SDK library
 23. Библиотека SDK
