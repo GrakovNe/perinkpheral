@@ -64,10 +64,12 @@ a dated record beside this file, as [acceptance-2026-11-18.md](acceptance-2026-1
 
 | # | Do | Expect | Result |
 |---|---|---|---|
-| 4.1 | Life: let it run, switch to another application, come back | The same field continues; it does not start anew | |
+| 4.1 | Life: let it run, switch to the next application with BACK and DOWN, come back with BACK and UP | The same field and generation count, from where it stopped; it does not run while away | |
 | 4.2 | ISS: open, switch away for some minutes, come back | The track and position are kept; the night screen is inverted whole | |
 | 4.3 | Calendar or HA: go two pages in, wait for a background poll of another application, look again | The same page | |
 | 4.4 | Leave an application with BACK from its first page, open it again | It starts from its first page | |
+| 4.5 | After 4.1, a short BACK | The menu, not the application switched from | |
+| 4.6 | Life: let it run, long BACK, open it from the menu | A new field: opening from the menu is a start anew | |
 
 ## 5. Every application, once
 

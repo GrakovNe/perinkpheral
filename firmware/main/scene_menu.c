@@ -185,6 +185,17 @@ void scene_menu_set_back_target(scene_t *back_target)
     s_menu_scene.back_target = back_target;
 }
 
+bool scene_menu_lists(const scene_t *scene)
+{
+    const menu_scene_t *menu = &s_menu_scene;
+    for (int i = 0; i < menu->count; i++) {
+        if (menu->entries[i].scene == scene) {
+            return true;
+        }
+    }
+    return false;
+}
+
 scene_t *scene_menu_neighbour(const scene_t *from, int step)
 {
     const menu_scene_t *menu = &s_menu_scene;

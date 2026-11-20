@@ -804,9 +804,63 @@ static void test_back_switch(void)
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_LONG_BACK);
 }
 
+static void test_beside(void)
+{
+    static probe_t other, notice;
+    start(&menu.scene);
+    memset(&other, 0, sizeof other);
+    memset(&notice, 0, sizeof notice);
+    other.scene.ops = notice.scene.ops = &PROBE_OPS;
+    menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &app.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    int discarded = app.discarded;
+
+    /* switched to a neighbour: the application waits and is not done with */
+    wm_open_beside(&wm, &other.scene);
+    CHECK(wm.current == &other.scene && wm_has(&wm, &app.scene) && app.discarded == discarded);
+    /* and back: the same entry, moved to the top, still not done with */
+    wm_open_beside(&wm, &app.scene);
+    CHECK(wm.current == &app.scene && wm.depth == 2 && app.discarded == discarded &&
+          other.discarded == 0);
+
+    /* something over it closes to it, as over any scene */
+    wm_open(&wm, &notice.scene);
+    notice.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &app.scene && wm.depth == 2);
+
+    /* BACK from one of the row is the menu, not the neighbour, and all of them are done with */
+    app.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &menu.scene && wm.depth == 0);
+    CHECK(app.discarded == discarded + 1 && other.discarded == 1);
+
+    /* more of them than the stack holds: the oldest is forgotten, as always */
+    static probe_t many[WM_STACK_DEPTH + 1];
+    memset(many, 0, sizeof many);
+    menu.next_reaction = (scene_reaction_t){ SCENE_OPEN, &app.scene };
+    press(SCENE_BUTTON_OK, SCENE_PRESS_SHORT);
+    for (int i = 0; i < WM_STACK_DEPTH + 1; i++) {
+        many[i].scene.ops = &PROBE_OPS;
+        wm_open_beside(&wm, &many[i].scene);
+    }
+    CHECK(wm.depth == WM_STACK_DEPTH && !wm_has(&wm, &app.scene) && !wm_has(&wm, &many[0].scene));
+    many[WM_STACK_DEPTH].next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &menu.scene && wm.depth == 0);
+
+    /* from the menu it is an opening from the menu */
+    wm_open_beside(&wm, &app.scene);
+    CHECK(wm.current == &app.scene && wm.depth == 1);
+    app.next_reaction.kind = SCENE_BACK;
+    press(SCENE_BUTTON_BACK, SCENE_PRESS_SHORT);
+    CHECK(wm.current == &menu.scene);
+}
+
 int main(void)
 {
     test_back_switch();
+    test_beside();
     test_chart();
     test_stack();
     test_leaving_the_stack();

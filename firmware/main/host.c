@@ -221,7 +221,13 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
         if (neighbour != NULL) {
             ESP_LOGI(TAG, "BACK with button %d: the %s application", index + 1,
                      chord == BACK_SWITCH_NEXT ? "next" : "previous");
-            host_open_from_menu(neighbour);
+            /* Beside, not anew: the one switched from keeps its session for the way back. A
+             * notice or a question is not one of the row: switching from it ends it, as before. */
+            if (scene_menu_lists(wm->current)) {
+                wm_open_beside(wm, neighbour);
+            } else {
+                host_open_from_menu(neighbour);
+            }
         }
         return;
     }

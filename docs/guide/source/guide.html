@@ -189,7 +189,7 @@
   <tr><td>Events per button</td><td class="n">4</td><td>Key down, key up, pressed, long pressed</td></tr>
   <tr><td>Long press</td><td class="n">600 ms</td><td>Reported while the button is held</td></tr>
   <tr><td>Reserved</td><td class="n">long press of BACK</td><td>Handled by Perinkpheral OS when BACK is released: clears the stack and opens the menu. Firmware 0.1.63 and earlier act while BACK is held</td></tr>
-  <tr><td>Reserved</td><td class="n">BACK held, UP or DOWN</td><td>Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. BACK may be held for any time before and between the presses; its release then does nothing. Not in the menu. Not delivered to applications. Firmware 0.1.64; 0.1.63 required the first press within 600 ms</td></tr>
+  <tr><td>Reserved</td><td class="n">BACK held, UP or DOWN</td><td>Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. BACK may be held for any time before and between the presses; its release then does nothing. The application switched from stays in the navigation stack and keeps its session; a short press of BACK then opens the menu, not that application. Not in the menu. Not delivered to applications. Firmware 0.1.64; 0.1.63 required the first press within 600 ms</td></tr>
 </table>
 
 <h2 id="char-sandbox">Sandbox</h2>

@@ -23,6 +23,9 @@ extern "C" {
  *     below receives leave() and receives enter() again when it is on top.
  *   - BACK pops one scene.
  *   - A scene opened from the home scene replaces the whole stack.
+ *   - A scene opened beside the current one (wm_open_beside) is pushed like any other, so the
+ *     one it was switched from waits with what it kept; BACK from either of them empties the
+ *     stack: they stand side by side, and neither was opened from the other.
  *   - A long press of BACK empties the stack. BACK in the home scene has
  *     no effect.
  *   - A scene occupies one stack entry: opened again, it is moved to the top.
@@ -58,6 +61,7 @@ typedef struct {
     scene_t *home;    /* the menu; target of a long press of BACK */
     scene_t *current; /* top of the stack, or `home` when the stack is empty */
     scene_t *stack[WM_STACK_DEPTH]; /* oldest first; never contains `home` */
+    bool     beside[WM_STACK_DEPTH]; /* that entry is one of a row: see wm_open_beside() */
     int      depth;
     wm_change_t change;
     bool     suspended;   /* see wm_suspend() */
@@ -99,6 +103,11 @@ void wm_open(wm_t *wm, scene_t *scene);
 
 /* Replaces the stack with `scene`, as opening from the menu does. */
 void wm_open_from_home(wm_t *wm, scene_t *scene);
+
+/* Switches to `scene` beside the current one: the current scene waits in the stack and keeps
+ * what a waiting scene keeps; BACK from either leads home, not to the other. From the home
+ * scene it is wm_open_from_home(). */
+void wm_open_beside(wm_t *wm, scene_t *scene);
 
 /* True when `scene` is in the stack at any depth. */
 bool wm_has(const wm_t *wm, const scene_t *scene);

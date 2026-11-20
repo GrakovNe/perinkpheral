@@ -42,6 +42,9 @@ void scene_menu_set_back_target(scene_t *back_target);
  * there is no other application. */
 scene_t *scene_menu_neighbour(const scene_t *from, int step);
 
+/* Whether the menu has a row for `scene`: an application or a system page, not a notice. */
+bool scene_menu_lists(const scene_t *scene);
+
 /* A scene sets a timer through this; 0 ms cancels. */
 typedef void (*scenes_set_timer_fn)(int id, int32_t milliseconds);
 
