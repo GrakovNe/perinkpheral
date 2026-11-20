@@ -259,8 +259,8 @@ Reserved
 long press of BACK
 длинное нажатие BACK
 
-Handled by Perinkpheral OS: clears the stack and opens the menu
-Обрабатывается Perinkpheral OS: очищает стек и открывает меню
+Handled by Perinkpheral OS when BACK is released: clears the stack and opens the menu. Firmware 0.1.63 and earlier act while BACK is held
+Обрабатывается Perinkpheral OS при отпускании BACK: очищает стек и открывает меню. Прошивка 0.1.63 и более ранние срабатывают при удержании BACK
 
 Sandbox
 Песочница
@@ -4399,5 +4399,5 @@ For authentication across background unloads, save a small session record with k
 BACK held, UP or DOWN
 BACK удерживается, UP или DOWN
 
-Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. Not delivered to applications. Firmware 0.1.63
-Обрабатывается Perinkpheral OS: открывает предыдущее или следующее приложение в порядке меню; системные страницы пропускаются. Приложениям не доставляется. Прошивка 0.1.63
+Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. BACK may be held for any time before and between the presses; its release then does nothing. Not delivered to applications. Firmware 0.1.64; 0.1.63 required the first press within 600 ms
+Обрабатывается Perinkpheral OS: открывает предыдущее или следующее приложение в порядке меню; системные страницы пропускаются. BACK можно удерживать сколько угодно до нажатий и между ними; его отпускание после этого ничего не делает. Приложениям не доставляется. Прошивка 0.1.64; 0.1.63 требовала первое нажатие в пределах 600 ms

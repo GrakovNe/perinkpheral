@@ -754,9 +754,18 @@ static void test_chart(void)
 static void test_back_switch(void)
 {
     back_switch_state_t state = {0};
-    /* BACK alone: every event is the scene's or the menu's. */
+    /* BACK alone, held long: the long BACK is its release, not the moment it became long. */
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_LONG_BACK);
+    /* A long press a tool injects has no button down and no release: it is whole at once. */
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_PASS);
+    /* Held long, then a chord: the hold switches and its release is nothing. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
     /* UP and DOWN alone are the scene's. */
     CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
@@ -784,7 +793,8 @@ static void test_back_switch(void)
     /* OK with BACK held is no chord. */
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
     CHECK(back_switch_press(&state, SCENE_BUTTON_OK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_LONG_BACK);
 }
 
 int main(void)

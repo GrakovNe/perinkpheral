@@ -226,6 +226,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     if (chord == BACK_SWITCH_SWALLOW) {
         return;
     }
+    if (chord == BACK_SWITCH_LONG_BACK) {
+        press = EVENT_PRESS_LONG; /* held past the long press's time and let go, no chord */
+    }
     /* The long press on BACK is the user's own way out of anything. */
     bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
     if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {

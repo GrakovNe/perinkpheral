@@ -37,13 +37,13 @@ a dated record beside this file, as [acceptance-2026-11-18.md](acceptance-2026-1
 | # | Do | Expect | Result |
 |---|---|---|---|
 | 2.1 | Short BACK in an application | One page back, or out of it | |
-| 2.2 | Long BACK anywhere | The menu, the stack cleared | |
-| 2.3 | Hold BACK, press DOWN | The next application of the menu's order opens; no menu in between | |
+| 2.2 | Hold BACK past 600 ms and let go | The menu when the button is released, the stack cleared | |
+| 2.3 | Hold BACK for two seconds, then press DOWN | The next application of the menu's order opens; no menu in between | |
 | 2.4 | Hold BACK, press UP | The previous one | |
 | 2.5 | Hold BACK, press DOWN three times | Three steps, system pages never among them | |
 | 2.6 | From the last application, hold BACK and press DOWN | Wraps to the first | |
 | 2.7 | After a switch, release BACK | Nothing more happens: no page back, no menu | |
-| 2.8 | Hold BACK alone past 600 ms | The menu, as in 2.2 | |
+| 2.8 | Hold BACK alone for five seconds | Nothing while it is held; the menu at the release | |
 | 2.9 | Hold BACK and UP together for less than ten seconds | No restart | |
 | 2.10 | In the menu: long OK, move a row, OK; then repeat 2.3 | The switch follows the new order | |
 | 2.11 | The two-finger gesture on the case | Comfortable with one hand; note if not | |

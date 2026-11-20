@@ -4,7 +4,8 @@
  *
  * BACK held and UP or DOWN pressed: the previous or the next application of the menu, without
  * the menu. The presses of such a chord are Perinkpheral OS's and reach no scene; BACK alone is
- * what it was - a short press for the scene, a long one for the menu.
+ * a short press for the scene and a long one for the menu. The long one acts when the button is
+ * let go, so that a hold of any length can still become a chord.
  */
 #pragma once
 
@@ -18,11 +19,13 @@ typedef enum {
     BACK_SWITCH_SWALLOW,  /* part of a chord: nobody's */
     BACK_SWITCH_PREVIOUS, /* open the application before this one */
     BACK_SWITCH_NEXT,     /* open the one after it */
+    BACK_SWITCH_LONG_BACK, /* BACK let go after a long hold without a chord: the long BACK, now */
 } back_switch_t;
 
 typedef struct {
     bool    back_is_held;
     bool    chorded;   /* this hold of BACK switched: its own short or long press is void */
+    bool    long_is_due; /* this hold passed the long press's time: the release is the long BACK */
     uint8_t swallowed; /* UP and DOWN that went down in a chord, until they go down again */
 } back_switch_state_t;
 
