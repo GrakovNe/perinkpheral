@@ -282,11 +282,23 @@ def oriented_groups(meshes, groups):
     return positioned
 
 
+# A slicer of the Bambu Studio family reads its own description of an object's parts - their
+# names and which filament each takes - only from a file that says it came from one. Without it
+# the parts arrive nameless on one filament, and the lettering split into an object of its own
+# to colour it gets the first layer's elephant foot compensation apart from the frame: a gap of
+# a nozzle around every letter. Other slicers skip both the claim and the description.
+SLICER_APPLICATION = "BambuStudio-02.00.00.00"
+PART_FILAMENTS = {"Slab": ("Frame", 1), "Logo": ("Logo", 2)}
+
+
 def model_xml(groups, title, step_sha256=None):
     xml.register_namespace("", MODEL_NAMESPACE)
     def element(name):
         return f"{{{MODEL_NAMESPACE}}}{name}"
     model = xml.Element(element("model"), {"unit": "millimeter", "{http://www.w3.org/XML/1998/namespace}lang": "en-US"})
+    if any(len(group) > 1 for group in groups):
+        xml.SubElement(model, element("metadata"), {"name": "Application"}).text = SLICER_APPLICATION
+        xml.SubElement(model, element("metadata"), {"name": "BambuStudio:3mfVersion"}).text = "1"
     xml.SubElement(model, element("metadata"), {"name": "Title"}).text = title
     if step_sha256:
         xml.SubElement(model, element("metadata"), {"name": "Description"}).text = f"STEP SHA256: {step_sha256}"
@@ -318,6 +330,29 @@ def model_xml(groups, title, step_sha256=None):
     return xml.tostring(model, encoding="utf-8", xml_declaration=True)
 
 
+def parts_xml(groups):
+    """The slicer's description of the objects made of several parts; None when there is none."""
+    config = xml.Element("config")
+    next_id = 1
+    for group in groups:
+        part_ids = list(range(next_id, next_id + len(group)))
+        next_id += len(group)
+        if len(group) < 2:
+            continue
+        obj = xml.SubElement(config, "object", {"id": str(next_id)})
+        next_id += 1
+        xml.SubElement(obj, "metadata", {"key": "name", "value": "Frame with logo"})
+        xml.SubElement(obj, "metadata", {"key": "extruder", "value": "1"})
+        for part_id, mesh in zip(part_ids, group):
+            name, filament = PART_FILAMENTS[mesh.name]
+            part = xml.SubElement(obj, "part", {"id": str(part_id), "subtype": "normal_part"})
+            xml.SubElement(part, "metadata", {"key": "name", "value": name})
+            xml.SubElement(part, "metadata", {"key": "extruder", "value": str(filament)})
+    if len(config) == 0:
+        return None
+    return xml.tostring(config, encoding="utf-8", xml_declaration=True)
+
+
 def zip_bytes(entries):
     output = BytesIO()
     with zipfile.ZipFile(output, "w") as archive:
@@ -330,17 +365,21 @@ def zip_bytes(entries):
     return output.getvalue()
 
 
-def package_3mf(model):
+def package_3mf(model, parts=None):
     content_types = b'''<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>'''
     relationships = b'''<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'''
-    return zip_bytes((("[Content_Types].xml", content_types), ("_rels/.rels", relationships), ("3D/3dmodel.model", model)))
+    entries = [("[Content_Types].xml", content_types), ("_rels/.rels", relationships), ("3D/3dmodel.model", model)]
+    if parts is not None:
+        entries.append(("Metadata/model_settings.config", parts))
+    return zip_bytes(entries)
 
 
 def export_files(meshes, output, step_sha256=None):
     files = []
     for filename, groups in FILES:
-        model = model_xml(oriented_groups(meshes, groups), filename.removesuffix(".3mf"), step_sha256)
-        files.append((filename, package_3mf(model)))
+        oriented = oriented_groups(meshes, groups)
+        model = model_xml(oriented, filename.removesuffix(".3mf"), step_sha256)
+        files.append((filename, package_3mf(model, parts_xml(oriented))))
     files.append(("perinkpheral-print-3mf.zip", zip_bytes(files)))
     output.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix=".case-export-", dir=output) as temporary:
