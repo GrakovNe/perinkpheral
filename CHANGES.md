@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.63
+
+- Hold BACK and press UP or DOWN to open the previous or next application in the menu's
+  order, without the menu. System pages are skipped.
+
 ## 0.1.62
 
 - Redrawn icons: wind, mask and pollen (a flower), at every size, with one line weight.

@@ -5,6 +5,7 @@
 #include "scenes.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "screens.h"
 
@@ -182,6 +183,29 @@ static menu_scene_t s_menu_scene;
 void scene_menu_set_back_target(scene_t *back_target)
 {
     s_menu_scene.back_target = back_target;
+}
+
+scene_t *scene_menu_neighbour(const scene_t *from, int step)
+{
+    const menu_scene_t *menu = &s_menu_scene;
+    int at = -1;
+    for (int i = 0; i < menu->count; i++) {
+        if (menu->entries[i].scene == from) {
+            at = i;
+        }
+    }
+    /* Off the list - the menu, a system page: one step forward is its first row, one back its last. */
+    if (at < 0) {
+        at = step > 0 ? -1 : menu->count;
+    }
+    for (int tried = 0; tried < menu->count; tried++) {
+        at = (at + step + menu->count) % menu->count;
+        const menu_entry_t *entry = &menu->entries[at];
+        if (entry->scene != from && strncmp(entry->name, "sys.", 4) != 0) {
+            return entry->scene;
+        }
+    }
+    return NULL;
 }
 
 scene_t *scene_menu(menu_entry_t *entries, int count)

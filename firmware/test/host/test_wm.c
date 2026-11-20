@@ -4,6 +4,7 @@
  */
 #include "kit.h"
 #include "wm.h"
+#include "back_switch.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -750,8 +751,45 @@ static void test_chart(void)
           ink_in(&g, 0, 70, 200, 30) == 0);
 }
 
+static void test_back_switch(void)
+{
+    back_switch_state_t state = {0};
+    /* BACK alone: every event is the scene's or the menu's. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    /* UP and DOWN alone are the scene's. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_PASS);
+    /* A chord: the way down switches, the rest of both presses is nobody's, twice in one hold. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_DOWN) == BACK_SWITCH_PREVIOUS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    /* UP let go after BACK: still the chord's. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
+    /* A quick chord: the short BACK that ends it is void; the next BACK is whole again. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT) == BACK_SWITCH_PASS);
+    /* OK with BACK held is no chord. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_OK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_PASS);
+}
+
 int main(void)
 {
+    test_back_switch();
     test_chart();
     test_stack();
     test_leaving_the_stack();

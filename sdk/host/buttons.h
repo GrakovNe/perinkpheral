@@ -32,7 +32,12 @@
  * With this export, the press is delivered here. Typical handling: go one
  * page back; on the first page call screen_leave().
  * BTN_BACK_PRESSED is never delivered to app_on_button(). BTN_BACK_KEYDOWN
- * and BTN_BACK_KEYUP are. A long press of BACK always opens Perinkpheral OS menu. */
+ * and BTN_BACK_KEYUP are. A long press of BACK always opens Perinkpheral OS menu.
+ *
+ * BACK held and UP or DOWN pressed opens the previous or the next application
+ * of the menu (firmware 0.1.63). Such a press of UP or DOWN is delivered to no
+ * application, and the hold of BACK is then neither a short nor a long press:
+ * the application sees BTN_BACK_KEYDOWN and nothing more of it. */
 APP_EXPORT(app_on_back, void app_on_back(void));
 
 /* A button event combines a button and an action. Each combination has a
