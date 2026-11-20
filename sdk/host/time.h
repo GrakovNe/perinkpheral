@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 GrakovNe
  *
- * Time: the clock, the zone, local time taken apart, time in words, and
- * alarms on or off the screen.
+ * Time: the clock, the zone, local time taken apart, time in words, alarms
+ * on or off the screen, and timers on it.
  */
 #pragma once
 
@@ -60,6 +60,15 @@ HOST_IMPORT(alarm_set_at, int32_t alarm_set_at(int32_t id, int64_t unix_time));
 HOST_IMPORT(alarm_set_every, int32_t alarm_set_every(int32_t id, int32_t seconds,
                                                      int32_t first_in));
 APP_EXPORT(app_on_alarm, void app_on_alarm(int32_t id));
+
+/* One-shot timer: app_on_timer(id) after `milliseconds`. 0 cancels.
+ * Setting a running timer restarts it. id: 0..HOST_TIMER_COUNT-1.
+ * Timers stop when the application leaves the screen. */
+#define HOST_TIMER_COUNT 4
+HOST_IMPORT(timer_set, int32_t timer_set(int32_t id, int32_t milliseconds));
+
+/* A timer set with timer_set() has expired. */
+APP_EXPORT(app_on_timer, void app_on_timer(int32_t id));
 
 /* ---- Time ---- */
 

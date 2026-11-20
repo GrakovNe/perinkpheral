@@ -253,7 +253,8 @@ Code:
   firmware kept there;
   applications get their own namespaces through Perinkpheral OS API `kv_*`.
 - `sdk/host_api.h` is the only contract between Perinkpheral OS and applications; it
-  includes the declarations split by subject in `sdk/host/*.h`.
+  includes the declarations split by subject in `sdk/host/*.h`. Applications include
+  the umbrella only; a declaration may move between those files without an ABI change.
   An import is added in three places and nowhere else: the appropriate
   subject header, its `HOST_FUNCTION` in the `appsys/app_api_<area>.c` of its kind (the table
   that links it is made from the header), and a case in

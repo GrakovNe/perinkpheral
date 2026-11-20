@@ -196,6 +196,7 @@ HOST_IMPORT(gfx_draw_bitmap_file,
 #define HOST_ICON_LEAF           47
 #define HOST_ICON_MASK           48
 #define HOST_ICON_COUNT          49
+#define HOST_ICON_NONE           (-1) /* where an icon is optional: none */
 #define HOST_ICON_CELLS          11
 #define HOST_ICON_CELL_MAX       16
 HOST_IMPORT(gfx_draw_icon, int32_t gfx_draw_icon(int32_t x, int32_t y, int32_t icon, int32_t cell));

@@ -9,6 +9,7 @@
 
 #include "base.h"
 #include "gfx.h"
+#include "net.h" /* ui_draw_reason() draws HOST_FAILED_* */
 
 /* ---- Kit: Perinkpheral OS interface parts ----
  *
@@ -51,7 +52,6 @@
  * `icon` is a HOST_ICON_* drawn at the right edge, or HOST_ICON_NONE.
  * HOST_ICON_CHECK marks the active option. Rows outside the visible range
  * are not drawn. */
-#define HOST_ICON_NONE (-1)
 /* List count is at most 10000. ui_list_first() does not update first;
  * keep the returned value in the list, or use app_list_first(). */
 typedef struct host_list {
@@ -90,18 +90,6 @@ typedef struct host_notice {
 } host_notice_t;
 HOST_LAYOUT(host_notice_t, 296);
 HOST_IMPORT(ui_draw_notice, int32_t ui_draw_notice(const host_notice_t *notice));
-
-/* Queues a notification. Perinkpheral OS shows the notice below its header,
- * over the current screen, until the user presses OK or BACK, and then
- * restores the previous screen.
- * Callable from any handler, typically app_on_alarm() off the screen.
- * The application is not loaded while the notification is shown and is
- * not told when it is dismissed.
- * Fields used: first (required), second, detail, icon.
- * Several notifications queue. A restart clears the queue.
- * Returns HOST_OK, HOST_ERR_ARGUMENT, or HOST_ERR_NO_SPACE if the queue
- * is full. */
-HOST_IMPORT(notification_post, int32_t notification_post(const host_notice_t *notice));
 
 /* Text in a Perinkpheral OS style. `y` is the top of the line. The text is cut with
  * "..." at `max_width` pixels (0: no limit). Returns the width drawn.
