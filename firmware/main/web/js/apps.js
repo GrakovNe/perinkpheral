@@ -766,7 +766,11 @@ byId("sources").addEventListener("submit", async event => {
   if (!rows.values) return; /* the sources were never read: there is nothing to save */
   const added = rows.values().map(catalogAddress).filter(address => address);
   const save = event.submitter || event.target.querySelector("button:not([type])");
-  if (await send(save, "/api/sources", post({ sources: added }))) loadCatalogs();
+  if (await send(save, "/api/sources", post({ sources: added }))) {
+    /* A reading under way began from the old list: wait it out, then read from the new one. */
+    if (catalogsReading) await catalogsReading.catch(() => {});
+    loadCatalogs();
+  }
 });
 
 byId("refresh-catalogs").addEventListener("click", event => busy(event.target, loadCatalogs));

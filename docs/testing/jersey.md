@@ -1,7 +1,7 @@
 # Jersey replacement study
 
-Status: proposal to replace Jersey, recorded during acceptance on 2026-11-18.
-Tiny5 Regular is a candidate for a trial, not an approved production replacement.
+Status: closed on 2026-11-21. Tiny5 was tried in real screens and rejected by the owner;
+Jersey stays. The study below is kept as the record of what was compared and why.
 Cyrillic support is mandatory; candidates without it are excluded.
 
 The owner observed that the Air app's cramped labels and bottom spacing depend
@@ -54,3 +54,28 @@ that is not a final firmware-size measurement. No production font was changed.
 Next: trial Tiny5 in real application previews, check all six SDK sizes and the
 physical panel, then decide whether to replace Jersey. Preserve existing font
 settings and the SDK's size identifiers if proceeding.
+
+## Tiny5 in real screens, 2026-11-21: rejected
+
+Tiny5 Regular 3.002 (Gissio/font_Tiny5, commit 04d19ef, SIL OFL 1.1) was drawn in place of
+Jersey in the simulator and the preview, with its own Cyrillic through a trial glyph pack:
+Perinkpheral OS's screens and eleven catalog applications, English and Russian, beside
+Departure Mono and Jersey - 49 sheets. Its capitals are 5 dots tall, so every SDK size has an
+exact multiple of Jersey's capital height (10, 15, 25, 30, 50, 80 px) and no layout broke: no
+new cut, wrap or text on a rule; Sun's cells alone fell back a size.
+
+The owner rejected it for what is read:
+
+- Digits on a 3x5 grid: 8 is a pinched block, and "82.4529" or a chart's "85.6542" need a
+  second look where Jersey's are read at once.
+- The two largest sizes: a dot is 10 and 16 px, and a clock's "15:30" is a scoreboard of blocks.
+- Small Russian lowercase runs together; Latin "a" reads as "o".
+- It does not relieve Air's labels, which began the study: they are as wide as Jersey's.
+
+What it would have saved, estimated from generated data and not from a firmware build:
+about 14 KB of the image (one bitmap for four faces) and 8 of the glyph partition's 16
+sectors, with Greek and the largest size's Cyrillic that Jersey lacks. Flash room is not the
+constraint today. Not tried: Tiny5 Bold and Mono, and the physical panel.
+
+The experiment is not in this repository: it was a throwaway substitution behind the Jersey
+selection with scripts outside the Kotlin tools. No production font was changed.

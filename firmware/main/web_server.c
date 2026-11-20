@@ -521,8 +521,16 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     if (confirmation != NULL) {
         /* What is asked about is named by the request itself. */
         const json_t *named = json_get(json, confirmation->named_by);
-        if (confirmation->unnamed != NULL && !(json_is_string(named) && named->text[0] != '\0')) {
-            confirmation = confirmation->unnamed;
+        if (confirmation->unnamed != NULL) {
+            /* The answer on the device is to a question about a network: a request that names
+             * none - neither one to join nor, with an empty name, the one to forget - is not asked. */
+            if (!json_is_string(named)) {
+                json_free(json);
+                return send_error(request, "Invalid request.");
+            }
+            if (named->text[0] == '\0') {
+                confirmation = confirmation->unnamed;
+            }
         }
         char         second[QUESTION_MAX + 1];
         snprintf(second, sizeof second, confirmation->second_format,

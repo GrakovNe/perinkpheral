@@ -4,6 +4,14 @@
  */
 #include "back_switch.h"
 
+bool back_switch_release_lost(back_switch_state_t *state)
+{
+    bool was_long = state->back_is_held && state->long_is_due && !state->chorded;
+    state->back_is_held = false;
+    state->long_is_due = false;
+    return was_long;
+}
+
 back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press,
                                 bool can_switch)
 {

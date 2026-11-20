@@ -4,6 +4,14 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.73
+
+- A long press of BACK is not lost when the device was too busy to notice the button being
+  released, and UP and DOWN no longer switch applications after it.
+- With Wi-Fi off and power saving on, an application is told there is no network at once.
+- Sources saved while the catalog is being read are read again from the new list.
+- A request to the device that names no network is refused instead of being asked about.
+
 ## 0.1.72
 
 - An application's info names a host taken from the user's own list as "Set by the user".
