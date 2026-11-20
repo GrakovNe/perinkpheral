@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.67
+
+- On a phone the page's menu and the tabs of Settings show every section: they take
+  another row instead of scrolling sideways.
+
 ## 0.1.66
 
 - Forget network turns Wi-Fi off: no setup access point, and the device starts with its
