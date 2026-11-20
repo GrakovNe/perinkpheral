@@ -7,6 +7,8 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 ## 0.1.72
 
 - An application's info names a host taken from the user's own list as "Set by the user".
+- The application guide is printed at its own size: the cover reaches the page's edges and the
+  text is 9 pt again. One row wider than the page had shrunk the whole document to 91%.
 
 ## 0.1.71
 
