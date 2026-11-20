@@ -124,6 +124,9 @@ app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, 
 /* `app` may be NULL. */
 void app_unload(app_t *app);
 
+/* The name of the application that is loaded, NULL when none is. */
+const char *app_loaded_name(void);
+
 /* Where the user is in an application (session_set, host/app.h): kept by its scene, which
  * outlives the instance. Closed between the scene leaving the stack and its next entry, so
  * that the last app_on_blur() does not write it back. */

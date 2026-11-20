@@ -47,20 +47,27 @@ static uint32_t boot_id(void)
     return id;
 }
 
+/* A line an application wrote, or the runtime wrote about it, under its name: the log is
+ * read without knowing which application had the screen then. */
 static void log_from_app(int level, const char *text, int length)
 {
+    const char *name = app_loaded_name();
+    const char *colon = name != NULL ? ": " : "";
+    if (name == NULL) {
+        name = "";
+    }
     switch (level) {
     case HOST_LOG_ERROR:
-        ESP_LOGE(TAG, "%.*s", length, text);
+        ESP_LOGE(TAG, "%s%s%.*s", name, colon, length, text);
         break;
     case HOST_LOG_WARN:
-        ESP_LOGW(TAG, "%.*s", length, text);
+        ESP_LOGW(TAG, "%s%s%.*s", name, colon, length, text);
         break;
     case HOST_LOG_DEBUG:
-        ESP_LOGD(TAG, "%.*s", length, text);
+        ESP_LOGD(TAG, "%s%s%.*s", name, colon, length, text);
         break;
     default:
-        ESP_LOGI(TAG, "%.*s", length, text);
+        ESP_LOGI(TAG, "%s%s%.*s", name, colon, length, text);
         break;
     }
 }

@@ -451,6 +451,11 @@ static void load_strings(app_t *app)
  * memory: it is refused instead, whoever forgot to unload the first. */
 static app_t *s_loaded;
 
+const char *app_loaded_name(void)
+{
+    return s_loaded != NULL ? s_loaded->name : NULL;
+}
+
 app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, size_t wasm_size,
                            unsigned grants, const app_services_t *services, app_t **loaded)
 {
@@ -463,7 +468,7 @@ app_load_result_t app_load(const char *name, uint32_t abi, const uint8_t *wasm, 
          * screen can only say there is no room. */
         if (services->log_write != NULL) {
             char told[HOST_LOG_TEXT_MAX + 1];
-            int  length = snprintf(told, sizeof told, "%s: not loaded, %s is", name, s_loaded->name);
+            int  length = snprintf(told, sizeof told, "%s is not loaded: there is room for one", name);
             services->log_write(HOST_LOG_ERROR, told,
                           length < (int)sizeof told ? length : (int)sizeof told - 1);
         }
