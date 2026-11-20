@@ -55,8 +55,8 @@ build and upload without reflashing
 <b>III</b>Reference: Perinkpheral OS API and SDK library
 <b>III</b>Справочник: API Perinkpheral OS и библиотека SDK
 
-revision 12, 2026-11-18 / frozen Perinkpheral OS API of sdk/host_api.h, ABI 3<br>github.com/Perinkpheral/perinkpheral / MIT
-редакция 12, 2026-11-18 / зафиксированный Perinkpheral OS API sdk/host_api.h, ABI 3<br>github.com/Perinkpheral/perinkpheral / MIT
+revision 12, 2026-11-18 / frozen Perinkpheral OS API of sdk/host_api.h, ABI 3<br>github.com/Perinkpheral/perinkpheral-os / MIT
+редакция 12, 2026-11-18 / зафиксированный Perinkpheral OS API sdk/host_api.h, ABI 3<br>github.com/Perinkpheral/perinkpheral-os / MIT
 
 Contents
 Содержание
@@ -1273,8 +1273,8 @@ Place with coordinates
 Companion page
 Страница companion
 
-Host a static HTTPS page and put its URL in companion. The device page opens it in a separate window for setup that a settings form cannot express. See <a href="https://github.com/Perinkpheral/perinkpheral/blob/main/sdk/companion/example.html">sdk/companion/example.html</a>.
-Разместите статическую HTTPS-страницу и укажите её URL в companion. Страница устройства открывает её в отдельном окне для настройки, которую обычная форма не позволяет выполнить. См. <a href="https://github.com/Perinkpheral/perinkpheral/blob/main/sdk/companion/example.html">sdk/companion/example.html</a>.
+Host a static HTTPS page and put its URL in companion. The device page opens it in a separate window for setup that a settings form cannot express. See <a href="https://github.com/Perinkpheral/perinkpheral-os/blob/main/sdk/companion/example.html">sdk/companion/example.html</a>.
+Разместите статическую HTTPS-страницу и укажите её URL в companion. Страница устройства открывает её в отдельном окне для настройки, которую обычная форма не позволяет выполнить. См. <a href="https://github.com/Perinkpheral/perinkpheral-os/blob/main/sdk/companion/example.html">sdk/companion/example.html</a>.
 
 The companion sends ready; the device page replies with app, the manifest settings and their current values. Both secret and link values are omitted. The companion returns settings with declared keys and string values of at most 255 bytes. Only fields present in the form can be filled; hidden settings have no fields. An integration can write hidden settings through <code>/api/apps/settings</code>. The user must press Save to store filled values.
 Companion отправляет ready; страница устройства отвечает app, настройками манифеста и их текущими значениями. Значения secret и link не передаются. Companion возвращает settings с объявленными ключами и строками не длиннее 255 байт. Заполняются только поля формы; у скрытых настроек полей нет. Интеграция может записывать скрытые настройки через <code>/api/apps/settings</code>. Пользователь нажимает Save, чтобы сохранить заполненные значения.

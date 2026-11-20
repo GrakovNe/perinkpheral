@@ -23,6 +23,7 @@ module.exports = async function () {
     settings: {}, ask: async () => response, byId, make: (_tag, values) => values,
     ZONE_NOT_SET: "unset", setLanguage() {}, showZone() {}, showWifiNetworks() {},
     drawClock() {}, drawDefaultApp() {}, drawStatus() {}, drawTiles() {}, t: text => text,
+    reading: (_what, read) => read(), drawSettingsState() {},
   });
   vm.runInContext(loader, context);
   await context.loadSettings();

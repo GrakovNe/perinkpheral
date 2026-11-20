@@ -401,7 +401,7 @@ function tile(have, offer) {
     tools.append(iconButton(GEAR, "Settings", () => openAppSettings(have)));
   tools.append(iconButton(INFO, "Info", () => openAppInfo(have)));
   box.append(tools);
-  if (offer && appUpdateAvailable(have.version, offer.app.version)) {
+  if (offer && catalogsRead && appUpdateAvailable(have.version, offer.app.version)) {
     /* An update this firmware is too old for is not offered: the tile says
      * what it needs instead, where it can be read. */
     const needed = compatibilityProblem(offer.app);
@@ -491,14 +491,15 @@ function openAppInfo(app) {
 const offerSays = (offer, what) =>
   ((offer.app.translations || {})[pageLanguage] || {})[what] || offer.app[what] || "";
 
-/* Whether the sources were read: until then the catalog says it is loading. */
+/* Whether the sources were read: until then the catalog says it is loading, and nothing is
+ * installed or updated from it. */
 let catalogsRead = false;
 
 /* What the catalogs have and the device does not. */
 const available = () => offered.filter(offer => !installed.some(have => have.name === offer.app.name));
 
 /* What the catalogs have another version of, that this firmware can run. */
-const updates = () => offered.filter(offer => !compatibilityProblem(offer.app) &&
+const updates = () => !catalogsRead ? [] : offered.filter(offer => !compatibilityProblem(offer.app) &&
   installed.some(have => have.name === offer.app.name && appUpdateAvailable(have.version, offer.app.version)));
 
 /* The catalog: everything the sources have, the installed among it - Installed, or Update when
@@ -525,16 +526,18 @@ function drawCatalog() {
       const have = installed.find(app => app.name === offer.app.name);
       const isUpdate = have && appUpdateAvailable(have.version, offer.app.version);
       const button = make("button", { className: "quiet", textContent: !have ? "Install" : isUpdate ? "Update" : "Installed" });
-      button.disabled = Boolean(needed) || (have ? !isUpdate : isFull);
+      button.disabled = !catalogsRead || Boolean(needed) || (have ? !isUpdate : isFull);
       markPendingInstall(button, offer);
       if (!have || isUpdate) button.addEventListener("click", () => install(button, offer));
       row.append(picture(offer.app.icon, 3), text, button);
       return row;
     });
   const view = byId("catalog-rows");
-  view.replaceChildren(...rows);
-  if (!rows.length && catalogsRead)
-    view.append(make("p", { className: "note", textContent: offers.length ? "Nothing found." : "No apps available." }));
+  /* Until the sources answer the catalog says so, over whatever it has to show meanwhile. */
+  const state = catalogsRead ? (offers.length ? "" : "empty") : stateOf("catalog");
+  const note = state ? sameNote(view, state) || stateNote(state, loadCatalogs)
+    : rows.length ? null : make("p", { className: "note", textContent: "Nothing found." });
+  view.replaceChildren(...(note ? [note] : []), ...rows);
 }
 
 byId("catalog-search").addEventListener("input", drawCatalog);
@@ -552,7 +555,9 @@ function inMenuOrder(apps) {
 function drawTiles() {
   byId("auto-update-apps").setAttribute("aria-pressed", String(Boolean(settings.app_auto_update)));
   const tiles = inMenuOrder(installed).map(have => tile(have, offered.find(offer => offer.app.name === have.name)));
-  byId("tiles").replaceChildren(...tiles);
+  if (stateOf("apps") !== "ready") sayState(byId("tiles"), stateOf("apps"), loadApps);
+  else if (!tiles.length) sayState(byId("tiles"), "empty");
+  else byId("tiles").replaceChildren(...tiles);
   const capacity = byId("app-capacity");
   capacity.setAttribute("aria-valuemax", String(CATALOG_INSTALLED_MAX));
   capacity.setAttribute("aria-valuenow", String(installed.length));
@@ -587,18 +592,34 @@ byId("auto-update-apps").addEventListener("click", async () => {
   }
 });
 
-async function loadApps() {
-  installed = await ask("/api/apps");
-  removed = await ask("/api/apps/removed").catch(() => []);
-  drawTiles();
+/* The tiles are drawn as soon as the device has said what it holds. What was removed and left
+ * its settings is the catalog's to know, and is asked after: the device takes half a second over
+ * it. `andRemoved`: not at the start, where the catalog's reading asks when it is done. */
+async function loadApps(andRemoved = true) {
+  try {
+    installed = await reading("apps", () => ask("/api/apps"));
+  } finally {
+    drawTiles();
+  }
   drawDefaultApp();
   openInside(wantedInside);
+  if (andRemoved) loadRemoved();
+}
+
+async function loadRemoved() {
+  removed = await ask("/api/apps/removed").catch(() => []);
+  drawCatalog();
 }
 
 /* The list of sources, as the device keeps it: there with no network too. */
 async function loadSources() {
-  sources = (await ask("/api/sources")).sources;
-  editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true,
+  try {
+    sources = (await reading("sources", () => ask("/api/sources"))).sources;
+  } catch (error) {
+    if (stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
+    throw error;
+  }
+  editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true, wraps: true,
                                       input: { placeholder: "https://" } });
 }
 
@@ -610,9 +631,65 @@ function catalogAuthorIsAllowed(author, source) {
     (author.toLowerCase() !== "perinkpheral" || source === 0);
 }
 
-async function loadCatalogs() {
-  await loadSources();
+/* ---- the catalog as it was read last ----
+ * Shown at once when the page opens and replaced when the sources answer; until then it says it
+ * is loading and nothing is installed from it. Kept in the browser without the lists of files. */
+const CATALOG_KEPT = "perinkpheral-catalog", CATALOG_KEPT_MAX = 200000;
+const pageStore = () => { try { return localStorage; } catch (error) { return null; } };
+
+function keepCatalog(store, from, offers) {
+  try {
+    const text = JSON.stringify({ sources: from, offers: offers.map(
+      ({ app, source }) => ({ source, app: { ...app, files: undefined } })) });
+    if (text.length > CATALOG_KEPT_MAX) store.removeItem(CATALOG_KEPT);
+    else store.setItem(CATALOG_KEPT, text);
+  } catch (error) { /* no store, or no room in it: the catalog is read as it always was */ }
+}
+
+/* What was kept, when it is what this page wrote: sources, and offers with a name and a version. */
+function keptCatalog(store) {
+  try {
+    const kept = JSON.parse(store.getItem(CATALOG_KEPT));
+    const isSound = Array.isArray(kept.sources) && kept.sources.every(source => typeof source === "string") &&
+      Array.isArray(kept.offers) && kept.offers.every(offer => Number.isInteger(offer.source) && offer.app &&
+        typeof offer.app.name === "string" && typeof offer.app.version === "string" && !offer.app.files);
+    return isSound ? kept : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/* The sources the kept offers came from: other sources, and they are nobody's. */
+let keptSources = null;
+
+function showKeptCatalog() {
+  const kept = keptCatalog(pageStore());
+  if (!kept || catalogsRead) return;
+  offered = kept.offers;
+  keptSources = kept.sources;
+}
+
+/* One reading at a time, whoever asks: the start, Refresh, the sources saved. */
+let catalogsReading = null;
+
+function loadCatalogs() {
+  catalogsReading = catalogsReading || readCatalogs().finally(() => { catalogsReading = null; });
+  return catalogsReading;
+}
+
+async function readCatalogs() {
   const found = [], silent = [];
+  try {
+    await loadSources();
+  } catch (error) {
+    if (!catalogsRead) loadState.catalog = "failed";
+    drawTiles();
+    throw error;
+  }
+  if (!catalogsRead && keptSources && String(keptSources) !== String(sources)) {
+    offered = [];
+    drawTiles();
+  }
   for (let source = 0; source < sources.length; source++) {
     try {
       const catalog = await askForApp("/api/catalog?source=" + source);
@@ -625,12 +702,19 @@ async function loadCatalogs() {
       silent.push({ source: sources[source], error });
     }
   }
-  offered = found;
-  catalogsRead = true;
+  /* No source answered: what was read before stays, and a catalog never read says it failed. */
+  if (found.length || !silent.length) {
+    offered = found;
+    catalogsRead = true;
+    loadState.catalog = "ready";
+    keepCatalog(pageStore(), sources, found);
+  } else if (!catalogsRead) {
+    loadState.catalog = "failed";
+  }
   drawTiles();
-  loadGlyphs();
   for (const { source, error } of silent)
     toast(error.status === 503 ? error.message : t("Source unavailable: {0}", source), "error");
+  loadRemoved();
 }
 
 /* ---- sources ---- */

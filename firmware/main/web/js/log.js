@@ -46,8 +46,11 @@ function logRow(line) {
 function drawLog() {
   const view = byId("log-lines"), wanted = logSearched();
   const rows = logLines.filter(line => logMatches(line, wanted)).map(logRow);
-  view.replaceChildren(...rows);
-  if (!rows.length) view.append(make("p", { className: "note", textContent: t(logLines.length ? "Nothing found." : "Empty.") }));
+  /* No line: none matches the search, or none was written, or the log is not read yet. */
+  const state = logLines.length ? "" : stateOf("log") === "ready" ? "empty" : stateOf("log");
+  const note = rows.length ? null : state ? sameNote(view, state) || stateNote(state, () => readLog(true))
+    : make("p", { className: "note", textContent: t("Nothing found.") });
+  view.replaceChildren(...(note ? [note] : rows));
   view.scrollTop = view.scrollHeight;
 }
 
@@ -67,8 +70,11 @@ function addLogLines(lines) {
 }
 
 async function readLogNow() {
-  const answer = await fetch("/api/log" + (logEnd === null ? "" : "?since=" + logEnd));
-  if (!answer.ok) throw new Error("HTTP " + answer.status);
+  const answer = await reading("log", async () => {
+    const got = await fetch("/api/log" + (logEnd === null ? "" : "?since=" + logEnd));
+    if (!got.ok) throw new Error("HTTP " + got.status);
+    return got;
+  });
   const end = Number(answer.headers.get("X-Log-End")), boot = answer.headers.get("X-Log-Boot");
   const text = await answer.text();
   /* Another run, or a position behind the one before: the device started anew, and its log
@@ -87,6 +93,7 @@ async function readLogNow() {
   const parts = (logRest + text).split("\n");
   logRest = parts.pop();
   addLogLines(parts.filter(line => line.trim()).map(parseLogLine));
+  if (!logLines.length) drawLog(); /* read, and empty */
 }
 
 /* One read at a time: the one that follows and the one a press asks for would both add what
@@ -97,9 +104,11 @@ function readLog(fresh) {
       logEnd = null;
       logRest = "";
       logLines.length = 0;
+      delete loadState.log;
       drawLog();
     }
-    return readLogNow();
+    /* A log that could not be read says so where its lines would be. */
+    return readLogNow().catch(error => { drawLog(); throw error; });
   });
   return logReading;
 }

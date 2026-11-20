@@ -48,8 +48,18 @@ function posixZone() {
          "," + rule(toSummer) + "," + rule(toWinter);
 }
 
+/* The forms are there once the device has said what is set: an empty form would be saved as it stands. */
+function drawSettingsState() {
+  if (stateOf("settings") === "ready") byId("settings-state").replaceChildren();
+  else sayState(byId("settings-state"), stateOf("settings"), loadSettings);
+}
+
 async function loadSettings() {
-  settings = await ask("/api/settings");
+  try {
+    settings = await reading("settings", () => ask("/api/settings"));
+  } finally {
+    drawSettingsState();
+  }
   setLanguage(settings.language);
   for (const key of ["device_name", "ntp_server", "refresh_min_data_s", "refresh_keepalive_h"])
     byId(key).value = settings[key];
@@ -218,7 +228,8 @@ byId("time_auto").addEventListener("click", () => {
 
 function drawNetworkNow() {
   const network = statusFacts().find(([name]) => name === "Network");
-  byId("network-now").replaceChildren(...factList(network ? network[1] : []));
+  if (stateOf("status") !== "ready") sayState(byId("network-now"), stateOf("status"), loadStatus);
+  else byId("network-now").replaceChildren(...factList(network ? network[1] : []));
 }
 
 function chooseWifiNetwork() {
@@ -268,16 +279,35 @@ byId("wifi").addEventListener("submit", async event => {
  * The device's fonts are ASCII; an alphabet is a pack the user adds. The official
  * catalog lists them, the browser fetches one and hands it to the device. Without a
  * pack its letters are spelled in Latin ones. */
+/* Asked for when Language is opened, not at every start: the packs are that pane's alone. */
+let glyphsAsked = false;
+
+function wantGlyphs() {
+  if (glyphsAsked || stateOf("status") === "loading" || currentSection() !== "settings" ||
+      !byId("language").classList.contains("current")) return;
+  glyphsAsked = true;
+  loadGlyphs().catch(() => {});
+}
+
+sectionShown.push(wantGlyphs);
+
 async function loadGlyphs() {
   const rows = byId("glyph-rows");
   let have, offers;
+  /* the packs on offer are the official catalog's, on the internet */
+  if (isOffline()) return sayState(rows, "offline");
   try {
-    have = await ask("/api/glyphs");
-    offers = await (await fetch(sources[0] + "/glyphs/index.json")).json();
+    [have, offers] = await reading("glyphs", async () => {
+      if (stateOf("sources") !== "ready") await loadSources();
+      const index = await fetch(sources[0] + "/glyphs/index.json");
+      if (!index.ok) throw new Error("HTTP " + index.status);
+      return [await ask("/api/glyphs"), await index.json()];
+    });
   } catch (error) {
-    rows.textContent = "Catalog unavailable.";
-    return;
+    if (stateOf("glyphs") === "failed") sayState(rows, "failed", loadGlyphs);
+    throw error;
   }
+  if (!offers.length) return sayState(rows, "empty");
   rows.replaceChildren(...offers.map(offer => {
     const row = make("div", { className: "offer" }), text = make("div");
     const isThere = have.packs.some(pack => pack.name === offer.name);

@@ -159,6 +159,47 @@ const send = (button, url, options, request = ask) => busy(button, async () => {
   if (!isPlain) toast(answer.ok);
 });
 
+/* ---- a place that waits for the device ----
+ * Said one way everywhere: "Loading..." until the first answer, "Empty." for an answer with
+ * nothing in it, "Could not load." with Refresh for no answer. What was read once stays in
+ * sight while it is read again: only a place with nothing to show says it waits or failed. */
+const loadState = {}; /* by what is read - apps, status, settings, catalog, sources, glyphs, log: unset while loading */
+const STATE_WORDS = { loading: "Loading...", empty: "Empty.", failed: "Could not load.",
+                      offline: "Catalog unavailable." };
+const stateOf = what => loadState[what] || "loading";
+
+function stateNote(state, again) {
+  const note = make("p", { className: "note state", textContent: t(STATE_WORDS[state]) });
+  note.dataset.state = state;
+  if (state === "failed" && again) {
+    const button = make("button", { type: "button", className: "quiet", textContent: t("Refresh") });
+    button.addEventListener("click", () => busy(button, again));
+    note.append(button);
+  }
+  return note;
+}
+
+/* The note a box has already, when it says the same: a Refresh under way keeps its button. */
+const sameNote = (box, state) => [...box.children].find(
+  child => child.classList.contains("state") && child.dataset.state === state);
+
+/* The box says the state and nothing else. */
+function sayState(box, state, again) {
+  box.replaceChildren(sameNote(box, state) || stateNote(state, again));
+}
+
+/* Reads what a place shows and keeps its state: ready with an answer, failed with none ever. */
+async function reading(what, read) {
+  try {
+    const answer = await read();
+    loadState[what] = "ready";
+    return answer;
+  } catch (error) {
+    if (loadState[what] !== "ready") loadState[what] = "failed";
+    throw error;
+  }
+}
+
 /* What cannot be taken back is asked about on the device's own screen. */
 const CONFIRM_ON_DEVICE = "Confirm on the device.";
 
@@ -176,12 +217,13 @@ function confirmed(text, action, notes) {
     "close", () => resolve(dialog.returnValue === "yes"), { once: true }));
 }
 
-/* After a restart the device is gone for a moment; then the page reads everything anew. */
+/* After a restart the device is gone for a moment; then the page reads everything anew. A device
+ * that did not answer when the page opened is asked the same way, sooner, and not called restarting. */
 let restarting = null;
 
-function afterRestart() {
+function afterRestart(why = "Restarting", wait = 9000) {
   if (restarting) return;
-  restarting = toast("Restarting", "busy", true);
+  restarting = toast(why, "busy", true);
   setTimeout(async function retry() {
     try {
       await loadAll();
@@ -190,7 +232,7 @@ function afterRestart() {
     } catch (error) {
       setTimeout(retry, 2000);
     }
-  }, 9000);
+  }, wait);
 }
 
 /* ---- sections ----
@@ -273,13 +315,51 @@ for (const tab of byId("tabs").children)
 for (const close of document.querySelectorAll("[data-close]"))
   close.addEventListener("click", () => close.closest("dialog").close());
 
+/* A dialog taller than the screen scrolls above its buttons, which stay at its bottom edge
+ * (style.css); a line over them says there is more under it. */
+const dialogHeights = new ResizeObserver(sizes => {
+  for (const { target } of sizes) {
+    const dialog = target.closest("dialog");
+    dialog.classList.toggle("tall", dialog.scrollHeight > dialog.clientHeight + 1);
+  }
+});
+for (const dialog of document.querySelectorAll("dialog")) {
+  dialogHeights.observe(dialog);
+  if (dialog.firstElementChild) dialogHeights.observe(dialog.firstElementChild);
+}
+
+/* A field for an address: read whole, on as many lines as it takes, and still one line of text. */
+function wrappingField(properties) {
+  const field = make("textarea", Object.assign({ rows: 1 }, properties));
+  const fit = () => {
+    field.style.height = "auto";
+    field.style.height = field.scrollHeight + 2 + "px";
+  };
+  field.addEventListener("input", () => {
+    if (/\s/.test(field.value)) field.value = field.value.replace(/\s+/g, "");
+    fit();
+  });
+  /* Enter saves the form, as in a field of one line. */
+  field.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (field.form) field.form.requestSubmit();
+  });
+  /* Its height is known once it is in sight, and changes with its width. */
+  new ResizeObserver(fit).observe(field);
+  return field;
+}
+
 /* A list the user edits a line at a time: a field an item, each with a button that takes it
  * away, and one at the end that adds a line while there is room for one. A first line that is
- * fixed - the official catalog - is shown and kept. box.values() is what is in the others. */
-function editableList(box, { values, most = Infinity, fixedFirst = false, input = {} }) {
+ * fixed - the official catalog - is shown and kept. box.values() is what is in the others.
+ * `wraps`: the items are addresses, shown whole. */
+function editableList(box, { values, most = Infinity, fixedFirst = false, wraps = false, input = {} }) {
+  const FIELDS = "input, textarea";
   const row = (value, isFixed) => {
     const line = make("div");
-    const field = make("input", Object.assign({ value, spellcheck: false, autocomplete: "off" }, input));
+    const properties = Object.assign({ value, spellcheck: false, autocomplete: "off" }, input);
+    const field = wraps ? wrappingField(properties) : make("input", properties);
     field.disabled = isFixed;
     line.append(field);
     if (!isFixed) {
@@ -292,12 +372,12 @@ function editableList(box, { values, most = Infinity, fixedFirst = false, input 
   };
   const drawAdd = () => {
     for (const old of box.querySelectorAll(".add")) old.remove();
-    if (box.querySelectorAll("input").length >= most) return;
+    if (box.querySelectorAll(FIELDS).length >= most) return;
     const add = make("button", { type: "button", className: "quiet add", textContent: "+", title: "Add" });
     add.addEventListener("click", () => {
       const line = row("", false);
       add.before(line);
-      line.querySelector("input").focus();
+      line.querySelector(FIELDS).focus();
       drawAdd();
     });
     box.append(add);
@@ -306,7 +386,7 @@ function editableList(box, { values, most = Infinity, fixedFirst = false, input 
     box.replaceChildren(...list.map((value, index) => row(value, fixedFirst && index === 0)));
     drawAdd();
   };
-  box.values = () => [...box.querySelectorAll("input:not(:disabled)")].map(field => field.value.trim())
+  box.values = () => [...box.querySelectorAll(FIELDS)].filter(field => !field.disabled).map(field => field.value.trim())
     .filter(value => value);
   box.setValues(values);
   return box;

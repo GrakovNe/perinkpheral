@@ -81,10 +81,10 @@ were also verified. These checks do not establish what the physical panel shows.
   but frequent maintenance resets prevent a multi-hour stability conclusion. The
   continuous run remains stopped. Follow [the existing plan](stability.md) when asked.
 
-Reviewed changes: firmware PRs [7](https://github.com/Perinkpheral/perinkpheral/pull/7),
-[8](https://github.com/Perinkpheral/perinkpheral/pull/8),
-[9](https://github.com/Perinkpheral/perinkpheral/pull/9),
-[10](https://github.com/Perinkpheral/perinkpheral/pull/10);
+Reviewed changes: firmware PRs [7](https://github.com/Perinkpheral/perinkpheral-os/pull/7),
+[8](https://github.com/Perinkpheral/perinkpheral-os/pull/8),
+[9](https://github.com/Perinkpheral/perinkpheral-os/pull/9),
+[10](https://github.com/Perinkpheral/perinkpheral-os/pull/10);
 apps PRs [6](https://github.com/Perinkpheral/perinkpheral-apps/pull/6),
 [7](https://github.com/Perinkpheral/perinkpheral-apps/pull/7),
 [8](https://github.com/Perinkpheral/perinkpheral-apps/pull/8),

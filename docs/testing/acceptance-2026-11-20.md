@@ -3,7 +3,12 @@
 The owner's pass over [acceptance.md](acceptance.md), rows read out by the owner and
 written down as said, on firmware 0.1.63.
 
-Three rows failed - 2.3, 4.1 and 6.5; 7.3 passed with two remarks that are open. The three are fixed in
+Three rows failed - 2.3, 4.1 and 6.5; 7.3 passed with two remarks, both answered in 0.1.66: Wi-Fi off after Forget network with Connect to Wi-Fi in Settings, and the portal named in the DHCP lease. The owner accepted the Wi-Fi rows 7.3-7.6 on 0.1.66 the same day; the seconds to the portal and the phone were not written down.
+
+The eight rows to pass again - 2.2, 2.3, 2.8, 2.12, 4.1, 4.5, 4.6 and 6.5 - were passed by the owner on
+0.1.67 the same evening, and row 6.7, the page on a phone, on 0.1.68 with the menu and the tabs wrapped.
+Not yet seen by the owner on a device: the page's loading states of 0.1.69, Service status with a
+list, ISS without day and night. The three are fixed in
 0.1.64, with the chord turned off in the menu. To pass on 0.1.64: rows 2.2, 2.3, 2.8, 2.12,
 4.1, 4.5, 4.6 and 6.5 of [acceptance.md](acceptance.md) as it is after those fixes.
 

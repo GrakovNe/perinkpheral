@@ -4,6 +4,19 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.69
+
+- The firmware's repository is now Perinkpheral/perinkpheral-os, and releases are fetched from
+  its address. A device with an older firmware is updated once by uploading the image in recovery.
+- The page says what it waits for: Loading..., Empty., or Could not load. with Refresh, in every
+  section, in the log, the sources and the glyph packs. The catalog is no longer blank while
+  the sources are read, and the forms of Settings appear once the device has said what is set.
+- The page is usable sooner: the installed apps no longer wait for the list of removed ones, the
+  catalog shows what it had at the last visit while the sources are read - nothing is installed
+  from it until they answer - and the glyph packs are asked for when Language is opened.
+- A source's address is shown whole in Sources, on as many lines as it takes. The buttons of a
+  dialog stay at its bottom edge when the dialog is taller than the screen.
+
 ## 0.1.68
 
 - On a phone the page's menu and the tabs of Settings show every section: they take
