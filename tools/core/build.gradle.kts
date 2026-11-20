@@ -77,3 +77,12 @@ val preinstalledTest by tasks.registering(JavaExec::class) {
     mainClass.set("dev.perinkpheral.core.catalog.PreinstalledTest")
 }
 tasks.check { dependsOn(preinstalledTest) }
+
+// Compiles C for this computer and builds a module: it says so and passes when there is no
+// C compiler or no wasi-sdk (WASI_SDK_PATH).
+val appCheckTest by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.perinkpheral.core.check.AppCheckTest")
+}
+tasks.check { dependsOn(appCheckTest) }

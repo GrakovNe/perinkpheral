@@ -13,6 +13,7 @@ import dev.perinkpheral.core.build.ManifestAuthor
 import dev.perinkpheral.core.catalog.Catalog
 import dev.perinkpheral.core.catalog.Preinstalled
 import dev.perinkpheral.core.catalog.Publisher
+import dev.perinkpheral.core.check.AppCheck
 import dev.perinkpheral.core.device.Bmp
 import dev.perinkpheral.core.device.DeviceClient
 import dev.perinkpheral.core.device.Endurance
@@ -44,6 +45,10 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral sim-test <dir> [--update] [--jobs N]
                                               applications in the simulator, their screens against kept pictures;
                                               N scenarios at a time (one a processor unless said), 1 for one by one
+    perinkpheral app-check <folder> [--only <capability>] [--app <name>]
+                                              applications against the contract on this computer, with the
+                                              sanitizers: sessions, store, timers, network, drawing, and each
+                                              application's own tests (logic), from its test folder
 
   What the project makes of its sources:
     perinkpheral check-generated              committed fonts, icons, marks, spelling and guide screens
@@ -308,6 +313,15 @@ private fun run(raw: Array<String>): Int {
             val failed = SimTest(root()) { builder {} }.run(File(arguments.word(1, "the folder of tests")), arguments.has("update"), jobs)
             failed.forEach { println("  $it") }
             if (failed.isNotEmpty()) return 1
+        }
+        "app-check" -> {
+            val wasi = System.getenv("WASI_SDK_PATH") ?: fail("WASI_SDK_PATH is not set: point it at an unpacked wasi-sdk")
+            // --app names an application here; for `log` it is a flag, so the words are read anew.
+            val own = Arguments(raw, emptySet())
+            val report = AppCheck(Sdk(root()), File(wasi)) { println(it) }
+                .run(File(own.word(1, "the folder of applications")), own.option("only"), own.option("app"))
+            println("${report.applications} applications, ${report.checked} checks, ${report.failed.size} failed")
+            if (report.failed.isNotEmpty()) return 1
         }
         "icons" -> println("firmware/components/gfx/gfx_icon_art.c: ${Icons.make(root(), Sdk(root()).contract)} bytes of drawings")
         "mark" -> {
