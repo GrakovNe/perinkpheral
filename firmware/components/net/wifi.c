@@ -22,6 +22,7 @@
 #include "freertos/task.h"
 
 #include "captive_dns.h"
+#include "captive_portal.h"
 #include "deadlines.h"
 #include "units.h"
 
@@ -337,6 +338,29 @@ static void wifi_task(void *arg)
     }
 }
 
+/* The lease names the portal (DHCP option 114, RFC 8910), so a phone
+ * that reads it need not find the portal by probing. The server keeps
+ * the pointer, and takes an option only while stopped. Without it the
+ * name server and the redirect still lead there. */
+static void advertise_portal(esp_netif_t *access_point)
+{
+    static char portal[] = CAPTIVE_PORTAL_URL;
+    esp_err_t stopped = esp_netif_dhcps_stop(access_point);
+    if (stopped != ESP_OK && stopped != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        ESP_LOGW(TAG, "portal not advertised: %s", esp_err_to_name(stopped));
+        return;
+    }
+    esp_err_t set = esp_netif_dhcps_option(access_point, ESP_NETIF_OP_SET,
+                                           ESP_NETIF_CAPTIVEPORTAL_URI, portal,
+                                           sizeof portal - 1);
+    if (set != ESP_OK) {
+        ESP_LOGW(TAG, "portal not advertised: %s", esp_err_to_name(set));
+    }
+    if (stopped == ESP_OK) {
+        esp_netif_dhcps_start(access_point);
+    }
+}
+
 void wifi_start(const wifi_config_in_t *config)
 {
     strlcpy(s_wifi.ssid, config->ssid, sizeof s_wifi.ssid);
@@ -356,7 +380,7 @@ void wifi_start(const wifi_config_in_t *config)
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
+    advertise_portal(esp_netif_create_default_wifi_ap());
     /* A phone that joins the access point is told that every name is the
      * device, so it opens the device's page without being asked. */
     static const uint8_t SETUP_ADDRESS[4] = { 192, 168, 4, 1 };
