@@ -3,7 +3,7 @@
 The owner's pass over [acceptance.md](acceptance.md), rows read out by the owner and
 written down as said, on firmware 0.1.63.
 
-Three rows failed - 2.3, 4.1 and 6.5 - and one was skipped, 7.3. The three are fixed in
+Three rows failed - 2.3, 4.1 and 6.5; 7.3 passed with two remarks that are open. The three are fixed in
 0.1.64, with the chord turned off in the menu. To pass on 0.1.64: rows 2.2, 2.3, 2.8, 2.12,
 4.1, 4.5, 4.6 and 6.5 of [acceptance.md](acceptance.md) as it is after those fixes.
 
@@ -110,7 +110,7 @@ network on the shelf device unless this pass is meant to include them.
 |---|---|---|---|
 | 7.1 | Device page, Enter recovery; leave it without updating | Recovery screen in the saved language; back to main with settings intact | ok |
 | 7.2 | BACK held three seconds at reset | Recovery | ok |
-| 7.3 | Setup access point from a phone (only on a device being set up) | The portal opens by itself on iOS and on Android | skip: the shelf device is set up; needs a device being set up anew |
+| 7.3 | Setup access point from a phone (only on a device being set up) | The portal opens by itself on iOS and on Android | ok with two remarks, by Forget network on the shelf device: the portal opens by itself, but slowly (not timed; which phone was not written down); and a device with no network stored only asks to be set up - it keeps its open access point and starts at the setup screen, so it cannot be used without Wi-Fi on purpose, as a clock. Applications and their settings were kept (15, the same versions) |
 
 ## 8. Alarms, notifications, power
 
