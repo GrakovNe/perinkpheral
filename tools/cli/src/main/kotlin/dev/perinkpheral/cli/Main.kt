@@ -40,7 +40,9 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
                      [--glyphs <dir>] [--mocks <file>] [--clock] [--at <unix>] [--state <dir>] [--binary <file>]
                                               run the application in the simulator; Ctrl-C stops it
     perinkpheral preview [dir] [--font jersey] Perinkpheral OS's screens as PNGs, rendered on this computer
-    perinkpheral sim-test <dir> [--update]    applications in the simulator, their screens against kept pictures
+    perinkpheral sim-test <dir> [--update] [--jobs N]
+                                              applications in the simulator, their screens against kept pictures;
+                                              N scenarios at a time (one a processor unless said), 1 for one by one
 
   What the project makes of its sources:
     perinkpheral check-generated              committed fonts, icons, marks, spelling and guide screens
@@ -252,7 +254,9 @@ private fun run(raw: Array<String>): Int {
             else -> fail(USAGE)
         }
         "sim-test" -> {
-            val failed = SimTest(root()) { builder {} }.run(File(arguments.word(1, "the folder of tests")), arguments.has("update"))
+            val jobs = arguments.option("jobs")?.let { it.toIntOrNull()?.takeIf { jobs -> jobs >= 1 } ?: fail("--jobs is a number, 1 or more") }
+                ?: SimTest.defaultWorkers()
+            val failed = SimTest(root()) { builder {} }.run(File(arguments.word(1, "the folder of tests")), arguments.has("update"), jobs)
             failed.forEach { println("  $it") }
             if (failed.isNotEmpty()) return 1
         }

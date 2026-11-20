@@ -53,6 +53,14 @@ tools/perinkpheral sim-test firmware/test/sim
 `--update` replaces the expected pictures and requires visual review. A simulator frame
 has no panel latency. Its network can use canned responses from each scenario.
 
+Scenarios run several at a time (`--jobs N`; one a processor by default, `1` for one by
+one) and are reported in their own order. Each has its own simulator, state folder and a
+port the system picked; the applications are built once, before the first simulator starts.
+The simulator's clock is the computer's and a `wait` step is real time: a scenario that
+counts on what happens within a wait can fail on a busy computer, alone or among others.
+`forward` moves the clock without waiting. `"serial": true` in a scenario runs it while no
+other does.
+
 ## Device observations
 
 A development build exposes the frame and injected presses, application uploads, the

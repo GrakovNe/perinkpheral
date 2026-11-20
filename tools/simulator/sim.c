@@ -11,7 +11,8 @@
  * library - and answers can be replaced by mocks.
  *
  *     perinkpheral-sim --apps <folder> --app <name> --state <folder>
- *                      [--port 8401] [--language en] [--font departure|jersey]
+ *                      [--port 8401] [--port-file <file>] [--language en]
+ *                      [--font departure|jersey]
  *                      [--glyphs <folder>] [--mocks <file.json>] [--clock]
  *                      [--at <unix time>] [--fetcher-port <port>]
  *
@@ -98,7 +99,8 @@ static struct {
     const char *glyphs;
     const char *mocks;
     int         fetcher_port; /* the network of whoever started the simulator, on this port */
-    int         port;
+    int         port;         /* 0: one the system picks, said in the log and in --port-file */
+    const char *port_file;
     bool        jersey;
     bool        clock;
     int64_t     at; /* where the clock starts; 0: the computer's */
@@ -1935,8 +1937,26 @@ static void usage(void)
     fprintf(stderr, "perinkpheral-sim --apps <folder> --app <name> --state <folder> [--port 8401]\n"
                     "                 [--language en] [--font departure|jersey] [--glyphs <folder>]\n"
                     "                 [--mocks <file.json>] [--clock] [--at <unix time>]\n"
-                    "                 [--fetcher-port <port>]\n");
+                    "                 [--fetcher-port <port>] [--port-file <file>]\n");
     exit(2);
+}
+
+/* The port for whoever started the simulator: written whole under another name and renamed,
+ * so a reader never finds half a number. */
+static bool write_port_file(void)
+{
+    char scratch[PATH_BYTES];
+    if (snprintf(scratch, sizeof scratch, "%s.part", s_options.port_file) >= (int)sizeof scratch) {
+        errno = ENAMETOOLONG;
+        return false;
+    }
+    FILE *file = fopen(scratch, "w");
+    if (file == NULL) {
+        return false;
+    }
+    bool is_written = fprintf(file, "%d\n", s_options.port) > 0;
+    is_written = fclose(file) == 0 && is_written;
+    return is_written && rename(scratch, s_options.port_file) == 0;
 }
 
 static volatile sig_atomic_t s_is_stopping;
@@ -1955,6 +1975,7 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--app") == 0 && next) s_options.app = argv[++i];
         else if (strcmp(argv[i], "--state") == 0 && next) s_options.state = argv[++i];
         else if (strcmp(argv[i], "--port") == 0 && next) s_options.port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--port-file") == 0 && next) s_options.port_file = argv[++i];
         else if (strcmp(argv[i], "--language") == 0 && next) s_options.language = argv[++i];
         else if (strcmp(argv[i], "--glyphs") == 0 && next) s_options.glyphs = argv[++i];
         else if (strcmp(argv[i], "--mocks") == 0 && next) s_options.mocks = argv[++i];
@@ -1971,7 +1992,7 @@ int main(int argc, char **argv)
     /* The store's paths are as short as the device's ("/apps/<name>/<file>"):
      * the folder of applications becomes the working one, and the other
      * folders are made absolute before that. */
-    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES];
+    static char state[PATH_BYTES], mocks[PATH_BYTES], glyphs[PATH_BYTES], port_file[PATH_BYTES];
     if (realpath(s_options.state, state) == NULL) {
         mkdir(s_options.state, 0755);
         if (realpath(s_options.state, state) == NULL) {
@@ -1985,6 +2006,16 @@ int main(int argc, char **argv)
     }
     if (s_options.glyphs != NULL && realpath(s_options.glyphs, glyphs) != NULL) {
         s_options.glyphs = glyphs;
+    }
+    if (s_options.port_file != NULL && s_options.port_file[0] != '/') {
+        if (getcwd(port_file, sizeof port_file) == NULL ||
+            strlen(port_file) + strlen(s_options.port_file) + 2 > sizeof port_file) {
+            fprintf(stderr, "%s: the path is too long\n", s_options.port_file);
+            return 1;
+        }
+        strcat(port_file, "/");
+        strcat(port_file, s_options.port_file);
+        s_options.port_file = port_file;
     }
     if (chdir(s_options.apps) != 0) {
         fprintf(stderr, "%s: %s\n", s_options.apps, strerror(errno));
@@ -2058,6 +2089,16 @@ int main(int argc, char **argv)
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (bind(listening, (struct sockaddr *)&address, sizeof address) != 0 || listen(listening, 8) != 0) {
         say('E', "sim", "port %d: %s", s_options.port, strerror(errno));
+        return 1;
+    }
+    /* Port 0 is whichever the system gave: asked of the socket that holds it, so nobody
+     * else can have taken it between the choice and the bind. */
+    socklen_t address_size = sizeof address;
+    if (getsockname(listening, (struct sockaddr *)&address, &address_size) == 0) {
+        s_options.port = ntohs(address.sin_port);
+    }
+    if (s_options.port_file != NULL && !write_port_file()) {
+        say('E', "sim", "%s: %s", s_options.port_file, strerror(errno));
         return 1;
     }
     say('I', "sim", "the device is at http://127.0.0.1:%d", s_options.port);
