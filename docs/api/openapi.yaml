@@ -240,9 +240,11 @@ paths:
       summary: The device's web page
       responses:
         "200":
-          description: The page, gzip-compressed HTML
+          description: The page, gzip-compressed HTML, with an ETag that names the firmware image
           content:
             text/html: {}
+        "304":
+          description: The browser's copy, named in If-None-Match, is this firmware's page
 
   /api/status:
     get:

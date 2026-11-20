@@ -7,8 +7,11 @@ Three rows failed - 2.3, 4.1 and 6.5; 7.3 passed with two remarks, both answered
 
 The eight rows to pass again - 2.2, 2.3, 2.8, 2.12, 4.1, 4.5, 4.6 and 6.5 - were passed by the owner on
 0.1.67 the same evening, and row 6.7, the page on a phone, on 0.1.68 with the menu and the tabs wrapped.
-Not yet seen by the owner on a device: the page's loading states of 0.1.69, Service status with a
-list, ISS without day and night. The three are fixed in
+The page's loading states, the sources dialog and the tall dialogs of 0.1.69, Service status with a
+list, ISS without day and night and Donut under its new title were accepted by the owner the same evening,
+after one update through recovery from the renamed repository.
+
+The first round of acceptance is passed. Next by docs/testing/stability.md: the endurance run, on the owner's word. The three are fixed in
 0.1.64, with the chord turned off in the menu. To pass on 0.1.64: rows 2.2, 2.3, 2.8, 2.12,
 4.1, 4.5, 4.6 and 6.5 of [acceptance.md](acceptance.md) as it is after those fixes.
 
