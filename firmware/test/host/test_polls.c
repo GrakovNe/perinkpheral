@@ -469,6 +469,13 @@ static void test_queued_destination_after_settings_change(void)
     strcpy(request->headers[0].value, "{{evil}}");
     CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
           TEXT_REQUEST_NOT_READY);
+    /* A link saved empty: there is no address to ask, and nothing is refused as not allowed. */
+    request->header_count = 0;
+    request->url[0] = '\0';
+    CHECK(text_template_prepare_request(request, manifest, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_NOT_READY);
+    CHECK(text_template_prepare_request(request, NULL, settings_value, NULL, url, sizeof url) ==
+          TEXT_REQUEST_NOT_READY);
     free(request);
 }
 
