@@ -1,0 +1,7 @@
+{
+  "at": 1795262400,
+  "mocks": {
+    "https://example.test/now*": { "body": "{\"value\": \"21\"}" },
+    "https://example.test/note": { "body": "A note long enough to come in more than one piece when it is cut." }
+  }
+}
