@@ -34,7 +34,7 @@ env:
 jobs:
   version:
     name: Version
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, perinkpheral]
     outputs:
       next: ${{ steps.version.outputs.next }}
       build: ${{ steps.version.outputs.build }}
@@ -65,19 +65,29 @@ jobs:
 
   tests:
     name: Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, perinkpheral]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
-      # the tools' libraries from a cache, not from Maven Central every run: it answers 429
+      # the tools' libraries from the runner's Gradle home, not from Maven Central every run: it answers 429
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
       - name: wasi-sdk
         run: |
-          curl -sSL "$WASI_SDK_URL" | tar -xz -C "$RUNNER_TEMP"
-          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+          # Kept in the runner's tool cache: 190 MB is not fetched again by every job.
+          sdk="$RUNNER_TOOL_CACHE/wasi-sdk-34.0-x86_64-linux"
+          if [ ! -x "$sdk/bin/clang" ]; then
+            mkdir -p "$RUNNER_TOOL_CACHE"
+            fresh=$(mktemp -d -p "$RUNNER_TOOL_CACHE")
+            curl -sSL "$WASI_SDK_URL" | tar -xz -C "$fresh"
+            mv -T "$fresh/wasi-sdk-34.0-x86_64-linux" "$sdk" || true
+            rm -rf "$fresh"
+          fi
+          echo "WASI_SDK_PATH=$sdk" >> "$GITHUB_ENV"
       - name: The tools
         run: tools/perinkpheral > /dev/null
       - name: Host tests, frozen ABI and the layers
@@ -99,7 +109,7 @@ jobs:
 
   case:
     name: Printable enclosure
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, perinkpheral]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -114,7 +124,7 @@ jobs:
   firmware:
     name: Firmware (${{ matrix.flavor }})
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, perinkpheral]
     container: espressif/idf:v5.5.5
     strategy:
       fail-fast: false
@@ -126,13 +136,26 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      # the tools' libraries from a cache, not from Maven Central every run: it answers 429
+      # the tools' libraries from the runner's Gradle home, not from Maven Central every run: it answers 429
+      # The container's own home is lost with it; this one is kept by the runner. One a
+      # runner: two builds starting in one home at once failed to start Gradle.
+      - run: echo "GRADLE_USER_HOME=$RUNNER_TOOL_CACHE/gradle-$RUNNER_NAME" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
       - name: wasi-sdk
         shell: bash
         run: |
-          curl -sSL "$WASI_SDK_URL" | tar -xz -C /opt
-          echo "WASI_SDK_PATH=/opt/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+          # Kept in the runner's tool cache: 190 MB is not fetched again by every job.
+          sdk="$RUNNER_TOOL_CACHE/wasi-sdk-34.0-x86_64-linux"
+          if [ ! -x "$sdk/bin/clang" ]; then
+            mkdir -p "$RUNNER_TOOL_CACHE"
+            fresh=$(mktemp -d -p "$RUNNER_TOOL_CACHE")
+            curl -sSL "$WASI_SDK_URL" | tar -xz -C "$fresh"
+            mv -T "$fresh/wasi-sdk-34.0-x86_64-linux" "$sdk" || true
+            rm -rf "$fresh"
+          fi
+          echo "WASI_SDK_PATH=$sdk" >> "$GITHUB_ENV"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: The tools
         shell: bash
@@ -198,7 +221,7 @@ jobs:
 
   generated:
     name: Generated files and guides
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, perinkpheral]
     env:
       JAVA_TOOL_OPTIONS: -Djava.awt.headless=true
     steps:
@@ -208,16 +231,14 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      # Native preview: build-essential. PDF printing: Chromium, poppler and the
-      # guide's fallback fonts; Departure Mono is read from assets/fonts.
-      - name: Preview and PDF packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential poppler-utils fonts-dejavu-core fonts-liberation fonts-noto-core
+        with:
+          cache-disabled: true
+      # The runner carries what this needs, installed once: build-essential for the
+      # native preview; Chromium's libraries, poppler-utils and the guide's fallback
+      # fonts (fonts-dejavu-core, fonts-liberation, fonts-noto-core) for PDF printing.
+      # Departure Mono is read from assets/fonts.
       - uses: browser-actions/setup-chrome@v2
         id: chrome
-        with:
-          install-dependencies: true
       - name: Committed generated files
         run: tools/perinkpheral check-generated
       - name: Guide limits and Russian translation
@@ -258,7 +279,7 @@ jobs:
   size:
     name: Size
     needs: firmware
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, perinkpheral]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -303,7 +324,7 @@ jobs:
     name: Release
     needs: [version, tests, firmware, generated, case]
     if: needs.version.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, perinkpheral]
     steps:
       - uses: actions/checkout@v5
         with:
