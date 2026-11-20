@@ -8,6 +8,7 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 - A long press of BACK opens the menu when the button is released. BACK can be held for
   any time before UP or DOWN switches applications; releasing it after a switch does nothing.
+- In the menu BACK with UP or DOWN no longer opens an application.
 
 ## 0.1.63
 

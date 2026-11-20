@@ -211,9 +211,11 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
     host_end_background_answer();
-    /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press. */
+    /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
+     * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
-    back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
+    back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press],
+                                            wm->current != wm->home);
     if (chord == BACK_SWITCH_PREVIOUS || chord == BACK_SWITCH_NEXT) {
         scene_t *neighbour = scene_menu_neighbour(wm->current, chord == BACK_SWITCH_NEXT ? 1 : -1);
         if (neighbour != NULL) {

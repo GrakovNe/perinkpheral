@@ -4399,5 +4399,5 @@ For authentication across background unloads, save a small session record with k
 BACK held, UP or DOWN
 BACK удерживается, UP или DOWN
 
-Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. BACK may be held for any time before and between the presses; its release then does nothing. Not delivered to applications. Firmware 0.1.64; 0.1.63 required the first press within 600 ms
-Обрабатывается Perinkpheral OS: открывает предыдущее или следующее приложение в порядке меню; системные страницы пропускаются. BACK можно удерживать сколько угодно до нажатий и между ними; его отпускание после этого ничего не делает. Приложениям не доставляется. Прошивка 0.1.64; 0.1.63 требовала первое нажатие в пределах 600 ms
+Handled by Perinkpheral OS: opens the previous or next application in menu order; system pages are skipped. BACK may be held for any time before and between the presses; its release then does nothing. Not in the menu. Not delivered to applications. Firmware 0.1.64; 0.1.63 required the first press within 600 ms
+Обрабатывается Perinkpheral OS: открывает предыдущее или следующее приложение в порядке меню; системные страницы пропускаются. BACK можно удерживать сколько угодно до нажатий и между ними; его отпускание после этого ничего не делает. В меню не действует. Приложениям не доставляется. Прошивка 0.1.64; 0.1.63 требовала первое нажатие в пределах 600 ms

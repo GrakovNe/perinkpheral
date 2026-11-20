@@ -29,5 +29,7 @@ typedef struct {
     uint8_t swallowed; /* UP and DOWN that went down in a chord, until they go down again */
 } back_switch_state_t;
 
-/* What one event of one button is. Pure: the caller opens the application. */
-back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press);
+/* What one event of one button is. Pure: the caller opens the application. `can_switch` is
+ * false where there is nothing to switch from - the menu, whose UP and DOWN stay its own. */
+back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press,
+                                bool can_switch);

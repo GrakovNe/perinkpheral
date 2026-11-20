@@ -4,7 +4,8 @@
  */
 #include "back_switch.h"
 
-back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press)
+back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press,
+                                bool can_switch)
 {
     if (button == SCENE_BUTTON_BACK) {
         if (press == SCENE_PRESS_DOWN) {
@@ -35,7 +36,7 @@ back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t butto
     }
     uint8_t bit = (uint8_t)(1u << button);
     if (press == SCENE_PRESS_DOWN) {
-        if (!state->back_is_held) {
+        if (!state->back_is_held || !can_switch) {
             state->swallowed &= (uint8_t)~bit;
             return BACK_SWITCH_PASS;
         }

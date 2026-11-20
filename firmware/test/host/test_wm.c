@@ -755,46 +755,53 @@ static void test_back_switch(void)
 {
     back_switch_state_t state = {0};
     /* BACK alone, held long: the long BACK is its release, not the moment it became long. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_LONG_BACK);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_LONG_BACK);
     /* A long press a tool injects has no button down and no release: it is whole at once. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_PASS);
     /* Held long, then a chord: the hold switches and its release is nothing. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
     /* UP and DOWN alone are the scene's. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, true) == BACK_SWITCH_PASS);
     /* A chord: the way down switches, the rest of both presses is nobody's, twice in one hold. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_DOWN) == BACK_SWITCH_PREVIOUS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PREVIOUS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
     /* UP let go after BACK: still the chord's. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_UP) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_UP, true) == BACK_SWITCH_SWALLOW);
     /* A quick chord: the short BACK that ends it is void; the next BACK is whole again. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN) == BACK_SWITCH_NEXT);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT, true) == BACK_SWITCH_PASS);
+    /* In the menu there is no chord: UP and DOWN are the menu's, and the long BACK is whole. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, false) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, false) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP, false) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, false) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, false) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, false) == BACK_SWITCH_LONG_BACK);
     /* OK with BACK held is no chord. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_OK, SCENE_PRESS_DOWN) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP) == BACK_SWITCH_LONG_BACK);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_OK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_LONG_BACK);
 }
 
 int main(void)

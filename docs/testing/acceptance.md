@@ -47,6 +47,7 @@ a dated record beside this file, as [acceptance-2026-11-18.md](acceptance-2026-1
 | 2.9 | Hold BACK and UP together for less than ten seconds | No restart | |
 | 2.10 | In the menu: long OK, move a row, OK; then repeat 2.3 | The switch follows the new order | |
 | 2.11 | The two-finger gesture on the case | Comfortable with one hand; note if not | |
+| 2.12 | In the menu: hold BACK, press DOWN | The selection moves a row; no application opens | |
 
 ## 3. Air quality and the redrawn icons
 
