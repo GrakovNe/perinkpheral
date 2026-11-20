@@ -592,15 +592,23 @@ byId("auto-update-apps").addEventListener("click", async () => {
   }
 });
 
-async function loadApps() {
+/* The tiles are drawn as soon as the device has said what it holds. What was removed and left
+ * its settings is the catalog's to know, and is asked after: the device takes half a second over
+ * it. `andRemoved`: not at the start, where the catalog's reading asks when it is done. */
+async function loadApps(andRemoved = true) {
   try {
     installed = await reading("apps", () => ask("/api/apps"));
-    removed = await ask("/api/apps/removed").catch(() => []);
   } finally {
     drawTiles();
   }
   drawDefaultApp();
   openInside(wantedInside);
+  if (andRemoved) loadRemoved();
+}
+
+async function loadRemoved() {
+  removed = await ask("/api/apps/removed").catch(() => []);
+  drawCatalog();
 }
 
 /* The list of sources, as the device keeps it: there with no network too. */
@@ -623,6 +631,44 @@ function catalogAuthorIsAllowed(author, source) {
     (author.toLowerCase() !== "perinkpheral" || source === 0);
 }
 
+/* ---- the catalog as it was read last ----
+ * Shown at once when the page opens and replaced when the sources answer; until then it says it
+ * is loading and nothing is installed from it. Kept in the browser without the lists of files. */
+const CATALOG_KEPT = "perinkpheral-catalog", CATALOG_KEPT_MAX = 200000;
+const pageStore = () => { try { return localStorage; } catch (error) { return null; } };
+
+function keepCatalog(store, from, offers) {
+  try {
+    const text = JSON.stringify({ sources: from, offers: offers.map(
+      ({ app, source }) => ({ source, app: { ...app, files: undefined } })) });
+    if (text.length > CATALOG_KEPT_MAX) store.removeItem(CATALOG_KEPT);
+    else store.setItem(CATALOG_KEPT, text);
+  } catch (error) { /* no store, or no room in it: the catalog is read as it always was */ }
+}
+
+/* What was kept, when it is what this page wrote: sources, and offers with a name and a version. */
+function keptCatalog(store) {
+  try {
+    const kept = JSON.parse(store.getItem(CATALOG_KEPT));
+    const isSound = Array.isArray(kept.sources) && kept.sources.every(source => typeof source === "string") &&
+      Array.isArray(kept.offers) && kept.offers.every(offer => Number.isInteger(offer.source) && offer.app &&
+        typeof offer.app.name === "string" && typeof offer.app.version === "string" && !offer.app.files);
+    return isSound ? kept : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/* The sources the kept offers came from: other sources, and they are nobody's. */
+let keptSources = null;
+
+function showKeptCatalog() {
+  const kept = keptCatalog(pageStore());
+  if (!kept || catalogsRead) return;
+  offered = kept.offers;
+  keptSources = kept.sources;
+}
+
 /* One reading at a time, whoever asks: the start, Refresh, the sources saved. */
 let catalogsReading = null;
 
@@ -639,6 +685,10 @@ async function readCatalogs() {
     if (!catalogsRead) loadState.catalog = "failed";
     drawTiles();
     throw error;
+  }
+  if (!catalogsRead && keptSources && String(keptSources) !== String(sources)) {
+    offered = [];
+    drawTiles();
   }
   for (let source = 0; source < sources.length; source++) {
     try {
@@ -657,13 +707,14 @@ async function readCatalogs() {
     offered = found;
     catalogsRead = true;
     loadState.catalog = "ready";
+    keepCatalog(pageStore(), sources, found);
   } else if (!catalogsRead) {
     loadState.catalog = "failed";
   }
   drawTiles();
-  Promise.resolve().then(loadGlyphs).catch(() => {});
   for (const { source, error } of silent)
     toast(error.status === 503 ? error.message : t("Source unavailable: {0}", source), "error");
+  loadRemoved();
 }
 
 /* ---- sources ---- */

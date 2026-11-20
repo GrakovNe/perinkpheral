@@ -68,10 +68,13 @@ async function testReading() {
 /* The catalog: loading, then failed with Refresh; rows it had stay while it is read again. */
 async function testCatalog() {
   let answer = null;
+  const kept = new Map();
+  const store = { getItem: key => kept.has(key) ? kept.get(key) : null, setItem: (key, value) => kept.set(key, value),
+                  removeItem: key => kept.delete(key) };
   const { context, messages, byId } = page({
     TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24, pageLanguage: "en",
     sources: ["https://example.test/catalog"], offered: [], installed: [], removed: [], catalogsRead: false,
-    loadSources: async () => {}, loadGlyphs: async () => {}, compatibilityProblem: () => "",
+    loadSources: async () => {}, loadRemoved() {}, compatibilityProblem: () => "", localStorage: store,
     picture: () => element("div"), markPendingInstall() {}, install() {},
     offerSays: (offer, field) => offer.app[field] || "", appUpdateAvailable: () => false,
     askForApp: async () => { if (!answer) throw new Error("Failed to fetch"); return answer; },
@@ -107,18 +110,52 @@ async function testCatalog() {
   assert.equal(rows().length, 1, "a reading that failed leaves what was read");
   assert.equal(buttons()[0].disabled, false);
 
-  /* What is shown before the sources answer - offers kept from another visit - installs nothing. */
+  /* The browser keeps what was read, without the lists of files, and nothing else. */
+  const written = JSON.parse(kept.get("perinkpheral-catalog"));
+  assert.deepEqual(written.sources, ["https://example.test/catalog"]);
+  assert.deepEqual(written.offers, [{ source: 0, app: { name: "iss", title: "ISS", version: "1.0.0" } }]);
+
+  /* Another visit: the kept offers are shown at once, say they are loading, and install nothing. */
   context.catalogsRead = false;
+  context.offered = [];
   vm.runInContext("delete loadState.catalog", context);
+  context.showKeptCatalog();
   context.drawCatalog();
   assert.deepEqual(said(view).slice(0, 1), ["loading"]);
   assert.equal(rows().length, 1);
   assert.equal(buttons()[0].disabled, true, "nothing is installed from what was not read now");
+  answer = { apps: [{ name: "iss", title: "ISS", version: "1.1.0", files: [] }] };
+  await context.loadCatalogs();
+  assert.equal(view.children.length, 1, "replaced by what the sources say now");
+  assert.equal(context.offered[0].app.version, "1.1.0");
+  assert.equal(buttons()[0].disabled, false);
+
+  /* Offers kept from other sources than the device has now are dropped before they mislead. */
+  context.catalogsRead = false;
+  vm.runInContext("delete loadState.catalog", context);
+  context.showKeptCatalog();
+  context.sources = ["https://example.test/another"];
+  answer = null;
+  await context.loadCatalogs();
+  assert.equal(rows().length, 0);
+  assert.deepEqual(said(view), ["failed"]);
+
+  /* What is not this page's writing is not shown. */
+  for (const text of ["", "{", "[]", '{"sources":[1],"offers":[]}', '{"sources":[],"offers":[{"source":0}]}',
+                      '{"sources":[],"offers":[{"source":"0","app":{"name":"a","version":"1"}}]}',
+                      '{"sources":[],"offers":[{"source":0,"app":{"name":"a","version":"1","files":[]}}]}']) {
+    kept.set("perinkpheral-catalog", text);
+    assert.equal(context.keptCatalog(store), null, text);
+  }
+  assert.equal(context.keptCatalog(null), null, "a browser with no store");
+  context.keepCatalog(null, [], []);
+  context.keepCatalog(store, [], [{ source: 0, app: { name: "a", version: "1", description: "x".repeat(200001) } }]);
+  assert.equal(kept.has("perinkpheral-catalog"), false, "too large to keep");
 }
 
 module.exports = async function testLoadStates() {
   await testReading();
   await testCatalog();
-  console.log("Load states: loading, failed with Refresh, empty, and offers kept while read again passed.");
+  console.log("Load states: loading, failed with Refresh, empty, offers kept while read again and between visits passed.");
 };
 if (require.main === module) module.exports().catch(error => { console.error(error); process.exitCode = 1; });

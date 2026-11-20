@@ -279,11 +279,26 @@ byId("wifi").addEventListener("submit", async event => {
  * The device's fonts are ASCII; an alphabet is a pack the user adds. The official
  * catalog lists them, the browser fetches one and hands it to the device. Without a
  * pack its letters are spelled in Latin ones. */
+/* Asked for when Language is opened, not at every start: the packs are that pane's alone. */
+let glyphsAsked = false;
+
+function wantGlyphs() {
+  if (glyphsAsked || stateOf("status") === "loading" || currentSection() !== "settings" ||
+      !byId("language").classList.contains("current")) return;
+  glyphsAsked = true;
+  loadGlyphs().catch(() => {});
+}
+
+sectionShown.push(wantGlyphs);
+
 async function loadGlyphs() {
   const rows = byId("glyph-rows");
   let have, offers;
+  /* the packs on offer are the official catalog's, on the internet */
+  if (isOffline()) return sayState(rows, "offline");
   try {
     [have, offers] = await reading("glyphs", async () => {
+      if (stateOf("sources") !== "ready") await loadSources();
       const index = await fetch(sources[0] + "/glyphs/index.json");
       if (!index.ok) throw new Error("HTTP " + index.status);
       return [await ask("/api/glyphs"), await index.json()];

@@ -30,7 +30,7 @@ async function run(replies, action = "install", options = {}) {
     updates: () => [offer, { source: 0, app: { name: "clock", version: "2.0.0", files: [] } }],
     loadApps: async () => { reloads++; },
     loadSources: async () => {}, sources: ["https://example.test/catalog"],
-    offered: [], catalogsRead: false, drawTiles() {}, loadGlyphs() {},
+    offered: [], catalogsRead: false, drawTiles() {}, loadGlyphs() {}, loadRemoved() {},
     setTimeout: (callback, delay) => {
       if (delay !== 1400) {
         delays.push(delay);
@@ -184,7 +184,7 @@ async function testAutoUpdateSetting() {
   vm.runInContext(core.slice(0, core.indexOf('const CONFIRM_ON_DEVICE')), context);
   vm.runInContext(read("compatibility.js"), context);
   context.toast = text => messages.push(text);
-  vm.runInContext(apps.slice(apps.indexOf('byId("auto-update-apps").addEventListener'), apps.indexOf("async function loadApps()")), context);
+  vm.runInContext(apps.slice(apps.indexOf('byId("auto-update-apps").addEventListener'), apps.indexOf("async function loadApps(")), context);
   await click();
   assert.equal(context.settings.app_auto_update, true);
   assert.equal(attributes["aria-pressed"], "true");
@@ -259,7 +259,7 @@ async function testAuthors() {
   const context = vm.createContext({
     TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24,
     sources: ["official", "personal"], offered: [], installed: [], removed: [], pageLanguage: "en",
-    loadSources: async () => {}, loadGlyphs() {}, drawTiles() {}, loadState: {}, catalogsRead: false,
+    loadSources: async () => {}, loadGlyphs() {}, drawTiles() {}, loadState: {}, catalogsRead: false, loadRemoved() {},
     askForApp: async url => catalogs[Number(url.split("=")[1])],
     t: (text, value) => text.replace("{0}", value),
     toast: text => messages.push(text),

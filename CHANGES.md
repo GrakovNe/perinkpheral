@@ -11,6 +11,9 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 - The page says what it waits for: Loading..., Empty., or Could not load. with Refresh, in every
   section, in the log, the sources and the glyph packs. The catalog is no longer blank while
   the sources are read, and the forms of Settings appear once the device has said what is set.
+- The page is usable sooner: the installed apps no longer wait for the list of removed ones, the
+  catalog shows what it had at the last visit while the sources are read - nothing is installed
+  from it until they answer - and the glyph packs are asked for when Language is opened.
 
 ## 0.1.67
 

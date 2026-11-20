@@ -9,8 +9,9 @@ const isOffline = () => status.wifi === "setup" || status.wifi === "rescue";
 
 async function loadAll() {
   try {
-    await Promise.all([loadStatus(), loadSettings(), loadApps()]);
+    await Promise.all([loadStatus(), loadSettings(), loadApps(false)]);
   } catch (error) {
+    wantGlyphs();
     /* The catalog is not asked for then, and must not go on saying it is. */
     if (!catalogsRead) loadState.catalog = "failed";
     if (stateOf("sources") !== "ready") sayState(byId("source-rows"), "failed", loadSources);
@@ -18,15 +19,15 @@ async function loadAll() {
     throw error;
   }
   if (!catalogsRead) delete loadState.catalog;
+  wantGlyphs();
   /* Control is for a firmware with the development tools: the status says so. */
   byId("nav-control").hidden = !status.dev_tools;
   if (!status.dev_tools && currentSection() === "control") location.hash = "#device";
   if (isOffline()) {
     await loadSources();
-    /* the catalog and the packs on offer are on the internet */
+    /* the catalog is on the internet */
     loadState.catalog = "offline";
     drawTiles();
-    sayState(byId("glyph-rows"), "offline");
     if (!location.hash) location.hash = "#settings:network";
     return;
   }
@@ -36,4 +37,7 @@ async function loadAll() {
 window.addEventListener("hashchange", showSection);
 showPane("general");
 showSection();
+/* What the browser kept of the catalog is in sight before the device is asked anything. */
+showKeptCatalog();
+drawTiles();
 loadAll().catch(() => afterRestart("Connecting", 2000));
