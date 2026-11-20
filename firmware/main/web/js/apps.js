@@ -646,13 +646,24 @@ function keepCatalog(store, from, offers) {
   } catch (error) { /* no store, or no room in it: the catalog is read as it always was */ }
 }
 
-/* What was kept, when it is what this page wrote: sources, and offers with a name and a version. */
+/* An application of a catalog the page can draw: a name and a version, and texts that are texts.
+ * A source is anybody's file; one entry with a number for a title must not stop the page. */
+const isText = value => value === undefined || value === null || typeof value === "string";
+function isDrawable(app) {
+  return Boolean(app) && typeof app.name === "string" && typeof app.version === "string" &&
+    isText(app.title) && isText(app.description) && isText(app.author) &&
+    (app.translations === undefined || app.translations === null ||
+      (typeof app.translations === "object" && Object.values(app.translations).every(words =>
+        words && typeof words === "object" && isText(words.title) && isText(words.description))));
+}
+
+/* What was kept, when it is what this page wrote: sources, and offers the page can draw. */
 function keptCatalog(store) {
   try {
     const kept = JSON.parse(store.getItem(CATALOG_KEPT));
     const isSound = Array.isArray(kept.sources) && kept.sources.every(source => typeof source === "string") &&
-      Array.isArray(kept.offers) && kept.offers.every(offer => Number.isInteger(offer.source) && offer.app &&
-        typeof offer.app.name === "string" && typeof offer.app.version === "string" && !offer.app.files);
+      Array.isArray(kept.offers) && kept.offers.every(offer => Number.isInteger(offer.source) &&
+        isDrawable(offer.app) && !offer.app.files);
     return isSound ? kept : null;
   } catch (error) {
     return null;
@@ -661,6 +672,12 @@ function keptCatalog(store) {
 
 /* The sources the kept offers came from: other sources, and they are nobody's. */
 let keptSources = null;
+
+function forgetKeptCatalog() {
+  try { pageStore().removeItem(CATALOG_KEPT); } catch (error) { /* no store */ }
+  offered = [];
+  keptSources = null;
+}
 
 function showKeptCatalog() {
   const kept = keptCatalog(pageStore());
@@ -697,7 +714,7 @@ async function readCatalogs() {
         throw new Error("Invalid app author.");
       /* The first catalog that has an application is the one it comes from. */
       for (const app of catalog.apps)
-        if (!found.some(offer => offer.app.name === app.name)) found.push({ app, source });
+        if (isDrawable(app) && !found.some(offer => offer.app.name === app.name)) found.push({ app, source });
     } catch (error) {
       silent.push({ source: sources[source], error });
     }
@@ -707,11 +724,12 @@ async function readCatalogs() {
     offered = found;
     catalogsRead = true;
     loadState.catalog = "ready";
-    keepCatalog(pageStore(), sources, found);
   } else if (!catalogsRead) {
     loadState.catalog = "failed";
   }
   drawTiles();
+  /* Kept only once it was drawn: what cannot be drawn must not come back at the next visit. */
+  if (loadState.catalog === "ready" && offered === found) keepCatalog(pageStore(), sources, found);
   for (const { source, error } of silent)
     toast(error.status === 503 ? error.message : t("Source unavailable: {0}", source), "error");
   loadRemoved();
@@ -741,8 +759,11 @@ byId("refresh-catalog").replaceWith(refreshCatalog);
 
 byId("sources").addEventListener("submit", async event => {
   event.preventDefault();
-  const added = byId("source-rows").values().map(catalogAddress).filter(address => address);
-  if (await send(event.submitter, "/api/sources", post({ sources: added }))) loadCatalogs();
+  const rows = byId("source-rows");
+  if (!rows.values) return; /* the sources were never read: there is nothing to save */
+  const added = rows.values().map(catalogAddress).filter(address => address);
+  const save = event.submitter || event.target.querySelector("button:not([type])");
+  if (await send(save, "/api/sources", post({ sources: added }))) loadCatalogs();
 });
 
 byId("refresh-catalogs").addEventListener("click", event => busy(event.target, loadCatalogs));

@@ -143,11 +143,20 @@ async function testCatalog() {
   /* What is not this page's writing is not shown. */
   for (const text of ["", "{", "[]", '{"sources":[1],"offers":[]}', '{"sources":[],"offers":[{"source":0}]}',
                       '{"sources":[],"offers":[{"source":"0","app":{"name":"a","version":"1"}}]}',
-                      '{"sources":[],"offers":[{"source":0,"app":{"name":"a","version":"1","files":[]}}]}']) {
+                      '{"sources":[],"offers":[{"source":0,"app":{"name":"a","version":"1","files":[]}}]}',
+                      /* a title that is no text would stop the page where it sorts the offers */
+                      '{"sources":[],"offers":[{"source":0,"app":{"name":"a","version":"1","title":5}}]}',
+                      '{"sources":[],"offers":[{"source":0,"app":{"name":"a","version":"1","translations":{"ru":{"title":{}}}}}]}']) {
     kept.set("perinkpheral-catalog", text);
     assert.equal(context.keptCatalog(store), null, text);
   }
   assert.equal(context.keptCatalog(null), null, "a browser with no store");
+  kept.set("perinkpheral-catalog", '{"sources":["s"],"offers":[{"source":0,"app":{"name":"a","version":"1","title":"A","translations":{"ru":{"title":"Б"}}}}]}');
+  assert.notEqual(context.keptCatalog(store), null, "a sound catalog is kept");
+  assert.equal(context.isDrawable({ name: "a", version: "1" }), true);
+  assert.equal(context.isDrawable({ name: "a", version: "1", title: 5 }), false);
+  assert.equal(context.isDrawable({ name: "a", version: 1 }), false);
+  assert.equal(context.isDrawable(null), false);
   context.keepCatalog(null, [], []);
   context.keepCatalog(store, [], [{ source: 0, app: { name: "a", version: "1", description: "x".repeat(200001) } }]);
   assert.equal(kept.has("perinkpheral-catalog"), false, "too large to keep");

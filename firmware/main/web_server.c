@@ -152,12 +152,14 @@ static bool is_confirmed_on_device(httpd_req_t *request, const char *first,
 /* A change of settings that is asked about first: the question's first
  * line, its second with a %s for what the request names in `named_by`, the
  * icon and the word for doing it. */
-typedef struct {
+typedef struct confirmation {
     const char *first;
     const char *second_format;
     int         icon;
     const char *action;
     const char *named_by;
+    /* Asked instead when the request names nothing: an empty network is not joined. */
+    const struct confirmation *unnamed;
 } confirmation_t;
 
 #define QUESTION_MAX 47
@@ -519,6 +521,9 @@ static esp_err_t change_settings_as_asked(httpd_req_t *request, settings_edit_fn
     if (confirmation != NULL) {
         /* What is asked about is named by the request itself. */
         const json_t *named = json_get(json, confirmation->named_by);
+        if (confirmation->unnamed != NULL && !(json_is_string(named) && named->text[0] != '\0')) {
+            confirmation = confirmation->unnamed;
+        }
         char         second[QUESTION_MAX + 1];
         snprintf(second, sizeof second, confirmation->second_format,
                  json_is_string(named) ? named->text : "");
@@ -567,7 +572,11 @@ static bool edit_network(const json_t *json, appconf_t *wanted)
 
 static esp_err_t handle_wifi(httpd_req_t *request)
 {
-    const confirmation_t ASKED = { word(WORD_JOIN), "%s?", GFX_ICON_SIGNAL, word(WORD_JOIN), "ssid" };
+    /* No name is the network forgotten and Wi-Fi off: asked as that, not as joining nothing. */
+    const confirmation_t FORGOTTEN = { word(WORD_FORGET), word(WORD_FORGET_NETWORK), GFX_ICON_NO_SIGNAL,
+                                       word(WORD_FORGET), "ssid", NULL };
+    const confirmation_t ASKED = { word(WORD_JOIN), "%s?", GFX_ICON_SIGNAL, word(WORD_JOIN), "ssid",
+                                   &FORGOTTEN };
     return change_settings_as_asked(request, edit_network, true, &ASKED);
 }
 
