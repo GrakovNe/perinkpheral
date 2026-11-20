@@ -4,6 +4,10 @@
  */
 #include <string.h>
 
+/* Before anything that brings the contract: its BTN_ names are macros, and the
+ * buttons' own events are an enum of the same names. */
+#include "buttons.h"
+
 #include "esp_attr.h"
 
 #include "priorities.h"
@@ -37,7 +41,6 @@
 #include "storage.h"
 #include "status.h"
 #include "header.h"
-#include "buttons.h"
 #include "timers.h"
 #include "wifi.h"
 #include "wm.h"
