@@ -684,6 +684,9 @@ void host_run(void)
         case EVENT_STATUS_CHANGED:
             wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
             break;
+        case EVENT_STATUS_SET:
+            wm_invalidate(&host_wm, WM_CHANGED_URGENTLY);
+            break;
         case EVENT_CALL:
             events_answer_call(event.call);
             break;

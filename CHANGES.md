@@ -11,6 +11,7 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 - In the menu BACK with UP or DOWN no longer opens an application.
 - An application left with BACK and UP or DOWN is as it was when it is switched back to.
   A short press of BACK still opens the menu.
+- The header shows a time set by hand, or a changed time zone, at once.
 
 ## 0.1.63
 
