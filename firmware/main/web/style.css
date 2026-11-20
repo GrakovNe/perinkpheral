@@ -48,6 +48,11 @@ section.current { display: block; }
 h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bottom: 1px solid var(--ink); }
 .count { color: var(--dim); }
 .note { color: var(--dim); margin: .5rem 0 0; }
+/* A place that waits for the device: a line where its content will stand, with Refresh when none came. */
+.state { display: flex; align-items: center; flex-wrap: wrap; gap: .9rem; grid-column: 1 / -1; margin: 0;
+         text-align: left; }
+.state button { margin: 0; }
+#settings-state:not(:empty) ~ .pane { display: none; }
 /* Tiles take all the room there is; text and forms keep a line a person can read. */
 .narrow { max-width: 58rem; }
 
@@ -62,6 +67,9 @@ h3 { font-size: 1rem; margin: 2.25rem 0 .9rem; padding-bottom: .4rem; border-bot
   .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .groups > :first-child { grid-row: span 2; align-self: stretch; }
   .groups > :last-child { align-self: end; }
+  /* While the device is asked: the room its facts will take, so that what is under them stays put. */
+  .groups:has(> .state) { min-height: 12rem; }
+  .groups > .state { align-self: start; }
 }
 
 /* ---- what happened, in the corner ---- */

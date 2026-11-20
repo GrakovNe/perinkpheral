@@ -220,6 +220,7 @@ function testUpdateAllVisibility() {
     CATALOG_INSTALLED_MAX: 24, settings: { app_auto_update: false },
     installed: [{ name: "iss", version: "1.0.0" }, { name: "clock", version: "1.0.0" }],
     offered: [], byId, inMenuOrder: apps => apps, tile: () => ({}), drawCatalog() {},
+    catalogsRead: true, stateOf: () => "ready", sayState() {},
     compatibilityProblem: app => app.incompatible ? "Update the firmware." : "",
     t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, at) => values[at]),
   });
@@ -258,7 +259,7 @@ async function testAuthors() {
   const context = vm.createContext({
     TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24,
     sources: ["official", "personal"], offered: [], installed: [], removed: [], pageLanguage: "en",
-    loadSources: async () => {}, loadGlyphs() {}, drawTiles() {},
+    loadSources: async () => {}, loadGlyphs() {}, drawTiles() {}, loadState: {}, catalogsRead: false,
     askForApp: async url => catalogs[Number(url.split("=")[1])],
     t: (text, value) => text.replace("{0}", value),
     toast: text => messages.push(text),
@@ -359,5 +360,6 @@ async function testAuthors() {
   assert(result.requests.slice(4).every(request => request.url.endsWith("app=clock")));
   await require("./test_app_install_queue.js")();
   await require("./test_settings_languages.js")();
+  await require("./test_load_states.js")();
   console.log("App requests: retry, exhaustion, update all and refusal checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

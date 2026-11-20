@@ -37,7 +37,7 @@
     <button class="quiet toggle" id="auto-update-apps" aria-pressed="false">Auto-update</button>
     <button class="quiet" id="update-all" hidden>Update all</button>
   </div>
-  <div class="tiles" id="tiles"><p class="note">Loading</p></div>
+  <div class="tiles" id="tiles"><p class="note state" data-state="loading">Loading...</p></div>
 </section>
 
 <section data-section="catalog">
@@ -53,13 +53,13 @@
       <button type="button" class="quiet" id="clear-catalog-search" title="Clear">&times;</button>
     </div></div>
   </div>
-  <div class="catalog" id="catalog-rows"><p class="note">Loading</p></div>
+  <div class="catalog" id="catalog-rows"><p class="note state" data-state="loading">Loading...</p></div>
 </section>
 
 <section data-section="device">
   <div class="narrow">
     <div class="head"><h2>Device</h2></div>
-    <div class="groups" id="status"><p class="note">Loading</p></div>
+    <div class="groups" id="status"><p class="note state" data-state="loading">Loading...</p></div>
 
     <h3>Reset</h3>
     <div class="buttons">
@@ -74,7 +74,7 @@
   <div class="narrow">
     <div class="head"><h2>Firmware</h2></div>
     <dl class="ota">
-      <dt>Version</dt><dd id="ota-installed"></dd>
+      <dt>Version</dt><dd id="ota-installed">Loading...</dd>
     </dl>
 
     <h3>OTA</h3>
@@ -139,6 +139,7 @@
     <button data-pane="language">Language</button>
     <button data-pane="logging">Log</button>
   </div>
+  <div class="narrow" id="settings-state"><p class="note state" data-state="loading">Loading...</p></div>
 
   <form class="pane" id="general">
     <label for="device_name">Device name</label>
@@ -226,7 +227,7 @@
   </form>
 
   <div class="pane" id="network">
-    <dl class="panel" id="network-now"></dl>
+    <dl class="panel" id="network-now"><dd class="note state" data-state="loading">Loading...</dd></dl>
     <form id="wifi">
       <h3>Change network</h3>
       <label for="wifi-networks">Wi-Fi network</label>
@@ -251,7 +252,7 @@
       <button>Save</button>
     </form>
     <h3>Glyph packs</h3>
-    <div class="offers" id="glyph-rows"></div>
+    <div class="offers" id="glyph-rows"><p class="note state" data-state="loading">Loading...</p></div>
   </div>
 </section>
 
@@ -263,7 +264,7 @@
 <dialog id="sources-dialog">
   <form id="sources">
     <h2>Sources</h2>
-    <div class="rows" id="source-rows"></div>
+    <div class="rows" id="source-rows"><p class="note state" data-state="loading">Loading...</p></div>
     <div class="buttons">
       <button>Save</button>
       <button type="button" class="quiet" id="refresh-catalogs">Refresh</button>

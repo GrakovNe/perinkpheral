@@ -89,20 +89,25 @@ const factList = facts => facts.flatMap(([name, value]) =>
   [make("dt", { textContent: name }), make("dd", { textContent: value, translate: !NAMED_BY_USER.has(name) })]);
 
 async function loadStatus() {
-  status = await ask("/api/status");
+  try {
+    status = await reading("status", () => ask("/api/status"));
+  } finally {
+    drawStatus();
+  }
   statusAt = Date.now();
   drawTiles();
-  drawStatus();
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
   const release = (status.firmware || "").match(/^(\d+\.\d+\.\d+)(?:-debug)?$/);
   byId("nav-firmware").href = "https://github.com/Perinkpheral/perinkpheral/releases" +
     (release ? "/tag/v" + release[1] : "");
-  show("ota-installed", status.firmware || "");
 }
 
 function drawStatus() {
-  byId("status").replaceChildren(...statusFacts().map(([name, facts]) => {
+  const state = stateOf("status");
+  show("ota-installed", state === "ready" ? status.firmware || "" : t(STATE_WORDS[state]));
+  if (state !== "ready") sayState(byId("status"), state, loadStatus);
+  else byId("status").replaceChildren(...statusFacts().map(([name, facts]) => {
     const group = make("div", { className: "panel" }), list = make("dl");
     list.append(...factList(facts));
     group.append(make("h3", { textContent: name }), list);

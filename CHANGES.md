@@ -8,6 +8,9 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 - On a phone the page's menu and the tabs of Settings show every section: they take
   another row instead of scrolling sideways.
+- The page says what it waits for: Loading..., Empty., or Could not load. with Refresh, in every
+  section, in the log, the sources and the glyph packs. The catalog is no longer blank while
+  the sources are read, and the forms of Settings appear once the device has said what is set.
 
 ## 0.1.67
 
