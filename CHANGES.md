@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.70
+
+- The firmware's repository is now Perinkpheral/perinkpheral-os, and releases are fetched from
+  its address. A device with an older firmware is updated once by uploading the image in recovery.
+
 ## 0.1.69
 
 - The page says what it waits for: Loading..., Empty., or Could not load. with Refresh, in every

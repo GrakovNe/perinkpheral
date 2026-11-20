@@ -27,7 +27,7 @@ The site's source lives in [perinkpheral-dev-portal](https://github.com/Perinkph
 ## Generated and local material
 
 Guide PDFs are built from the sources above and attached to
-[firmware releases](https://github.com/Perinkpheral/perinkpheral/releases/latest).
+[firmware releases](https://github.com/Perinkpheral/perinkpheral-os/releases/latest).
 They are not committed. Fonts, icon tables, guide screenshots and frozen ABI
 fixtures are deliberate tracked inputs or outputs; see [the checking recipes](../AGENTS.md).
 Do not remove them as build debris.

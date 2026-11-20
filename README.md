@@ -15,8 +15,8 @@ modules using ABI 3.
 [Firmware documentation](https://perinkpheral.dev/firmware) -
 [Developer documentation](https://perinkpheral.dev/sdk).
 
-Application guide (PDF): [English](https://github.com/Perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf),
-[Russian](https://github.com/Perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.ru.pdf).
+Application guide (PDF): [English](https://github.com/Perinkpheral/perinkpheral-os/releases/latest/download/perinkpheral-app-guide.pdf),
+[Russian](https://github.com/Perinkpheral/perinkpheral-os/releases/latest/download/perinkpheral-app-guide.ru.pdf).
 Official applications and catalog: [perinkpheral-apps](https://github.com/Perinkpheral/perinkpheral-apps).
 
 ## Build
@@ -39,7 +39,7 @@ make -C firmware/test/host test
 ```
 
 CI builds and tests every push. Each successful push to `main` creates a
-[release](https://github.com/Perinkpheral/perinkpheral/releases) with release and debug firmware.
+[release](https://github.com/Perinkpheral/perinkpheral-os/releases) with release and debug firmware.
 
 Devices with the old two-slot layout need a one-time USB migration. Choose **Keep data**
 in the [web flasher](https://perinkpheral.dev/flash), then press BACK on the device to start

@@ -3,7 +3,7 @@
  * the development tools, its firmware, its log, a restart and a reset. */
 "use strict";
 
-const RELEASES = "https://api.github.com/repos/Perinkpheral/perinkpheral/releases/latest";
+const RELEASES = "https://api.github.com/repos/Perinkpheral/perinkpheral-os/releases/latest";
 const RELEASE_IMAGE = "perinkpheral.bin";
 let status = {}, statusAt = 0; /* statusAt: when it was read, for the log's clock */
 
@@ -99,7 +99,7 @@ async function loadStatus() {
   show("nav-name", status.name);
   show("nav-firmware", status.firmware);
   const release = (status.firmware || "").match(/^(\d+\.\d+\.\d+)(?:-debug)?$/);
-  byId("nav-firmware").href = "https://github.com/Perinkpheral/perinkpheral/releases" +
+  byId("nav-firmware").href = "https://github.com/Perinkpheral/perinkpheral-os/releases" +
     (release ? "/tag/v" + release[1] : "");
 }
 
@@ -323,7 +323,7 @@ byId("check-release").addEventListener("click", event => busy(event.target, asyn
   byId("ota-update").hidden = true;
   latestImage = null;
   if (isNewerOne) {
-    const mirror = "https://perinkpheral.github.io/perinkpheral/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
+    const mirror = "https://perinkpheral.github.io/perinkpheral-os/flash/" + encodeURIComponent(release.tag_name) + "/perinkpheral.bin";
     let mirrored;
     try {
       mirrored = await fetch(mirror, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(10000) });

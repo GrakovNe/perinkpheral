@@ -178,7 +178,7 @@ async function checkRelease({ length = "512", code = 200, unavailable = false, i
     const result = await checkRelease({ length });
     assert.equal(result.hidden, false, "compressed or absent transfer length does not hide a published image");
     assert.equal(result.messages.length, 0);
-    assert.deepEqual(result.updates, [["https://perinkpheral.github.io/perinkpheral/flash/v0.1.35/perinkpheral.bin", image.size]]);
+    assert.deepEqual(result.updates, [["https://perinkpheral.github.io/perinkpheral-os/flash/v0.1.35/perinkpheral.bin", image.size]]);
   }
   let result = await checkRelease({ code: 404 });
   assert.equal(result.hidden, true);
