@@ -133,7 +133,7 @@ label + .rows { margin-top: 0; } /* under its label as an input is */
 .rows div:has(> input[type=datetime-local]) { flex-wrap: wrap; }
 .rows div > input[type=datetime-local] { min-width: 13.5rem; }
 /* The time pane's buttons stand in one column: Network time over Detect. */
-@media (min-width: 40rem) { #time-zone .rows div > button { width: 10.5rem; } } /* a phone puts it under the field */
+#time-zone .rows div > button { width: 10.5rem; }
 .rows button { margin: 0; min-width: 2.75rem; padding: 0 .9rem; flex: none; }
 .rows button.add { width: 100%; }
 #logging .rows select { min-width: min(11rem, 45%); }
@@ -241,14 +241,6 @@ html:lang(ru) pre:empty::before { content: "Пусто."; }
 .log-row.e .when, .log-row.e .level, .log-row.e .tag { color: var(--paper); }
 .log-row.restart { display: block; margin: .4rem 1rem; text-align: center; color: var(--dim);
                    border-top: 1px dashed var(--dim); border-bottom: 1px dashed var(--dim); }
-@media (max-width: 40rem) {
-  /* On a phone the window's own name gives its room to the buttons. */
-  .log-tools h3 { display: none; }
-  .log-tools { justify-content: space-between; gap: .5rem; }
-  .log-tools button { padding: 0 .7rem; }
-  .log-row { grid-template-columns: auto 1ch minmax(0, 1fr); gap: .5rem; padding: .2rem 1rem; }
-  .log-row .text { grid-column: 1 / -1; }
-}
 
 /* The panel as it stands in its case: the screen in a frame of wood, the buttons under it. */
 .screen { display: grid; gap: 1rem; max-width: 40rem; margin: 0; }
@@ -287,6 +279,17 @@ table.credits { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .credits td { padding: .55rem 1rem .55rem 0; border-top: 1px solid var(--line); vertical-align: top;
               overflow-wrap: anywhere; }
 .credits td:first-child { white-space: nowrap; }
+/* Without room for the longest name in the first column - a phone, and a tablet beside the menu -
+ * a part is a block: its name, who wrote it, its license, one under the other. */
+@media (max-width: 60rem) {
+  .credits, .credits tbody, .credits tr, .credits td { display: block; }
+  .credits thead { display: none; }
+  .credits tr { padding: .55rem 0; border-top: 1px solid var(--line); }
+  .credits tbody tr:first-child { padding-top: 0; border-top: none; }
+  .credits td { padding: 0; border: none; }
+  .credits td:first-child { white-space: normal; }
+  .credits td:nth-child(2) { color: var(--dim); }
+}
 details { margin-top: 2.25rem; }
 summary { cursor: pointer; padding-bottom: .4rem; border-bottom: 1px solid var(--ink); margin-bottom: .9rem;
           list-style: none; }
@@ -294,7 +297,9 @@ summary::-webkit-details-marker { display: none; }
 summary::before { content: "+ "; }
 details[open] summary::before { content: "- "; }
 
-/* ---- a phone: the menu on top, one column, nothing wider than the screen ---- */
+/* ---- a phone: the menu on top, one column, nothing wider than the screen ----
+ * One rule for every row: what does not fit beside its neighbour goes under it and takes the
+ * line, a button's words wrap before they leave the screen, and what is pressed is a finger wide. */
 @media (max-width: 44rem) {
   .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   nav { border-right: none; border-bottom: 1px solid var(--ink); padding: 1rem 0 0; flex-direction: row;
@@ -303,23 +308,47 @@ details[open] summary::before { content: "- "; }
   /* The sections in one line that scrolls sideways, as the tabs of Settings do. */
   nav .links { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; }
   nav .links::-webkit-scrollbar { display: none; }
-  nav .links a { flex: none; white-space: nowrap; }
-  nav .links a { padding: .55rem 1rem; }
+  nav .links a { flex: none; white-space: nowrap; padding: .55rem 1rem; }
   nav p { display: none; }
   main { padding: 1.5rem 1rem 3rem; }
+  .head { flex-wrap: wrap; gap: .6rem 1rem; }
   .head h2 { font-size: 1.4rem; }
+  .apps-head h2 { flex-basis: 100%; }
+  button { height: auto; min-height: 2.75rem; padding-top: .3rem; padding-bottom: .3rem; white-space: normal;
+           line-height: 1.3; }
+  button:hover:not(:disabled), label.file:hover .button { transform: none; box-shadow: none; }
+  button.icon { padding: .5rem; min-height: 0; }
+  .head > button:not(.icon), .buttons > button, .log-tools button { flex: 1 1 auto; }
+  label.check { min-height: 2.75rem; margin: .25rem 0; }
+  summary { padding-top: .6rem; }
   .tiles { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .9rem; }
   .tile { padding: .85rem; min-height: 13rem; }
   .tile:hover { transform: none; box-shadow: none; }
+  .tile .tools { top: .35rem; right: .35rem; gap: 0; }
+  /* An offer's button under its words, at the right, when the two do not fit a line. */
+  .offer { flex-wrap: wrap; gap: .6rem 1rem; }
+  .offer > div:not(.picture) { flex-basis: 12rem; }
+  .offer > button, .catalog .offer button { margin-left: auto; }
   /* One row that scrolls, the last tab cut at the edge: wrapped, the chosen
    * tab stood a row away from the line it opens. */
   .tabs { gap: .15rem; }
-  .tabs button { min-width: 0; padding: 0 .5rem; }
-  /* A file's name on a line of its own, the button under it. */
-  .file-row { flex-direction: column; align-items: stretch; }
-  .file-row > button { width: 100%; }
+  .tabs button { min-width: 0; padding: 0 .5rem; white-space: nowrap; }
+  /* A field and the button that belongs to it: the button under the field. */
+  .pane .rows div, .file-row, label.file { flex-direction: column; align-items: stretch; }
+  .pane .rows div > * { flex: none; }
+  #time-zone .rows div > button { width: auto; }
+  .pane form > button, form.pane > button { width: 100%; }
+  label.file { gap: .4rem; }
+  label.file .button { justify-content: center; }
   /* A value under its name: a name of the device or a fault does not fit beside it. */
   .facts, #status dl, #network-now { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .facts dd, #status dd, #network-now dd { text-align: left; margin-bottom: .55rem; }
-  dialog { padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink); }
+  /* The window's own name gives its room to the buttons; a line's text under when and who. */
+  .log-tools h3 { display: none; }
+  .log-tools { gap: .5rem; }
+  .log-tools button { padding-left: .7rem; padding-right: .7rem; }
+  .log-row { grid-template-columns: auto 1ch minmax(0, 1fr); gap: .5rem; padding: .2rem 1rem; }
+  .log-row .text { grid-column: 1 / -1; }
+  dialog .buttons > button { padding-left: .5rem; padding-right: .5rem; }
+  dialog { padding: 1.25rem; box-shadow: 4px 4px 0 var(--ink); max-height: calc(100dvh - 2rem); }
 }
