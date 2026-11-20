@@ -31,6 +31,10 @@ void status_read(status_t *status);
  * if it did. Safe from any task. */
 void status_check(void);
 
+/* The same after somebody set the clock or saved a setting: a change is shown at once, not
+ * when the panel's pace for data allows - they wait for it. */
+void status_check_set(void);
+
 #ifdef __cplusplus
 }
 #endif

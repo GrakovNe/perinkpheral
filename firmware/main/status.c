@@ -87,7 +87,7 @@ static void expect_next_day(void)
     deadlines_set_at(DEADLINE_DATE, 0, 0, (int64_t)mktime(&local) * MS_PER_SECOND);
 }
 
-void status_check(void)
+static void check(event_kind_t tell_as)
 {
     status_t now;
     status_read(&now);
@@ -98,9 +98,19 @@ void status_check(void)
     s_last_reported = now;
     xSemaphoreGive(s_lock);
     if (changed) {
-        event_t event = { .kind = EVENT_STATUS_CHANGED };
+        event_t event = { .kind = tell_as };
         events_post(&event);
     }
+}
+
+void status_check(void)
+{
+    check(EVENT_STATUS_CHANGED);
+}
+
+void status_check_set(void)
+{
+    check(EVENT_STATUS_SET);
 }
 
 /* The header may say another thing after any of them: the clock or the
@@ -109,7 +119,7 @@ static void follow_settings(const appconf_t *before, const appconf_t *now)
 {
     (void)before;
     (void)now;
-    status_check();
+    status_check_set(); /* a setting was saved: the zone, the clock in the header */
 }
 
 void status_start(void)

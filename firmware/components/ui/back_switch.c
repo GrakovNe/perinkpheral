@@ -4,17 +4,28 @@
  */
 #include "back_switch.h"
 
-back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press)
+back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press,
+                                bool can_switch)
 {
     if (button == SCENE_BUTTON_BACK) {
         if (press == SCENE_PRESS_DOWN) {
             state->back_is_held = true;
             state->chorded = false;
+            state->long_is_due = false;
             return BACK_SWITCH_PASS;
         }
         if (press == SCENE_PRESS_UP) {
+            bool was_long = state->long_is_due && !state->chorded;
             state->back_is_held = false;
-            return BACK_SWITCH_PASS;
+            state->long_is_due = false;
+            return was_long ? BACK_SWITCH_LONG_BACK : BACK_SWITCH_PASS;
+        }
+        /* The long BACK waits for the release: acted on while the button is held, it took the
+         * menu's way before a second finger reached UP or DOWN. A long press with no button
+         * down is a tool's and has no release to wait for. */
+        if (press == SCENE_PRESS_LONG && state->back_is_held) {
+            state->long_is_due = true;
+            return BACK_SWITCH_SWALLOW;
         }
         /* The hold switched applications: it is neither BACK nor the way to the menu. The mark
          * stays until BACK goes down again, whichever of its release and its press comes first. */
@@ -25,7 +36,7 @@ back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t butto
     }
     uint8_t bit = (uint8_t)(1u << button);
     if (press == SCENE_PRESS_DOWN) {
-        if (!state->back_is_held) {
+        if (!state->back_is_held || !can_switch) {
             state->swallowed &= (uint8_t)~bit;
             return BACK_SWITCH_PASS;
         }

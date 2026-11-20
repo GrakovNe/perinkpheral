@@ -9,6 +9,14 @@ random-button runner or power-switch runner is implemented in `tools/cli`.
 Read [CLAUDE.md](../../CLAUDE.md) for the specification and [AGENTS.md](../../AGENTS.md)
 for build and device recipes. The HTTP surface is [openapi.yaml](../api/openapi.yaml).
 
+## Order before the public release
+
+The owner's sequence of 2026-11-20, under the feature freeze of the same day: the
+[manual acceptance](acceptance.md) of one candidate, fixes, the endurance run below on
+the image that passed, fixes, [load testing](load.md), the release. A fix after a run
+began is a new image: the run of the release image starts again from its first hour.
+The first candidate is firmware 0.1.63.
+
 ## Existing checks
 
 Run from the repository root with Java 21 or later, a C compiler and wasi-sdk:

@@ -96,9 +96,14 @@ static void announce_name(bool is_wanted)
 
 static void on_clock_moved(int64_t delta_ms)
 {
-    status_check(); /* the day may be another, and midnight is elsewhere */
+    /* The day may be another, and midnight is elsewhere. A jump somebody could notice is a
+     * clock that was set - by hand, or by the network when its time was turned on - and is
+     * shown at once; a correction waits for the panel's pace like any data. */
     if (delta_ms >= CLOCK_CHANGE_WORTH_TELLING_MS || delta_ms <= -CLOCK_CHANGE_WORTH_TELLING_MS) {
+        status_check_set();
         app_host_tell_time_changed();
+    } else {
+        status_check();
     }
 }
 

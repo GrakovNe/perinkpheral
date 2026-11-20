@@ -211,20 +211,31 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
     host_end_background_answer();
-    /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press. */
+    /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
+     * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
-    back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
+    back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press],
+                                            wm->current != wm->home);
     if (chord == BACK_SWITCH_PREVIOUS || chord == BACK_SWITCH_NEXT) {
         scene_t *neighbour = scene_menu_neighbour(wm->current, chord == BACK_SWITCH_NEXT ? 1 : -1);
         if (neighbour != NULL) {
             ESP_LOGI(TAG, "BACK with button %d: the %s application", index + 1,
                      chord == BACK_SWITCH_NEXT ? "next" : "previous");
-            host_open_from_menu(neighbour);
+            /* Beside, not anew: the one switched from keeps its session for the way back. A
+             * notice or a question is not one of the row: switching from it ends it, as before. */
+            if (scene_menu_lists(wm->current)) {
+                wm_open_beside(wm, neighbour);
+            } else {
+                host_open_from_menu(neighbour);
+            }
         }
         return;
     }
     if (chord == BACK_SWITCH_SWALLOW) {
         return;
+    }
+    if (chord == BACK_SWITCH_LONG_BACK) {
+        press = EVENT_PRESS_LONG; /* held past the long press's time and let go, no chord */
     }
     /* The long press on BACK is the user's own way out of anything. */
     bool is_home_press = index == BUTTON_BACK_INDEX && press == EVENT_PRESS_LONG;
@@ -672,6 +683,9 @@ void host_run(void)
             break;
         case EVENT_STATUS_CHANGED:
             wm_invalidate(&host_wm, WM_CHANGED_BY_DATA);
+            break;
+        case EVENT_STATUS_SET:
+            wm_invalidate(&host_wm, WM_CHANGED_URGENTLY);
             break;
         case EVENT_CALL:
             events_answer_call(event.call);

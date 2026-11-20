@@ -101,6 +101,7 @@ static void remove_at(wm_t *wm, int place)
 {
     for (int i = place; i + 1 < wm->depth; i++) {
         wm->stack[i] = wm->stack[i + 1];
+        wm->beside[i] = wm->beside[i + 1];
     }
     wm->depth--;
 }
@@ -125,6 +126,7 @@ static void push(wm_t *wm, scene_t *scene)
         forget(wm, wm->stack[0]);
         remove_at(wm, 0); /* the oldest is the one to forget */
     }
+    wm->beside[wm->depth] = false;
     wm->stack[wm->depth++] = scene;
     settle(wm);
 }
@@ -176,7 +178,13 @@ static void replace(wm_t *wm, const scene_t *done, scene_t *scene)
 static void go_back(wm_t *wm)
 {
     if (wm->depth > 0) {
+        /* One of a row of applications: under it is not where it was opened from but its
+         * neighbour, and BACK from an application is the menu. */
+        bool was_beside = wm->beside[wm->depth - 1];
         forget(wm, wm->stack[--wm->depth]);
+        if (was_beside) {
+            forget_all(wm);
+        }
         settle(wm);
     }
     show_top(wm);
@@ -301,6 +309,22 @@ void wm_open(wm_t *wm, scene_t *scene)
 void wm_open_from_home(wm_t *wm, scene_t *scene)
 {
     open_from(wm, wm->home, scene);
+}
+
+void wm_open_beside(wm_t *wm, scene_t *scene)
+{
+    if (scene == NULL || scene == wm->home || wm->current == wm->home) {
+        open_from(wm, wm->home, scene);
+        return;
+    }
+    int place = place_of(wm, wm->current);
+    if (place >= 0) {
+        wm->beside[place] = true;
+    }
+    push(wm, scene);
+    wm->beside[wm->depth - 1] = true;
+    show_top(wm);
+    tell_forgotten(wm);
 }
 
 bool wm_has(const wm_t *wm, const scene_t *scene)

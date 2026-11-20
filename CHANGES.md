@@ -4,6 +4,15 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.64
+
+- A long press of BACK opens the menu when the button is released. BACK can be held for
+  any time before UP or DOWN switches applications; releasing it after a switch does nothing.
+- In the menu BACK with UP or DOWN no longer opens an application.
+- An application left with BACK and UP or DOWN is as it was when it is switched back to.
+  A short press of BACK still opens the menu.
+- The header shows a time set by hand, or a changed time zone, at once.
+
 ## 0.1.63
 
 - Hold BACK and press UP or DOWN to open the previous or next application in the menu's

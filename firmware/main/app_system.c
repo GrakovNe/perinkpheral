@@ -179,7 +179,7 @@ int32_t app_system_time_set(int64_t unix_seconds)
     if (!net_time_set(unix_seconds)) {
         return HOST_ERR_FAILED;
     }
-    status_check();
+    status_check_set(); /* set by hand, on the device or from the page */
     return HOST_OK;
 }
 
