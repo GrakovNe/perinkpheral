@@ -11,14 +11,15 @@ menu "perINKpheral"
             release.
 
     config APP_BUNDLE_APPS
-        bool "Build the applications in sdk/apps into the image"
+        bool "Preinstall the applications of firmware/preinstalled.properties"
         default y
         help
-            The applications are compiled to wasm with wasi-sdk
-            (WASI_SDK_PATH) and packed into the image of the "apps"
-            partition. Turn it off to build the firmware without wasi-sdk:
-            the partition is then written empty and the menu has only the
-            host's own pages.
+            The image of the "apps" partition, which a first flash writes,
+            carries the catalog applications the list names, as the catalog
+            repository has them at the commit it pins; the build fetches
+            them, or reads them from a checkout (PERINKPHERAL_APPS). Turn it
+            off for an image with no applications: the partition is then
+            written empty and the menu has only the system's own pages.
 
     menu "Board"
 

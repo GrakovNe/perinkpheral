@@ -1,6 +1,6 @@
 dependencies:
   # The file system of the "apps" partition, and the build step that packs
-  # the bundled applications into its image.
+  # the preinstalled applications into its image.
   joltwallet/littlefs: "^1.14"
   # The device answers to its name on the network: perinkpheral-xxxx.local.
   espressif/mdns: "^1.2.0"
