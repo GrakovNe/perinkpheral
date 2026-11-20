@@ -190,6 +190,11 @@ text_request_result_t text_template_prepare_request(app_poll_t *poll, const char
     } else if (!text_template_fill_url(poll->url, value_of, context, url, url_size)) {
         return TEXT_REQUEST_NOT_READY;
     }
+    /* A setting saved empty is a value, and a URL made of it alone is no request: the
+     * user took the address out. Sent on, it was an error of the HTTP client's at every poll. */
+    if (url[0] == '\0') {
+        return TEXT_REQUEST_NOT_READY;
+    }
     if (manifest != NULL && !app_manifest_allows_url(manifest, url, value_of, context)) {
         return TEXT_REQUEST_NOT_ALLOWED;
     }
