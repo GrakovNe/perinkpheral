@@ -4,8 +4,6 @@
  */
 #include "events.h"
 
-#include <stdatomic.h>
-
 #include "esp_timer.h"
 
 #include "esp_log.h"
@@ -26,12 +24,8 @@ static QueueHandle_t    s_queue;
 static QueueHandle_t    s_input;
 static QueueSetHandle_t s_either;
 static volatile uint32_t s_dropped;
+#define RELEASE_WAIT_MS 10000
 static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
-/* Buttons' events are numbered as they are posted, so that the host loop can tell what came
- * before a release the full queue dropped from what came after it. 0 is "none". */
-#define DROPPABLE_BUTTONS 4
-static atomic_uint s_button_seq = 1;
-static atomic_uint s_dropped_release[DROPPABLE_BUTTONS];
 
 void events_start(void)
 {
@@ -73,25 +67,16 @@ void events_post_button(uint8_t index, event_press_t press)
     event_t event = { .kind = EVENT_BUTTON,
                       .button = { .index = index, .press = press,
                                   .at_ms = esp_timer_get_time() / US_PER_MS } };
-    event.button.seq = atomic_fetch_add(&s_button_seq, 1);
-    if (event.button.seq == 0) { /* wrapped: 0 is "none" */
-        event.button.seq = atomic_fetch_add(&s_button_seq, 1);
+    if (press != EVENT_PRESS_UP) {
+        events_post(&event);
+        return;
     }
-    if (!events_post(&event) && press == EVENT_PRESS_UP && index < DROPPABLE_BUTTONS) {
-        atomic_store(&s_dropped_release[index], event.button.seq);
-    }
-}
-
-uint32_t events_dropped_release(uint8_t index)
-{
-    return index < DROPPABLE_BUTTONS ? atomic_load(&s_dropped_release[index]) : 0;
-}
-
-void events_forget_dropped_release(uint8_t index, uint32_t seq)
-{
-    if (index < DROPPABLE_BUTTONS) {
-        unsigned expected = seq;
-        atomic_compare_exchange_strong(&s_dropped_release[index], &expected, 0);
+    /* A release is not dropped: lost, it would leave the button held for the host loop - BACK's
+     * long press never coming, UP and DOWN switching applications. A full queue is waited out
+     * instead; the posting task (the buttons', or a development tool's) misses presses meanwhile,
+     * as it would have dropped them. Only a loop stuck for longer loses it. */
+    if (xQueueSend(s_input, &event, pdMS_TO_TICKS(RELEASE_WAIT_MS)) != pdTRUE) {
+        s_dropped++;
     }
 }
 

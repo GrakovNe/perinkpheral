@@ -40,7 +40,6 @@ typedef struct {
             uint8_t       index; /* 0..3, as the buttons sit on the device */
             event_press_t press;
             int64_t       at_ms; /* when it happened, by the clock of uptime */
-            uint32_t      seq;   /* the order buttons' events were posted in, dropped ones too */
         } button;            /* EVENT_BUTTON */
         void *call;          /* EVENT_CALL: of events_call() */
         int   intent;        /* EVENT_INTENT: a HOST_INTENT_* */
@@ -53,13 +52,6 @@ void events_start(void);
 bool events_post(const event_t *event);
 
 void events_post_button(uint8_t index, event_press_t press);
-
-/* The `seq` of the last release of the button the full queue dropped, 0 for none. An event
- * with a later `seq` was posted after that release: what came before it has been handled. */
-uint32_t events_dropped_release(uint8_t index);
-
-/* Done with that dropped release, unless a later one was dropped meanwhile. */
-void events_forget_dropped_release(uint8_t index, uint32_t seq);
 
 /* The host loop owns the host's state: whoever else wants it changed asks
  * here. `run` is called in the host loop with `argument`, and this returns
