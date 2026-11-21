@@ -74,7 +74,7 @@ async function testCatalog() {
   const { context, messages, byId } = page({
     TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24, pageLanguage: "en",
     sources: ["https://example.test/catalog"], offered: [], installed: [], removed: [], catalogsRead: false,
-    loadSources: async () => {}, loadRemoved() {}, compatibilityProblem: () => "", localStorage: store,
+    loadSources: async () => {}, loadRemoved() {}, cancelQueuedInstalls() {}, compatibilityProblem: () => "", localStorage: store,
     picture: () => element("div"), markPendingInstall() {}, install() {},
     offerSays: (offer, field) => offer.app[field] || "", appUpdateAvailable: () => false,
     askForApp: async () => { if (!answer) throw new Error("Failed to fetch"); return answer; },
@@ -104,6 +104,11 @@ async function testCatalog() {
   assert.equal(rows().length, 1);
   assert.equal(view.children.length, 1, "the rows and no note");
   assert.equal(buttons()[0].disabled, false);
+
+  answer.apps.push({ name: "bad", version: "1.0.0", abi: 3, firmware: 1 });
+  await context.loadCatalogs();
+  assert.equal(rows().length, 1, "a malformed firmware minimum does not hide valid entries");
+  assert.equal(context.offered[0].app.name, "iss");
 
   answer = null;
   await context.loadCatalogs();
@@ -140,6 +145,36 @@ async function testCatalog() {
   assert.equal(rows().length, 0);
   assert.deepEqual(said(view), ["failed"]);
 
+  /* Live offers must be invalidated too: indices shift when a source is removed. */
+  context.sources = ["https://example.test/official", "https://example.test/a", "https://example.test/b"];
+  context.askForApp = async url => ({ apps: url.endsWith("=1") ?
+    [{ name: "from-a", version: "1", files: [] }] : [] });
+  await context.loadCatalogs();
+  assert.equal(context.offered[0].source, 1);
+  let release;
+  context.askForApp = () => new Promise(resolve => { release = resolve; });
+  const oldReading = context.loadCatalogs();
+  for (let step = 0; step < 5; step++) await Promise.resolve();
+  context.invalidateCatalogs();
+  context.sources = ["https://example.test/official", "https://example.test/b"];
+  release({ apps: [{ name: "stale", version: "1", files: [] }] });
+  await oldReading;
+  assert.equal(context.offered.length, 0, "a stale reading cannot restore old indices");
+  assert.equal(kept.has("perinkpheral-catalog"), false);
+  context.askForApp = async () => { throw new Error("Failed to fetch"); };
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 0, "total failure after saving sources leaves no old offers");
+  assert.equal(context.catalogsRead, false);
+  assert.deepEqual(said(view), ["failed"]);
+
+  context.askForApp = async () => ({ apps: [{ name: "another", version: "1", files: [] }] });
+  await context.loadCatalogs();
+  context.sources = ["https://example.test/changed-elsewhere"];
+  context.askForApp = async () => { throw new Error("Failed to fetch"); };
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 0, "a changed list returned by the device also invalidates offers");
+  assert.equal(context.catalogsRead, false);
+
   /* What is not this page's writing is not shown. */
   for (const text of ["", "{", "[]", '{"sources":[1],"offers":[]}', '{"sources":[],"offers":[{"source":0}]}',
                       '{"sources":[],"offers":[{"source":"0","app":{"name":"a","version":"1"}}]}',
@@ -156,6 +191,14 @@ async function testCatalog() {
   assert.equal(context.isDrawable({ name: "a", version: "1" }), true);
   assert.equal(context.isDrawable({ name: "a", version: "1", title: 5 }), false);
   assert.equal(context.isDrawable({ name: "a", version: 1 }), false);
+  for (const firmware of [1, true, [], {}]) {
+    assert.equal(context.isDrawable({ name: "a", version: "1", firmware }), false);
+    kept.set("perinkpheral-catalog", JSON.stringify({ sources: ["s"], offers: [
+      { source: 0, app: { name: "a", version: "1", firmware } }] }));
+    assert.equal(context.keptCatalog(store), null, "malformed firmware is not restored from storage");
+  }
+  for (const firmware of [undefined, null, "", "0.1.30"])
+    assert.equal(context.isDrawable({ name: "a", version: "1", firmware }), true);
   assert.equal(context.isDrawable(null), false);
   /* Where an application connects: a host of the user's own list is said to be the user's. */
   context.URL = URL;

@@ -8,7 +8,7 @@ const read = name => fs.readFileSync(path.join(__dirname, "../../main/web/js", n
 const core = read("core.js");
 const apps = read("apps.js");
 const installCode = apps.slice(apps.indexOf("const appInstallQueue"), apps.indexOf("/* An icon is"));
-const offer = { source: 0, app: { name: "iss", version: "1.2.3", files: [{ name: "app.wasm" }] } };
+const offer = { source: 0, generation: 0, app: { name: "iss", version: "1.2.3", files: [{ name: "app.wasm" }] } };
 
 async function run(replies, action = "install", options = {}) {
   const requests = [], messages = [], delays = [], listeners = {};
@@ -27,10 +27,10 @@ async function run(replies, action = "install", options = {}) {
     compatibilityProblem: () => options.incompatible ? "Update the firmware." : null,
     confirmed: async () => false,
     offerSays: offer => offer.app.name === "clock" ? "Clock" : "ISS",
-    updates: () => [offer, { source: 0, app: { name: "clock", version: "2.0.0", files: [] } }],
+    updates: () => [offer, { source: 0, generation: 0, app: { name: "clock", version: "2.0.0", files: [] } }],
     loadApps: async () => { reloads++; },
     loadSources: async () => {}, sources: ["https://example.test/catalog"],
-    offered: [], catalogsRead: false, drawTiles() {}, loadGlyphs() {}, loadRemoved() {},
+    offered: [], catalogsRead: action !== "catalog", drawTiles() {}, loadGlyphs() {}, loadRemoved() {},
     setTimeout: (callback, delay) => {
       if (delay !== 1400) {
         delays.push(delay);
@@ -131,6 +131,7 @@ async function testCachedCatalogOffers() {
   });
   vm.runInContext(read("compatibility.js"), context);
   vm.runInContext(installCode, context);
+  vm.runInContext(apps.slice(apps.indexOf("let offeredSources"), apps.indexOf("/* One reading at a time")), context);
   vm.runInContext(apps.slice(apps.indexOf("function tile("), apps.indexOf("/* ---- what an application is")), context);
   const updatesStart = apps.indexOf("const updates = () =>");
   vm.runInContext(apps.slice(updatesStart, apps.indexOf('byId("catalog-search").addEventListener')), context);
@@ -138,7 +139,7 @@ async function testCachedCatalogOffers() {
   vm.runInContext(apps.slice(bulkStart, apps.indexOf('byId("auto-update-apps").addEventListener', bulkStart)), context);
   for (const version of ["0.1.2", "0.1.3", "0.1.4"]) {
     const expected = version === "0.1.4";
-    context.offered = [{ source: 0, app: { name: "air", title: "Air quality", version, files: [] } }];
+    context.offered = [{ source: 0, generation: 0, app: { name: "air", title: "Air quality", version, files: [] } }];
     rendered.length = 0;
     context.tile(context.installed[0], context.offered[0]);
     assert.equal(rendered.some(node => node.tag === "button" && node.textContent === "Update"), expected,
@@ -242,8 +243,8 @@ function testUpdateAllVisibility() {
     }
   }
   context.offered = [
-    { source: 0, app: { name: "iss", version: "2.0.0", incompatible: true } },
-    { source: 0, app: { name: "weather", version: "2.0.0" } },
+    { source: 0, generation: 0, app: { name: "iss", version: "2.0.0", incompatible: true } },
+    { source: 0, generation: 0, app: { name: "weather", version: "2.0.0" } },
   ];
   context.drawTiles();
   assert.equal(byId("update-all").hidden, true, "only compatible installed updates count");
@@ -359,6 +360,7 @@ async function testAuthors() {
   assert(result.requests.slice(0, 4).every(request => request.url.endsWith("app=iss")));
   assert(result.requests.slice(4).every(request => request.url.endsWith("app=clock")));
   await require("./test_app_install_queue.js")();
+  await require("./test_app_settings_dialog.js")();
   await require("./test_settings_languages.js")();
   await require("./test_load_states.js")();
   console.log("App requests: retry, exhaustion, update all and refusal checks passed.");
