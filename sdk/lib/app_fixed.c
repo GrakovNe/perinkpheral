@@ -160,7 +160,8 @@ int64_t app_fixed_rescale(int64_t value, int32_t from_decimals, int32_t to_decim
 
 int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
 {
-    if (whole == 0) {
+    /* More decimals than an int64 holds cannot leave a result that fits: no loop of billions. */
+    if (whole == 0 || part == 0 || decimals >= POWERS) {
         return 0;
     }
     uint64_t dividend = magnitude_of(part), divisor = magnitude_of(whole);
