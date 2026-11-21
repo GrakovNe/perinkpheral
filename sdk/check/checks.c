@@ -136,37 +136,6 @@ static bool answer_for(const char *url, answer_t *answer)
     return false;
 }
 
-/* The host an address names: between "://" and the path, the port left out. */
-static void host_of(const char *url, char *host, size_t size)
-{
-    const char *start = strstr(url, "://");
-    start = start != NULL ? start + 3 : url;
-    size_t length = strcspn(start, "/:?#");
-    snprintf(host, size, "%.*s", (int)length, start);
-}
-
-/* Whether the manifest's "hosts" lets a request of the application's own go there. */
-static bool is_allowed(const char *url)
-{
-    char wanted[128], allowed[128], filled[HOST_KV_VALUE_MAX + 1];
-    host_of(url, wanted, sizeof wanted);
-    for (int32_t index = 0; index < standin_subject.host_count; index++) {
-        const char *entry = standin_subject.hosts[index];
-        /* "{{server}}": the host of the address the user set. */
-        if (strstr(entry, "{{") != NULL) {
-            if (!standin_fill_url(entry, filled, sizeof filled)) {
-                continue;
-            }
-            entry = filled;
-        }
-        host_of(entry, allowed, sizeof allowed);
-        if (allowed[0] != '\0' && strcmp(allowed, wanted) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /* ---- A scene: one instance of the application, told as data ---- */
 
 typedef enum {
@@ -244,6 +213,28 @@ static uint64_t frame(void)
     return picture;
 }
 
+/* What the panel shows (app_scene.c, app.c): a frame is drawn when the application takes the
+ * screen and again when it asked for one - screen_redraw(), or the screen's inversion changed.
+ * A state it changed without asking stays unseen. Of one instance on the screen. */
+static struct {
+    bool     is_shown;
+    uint64_t picture;
+    int32_t  redraws;
+    bool     is_inverted;
+} shown;
+
+static uint64_t show(void)
+{
+    standin_t *host = standin();
+    if (!shown.is_shown || host->redraws != shown.redraws || host->is_inverted != shown.is_inverted) {
+        shown.picture = frame();
+        shown.is_shown = true;
+        shown.redraws = host->redraws;
+        shown.is_inverted = host->is_inverted;
+    }
+    return standin_screen(shown.picture);
+}
+
 static void back_out(void *context)
 {
     (void)context;
@@ -302,6 +293,54 @@ static void deliver(int32_t request, int32_t item, bool is_picked, const char *u
     standin_data(request, item, status, answer.body, answer.length, piece, ending, HOST_FAILED_NO_ANSWER);
 }
 
+/* One thing the device gives an application. Off the screen each is given to an instance
+ * loaded for it and unloaded after it (app_delivery.c), so nothing but the store, the files and
+ * the session carries from one to the next; on the screen the instance there takes them all. */
+typedef struct {
+    int32_t        alarm;   /* >= 0: this alarm comes */
+    int32_t        intent;  /* a HOST_INTENT_*, or 0 */
+    bool           is_updated;
+    int32_t        request; /* otherwise an answer: a poll or a request's tag */
+    int32_t        item;
+    bool           is_picked, is_ready, is_permitted;
+    char           url[STANDIN_URL_BYTES];
+    const round_t *round;
+} delivery_t;
+
+static void give(const delivery_t *delivery)
+{
+    if (delivery->is_updated) {
+        standin_updated();
+    } else if (delivery->intent != 0) {
+        standin_intent(delivery->intent);
+    } else if (delivery->alarm >= 0) {
+        standin_alarm(delivery->alarm);
+    } else {
+        deliver(delivery->request, delivery->item, delivery->is_picked, delivery->url, delivery->is_ready,
+                delivery->is_permitted, delivery->round);
+    }
+}
+
+static void given_alone(void *context)
+{
+    standin_load();
+    give(context);
+    standin_terminate();
+}
+
+/* Off the screen: false once an instance did not live through what it was given. */
+static bool is_away;
+static bool has_away_failed;
+
+static void hand(const delivery_t *delivery)
+{
+    if (!is_away) {
+        give(delivery);
+    } else if (!has_away_failed && !standin_live(given_alone, (void *)delivery)) {
+        has_away_failed = true;
+    }
+}
+
 /* An application that asks by itself asks again when its repeating alarm
  * comes. The alarms come with the clock where it was: a picture with the
  * time in it stays comparable. */
@@ -309,31 +348,35 @@ static void ask_again(void)
 {
     for (int32_t id = 0; id < HOST_ALARM_COUNT; id++) {
         if (standin()->alarms[id].kind == STANDIN_ALARM_EVERY) {
-            standin_alarm(id);
+            hand(&(delivery_t){ .alarm = id });
         }
     }
 }
 
-/* Every poll of the manifest, an item of its list at a time, then the requests the application made. */
+/* Every poll of the manifest, an item of its list at a time, then the requests the application
+ * made, each sent to the address it was queued with, authorized again and its headers filled. */
 static void answer_round(const round_t *round)
 {
     standin_t *host = standin();
-    char url[STANDIN_URL_BYTES];
     for (int32_t poll = 0; poll < standin_subject.poll_count; poll++) {
-        bool is_picked = standin_subject.polls[poll].picks != NULL;
         int32_t items = standin_poll_items(poll);
         for (int32_t index = 0; index < (items < 0 ? 1 : items); index++) {
-            int32_t item = items < 0 ? -1 : standin_poll_item(poll, index);
-            bool is_ready = standin_poll_url(poll, item, url, sizeof url);
-            deliver(poll, item, is_picked, url, is_ready, true, round);
+            delivery_t answer = { .alarm = -1, .request = poll, .item = items < 0 ? -1 : standin_poll_item(poll, index),
+                                  .is_picked = standin_subject.polls[poll].picks != NULL, .is_permitted = true,
+                                  .round = round };
+            answer.is_ready = standin_poll_url(poll, answer.item, answer.url, sizeof answer.url);
+            hand(&answer);
         }
     }
-    for (int32_t answered = 0; host->request_count > 0 && answered < REQUESTS_A_ROUND; answered++) {
+    for (int32_t answered = 0; host->request_count > 0 && answered < REQUESTS_A_ROUND && !has_away_failed;
+         answered++) {
         standin_request_t request = host->requests[0];
         host->request_count--;
         memmove(&host->requests[0], &host->requests[1], (size_t)host->request_count * sizeof host->requests[0]);
-        bool is_ready = standin_fill_url(request.url, url, sizeof url);
-        deliver(request.tag, -1, false, url, is_ready, is_ready && is_allowed(url), round);
+        delivery_t answer = { .alarm = -1, .request = request.tag, .item = -1, .round = round,
+                              .is_ready = standin_headers_ready(&request), .is_permitted = standin_url_allowed(request.url) };
+        snprintf(answer.url, sizeof answer.url, "%s", request.url);
+        hand(&answer);
     }
 }
 
@@ -368,17 +411,20 @@ static void scene_run(void *context)
     memset(host->marks, 0, sizeof host->marks);
     host->note_count = 0;
 
-    standin_load();
+    if (!is_away) {
+        standin_load();
+    }
     if (scene->is_updated) {
         host->marks[MARK_ALARMS_BEFORE] = standin_alarms();
-        standin_updated();
+        hand(&(delivery_t){ .alarm = -1, .is_updated = true });
     }
     if (scene->intent != 0) {
-        standin_intent(scene->intent);
+        hand(&(delivery_t){ .alarm = -1, .intent = scene->intent });
     }
     if (!scene->is_off_screen) {
         standin_focus();
-        host->marks[MARK_FIRST_PICTURE] = frame();
+        shown.is_shown = false;
+        host->marks[MARK_FIRST_PICTURE] = show();
     }
     if (scene->has_settings) {
         standin_settings();
@@ -391,12 +437,18 @@ static void scene_run(void *context)
     }
     /* The presses are shown before anything else comes, as the panel shows them. */
     if (!scene->is_off_screen && scene->presses != NULL && scene->presses[0] != '\0') {
-        frame();
+        show();
     }
     host->marks[MARK_TIMERS_BEFORE] = standin_timers();
     int32_t timer = soonest_timer();
     if (scene->fire != FIRE_NONE && timer >= 0 && !host->is_leaving) {
         standin_pass(standin_timer_left(timer) + (scene->fire == FIRE_LATE ? TIMER_LATE_MS : 0));
+        /* What came due meanwhile comes too, as on the device: an alarm and the timer at one minute. */
+        for (int32_t id = 0; id < HOST_ALARM_COUNT; id++) {
+            if (standin_alarm_due(id)) {
+                hand(&(delivery_t){ .alarm = id });
+            }
+        }
         standin_timer(timer);
         if (scene->fire == FIRE_TWICE) {
             standin_timer(timer);
@@ -410,7 +462,7 @@ static void scene_run(void *context)
     for (int32_t id = 0; scene->has_alarms && id < HOST_ALARM_COUNT; id++) {
         if (standin_alarm_left(id) > 0) {
             standin_pass((int64_t)standin_alarm_left(id) * 1000 + scene->alarms_late_ms);
-            standin_alarm(id);
+            hand(&(delivery_t){ .alarm = id });
         }
     }
     for (int32_t index = 0; index < ROUNDS_MAX && scene->rounds[index].kind != ROUND_NONE; index++) {
@@ -427,7 +479,7 @@ static void scene_run(void *context)
         host->marks[MARK_WRITES_AGAIN] += (uint64_t)(host->store_changes + host->file_writes - writes);
         host->refuse_writes = HOST_OK;
         if (!scene->is_off_screen) {
-            host->marks[MARK_ROUND_PICTURE + index] = frame();
+            host->marks[MARK_ROUND_PICTURE + index] = show();
         }
     }
     host->marks[MARK_TIMERS] = standin_timers();
@@ -439,10 +491,12 @@ static void scene_run(void *context)
     host->marks[MARK_ALARMS] = standin_alarms();
     host->marks[MARK_LEFT] = host->is_leaving;
     if (scene->is_off_screen) {
-        standin_terminate();
+        if (!is_away) {
+            standin_terminate();
+        }
         return;
     }
-    host->marks[MARK_PICTURE] = frame();
+    host->marks[MARK_PICTURE] = show();
     /* After the frame: an application that shows pictures in a row sets its timer when one is drawn. */
     host->marks[MARK_TIMERS] = standin_timers();
     host->marks[MARK_DEPTH] = 0;
@@ -518,9 +572,15 @@ static bool play(const scene_t *scene)
     host->stray_draw[0] = host->refused_draw[0] = host->refused_what[0] = '\0';
     host->most_handler_writes = 0;
     host->is_leaving = false;
+    host->refused_request[0] = '\0';
     scene_t copy = *scene;
     results[checking].checks++;
-    if (!standin_live(scene_run, &copy)) {
+    /* Off the screen the scene is told here, and each thing it is given runs in an instance of its own. */
+    is_away = scene->is_off_screen;
+    has_away_failed = false;
+    bool is_whole = is_away ? (scene_run(&copy), !has_away_failed) : standin_live(scene_run, &copy);
+    is_away = false;
+    if (!is_whole) {
         problem(checking, "%s: %s", told(scene), standin_fault());
         stop_if_hung(standin_fault());
         return false;
@@ -541,6 +601,9 @@ static bool play(const scene_t *scene)
     }
     if (!scene->is_off_screen && standin_handlers.on_draw != NULL && host->marks[MARK_CALLS] <= BLANK_FRAME) {
         problem(DRAWING, "%s: app_on_draw() drew nothing", told(scene));
+    }
+    if (host->refused_request[0] != '\0') {
+        problem(NETWORK, "%s: %s", told(scene), host->refused_request);
     }
     if (host->refused_what[0] != '\0') {
         problem(STORE, "%s: a write is over the limits: %s", told(scene), host->refused_what);
@@ -944,6 +1007,13 @@ static void check_network(void)
     if (mark(MARK_UNANSWERED) > 0) {
         note(NETWORK, "not every request has an answer kept beside the application (test/check.json): "
                       "those are checked with failures only");
+    }
+    /* What an answer changed is drawn when the application asks for it: back from the stack,
+     * drawn anew, it shows what it showed. */
+    if (play(&ON_SCREEN)) {
+        expect(NETWORK, mark(MARK_PICTURE) == answered,
+               "%s: drawn anew it shows another picture than it showed - what the answer changed was not asked "
+               "for with screen_redraw()", told(&whole));
     }
 
     static const int32_t PIECES[] = { 1, 7, 1000 };

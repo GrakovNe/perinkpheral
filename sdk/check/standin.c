@@ -140,6 +140,7 @@ void standin_pass(int64_t milliseconds)
 void standin_forget_session(void)
 {
     standin()->session_length = 0;
+    world->session_inverted = false;
 }
 
 void standin_restart(void)
@@ -148,6 +149,7 @@ void standin_restart(void)
     host->uptime_ms = 0;
     host->boot_id = next_boot_id(host->boot_id);
     host->session_length = 0;
+    host->session_inverted = false;
     host->request_count = 0;
     memset(host->alarms, 0, sizeof host->alarms);
     memset(host->timer_due_ms, 0, sizeof host->timer_due_ms);
@@ -206,6 +208,24 @@ int32_t session_get(void *buffer, int32_t capacity)
 
 /* ---- Text ---- */
 
+static bool is_utf8_tail(char byte)
+{
+    return ((uint8_t)byte & 0xC0) == 0x80;
+}
+
+/* gfx_text_cut(): at most `room` bytes of `length`, never inside a character. */
+static int32_t text_cut(const char *text, int32_t length, int32_t room)
+{
+    if (length <= room) {
+        return length;
+    }
+    int32_t cut = room > 0 ? room : 0;
+    while (cut > 0 && is_utf8_tail(text[cut])) {
+        cut--;
+    }
+    return cut;
+}
+
 int32_t text_fill(const char *pattern, int32_t pattern_length, const host_text_argument_t *arguments,
                   int32_t count, char *text, int32_t capacity)
 {
@@ -216,13 +236,15 @@ int32_t text_fill(const char *pattern, int32_t pattern_length, const host_text_a
     if (pattern_length > HOST_TEXT_MAX) {
         pattern_length = HOST_TEXT_MAX;
     }
+    /* As app_api_time.c fills it: a piece cut between characters where the text is full, a
+     * character only half there at HOST_TEXT_MAX taken out, then cut to the capacity. */
     char filled[HOST_TEXT_MAX + 1];
     int32_t used = 0;
-    for (int32_t at = 0; at < pattern_length && used < HOST_TEXT_MAX; at++) {
+    for (int32_t at = 0; at < pattern_length && used < HOST_TEXT_MAX;) {
         bool is_slot = pattern[at] == '{' && at + 2 < pattern_length && pattern[at + 2] == '}' &&
                        pattern[at + 1] >= '0' && pattern[at + 1] < '0' + count;
         if (!is_slot) {
-            filled[used++] = pattern[at];
+            filled[used++] = pattern[at++];
             continue;
         }
         const host_text_argument_t *argument = &arguments[pattern[at + 1] - '0'];
@@ -236,18 +258,26 @@ int32_t text_fill(const char *pattern, int32_t pattern_length, const host_text_a
         if (piece_length < 0) {
             return HOST_ERR_ARGUMENT;
         }
-        for (int32_t byte = 0; byte < piece_length && byte < HOST_TEXT_MAX && used < HOST_TEXT_MAX; byte++) {
-            filled[used++] = piece[byte];
+        if (piece_length > HOST_TEXT_MAX) {
+            piece_length = HOST_TEXT_MAX;
         }
-        at += 2;
+        piece_length = text_cut(piece, piece_length, HOST_TEXT_MAX - used);
+        copy(filled + used, piece, (size_t)piece_length);
+        used += piece_length;
+        at += 3;
     }
-    if (used > capacity) {
-        used = capacity;
+    if (used == HOST_TEXT_MAX) {
+        int32_t start = used;
+        while (start > 0 && is_utf8_tail(filled[start - 1])) {
+            start--;
+        }
+        uint8_t first = start > 0 ? (uint8_t)filled[start - 1] : 0;
+        int32_t whole = first >= 0xF0 ? 4 : first >= 0xE0 ? 3 : first >= 0xC0 ? 2 : 1;
+        if (start > 0 && first >= 0xC0 && used - (start - 1) < whole) {
+            used = start - 1;
+        }
     }
-    /* Cut between characters, never inside one. */
-    while (used > 0 && used < HOST_TEXT_MAX && ((uint8_t)filled[used] & 0xC0) == 0x80) {
-        used--;
-    }
+    used = text_cut(filled, used, capacity);
     copy(text, filled, (size_t)used);
     return used;
 }
@@ -609,10 +639,24 @@ static int64_t days_of(int64_t year, int64_t month, int64_t day)
     return era * 146097 + year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year - 719468;
 }
 
-/* The zone is one offset: no daylight saving here. */
+/* The zone's offset at a moment: the change of the zone's rules that came last before it,
+ * as the tools wrote them for the years around the subject's time; before the first,
+ * zone_offset. */
+static int32_t offset_at(int64_t unix_time)
+{
+    int32_t offset = world->zone_offset;
+    for (int32_t index = 0; index < standin_subject.zone_change_count; index++) {
+        if (standin_subject.zone_changes[index].at > unix_time) {
+            break;
+        }
+        offset = standin_subject.zone_changes[index].offset;
+    }
+    return offset;
+}
+
 static void local_parts(int64_t unix_time, host_local_time_t *parts)
 {
-    int64_t local = unix_time + world->zone_offset;
+    int64_t local = unix_time + offset_at(unix_time);
     int64_t days = local >= 0 ? local / SECONDS_PER_DAY : -((-local + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY);
     int64_t second_of_day = local - days * SECONDS_PER_DAY;
     date_of(days, &parts->year, &parts->month, &parts->day);
@@ -629,7 +673,7 @@ int64_t time_now(void)
 
 int32_t time_zone_offset(void)
 {
-    return standin()->now != 0 ? world->zone_offset : 0;
+    return standin()->now != 0 ? offset_at(world->now) : 0;
 }
 
 int32_t time_local(host_local_time_t *now)
@@ -664,9 +708,29 @@ int32_t time_from_local(const host_local_time_t *parts, int64_t *unix_time)
     int64_t month_index = (int64_t)parts->year * 12 + parts->month - 1;
     int64_t year = month_index >= 0 ? month_index / 12 : -((-month_index + 11) / 12);
     int64_t days = days_of(year, month_index - year * 12 + 1, 1) + parts->day - 1;
-    int64_t moment = days * SECONDS_PER_DAY + (int64_t)parts->hour * 3600 + (int64_t)parts->minute * 60 +
-                     parts->second - world->zone_offset;
-    if (!is_moment(moment)) {
+    int64_t as_utc = days * SECONDS_PER_DAY + (int64_t)parts->hour * 3600 + (int64_t)parts->minute * 60 +
+                     parts->second;
+    /* As app_api_time.c resolves it: the offsets two days either side each offer a moment; in
+     * a fold the earlier of two that match, in a gap the first local time after it. */
+    int64_t moment = 0, forward = INT64_MAX;
+    bool is_found = false;
+    for (int day = -2; day <= 2; day++) {
+        int64_t candidate = as_utc - offset_at(as_utc + day * (int64_t)SECONDS_PER_DAY);
+        if (!is_moment(candidate)) {
+            continue;
+        }
+        int64_t local = candidate + offset_at(candidate);
+        if (local == as_utc) {
+            if (!is_found || candidate < moment) {
+                moment = candidate;
+            }
+            is_found = true;
+        } else if (!is_found && local > as_utc && local < forward) {
+            forward = local;
+            moment = candidate;
+        }
+    }
+    if ((!is_found && forward == INT64_MAX) || !is_moment(moment)) {
         return HOST_ERR_ARGUMENT;
     }
     *unix_time = moment;
@@ -761,7 +825,7 @@ int32_t alarm_set_every(int32_t id, int32_t seconds, int32_t first_in)
 {
     standin_t *host = standin();
     if (id < 0 || id >= HOST_ALARM_COUNT || seconds < HOST_ALARM_EVERY_MIN || seconds > HOST_ALARM_EVERY_MAX ||
-        first_in < 0 || first_in > SECONDS_PER_DAY) {
+        first_in < 0 || first_in > HOST_ALARM_EVERY_MAX) {
         return HOST_ERR_ARGUMENT;
     }
     host->alarms[id] = (standin_alarm_t){
@@ -808,6 +872,13 @@ int32_t standin_timer_left(int32_t id)
     return host->timer_due_ms[id] > host->uptime_ms ? (int32_t)(host->timer_due_ms[id] - host->uptime_ms) : 1;
 }
 
+bool standin_alarm_due(int32_t id)
+{
+    const standin_alarm_t *alarm = &standin()->alarms[id];
+    return alarm->kind == STANDIN_ALARM_AT ? world->now != 0 && alarm->at <= world->now
+           : alarm->kind != STANDIN_ALARM_NONE && alarm->due_uptime_ms <= world->uptime_ms;
+}
+
 int32_t standin_alarm_left(int32_t id)
 {
     standin_t *host = standin();
@@ -832,9 +903,13 @@ void screen_redraw(int32_t flags)
     world->redraw_flags = flags;
 }
 
+/* As app_api_ui.c keeps it: in the instance, and in the session while it may write it. */
 int32_t screen_set_inverted(int32_t inverted)
 {
     standin()->is_inverted = inverted != 0;
+    if (world->is_session_writable) {
+        world->session_inverted = world->is_inverted;
+    }
     return HOST_OK;
 }
 
@@ -845,7 +920,7 @@ int32_t header_set_text(int32_t side, const char *text, int32_t length)
         return HOST_ERR_ARGUMENT;
     }
     if (length > HOST_HEADER_TEXT_MAX) {
-        length = HOST_HEADER_TEXT_MAX;
+        return HOST_ERR_ARGUMENT;
     }
     copy(world->header_text[side], text, (size_t)length);
     world->header_text[side][length] = '\0';
@@ -860,7 +935,7 @@ int32_t header_set_status(int32_t side, int32_t icon, const char *text, int32_t 
         return HOST_ERR_ARGUMENT;
     }
     if (length > HOST_STATUS_TEXT_MAX) {
-        length = HOST_STATUS_TEXT_MAX;
+        return HOST_ERR_ARGUMENT;
     }
     copy(world->status_text[side], text, (size_t)length);
     world->status_text[side][length] = '\0';
@@ -1000,6 +1075,13 @@ int32_t poll_set_interval(int32_t poll, int32_t seconds)
     return HOST_OK;
 }
 
+/* A request the device refuses for what the application asked: a finding of the network check. */
+static int32_t refused_request(int32_t result, const char *why)
+{
+    say(world->refused_request, "http_send() in %s answered HOST_ERR_ARGUMENT: %s", running(), why);
+    return result;
+}
+
 int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_length, const char *headers,
                   int32_t headers_length, const void *body, int32_t body_length)
 {
@@ -1009,6 +1091,44 @@ int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_leng
         headers_length > HOST_HTTP_HEADERS_MAX || (headers == NULL && headers_length > 0) || body_length < 0 ||
         body_length > HOST_HTTP_BODY_MAX || (body == NULL && body_length > 0)) {
         return HOST_ERR_ARGUMENT;
+    }
+    /* As app_api_data.c and poller.c take it: printable text, at most four headers of
+     * "Name: value", the address filled and its host one of the manifest's before it is queued. */
+    for (int32_t at = 0; at < url_length; at++) {
+        if (url[at] < ' ' || url[at] > '~') {
+            return refused_request(HOST_ERR_ARGUMENT, "a character that is not printable ASCII in the address");
+        }
+    }
+    int32_t header_count = 0;
+    for (int32_t at = 0; at < headers_length;) {
+        int32_t line_end = at, colon = -1, value_start;
+        while (line_end < headers_length && headers[line_end] != '\n') {
+            if (headers[line_end] < ' ' || headers[line_end] > '~') {
+                return refused_request(HOST_ERR_ARGUMENT, "a character that is not printable ASCII in a header");
+            }
+            if (colon < 0 && headers[line_end] == ':') {
+                colon = line_end;
+            }
+            line_end++;
+        }
+        if (line_end > at) {
+            for (value_start = colon + 1; colon >= 0 && value_start < line_end && headers[value_start] == ' ';) {
+                value_start++;
+            }
+            if (colon < 0 || colon - at < 1 || colon - at > 31 || line_end - value_start > 255 || ++header_count > 4) {
+                return refused_request(HOST_ERR_ARGUMENT, "a header that is not \"Name: value\", or a fifth");
+            }
+        }
+        at = line_end + 1;
+    }
+    char written[STANDIN_URL_BYTES], filled[STANDIN_URL_BYTES];
+    copy(written, url, (size_t)url_length);
+    written[url_length] = '\0';
+    if (!standin_fill_url(written, filled, sizeof filled)) {
+        return HOST_ERR_ARGUMENT; /* a value it needs is not set: the user's to do, no fault */
+    }
+    if (!standin_url_allowed(filled)) {
+        return refused_request(HOST_ERR_ARGUMENT, "a host the manifest's \"hosts\" does not list");
     }
     host->sends++;
     if (host->refuse_requests != HOST_OK) {
@@ -1021,7 +1141,8 @@ int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_leng
     memset(request, 0, sizeof *request);
     request->tag = tag;
     request->method = method;
-    copy(request->url, url, (size_t)url_length);
+    /* The address as it was filled now stays the request's. */
+    copy(request->url, filled, strlen(filled));
     copy(request->headers, headers, (size_t)headers_length);
     request->headers_length = headers_length;
     copy(request->body, body, (size_t)body_length);
@@ -1113,7 +1234,20 @@ int32_t standin_poll_items(int32_t poll)
 }
 
 /* {{key}} of an address filled from the store; for a poll over a list, its own key with the item. */
-static bool fill(const char *written, const standin_poll_t *asked, int32_t item, char *url, int32_t capacity)
+/* What a URL takes as it is (text_template.c); everything else goes in as %XX. */
+static bool is_unreserved(char character)
+{
+    return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+           (character >= '0' && character <= '9') || character == '-' || character == '.' || character == '_' ||
+           character == '~';
+}
+
+/* As text_template.c fills a template: a value at the start of a URL - the server - and every
+ * value of a header go in as they are and must be printable; any other value of a URL is
+ * percent-encoded; a list's items are joined with commas. A key with no value and no default
+ * fails it; an empty value goes in empty. */
+static bool fill_text(const char *written, const standin_poll_t *asked, int32_t item, bool is_url, char *url,
+                      int32_t capacity)
 {
     standin();
     int32_t used = 0;
@@ -1130,8 +1264,9 @@ static bool fill(const char *written, const standin_poll_t *asked, int32_t item,
         int32_t key_length = (int32_t)(close - key);
         char value[HOST_KV_VALUE_MAX + 1];
         const char *filled = value;
-        int32_t length = setting_text(key, key_length, value, sizeof value);
+        int32_t length;
         if (asked != NULL && asked->each != NULL && item >= 0 && is_named(key, key_length, asked->each)) {
+            setting_text(key, key_length, value, sizeof value);
             if (!list_item(value, item, &filled, &length)) {
                 return false;
             }
@@ -1139,27 +1274,101 @@ static bool fill(const char *written, const standin_poll_t *asked, int32_t item,
                 filled += strlen(asked->prefix);
                 length -= (int32_t)strlen(asked->prefix);
             }
+        } else {
+            length = key_length > 0 ? kv_get(key, key_length, value, sizeof value - 1) : HOST_ERR_ARGUMENT;
+            if (length < 0) {
+                return false;
+            }
         }
-        /* An empty setting in the address: the device fails the request, HOST_FAILED_NOT_READY. */
-        if (length <= 0 || used + length >= capacity) {
-            return false;
+        bool is_verbatim = !is_url || at == written;
+        for (int32_t index = 0; index < length; index++) {
+            bool is_join = filled[index] == '\n'; /* between a list's items */
+            char character = is_join ? ',' : filled[index];
+            bool is_kept = is_verbatim || is_join || is_unreserved(character);
+            if (is_verbatim && (character < ' ' || character > '~')) {
+                return false;
+            }
+            if (used + (is_kept ? 1 : 3) >= capacity) {
+                return false;
+            }
+            if (is_kept) {
+                url[used++] = character;
+            } else {
+                static const char HEX[] = "0123456789ABCDEF";
+                url[used++] = '%';
+                url[used++] = HEX[(uint8_t)character >> 4];
+                url[used++] = HEX[(uint8_t)character & 0x0F];
+            }
         }
-        copy(url + used, filled, (size_t)length);
-        used += length;
         at = close + 2;
     }
     url[used] = '\0';
-    return true;
+    /* A URL made of an empty setting alone is no request (text_template_prepare_request). */
+    return !is_url || used > 0;
 }
 
 bool standin_poll_url(int32_t poll, int32_t item, char *url, int32_t capacity)
 {
-    return fill(standin_subject.polls[poll].url, &standin_subject.polls[poll], item, url, capacity);
+    return fill_text(standin_subject.polls[poll].url, &standin_subject.polls[poll], item, true, url, capacity);
 }
 
 bool standin_fill_url(const char *written, char *url, int32_t capacity)
 {
-    return fill(written, NULL, -1, url, capacity);
+    return fill_text(written, NULL, -1, true, url, capacity);
+}
+
+/* The host an address names: between "://" and the path, the port left out. */
+static void host_of(const char *url, char *host, size_t size)
+{
+    const char *start = strstr(url, "://");
+    start = start != NULL ? start + 3 : url;
+    size_t length = strcspn(start, "/:?#");
+    snprintf(host, size, "%.*s", (int)length, start);
+}
+
+bool standin_url_allowed(const char *url)
+{
+    char wanted[128], allowed[128], filled[STANDIN_URL_BYTES];
+    host_of(url, wanted, sizeof wanted);
+    for (int32_t index = 0; index < standin_subject.host_count; index++) {
+        const char *entry = standin_subject.hosts[index];
+        /* "{{server}}": the host of the address the user set. */
+        if (strstr(entry, "{{") != NULL) {
+            if (!standin_fill_url(entry, filled, sizeof filled)) {
+                continue;
+            }
+            entry = filled;
+        }
+        host_of(entry, allowed, sizeof allowed);
+        if (allowed[0] != '\0' && strcmp(allowed, wanted) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The values of a queued request's headers, filled when it is sent. */
+bool standin_headers_ready(const standin_request_t *request)
+{
+    const char *at = request->headers, *end = request->headers + request->headers_length;
+    while (at < end) {
+        const char *line_end = memchr(at, '\n', (size_t)(end - at));
+        line_end = line_end != NULL ? line_end : end;
+        const char *colon = memchr(at, ':', (size_t)(line_end - at));
+        if (colon != NULL) {
+            char written[HOST_HTTP_HEADERS_MAX + 1], filled[256];
+            const char *value = colon + 1;
+            while (value < line_end && *value == ' ') {
+                value++;
+            }
+            snprintf(written, sizeof written, "%.*s", (int)(line_end - value), value);
+            if (!fill_text(written, NULL, -1, false, filled, sizeof filled)) {
+                return false;
+            }
+        }
+        at = line_end + 1;
+    }
+    return true;
 }
 
 /* ---- Drawing: recorded, not drawn ---- */
@@ -1175,11 +1384,14 @@ static const struct {
 #define FONT_COUNT ((int32_t)(sizeof FONTS / sizeof FONTS[0]))
 /* The kit's styles in the fonts they are set in. */
 static const int32_t STYLE_FONTS[] = {
-    [HOST_UI_TEXT] = HOST_FONT_TEXT, [HOST_UI_TITLE] = HOST_FONT_TEXT, [HOST_UI_CAPTION] = HOST_FONT_SMALL,
-    [HOST_UI_VALUE] = HOST_FONT_LARGE,
+    [HOST_UI_TEXT] = HOST_FONT_TEXT, [HOST_UI_TITLE] = HOST_FONT_MEDIUM, [HOST_UI_CAPTION] = HOST_FONT_SMALL,
+    [HOST_UI_VALUE] = HOST_FONT_DISPLAY,
 };
 #define STYLE_COUNT ((int32_t)(sizeof STYLE_FONTS / sizeof STYLE_FONTS[0]))
-#define LIST_ROW_HEIGHT 44
+#define LIST_ROW_HEIGHT 42
+#define LIST_TOP_GAP    8
+#define CELL_PADDING     12 /* kit.c */
+#define CELL_PICTURE_GAP 14
 #define TITLE_HEIGHT    52
 #define QR_MODULES_MAX  57
 
@@ -1285,6 +1497,11 @@ static int32_t fit(int32_t font, const char *text, int32_t length, int32_t max_w
     copy(fitted, text, (size_t)kept);
     copy(fitted + kept, "...", 3);
     return kept + 3;
+}
+
+static int32_t surface_width(void)
+{
+    return SURFACE_WIDTH;
 }
 
 static int32_t surface_height(void)
@@ -1502,7 +1719,7 @@ int32_t gfx_icon_ink(int32_t icon, int32_t cell, host_icon_ink_t *ink)
 /* A picture's bytes: its two sizes and a bit a cell. */
 static size_t picture_bytes(const uint8_t *picture)
 {
-    return 2 + ((size_t)picture[0] * picture[1] + 7) / 8;
+    return 2 + ((size_t)picture[0] + 7) / 8 * picture[1]; /* gfx_picture_bytes(): rows of whole bytes */
 }
 
 int32_t gfx_draw_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t cell)
@@ -1537,33 +1754,51 @@ static bool is_list(const host_list_t *list)
            is_drawable(list->top) && list->top >= 0 && is_drawable(list->height) && list->height >= 0;
 }
 
+/* list.c: rows of 42 pixels under a gap of 8, in the list's height or what the surface has below its top. */
 static int32_t list_rows(const host_list_t *list)
 {
-    int32_t height = list->height > 0 ? list->height : surface_height() - list->top;
-    return height > LIST_ROW_HEIGHT ? height / LIST_ROW_HEIGHT : 1;
+    int32_t room = surface_height() - list->top;
+    int32_t height = list->height > 0 && list->height < room ? list->height : room;
+    int32_t rows = (height - LIST_TOP_GAP) / LIST_ROW_HEIGHT;
+    return rows > 0 ? rows : 0;
+}
+
+/* A call that measures for a frame: the device answers it only while one is drawn. */
+static bool is_measuring(const char *call)
+{
+    if (standin()->is_drawing) {
+        return true;
+    }
+    world->stray_draws++;
+    say(world->stray_draw, "%s() in %s", call, running());
+    return false;
 }
 
 int32_t ui_list_visible(const host_list_t *list)
 {
-    standin();
+    if (!is_measuring("ui_list_visible")) {
+        return HOST_ERR_NOT_DRAWING;
+    }
     return is_list(list) ? list_rows(list) : HOST_ERR_ARGUMENT;
 }
 
 int32_t ui_list_first(const host_list_t *list)
 {
-    standin();
+    if (!is_measuring("ui_list_first")) {
+        return HOST_ERR_NOT_DRAWING;
+    }
     if (!is_list(list)) {
         return HOST_ERR_ARGUMENT;
     }
     int32_t rows = list_rows(list), first = list->first;
+    int32_t last_first = list->count > rows ? list->count - rows : 0;
     if (list->selected >= 0 && list->selected < first) {
         first = list->selected;
-    }
-    if (list->selected >= first + rows) {
+    } else if (list->selected >= 0 && rows > 0 && list->selected >= first + rows) {
         first = list->selected - rows + 1;
     }
-    if (first > list->count - rows) {
-        first = list->count - rows;
+    if (first > last_first) {
+        first = last_first;
     }
     return first > 0 ? first : 0;
 }
@@ -1776,7 +2011,9 @@ int32_t ui_draw_reason(int32_t status)
         return HOST_ERR_NOT_DRAWING;
     }
     mix_number(status);
-    return HOST_OK;
+    /* An answer came: what is wrong, if anything, is the application's to say. Otherwise the
+     * host drew the reason. */
+    return status >= 200 && status < 300 ? 0 : 1;
 }
 
 int32_t ui_draw_frame(int32_t x, int32_t y, int32_t width, int32_t height, int32_t arrows)
@@ -1799,27 +2036,32 @@ static bool is_cell(const host_cell_t *cell, int32_t icon)
            (icon == HOST_ICON_NONE || is_icon(icon));
 }
 
-/* The largest font the value takes in the cell's width. */
-static int32_t cell_font(const host_cell_t *cell)
+/* kit_cell_fit(): the size class, 1 the largest, whose font takes the value in the cell's width
+ * beside its picture; a cell that is not the whole surface begins at 3. */
+static int32_t cell_size(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
 {
-    static const int32_t LARGEST_FIRST[] = { HOST_FONT_HUGE, HOST_FONT_DISPLAY, HOST_FONT_LARGE, HOST_FONT_MEDIUM,
+    static const int32_t FONTS_BY_SIZE[] = { HOST_FONT_HUGE, HOST_FONT_DISPLAY, HOST_FONT_LARGE, HOST_FONT_MEDIUM,
                                              HOST_FONT_TEXT };
+    const int32_t sizes = (int32_t)(sizeof FONTS_BY_SIZE / sizeof FONTS_BY_SIZE[0]);
+    bool is_large = cell->width >= surface_width() && cell->height >= surface_height();
+    int32_t side = picture == NULL && icon == HOST_ICON_NONE ? 0
+                   : is_large                              ? HOST_UI_CELL_PICTURE_LARGE
+                                                           : HOST_UI_CELL_PICTURE_SMALL;
+    int32_t room = cell->width - 2 * CELL_PADDING - (side > 0 ? side + CELL_PICTURE_GAP : 0);
     int32_t length = (int32_t)strnlen(cell->value, sizeof cell->value);
-    for (size_t index = 0; index < sizeof LARGEST_FIRST / sizeof LARGEST_FIRST[0]; index++) {
-        int32_t font = LARGEST_FIRST[index];
-        if (text_width(font, cell->value, length) <= cell->width - 2 * HOST_UI_MARGIN &&
-            FONTS[font].line <= cell->height) {
-            return font;
-        }
+    int32_t size = is_large ? 1 : 3;
+    while (size < sizes && text_width(FONTS_BY_SIZE[size - 1] | HOST_FONT_TABULAR, cell->value, length) > room) {
+        size++;
     }
-    return HOST_FONT_SMALL;
+    return size;
 }
 
 int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
 {
-    standin();
-    (void)picture;
-    return is_cell(cell, icon) ? cell_font(cell) : HOST_ERR_ARGUMENT;
+    if (!is_measuring("ui_cell_fit")) {
+        return HOST_ERR_NOT_DRAWING;
+    }
+    return is_cell(cell, icon) ? cell_size(cell, picture, icon) : HOST_ERR_ARGUMENT;
 }
 
 int32_t ui_draw_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
@@ -1847,7 +2089,8 @@ int32_t ui_draw_chart(const host_chart_t *chart, const int32_t *values)
     }
     if (chart == NULL || values == NULL || chart->count < 1 || chart->count > HOST_CHART_VALUES_MAX ||
         !is_drawable(chart->x) || !is_drawable(chart->y) || !is_drawable(chart->width) ||
-        !is_drawable(chart->height) || chart->kind < HOST_CHART_LINE || chart->kind > HOST_CHART_STEPS) {
+        !is_drawable(chart->height) || chart->width <= 0 || chart->height <= 0 || chart->kind < HOST_CHART_LINE ||
+        chart->kind > HOST_CHART_STEPS || chart->decimals < 0 || chart->decimals > 9) {
         return refused_draw("ui_draw_chart");
     }
     mix(chart, sizeof *chart);
@@ -1876,7 +2119,11 @@ int32_t ui_draw_date(const host_date_t *date)
     if (!is_frame("ui_draw_date")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (date == NULL || date->selected < HOST_DATE_HOUR || date->selected > HOST_DATE_NONE) {
+    /* As app_api_ui.c reads it: a date of the calendar, a time of the day, and at least one of them shown. */
+    if (date == NULL || date->year < 0 || date->year > 9999 || date->month < 1 || date->month > 12 || date->day < 1 ||
+        date->day > 31 || date->hour < 0 || date->hour > 23 || date->minute < 0 || date->minute > 59 ||
+        (date->has & (HOST_DATE_HAS_TIME | HOST_DATE_HAS_DATE)) == 0 || date->selected < HOST_DATE_HOUR ||
+        date->selected > HOST_DATE_NONE) {
         return refused_draw("ui_draw_date");
     }
     int32_t numbers[] = { date->year, date->month, date->day, date->hour, date->minute, date->has, date->selected };
@@ -1887,17 +2134,24 @@ int32_t ui_draw_date(const host_date_t *date)
 }
 
 /* ---- The SDK's arena (sdk/lib/app_alloc.h), which on the device is what the
- * module's page has left: here a room of its own ---- */
+ * module's page has left: here a room of its own, as large as the built module leaves ---- */
 
-#define ARENA_BYTES     (32 * 1024)
+#define ARENA_BYTES     (64 * 1024)
 #define ARENA_ALIGNMENT 8
 
 static _Alignas(ARENA_ALIGNMENT) uint8_t arena[ARENA_BYTES];
 static int32_t arena_taken;
 
+/* What the tools read off the built module (the end of its data), or the whole room. */
+static int32_t arena_bytes(void)
+{
+    return standin_subject.arena_bytes > 0 && standin_subject.arena_bytes <= ARENA_BYTES ? standin_subject.arena_bytes
+                                                                                         : ARENA_BYTES;
+}
+
 int32_t app_alloc_left(void)
 {
-    return ARENA_BYTES - arena_taken;
+    return arena_bytes() - arena_taken;
 }
 
 void *app_alloc(int32_t bytes)
@@ -1956,6 +2210,7 @@ void standin_load(void)
     host->is_on_screen = host->is_session_writable = host->is_leaving = host->wants_screen = false;
     memset(host->timer_due_ms, 0, sizeof host->timer_due_ms);
     memset(host->header_text, 0, sizeof host->header_text);
+    host->is_inverted = host->session_inverted;
     arena_taken = 0;
     CALL(on_load);
     host->is_loading = false;
@@ -2025,8 +2280,14 @@ void standin_alarm(int32_t id)
 {
     standin_alarm_t *alarm = &standin()->alarms[id];
     if (alarm->kind == STANDIN_ALARM_EVERY) {
-        /* A late one does not replay what it missed: the next is a period from now. */
-        alarm->due_uptime_ms = world->uptime_ms + (int64_t)alarm->every * MS_PER_SECOND;
+        /* As app_host.c keeps it: a period after the time it was due, or a period from now when
+         * that is past already or the clock was set meanwhile. */
+        int64_t every_ms = (int64_t)alarm->every * MS_PER_SECOND;
+        int64_t next_ms = alarm->due_uptime_ms + every_ms;
+        if (next_ms <= world->uptime_ms || next_ms > world->uptime_ms + every_ms) {
+            next_ms = world->uptime_ms + every_ms;
+        }
+        alarm->due_uptime_ms = next_ms;
     } else {
         alarm->kind = STANDIN_ALARM_NONE;
     }
@@ -2062,6 +2323,26 @@ uint64_t standin_draw(void)
     host->is_drawing = false;
     host->draws++;
     return host->picture;
+}
+
+uint64_t standin_screen(uint64_t frame)
+{
+    standin_t *host = standin();
+    uint64_t picture = host->picture;
+    host->picture = frame;
+    /* The header Perinkpheral OS draws above the frame, unless the application is fullscreen,
+     * and the inversion of the whole screen. */
+    if (!standin_subject.is_fullscreen) {
+        for (int side = 0; side < 2; side++) {
+            mix_field(host->header_text[side], sizeof host->header_text[side]);
+            mix_field(host->status_text[side], sizeof host->status_text[side]);
+            mix_number(host->status_icon[side]);
+        }
+    }
+    mix_number(host->is_inverted);
+    uint64_t screen = host->picture;
+    host->picture = picture;
+    return screen;
 }
 
 /* ---- Answers ---- */
@@ -2122,10 +2403,11 @@ void standin_picked(int32_t poll, int32_t item, int32_t status, const void *body
     if (status >= 0) {
         json_pick_init(&picked, asked->picks, asked->pick_count);
         json_pick_lists(&picked, picked_lists, sizeof picked_lists);
-        /* An answer the picker cannot read has no values; one that said it was good is no answer. */
-        if (length > 0 && json_pick_feed(&picked, body, (size_t)length) && json_pick_finish(&picked)) {
+        /* As poller_net.c reads it: an answer the picker cannot read whole is no answer, whatever
+         * its status; an empty one is a whole document of no values, and keeps its status. */
+        if (json_pick_feed(&picked, body != NULL ? body : "", (size_t)length) && json_pick_finish(&picked)) {
             has_picked = true;
-        } else if (status < 400) {
+        } else {
             status = HOST_FAILED_NO_ANSWER;
         }
     }

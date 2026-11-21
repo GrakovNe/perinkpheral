@@ -69,6 +69,12 @@ typedef struct {
     const char *key, *value;
 } standin_pair_t;
 
+/* From `at` on, the zone's offset is `offset`: the changes of its rules, written by the tools. */
+typedef struct {
+    int64_t at;
+    int32_t offset;
+} standin_zone_change_t;
+
 typedef struct {
     const char              *name;
     bool                     is_fullscreen, writes_files;
@@ -83,7 +89,10 @@ typedef struct {
     int32_t                  file_count;
     /* test/check.json beside the application: where and when it is checked. */
     int64_t                  at;
-    int32_t                  zone_offset;
+    int32_t                  zone_offset; /* before the first change */
+    const standin_zone_change_t *zone_changes;
+    int32_t                  zone_change_count;
+    int32_t                  arena_bytes; /* what the module's page leaves for app_alloc(); 0: 64 KB */
     const standin_pair_t    *store;
     int32_t                  store_count;
     const standin_answer_t  *answers;
@@ -118,7 +127,7 @@ extern standin_handlers_t standin_handlers;
 /* ---- The host's state: what a test reads, and what it may set ---- */
 
 #define STANDIN_STORE_VALUES 32
-#define STANDIN_FILES        6
+#define STANDIN_FILES        24 /* the package's files and what it writes: 16 blocks and 8 */
 #define STANDIN_FILE_BYTES   HOST_FILES_MAX
 #define STANDIN_MARKS        64
 #define STANDIN_NOTE_BYTES   200
@@ -184,6 +193,7 @@ typedef struct {
     /* The session: kept while the application is in the stack. */
     uint8_t session[HOST_SESSION_MAX];
     int32_t session_length;
+    bool    session_inverted; /* the screen's inversion, kept with the session */
 
     /* Where the instance is. */
     bool is_new; /* installed and never loaded: its first load is told app_on_installed() */
@@ -209,6 +219,7 @@ typedef struct {
     standin_request_t requests[HOST_HTTP_PENDING_MAX];
     int32_t request_count;
     int32_t refuse_requests; /* a HOST_ERR_*: http_send answers it */
+    char    refused_request[STANDIN_NOTE_BYTES]; /* the first request the device refuses for what it asks */
     int32_t sends;
     int32_t polls_run[4];
     int32_t poll_interval[4];
@@ -256,6 +267,7 @@ uint32_t standin_timers(void);
 uint32_t standin_alarms(void);
 int32_t standin_timer_left(int32_t id);          /* milliseconds; 0: not set */
 int32_t standin_alarm_left(int32_t id);          /* seconds; 0: not set */
+bool standin_alarm_due(int32_t id);              /* set, and its time has come */
 
 /* The address poll `poll` asks for item `item` of its list (-1: it has
  * none): {{key}} filled from the store. False when a key it needs is empty,
@@ -263,6 +275,10 @@ int32_t standin_alarm_left(int32_t id);          /* seconds; 0: not set */
 bool standin_poll_url(int32_t poll, int32_t item, char *url, int32_t capacity);
 /* The same for an address a request of the application's own was sent to. */
 bool standin_fill_url(const char *written, char *url, int32_t capacity);
+/* Whether the manifest's "hosts" lets a request of the application's own go to the address. */
+bool standin_url_allowed(const char *url);
+/* Whether every value of a queued request's headers can be filled now. */
+bool standin_headers_ready(const standin_request_t *request);
 /* How many items a poll with "each" is asked for; -1 for a poll without. */
 int32_t standin_poll_items(int32_t poll);
 /* Item `index` of those the poll claims: its number in the list, or -1. */
@@ -285,6 +301,7 @@ void standin_intent(int32_t intent);     /* when the manifest asks for it */
 void standin_settings(void);
 void standin_updated(void);              /* another package: the alarms of the old one are gone, app_on_updated() */
 uint64_t standin_draw(void);             /* app_on_draw(): what the frame was made of */
+uint64_t standin_screen(uint64_t frame); /* the frame with the header and the inversion around it */
 
 /* ---- Answers ---- */
 

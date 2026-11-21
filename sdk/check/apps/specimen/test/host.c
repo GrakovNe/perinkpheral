@@ -148,6 +148,13 @@ static void count_data(int32_t request, const uint8_t *data, int32_t length, int
     last_status = http_status;
 }
 
+static int32_t last_picked;
+static void picked_status(int32_t request, int32_t http_status)
+{
+    (void)request;
+    last_picked = http_status;
+}
+
 static void test_answers(void)
 {
     static const char BODY[] = "0123456789";
@@ -172,11 +179,35 @@ static void test_answers(void)
     standin_data(HOST_REQUEST_FIRST, -1, HOST_FAILED_NO_NETWORK, NULL, 0, 1, STANDIN_WHOLE, 0);
     assert(pieces == 1 && bytes_seen == 0 && last_flags == HOST_DATA_FAILED && last_status == HOST_FAILED_NO_NETWORK);
 
-    /* A poll's address is filled from the store; an empty setting in it is a request not ready. */
+    /* A poll's address is filled from the store, as text_template.c fills it: a value in the
+     * path or the query percent-encoded, a list's items with commas, a setting saved empty
+     * empty; a key with no value and no default makes it a request not ready. */
     char url[STANDIN_URL_BYTES];
     assert(standin_poll_url(0, -1, url, sizeof url) && strcmp(url, "https://example.test/now?place=here") == 0);
+    standin_set("place", "Saint Petersburg/1,2\nRu");
+    assert(standin_poll_url(0, -1, url, sizeof url) &&
+           strcmp(url, "https://example.test/now?place=Saint%20Petersburg%2F1%2C2,Ru") == 0);
     standin_set("place", "");
-    assert(!standin_poll_url(0, -1, url, sizeof url));
+    assert(standin_poll_url(0, -1, url, sizeof url) && strcmp(url, "https://example.test/now?place=") == 0);
+    assert(!standin_fill_url("https://example.test/{{absent}}", url, sizeof url));
+
+    /* A request is filled and held to "hosts" when it is queued (poller.c): an address of a
+     * key that is not set, or of a host not listed, is refused there and has no answer. */
+    standin()->request_count = 0;
+    assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://example.test/{{absent}}", 31, NULL, 0, NULL, 0) ==
+           HOST_ERR_ARGUMENT);
+    assert(standin()->request_count == 0 && standin()->refused_request[0] == '\0');
+    assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://elsewhere.test/", 23, NULL, 0, NULL, 0) ==
+           HOST_ERR_ARGUMENT);
+    assert(standin()->request_count == 0 && strstr(standin()->refused_request, "hosts") != NULL);
+    standin_set("place", "a b");
+    assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://example.test/{{place}}", 30, NULL, 0, NULL, 0) ==
+           HOST_OK);
+    /* What it was filled with stays, whatever the store holds later. */
+    standin_set("place", "c");
+    assert(standin()->request_count == 1 && strcmp(standin()->requests[0].url, "https://example.test/a%20b") == 0);
+    standin()->request_count = 0;
+    standin_set("place", NULL);
     /* The specimen's own handler takes a picked value from the SDK's picker. */
     standin_handlers.on_picked = app_on_picked;
     standin_picked(0, -1, 200, "{\"value\": \"21\"}", 15);
@@ -185,6 +216,16 @@ static void test_answers(void)
     assert(standin()->store_writes == 1);
     standin_picked(0, -1, HOST_FAILED_NO_NETWORK, NULL, 0);
     assert(strcmp(value, "21") == 0);
+    /* As poller_net.c hands it over: an answer the picker cannot read is no answer, whatever its
+     * status; an empty one is a document of no values and keeps its status. */
+    standin_handlers.on_picked = picked_status;
+    standin_picked(0, -1, 503, "Service Unavailable", 19);
+    assert(last_picked == HOST_FAILED_NO_ANSWER);
+    standin_picked(0, -1, 200, "{\"value\": ", 10);
+    assert(last_picked == HOST_FAILED_NO_ANSWER);
+    standin_picked(0, -1, 503, "", 0);
+    assert(last_picked == 503);
+    standin_handlers.on_picked = app_on_picked;
 }
 
 static void test_drawing(void)

@@ -4,6 +4,8 @@ package dev.perinkpheral.core.check
 import dev.perinkpheral.core.BuildError
 import dev.perinkpheral.core.Json
 import dev.perinkpheral.core.build.AppBuilder
+import dev.perinkpheral.core.build.Built
+import dev.perinkpheral.core.build.BuildFlags
 import dev.perinkpheral.core.build.Sdk
 import dev.perinkpheral.core.build.Wasm
 import java.io.File
@@ -129,7 +131,7 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
             val generated = File(scratch, "generated").apply { mkdirs() }
             quiet.headers(appDir, generated)
             val own = File(appDir, "test")
-            val subject = Subject(appDir, manifest, File(own, CHECK_FILE), scratch)
+            val subject = Subject(built, File(own, CHECK_FILE), scratch)
             val strings = listOf(File(generated, "strings.c")).filter { it.isFile }
 
             val lines = ArrayList<Line>()
@@ -214,7 +216,8 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
 
     /** The application as the stand-in host is told of it: a C file made of its manifest and
      * of what is kept beside it. */
-    private inner class Subject(private val appDir: File, private val manifest: Map<*, *>, checkFile: File, private val scratch: File) {
+    private inner class Subject(private val built: Built, checkFile: File, private val scratch: File) {
+        private val manifest = built.manifest
         @Suppress("UNCHECKED_CAST")
         private val kept: Map<String, Any?> =
             if (checkFile.isFile) Json.parse(checkFile.readText()) as? Map<String, Any?> ?: throw BuildError("${checkFile.path} is not an object")
@@ -258,7 +261,10 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
             }
             val hosts = (manifest["hosts"] as? List<*>).orEmpty().filterIsInstance<String>()
             if (hosts.isNotEmpty()) appendLine("static const char *const HOSTS[] = { ${hosts.joinToString(", ") { text(it) }} };")
-            val files = File(appDir, "files").listFiles().orEmpty().filter { it.isFile }.sortedBy { it.name }
+            // The package as it is installed: its files and the tables of its languages, which count
+            // against what it may write as the files it writes do; not the module and the manifest.
+            val files = built.dir.listFiles().orEmpty()
+                .filter { it.isFile && it.name != MANIFEST && it.name != MODULE }.sortedBy { it.name }
             if (files.isNotEmpty()) {
                 appendLine("static const standin_file_t FILES[] = {")
                 files.forEach { appendLine("    { ${text(it.name)}, ${text(it.path)} },") }
@@ -277,7 +283,20 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
                 appendLine("};")
             }
             val at = kept["at"] as? Long ?: 0L
-            val zone = (kept["tz"] as? String)?.let { ZoneId.of(it).rules.getOffset(Instant.ofEpochSecond(at)).totalSeconds } ?: 0
+            // The zone's rules as its changes, for the years around the time it is checked at:
+            // what an application converts lies there. Before the first, the offset of the start.
+            val rules = (kept["tz"] as? String)?.let { ZoneId.of(it).rules }
+            val from = Instant.ofEpochSecond((if (at != 0L) at else DEFAULT_AT) - ZONE_YEARS_BEFORE * SECONDS_A_YEAR)
+            val until = from.plusSeconds((ZONE_YEARS_BEFORE + ZONE_YEARS_AFTER) * SECONDS_A_YEAR)
+            val zone = rules?.getOffset(from)?.totalSeconds ?: 0
+            val changes = generateSequence(rules?.nextTransition(from)) { rules?.nextTransition(it.instant) }
+                .takeWhile { it.instant < until }.toList()
+            if (changes.isNotEmpty()) {
+                appendLine("static const standin_zone_change_t ZONE[] = {")
+                changes.forEach { appendLine("    { ${it.instant.epochSecond}LL, ${it.offsetAfter.totalSeconds} },") }
+                appendLine("};")
+            }
+            val arena = if (built.memoryEnd > 0) BuildFlags.WASM_PAGE - (built.memoryEnd + HEAP_ALIGNMENT - 1) / HEAP_ALIGNMENT * HEAP_ALIGNMENT else 0
             val intents = (manifest["intents"] as? List<*>).orEmpty().sumOf { 1 shl (INTENTS.indexOf(it) + 1) }
             appendLine()
             appendLine("const standin_subject_t standin_subject = {")
@@ -289,7 +308,8 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
             if (files.isNotEmpty()) appendLine("    .files = FILES, .file_count = ${files.size},")
             if (store.isNotEmpty()) appendLine("    .store = STORE, .store_count = ${store.size},")
             if (answers.isNotEmpty()) appendLine("    .answers = ANSWERS, .answer_count = ${answers.size},")
-            appendLine("    .intents = $intents, .at = ${at}LL, .zone_offset = $zone,")
+            if (changes.isNotEmpty()) appendLine("    .zone_changes = ZONE, .zone_change_count = ${changes.size},")
+            appendLine("    .intents = $intents, .at = ${at}LL, .zone_offset = $zone, .arena_bytes = $arena,")
             appendLine("};")
             if (exports != null) {
                 appendLine()
@@ -349,6 +369,14 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
         val CAPABILITIES = listOf("sessions", "store", "timers", "network", "drawing")
 
         private const val MANIFEST = "manifest.json"
+        private const val MODULE = "app.wasm"
+        /** wasm-ld puts __heap_base, where app_alloc() begins, on 16 bytes after the data. */
+        private const val HEAP_ALIGNMENT = 16L
+        private const val ZONE_YEARS_BEFORE = 2L
+        private const val ZONE_YEARS_AFTER = 3L
+        private const val SECONDS_A_YEAR = 366L * 24 * 3600
+        /** The stand-in host's clock when check.json names no time (standin.c, DEFAULT_TIME). */
+        private const val DEFAULT_AT = 1795262400L
         private const val CHECK_FILE = "check.json"
         private const val FILLER = "item"
         private const val COMPILE_SECONDS = 300L

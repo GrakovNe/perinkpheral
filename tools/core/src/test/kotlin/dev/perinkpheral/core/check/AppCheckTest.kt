@@ -55,6 +55,18 @@ object AppCheckTest {
             listOf("    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
                 "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n    gfx_draw_rect(0, 0, 5000, 10, HOST_RECT_FILLED);\n"),
             "HOST_ERR_ARGUMENT"),
+        Break("network", "an answer is taken only by the instance that asked for it",
+            listOf("static void ask_note(void)\n{\n" to "static bool has_asked;\n\nstatic void ask_note(void)\n{\n    has_asked = true;\n",
+                "    if (request != NOTE_REQUEST) {" to "    if (request != NOTE_REQUEST || !has_asked) {"),
+            "an application that was on the screen when the answers came"),
+        Break("network", "what an answer changed is not asked to be drawn",
+            listOf("    *is_unsaved = kv_set(key, length_of(key), kept, at) != HOST_OK;\n    screen_redraw(HOST_REDRAW_NORMAL);\n" to
+                "    *is_unsaved = kv_set(key, length_of(key), kept, at) != HOST_OK;\n"),
+            "screen_redraw()"),
+        Break("network", "a request goes to a host the manifest does not list",
+            listOf("static const char NOTE_URL[] = \"https://example.test/note\";" to
+                "static const char NOTE_URL[] = \"https://elsewhere.test/note\";"),
+            "does not list"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
