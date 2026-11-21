@@ -4,6 +4,8 @@
  */
 #include "events.h"
 
+#include <stdatomic.h>
+
 #include "esp_timer.h"
 
 #include "esp_log.h"
@@ -25,6 +27,9 @@ static QueueHandle_t    s_input;
 static QueueSetHandle_t s_either;
 static volatile uint32_t s_dropped;
 static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
+/* A release the full queue could not take, a bit a button: the host loop ends the hold it ended.
+ * Only a dropped release counts - one still waiting in the queue is not lost. */
+static atomic_uint s_releases_dropped;
 
 void events_start(void)
 {
@@ -66,7 +71,17 @@ void events_post_button(uint8_t index, event_press_t press)
     event_t event = { .kind = EVENT_BUTTON,
                       .button = { .index = index, .press = press,
                                   .at_ms = esp_timer_get_time() / US_PER_MS } };
-    events_post(&event);
+    if (!events_post(&event) && press == EVENT_PRESS_UP && index < 32) {
+        atomic_fetch_or(&s_releases_dropped, 1u << index);
+    }
+}
+
+bool events_take_release_dropped(uint8_t index)
+{
+    if (index >= 32) {
+        return false;
+    }
+    return (atomic_fetch_and(&s_releases_dropped, ~(1u << index)) & (1u << index)) != 0;
 }
 
 typedef struct {

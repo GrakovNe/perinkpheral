@@ -4,10 +4,6 @@
  */
 #include <string.h>
 
-/* Before anything that brings the contract: its BTN_ names are macros, and the
- * buttons' own events are an enum of the same names. */
-#include "buttons.h"
-
 #include "esp_attr.h"
 
 #include "priorities.h"
@@ -219,10 +215,11 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
      * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
     /* The queue of presses is short and drops what does not fit: BACK's release among it. A
-     * hold that is over on the pin is ended here, or the long BACK would never come and UP and
-     * DOWN would switch applications until BACK went down again. */
-    if (s_back_switch.back_is_held && index != BUTTON_BACK_INDEX && press == EVENT_PRESS_DOWN &&
-        !buttons_is_down(BUTTON_BACK_INDEX)) {
+     * hold whose release was dropped is ended here, or the long BACK would never come and UP and
+     * DOWN would switch applications until BACK went down again. Only a dropped release: one
+     * still waiting in the queue ends the hold in its turn, and a chord made faster than the
+     * loop takes it stays a chord. */
+    if (events_take_release_dropped(BUTTON_BACK_INDEX) && s_back_switch.back_is_held) {
         ESP_LOGW(TAG, "BACK's release was lost: the hold is ended");
         if (back_switch_release_lost(&s_back_switch)) {
             wm_button(wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);

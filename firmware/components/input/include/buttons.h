@@ -21,10 +21,6 @@ typedef void (*buttons_sink_fn)(uint8_t index, btn_event_t event);
 
 void buttons_start(buttons_sink_fn sink);
 
-/* Whether the button is down this moment, read from its pin: for whoever has to tell a hold
- * that goes on from one whose release was lost with a full queue. */
-bool buttons_is_down(uint8_t index);
-
 #ifdef __cplusplus
 }
 #endif

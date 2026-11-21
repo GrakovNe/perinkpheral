@@ -68,11 +68,18 @@ set(repo_dir "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(apps_image_dir "${CMAKE_BINARY_DIR}/apps_image")
 set(preinstalled_done "")
 if(NOT CONFIG_APP_BUNDLE_APPS)
-    # Or the applications of an earlier build would still be packed.
+    # Or the applications of an earlier build would still be packed. The stamp goes with them, or
+    # turned on again the image would be taken for made and packed empty.
     file(REMOVE_RECURSE "${apps_image_dir}")
+    file(REMOVE "${CMAKE_BINARY_DIR}/preinstalled.done")
 endif()
 file(MAKE_DIRECTORY "${apps_image_dir}")
 if(CONFIG_APP_BUNDLE_APPS)
+    # A stamp beside an empty image is no image made.
+    file(GLOB packed_apps "${apps_image_dir}/*")
+    if(NOT packed_apps)
+        file(REMOVE "${CMAKE_BINARY_DIR}/preinstalled.done")
+    endif()
     get_filename_component(preinstalled_list "${CMAKE_CURRENT_LIST_DIR}/../preinstalled.properties" ABSOLUTE)
     # Beside the image's folder, not in it: whatever is in it is flashed.
     set(preinstalled_done "${CMAKE_BINARY_DIR}/preinstalled.done")
@@ -83,7 +90,8 @@ if(CONFIG_APP_BUNDLE_APPS)
          "${repo_dir}/sdk/lib/manifest_limits.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.c"
          "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/catalog.h"
          "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_room.h"
-         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_abi.h")
+         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_abi.h"
+         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/app_store.c")
     add_custom_command(OUTPUT "${preinstalled_done}"
                        COMMAND "${repo_dir}/tools/perinkpheral" preinstalled build "${preinstalled_list}"
                                --out "${apps_image_dir}" --cache "${CMAKE_BINARY_DIR}/preinstalled_cache"

@@ -39,8 +39,9 @@ object PreinstalledTest {
 
         fun add(name: String, version: String = "0.1.0", abi: Long = 3, firmware: String = "0.1.30",
                 moduleBytes: Int = 1000, data: Map<String, ByteArray> = mapOf("strings.ru" to "{}".toByteArray()),
-                writesFiles: Boolean = false, index: (MutableMap<String, Any?>) -> Unit = {}) {
+                writesFiles: Boolean = false, padding: Int = 0, index: (MutableMap<String, Any?>) -> Unit = {}) {
             val manifest = linkedMapOf<String, Any?>("name" to name, "version" to version, "abi" to abi, "firmware" to firmware)
+            if (padding > 0) manifest["description"] = "x".repeat(padding)
             if (writesFiles) manifest["writes_files"] = true
             val module = ByteArray(moduleBytes) { (it * 7 + name.length).toByte() }
             val package_ = linkedMapOf("app.wasm" to module) + data + ("manifest.json" to Json.pretty(manifest).toByteArray())
@@ -84,6 +85,7 @@ object PreinstalledTest {
         check(limits.filesBytes / limits.blockBytes == 160L)
         check(limits.spareBytes == 13L * 4096)
         check(limits.moduleMax == 48L * 1024)
+        check(limits.manifestMax == 8L * 1024)
     }
 
     private fun theList() {
@@ -160,6 +162,7 @@ object PreinstalledTest {
         repository.add("new", firmware = "0.1.80")
         repository.add("odd", index = { entry -> entry["files"] = (entry["files"] as List<*>).reversed() })
         repository.add("escape", data = mapOf("../escape" to ByteArray(1)))
+        repository.add("big", padding = 9000)
         val dir = folder()
         fun build(vararg apps: String) = Preinstalled(limits).build(pin(*apps), { repository.source() }, File(dir, "cache"),
             File(dir, "apps_image"), "0.1.73-debug")
@@ -168,6 +171,7 @@ object PreinstalledTest {
         refused("new needs firmware 0.1.80; this build is 0.1.73-debug") { build("new") }
         refused("odd: catalog.json lists its files as no package has them") { build("odd") }
         refused("escape: ../escape is not a file's name") { build("escape") }
+        refused("big: manifest.json is") { build("big") }
         check(Preinstalled.version("0.1.73-0adbfb4") == Preinstalled.version("0.1.73"))
         check(Preinstalled.version("0.2.0") > Preinstalled.version("0.1.999"))
     }

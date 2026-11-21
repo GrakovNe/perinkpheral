@@ -53,6 +53,10 @@ bool events_post(const event_t *event);
 
 void events_post_button(uint8_t index, event_press_t press);
 
+/* Whether a release of the button was dropped because the queue was full since this was last
+ * asked; asking clears it. */
+bool events_take_release_dropped(uint8_t index);
+
 /* The host loop owns the host's state: whoever else wants it changed asks
  * here. `run` is called in the host loop with `argument`, and this returns
  * when it has returned - at once when asked from the host loop itself.
