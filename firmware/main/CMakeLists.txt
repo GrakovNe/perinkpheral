@@ -57,54 +57,47 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE "-u image_layout")
 # crash_note.c records a panic before the system handler runs.
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")
 
-# The applications in sdk/apps are built with the SDK and packed into the
-# image of the "apps" partition, which is flashed with the firmware.
+# The image of the "apps" partition, which only a first flash writes: the
+# applications firmware/preinstalled.properties names, as the catalog
+# repository has them committed at the commit it pins - checked against the
+# catalog's sizes and SHA-256 and laid out as an installation lays them out,
+# so the device takes them for installed ones. The packages are kept under
+# the build folder by the pin; a build with neither them nor the network
+# needs a checkout of the catalog repository (PERINKPHERAL_APPS).
 set(repo_dir "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(apps_image_dir "${CMAKE_BINARY_DIR}/apps_image")
-set(built_apps "")
+set(preinstalled_done "")
 if(NOT CONFIG_APP_BUNDLE_APPS)
     # Or the applications of an earlier build would still be packed.
     file(REMOVE_RECURSE "${apps_image_dir}")
 endif()
 file(MAKE_DIRECTORY "${apps_image_dir}")
 if(CONFIG_APP_BUNDLE_APPS)
-    if(NOT DEFINED ENV{WASI_SDK_PATH})
-        message(FATAL_ERROR "WASI_SDK_PATH is not set. Building the applications in sdk/apps "
-                            "needs wasi-sdk; set it, or turn APP_BUNDLE_APPS off in menuconfig "
-                            "to build the firmware without applications.")
-    endif()
-    # CONFIGURE_DEPENDS: a new application or source file is picked up by
-    # the next build without anyone remembering to reconfigure.
-    file(GLOB app_dirs CONFIGURE_DEPENDS "${repo_dir}/sdk/apps/*")
-    # What an earlier build packed and sdk/apps has no more must not be
-    # packed again: an application that moved out would be flashed for ever.
-    file(GLOB packed_dirs "${apps_image_dir}/*")
-    foreach(packed_dir ${packed_dirs})
-        get_filename_component(packed_name "${packed_dir}" NAME)
-        if(NOT EXISTS "${repo_dir}/sdk/apps/${packed_name}")
-            file(REMOVE_RECURSE "${packed_dir}")
-        endif()
-    endforeach()
-    file(GLOB_RECURSE sdk_sources CONFIGURE_DEPENDS "${repo_dir}/sdk/lib/*" "${repo_dir}/sdk/host_api.h" "${repo_dir}/sdk/host/*"
-                                                    "${repo_dir}/tools/core/src/*"
-                                                    "${repo_dir}/tools/cli/src/*")
-    foreach(app_dir ${app_dirs})
-        get_filename_component(app_name "${app_dir}" NAME)
-        file(GLOB app_sources CONFIGURE_DEPENDS "${app_dir}/*")
-        add_custom_command(OUTPUT "${apps_image_dir}/${app_name}/app.wasm"
-                           COMMAND "${CMAKE_COMMAND}" -E env "WASI_SDK_PATH=$ENV{WASI_SDK_PATH}"
-                                   "${repo_dir}/tools/perinkpheral" build "${app_dir}"
-                                   --out "${apps_image_dir}/${app_name}"
-                           DEPENDS ${app_sources} ${sdk_sources}
-                           VERBATIM)
-        list(APPEND built_apps "${apps_image_dir}/${app_name}/app.wasm")
-    endforeach()
+    get_filename_component(preinstalled_list "${CMAKE_CURRENT_LIST_DIR}/../preinstalled.properties" ABSOLUTE)
+    # Beside the image's folder, not in it: whatever is in it is flashed.
+    set(preinstalled_done "${CMAKE_BINARY_DIR}/preinstalled.done")
+    idf_build_get_property(firmware_version PROJECT_VER)
+    # What the command holds the packages to: the device's limits and the tool itself.
+    file(GLOB_RECURSE preinstalled_inputs CONFIGURE_DEPENDS "${repo_dir}/tools/core/src/main/*" "${repo_dir}/tools/cli/src/main/*")
+    list(APPEND preinstalled_inputs "${preinstalled_list}" "${partitions_csv}"
+         "${repo_dir}/sdk/lib/manifest_limits.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.c"
+         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/catalog.h"
+         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_room.h"
+         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_abi.h")
+    add_custom_command(OUTPUT "${preinstalled_done}"
+                       COMMAND "${repo_dir}/tools/perinkpheral" preinstalled build "${preinstalled_list}"
+                               --out "${apps_image_dir}" --cache "${CMAKE_BINARY_DIR}/preinstalled_cache"
+                               --firmware "${firmware_version}"
+                       COMMAND "${CMAKE_COMMAND}" -E touch "${preinstalled_done}"
+                       DEPENDS ${preinstalled_inputs}
+                       VERBATIM)
 endif()
-add_custom_target(bundled_apps DEPENDS ${built_apps})
+add_custom_target(preinstalled_apps DEPENDS ${preinstalled_done})
 
-# The system applications in firmware/system are built the same way and are
-# part of the firmware itself: an update over the network brings them along,
-# so they always speak the API of the host they run on.
+# The system applications in firmware/system are built with the SDK
+# (tools/perinkpheral build) and are part of the firmware itself: an update
+# over the network brings them along, so they always speak the API of the
+# host they run on.
 if(NOT DEFINED ENV{WASI_SDK_PATH})
     message(FATAL_ERROR "WASI_SDK_PATH is not set. The firmware carries applications of its "
                         "own, and building them needs wasi-sdk.")
@@ -152,4 +145,4 @@ foreach(system_app about settings setup)
     target_add_binary_data(${COMPONENT_LIB} "${system_app_words}" TEXT
                            DEPENDS system_app_${system_app})
 endforeach()
-littlefs_create_partition_image(apps "${apps_image_dir}" FLASH_IN_PROJECT DEPENDS bundled_apps)
+littlefs_create_partition_image(apps "${apps_image_dir}" FLASH_IN_PROJECT DEPENDS preinstalled_apps)

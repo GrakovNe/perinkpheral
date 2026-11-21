@@ -10,8 +10,8 @@ panel is in [hardware/README.md](hardware/README.md).
 The toolchain is ESP-IDF v5.5 (verified on v5.5.5) with its `export.sh`
 sourced, wasi-sdk (verified with 34) with `WASI_SDK_PATH` pointing at it,
 and Java 21 or later for the tools. The firmware build needs all three:
-the image carries wasm applications, and the tools make its table of
-imports and its page.
+the firmware carries its system applications in wasm, and the tools make
+its table of imports and its page.
 
 The board is on its native USB-Serial/JTAG (VID 0x303A PID 0x1001):
 `/dev/ttyACM*` on Linux, `/dev/cu.usbmodem*` on macOS. The name changes
@@ -30,13 +30,22 @@ idf.py build
 This also builds the separate recovery project into `build/recovery/` and checks
 main and recovery against their own partitions.
 
+The image of the `apps` partition is the applications `firmware/preinstalled.properties`
+names, taken from the catalog repository at the commit it pins. The build downloads them
+from raw.githubusercontent.com the first time and keeps them in the build folder; with no
+network, point `PERINKPHERAL_APPS` at a checkout of perinkpheral-apps that has the commit
+(any branch: the files are read from the commit, not the working tree). With neither, the
+build stops and says so. To move the pin to the catalog's main:
+`tools/perinkpheral preinstalled bump firmware/preinstalled.properties`, which prints each
+application's version before and after; commit the file it changed.
+
 `IDF_SKIP_CHECK_SUBMODULES=1` in front of `idf.py` skips a git check
 that needs the network. After editing `main/Kconfig.projbuild` or
 adding a component: `idf.py reconfigure`.
 
 Flash: `idf.py -p $PORT flash` (bootloader, partition table, otadata,
-recovery, main, and the applications' partition `apps` with `hello` - what is
-installed there is replaced). Both `flash` and `app-flash` preserve `nvs`;
+recovery, main, and the applications' partition `apps` with the preinstalled
+applications - what is installed there is replaced). Both `flash` and `app-flash` preserve `nvs`;
 `app-flash` also preserves recovery and the apps partition, and selects recovery
 through blank OTA metadata. Press BACK in recovery to try the installed main.
 `recovery-flash` writes only recovery over USB; it preserves main, OTA metadata and
@@ -92,10 +101,9 @@ The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,
 refuses a module that imports anything `sdk/host_api.h` does not
-declare, and checks `manifest.json` by Perinkpheral OS's rules. Everything in
-`sdk/apps` is built this way by the firmware build and packed into the
-image of the `apps` partition; `idf.py flash` writes it with the
-firmware.
+declare, and checks `manifest.json` by Perinkpheral OS's rules. The firmware
+build builds the system applications of `firmware/system` this way; `sdk/apps`
+holds the SDK's sample, which no firmware image carries.
 
 Publish applications to a user-owned public GitHub repository:
 `tools/perinkpheral publish apps --repo owner/repository`. The repository must

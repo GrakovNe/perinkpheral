@@ -11,6 +11,7 @@ import dev.perinkpheral.core.build.BuildFlags
 import dev.perinkpheral.core.build.Sdk
 import dev.perinkpheral.core.build.ManifestAuthor
 import dev.perinkpheral.core.catalog.Catalog
+import dev.perinkpheral.core.catalog.Preinstalled
 import dev.perinkpheral.core.catalog.Publisher
 import dev.perinkpheral.core.device.Bmp
 import dev.perinkpheral.core.device.DeviceClient
@@ -71,6 +72,12 @@ private const val USAGE = """perinkpheral - build, check and run perINKpheral ap
     perinkpheral page <web dir> <out> <out.gz> the device's page, made of its parts
     perinkpheral flash-manifest <build> <out> <version> [--prefix debug-]
                                               the files of a first flash and their manifest
+    perinkpheral preinstalled build <list> --out <dir> --firmware <version> [--cache <dir>] [--catalog <checkout>]
+                                              the applications of a first flash, as the list's catalog commit has them;
+                                              a checkout of the catalog repository (or PERINKPHERAL_APPS) for no network
+    perinkpheral preinstalled pin <list>      its repository and commit, as lines for GITHUB_OUTPUT
+    perinkpheral preinstalled bump <list> [--to <commit>] [--catalog <checkout>]
+                                              the pin moved to the catalog's main (or the commit), and what that changes
     perinkpheral mark [<pixels> <file>]...    the mark into assets/mark, and on paper at other sizes
 
   On a device, named by --host <address> or PERINKPHERAL_HOST (the simulator: 127.0.0.1:8401):
@@ -182,6 +189,47 @@ private fun simulator(arguments: Arguments): Int {
     return process.waitFor()
 }
 
+/** The applications of a first flash: firmware/preinstalled.properties and what is made of it. */
+private fun preinstalled(arguments: Arguments) {
+    val action = arguments.word(1, "build, pin or bump")
+    val list = File(arguments.word(2, "the list"))
+    val pin = Preinstalled.Pin.read(list)
+    val checkout = (arguments.option("catalog") ?: System.getenv("PERINKPHERAL_APPS")?.takeIf { it.isNotEmpty() })?.let { File(it) }
+    val tool = Preinstalled(Preinstalled.Limits.of(root())) { println(it) }
+    fun source(commit: String): Preinstalled.Source =
+        checkout?.let { Preinstalled.checkout(it, commit) } ?: Preinstalled.remote(pin.copy(commit = commit))
+    when (action) {
+        "build" -> {
+            val out = File(arguments.option("out") ?: fail("--out is required"))
+            val cache = File(arguments.option("cache") ?: File(out.absoluteFile.parentFile, "preinstalled-cache").path)
+            tool.build(pin, { source(pin.commit) }, cache, out, arguments.option("firmware") ?: fail("--firmware is required"))
+        }
+        "pin" -> println("repository=${pin.repository}\ncommit=${pin.commit}")
+        "bump" -> {
+            val commit = arguments.option("to") ?: run {
+                val result = Publisher.CommandRunner.SYSTEM.run(listOf("git", "ls-remote",
+                    "https://github.com/${pin.repository}.git", "refs/heads/main"), root())
+                result.output.lineSequence().firstOrNull { it.endsWith("\trefs/heads/main") }?.substringBefore('\t')
+                    ?.takeIf { result.exitCode == 0 } ?: fail("the main of ${pin.repository} cannot be read: ${result.output.trim()}")
+            }
+            if (!Regex("[0-9a-f]{40}").matches(commit)) fail("--to is a full commit id, 40 hex digits")
+            if (commit == pin.commit) {
+                println("${list.path}: already at $commit")
+                return
+            }
+            val firmware = File(root(), "VERSION").readText().trim()
+            tool.changes(pin.apps, source(pin.commit).read(Preinstalled.INDEX_PATH),
+                source(commit).read(Preinstalled.INDEX_PATH), firmware).forEach { println(it) }
+            val text = list.readText()
+            val line = Regex("""(?m)^commit[ \t]*[=:].*$""")
+            if (line.findAll(text).count() != 1) fail("${list.path}: no single commit line to change")
+            list.writeText(text.replace(line, "commit = $commit"))
+            println("${list.path}: ${pin.commit} -> $commit; review it with git diff, and build the firmware to check the packages")
+        }
+        else -> fail("preinstalled build|pin|bump <list>")
+    }
+}
+
 private fun run(raw: Array<String>): Int {
     val arguments = Arguments(raw, setOf("follow", "app", "apps", "clock", "update", "check", "unfrozen"))
     when (arguments.words.firstOrNull()) {
@@ -223,6 +271,7 @@ private fun run(raw: Array<String>): Int {
             File(arguments.word(3, "the packed page")))
         "flash-manifest" -> FirmwareTools.flashManifest(File(arguments.word(1, "the build")), File(arguments.word(2, "the folder")),
             arguments.word(3, "the version"), arguments.option("prefix").orEmpty())
+        "preinstalled" -> preinstalled(arguments)
         "cities" -> {
             val folder = File(root(), "firmware/system/settings")
             FirmwareTools.cities(File(folder, "cities.json"), File(folder, "cities.h"), arguments.has("check"))

@@ -6,6 +6,9 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 
 ## 0.1.73
 
+- A device flashed from scratch comes with Weather, Clock, ISS, Calendar, Timer, Stopwatch,
+  Stocks and Air quality installed, in place of Hello, the SDK's sample. They are ordinary
+  catalog applications: they can be removed, and they are updated like any other.
 - A long press of BACK is not lost when the device was too busy to notice the button being
   released, and UP and DOWN no longer switch applications after it.
 - With Wi-Fi off and power saving on, an application is told there is no network at once.
