@@ -52,6 +52,15 @@ $(BUILD)/perinkpheral-sim: $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc
 	done
 	$(CC) $(CFLAGS) $(ARCH) -o $@ $(SOURCES) $(BUILD)/wasm3/*.o $(LDLIBS) $(LDFLAGS)
 
+$(BUILD)/test-jobs: test_jobs.c $(SOURCES) $(WASM3_SOURCES) $(BUILD)/host_imports.inc $(BUILD)/page.inc
+	$(MAKE) $(BUILD)/perinkpheral-sim
+	$(CC) $(CFLAGS) -o $@ test_jobs.c $(filter-out sim.c,$(SOURCES)) $(BUILD)/wasm3/*.o $(LDLIBS) $(LDFLAGS)
+
+test: $(BUILD)/test-jobs
+	$(BUILD)/test-jobs
+
+.PHONY: test
+
 # The page as bytes for C, by POSIX od and sed.
 $(BUILD)/page.inc: $(PAGE)
 	mkdir -p $(BUILD)

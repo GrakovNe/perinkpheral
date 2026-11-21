@@ -110,6 +110,13 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
                 File(outDir, "manifest.$code").writeText(words)
                 filesBytes += takenBy(words.toByteArray().size.toLong())
             }
+            val packaged = packageFiles(outDir)
+            if (packaged.size > PACKAGE_FILES_MAX) {
+                throw BuildError("${appDir.path}: a package may contain at most $PACKAGE_FILES_MAX files, including generated tables")
+            }
+            if (File(outDir, MANIFEST).length() > MANIFEST_MAX_BYTES) {
+                throw BuildError("${appDir.path}: packaged manifest exceeds $MANIFEST_MAX_BYTES bytes")
+            }
             val filesLimit = if (writesFiles) writerFilesMax else filesMax
             if (filesBytes > filesLimit) {
                 throw BuildError("${appDir.path}: its files take $filesBytes bytes on the device - each a whole " +
@@ -293,7 +300,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             // What a file manager leaves behind, and folders, are not the application's.
             if (file.name.startsWith(".") || !file.isFile) continue
             if (file.name == MODULE || file.name == MANIFEST) throw BuildError("${file.path}: this name is the application's own")
-            if (!Regex("[a-z0-9_-][a-z0-9._-]{0,${fileNameMax - 1}}").matches(file.name)) {
+            if (file.name.endsWith(".new") || !Regex("[a-z0-9_-][a-z0-9._-]{0,${fileNameMax - 1}}").matches(file.name)) {
                 throw BuildError("${file.path}: a file's name is 1-$fileNameMax of a-z, 0-9, '.', '-' and '_', " +
                     "not starting with a dot")
             }
@@ -346,6 +353,9 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
     }
 
     companion object {
+        // Installer bounds in catalog.h and web_apps.c include generated files.
+        private const val PACKAGE_FILES_MAX = 8
+        private const val MANIFEST_MAX_BYTES = 8192
         /** What `headers` makes; nothing else in its folder is touched. */
         private val GENERATED = listOf("strings.h", "strings.c", "pictures.h")
         internal const val OUTPUT_MARK = ".perinkpheral-output"

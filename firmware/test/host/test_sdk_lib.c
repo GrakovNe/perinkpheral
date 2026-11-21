@@ -191,6 +191,12 @@ static void test_fixed_numbers_at_the_edges(void)
     CHECK(app_fixed_parse("123456789012345678", 0, &value) && value == 123456789012345678LL);
     CHECK(app_fixed_ratio(4000000000000000000LL, 8000000000000000000LL, 1) == 5);
     CHECK(app_fixed_ratio(1, 3, 2) == 33);
+    CHECK(app_fixed_ratio(7600000000000000000LL, 8000000000000000001LL, 1) == 9);
+    CHECK(app_fixed_ratio(-7600000000000000000LL, 8000000000000000001LL, 1) == -9);
+    CHECK(app_fixed_ratio(7600000000000000000LL, 8000000000000000000LL, 1) == 10);
+    CHECK(app_fixed_ratio(7600000000000000001LL, -8000000000000000000LL, 1) == -10);
+    CHECK(app_fixed_ratio(INT64_MIN, INT64_MIN, 2) == 100);
+    CHECK(app_fixed_ratio(INT64_MAX - 1, INT64_MAX, 9) == 1000000000);
 }
 
 static void test_paces(void)

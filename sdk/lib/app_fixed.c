@@ -167,14 +167,19 @@ int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
     uint64_t result = dividend / divisor, rest = dividend % divisor;
     /* A decimal at a time: rest * 10^decimals would not fit. */
     for (int32_t i = 0; i < decimals; i++) {
-        /* A divisor past a tenth of 64 bits: both halved until rest * 10 fits, the ratio kept. */
-        while (rest > UINT64_MAX / DECIMAL_BASE) {
-            rest >>= 1;
-            divisor >>= 1;
+        /* Add the remainder ten times without overflowing or discarding bits. */
+        uint64_t next_rest = 0;
+        uint64_t digit = 0;
+        for (int32_t count = 0; count < DECIMAL_BASE; count++) {
+            if (next_rest >= divisor - rest) {
+                next_rest -= divisor - rest;
+                digit++;
+            } else {
+                next_rest += rest;
+            }
         }
-        rest *= DECIMAL_BASE;
-        result = result * DECIMAL_BASE + rest / divisor;
-        rest %= divisor;
+        result = result * DECIMAL_BASE + digit;
+        rest = next_rest;
     }
     if (rest >= divisor - rest) {
         result++;

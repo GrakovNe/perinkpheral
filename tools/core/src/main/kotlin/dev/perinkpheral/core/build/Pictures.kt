@@ -130,20 +130,42 @@ object Pictures {
 
     private fun readPbm(file: File): List<BooleanArray> {
         val data = file.readBytes()
-        // Comments out, then the kind, the width, the height and what follows.
-        val text = String(data, Charsets.ISO_8859_1).replace(Regex("#[^\n]*"), "")
-        val tokens = text.trimStart().split(Regex("\\s+"), limit = 4)
-        val width = tokens[1].toInt()
-        val height = tokens[2].toInt()
-        return when (tokens[0]) {
+        var at = 0
+        fun whitespace(byte: Byte) = byte.toInt() in listOf(9, 10, 11, 12, 13, 32)
+        fun token(): String {
+            while (at < data.size) {
+                if (whitespace(data[at])) at++
+                else if (data[at] == '#'.code.toByte()) {
+                    while (at < data.size && data[at] != '\n'.code.toByte() && data[at] != '\r'.code.toByte()) at++
+                } else break
+            }
+            val start = at
+            while (at < data.size && !whitespace(data[at]) && data[at] != '#'.code.toByte()) at++
+            return String(data, start, at - start, Charsets.US_ASCII)
+        }
+        val kind = token()
+        val width = token().toInt()
+        val height = token().toInt()
+        if (width !in 1..SIDE_MAX || height !in 1..SIDE_MAX) fail(file.path, "invalid PBM dimensions")
+        return when (kind) {
             "P1" -> {
-                val bits = tokens.getOrElse(3) { "" }.filter { it == '0' || it == '1' }.map { it == '1' }
+                val bits = ArrayList<Boolean>()
+                while (bits.size < width * height) {
+                    val pixels = token()
+                    if (pixels.isEmpty() || pixels.any { it != '0' && it != '1' }) fail(file.path, "invalid PBM pixels")
+                    bits += pixels.map { it == '1' }
+                }
                 List(height) { y -> BooleanArray(width) { x -> bits[y * width + x] } }
             }
             "P4" -> {
-                val body = tokens[3].toByteArray(Charsets.ISO_8859_1)
+                // Only the header separator is text; every following byte is raster data.
+                if (at < data.size && data[at] == '#'.code.toByte()) {
+                    while (at < data.size && data[at] != '\n'.code.toByte() && data[at] != '\r'.code.toByte()) at++
+                }
+                if (at >= data.size || !whitespace(data[at])) fail(file.path, "missing PBM separator")
+                at++
                 val stride = (width + 7) / 8
-                List(height) { y -> BooleanArray(width) { x -> body[y * stride + x / 8].toInt() and (0x80 ushr (x % 8)) != 0 } }
+                List(height) { y -> BooleanArray(width) { x -> data[at + y * stride + x / 8].toInt() and (0x80 ushr (x % 8)) != 0 } }
             }
             else -> fail(file.path, "a PBM is P1 or P4")
         }

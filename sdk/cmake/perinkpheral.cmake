@@ -79,6 +79,10 @@ function(perinkpheral_app app_dir)
 
     file(GLOB inputs CONFIGURE_DEPENDS "${app_dir}/manifest.json" "${app_dir}/strings/*"
                                        "${app_dir}/pictures/*")
+    if(NOT PERINKPHERAL_GENERATED)
+        # Existing files changing must remake headers before ordinary compilation too.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${inputs})
+    endif()
     add_custom_target(${name}-package
                       COMMAND ${environment} "${tools}" build "${app_dir}"
                               --out "${CMAKE_BINARY_DIR}/apps/${name}"
