@@ -75,5 +75,9 @@ scene_t *scene_confirm(const char *first, const char *second, int icon, const ch
     confirm.icon = icon;
     confirm.action = action;
     confirm.answer = answer;
+    /* The next question is the same scene: its own number keeps a press made for the one before
+     * from answering it. */
+    uint32_t question = confirm.scene.question;
+    confirm.scene.question = question == UINT32_MAX ? 1 : question + 1;
     return &confirm.scene;
 }

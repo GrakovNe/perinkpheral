@@ -28,6 +28,9 @@ static const char *TAG = "display";
  * through a menu. */
 #define PANEL_AWAKE_MS     1500
 #define KEEPALIVE_WITHOUT_A_FRAME_MS (60 * 1000)
+/* A keep-alive refresh that failed is tried again this soon: nothing else may come to redraw a
+ * static screen, and a minute is long enough for a panel that has just timed out. */
+#define KEEPALIVE_RETRY_MS (60 * 1000)
 #define WHITE_BYTE         0xFF
 
 
@@ -36,6 +39,9 @@ static uint8_t           s_shown[DISPLAY_FRAME_SIZE];
  * something else than s_shown, so the next frame goes out even when it
  * looks unchanged. */
 static bool              s_shown_is_on_panel;
+/* A frame reached the panel since the start: s_shown is a picture to put back, not the blank
+ * it starts as. */
+static bool              s_shown_is_a_frame;
 static refresh_policy_t  s_policy;
 static SemaphoreHandle_t s_lock;
 
@@ -129,12 +135,15 @@ void display_keepalive(void)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     esp_err_t err = ESP_OK;
-    if (!s_shown_is_on_panel) {
+    if (!s_shown_is_a_frame) {
         /* Nothing was shown since the start: there is no picture here to
          * refresh the panel with yet. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, KEEPALIVE_WITHOUT_A_FRAME_MS);
     } else if (refresh_panel(s_shown, REFRESH_FOR_KEEPALIVE, &err) != REFRESH_NONE) {
         s_shown_is_on_panel = err == ESP_OK;
+        if (err != ESP_OK) {
+            deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0, KEEPALIVE_RETRY_MS);
+        }
     } else {
         /* Came early - the setting was changed since: at its time, then. */
         deadlines_set_in(DEADLINE_PANEL_KEEPALIVE, 0, 0,
@@ -168,6 +177,7 @@ void display_start(const refresh_policy_cfg_t *policy)
     s_cfg = *policy;
     memset(s_shown, WHITE_BYTE, sizeof s_shown);
     s_shown_is_on_panel = false;
+    s_shown_is_a_frame = false;
     s_changed_last_time = WHOLE_FRAME;
     refresh_policy_init(&s_policy);
     s_lock = xSemaphoreCreateMutex();
@@ -204,6 +214,7 @@ display_result_t display_show(const uint8_t *frame, refresh_reason_t why)
         } else {
             memcpy(s_shown, frame, sizeof s_shown);
             s_shown_is_on_panel = true;
+            s_shown_is_a_frame = true;
             result = DISPLAY_SHOWN;
         }
     }

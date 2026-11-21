@@ -61,5 +61,9 @@ scene_t *scene_notify(const char *first, const char *second, const char *detail,
     notification.detail = detail;
     notification.icon = icon;
     notification.seen = seen;
+    /* The next notice is the same scene: its own number keeps a press made for the one before
+     * from dismissing it. */
+    uint32_t question = notification.scene.question;
+    notification.scene.question = question == UINT32_MAX ? 1 : question + 1;
     return &notification.scene;
 }
