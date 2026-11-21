@@ -286,6 +286,10 @@ static esp_err_t handle_status(httpd_req_t *request)
     json_add_string(json, "wifi", phase_name(wifi.phase));
     json_add_string(json, "ssid", wifi.ssid);
     json_add_string(json, "address", wifi.address);
+    int rssi;
+    if (wifi_signal(&rssi)) {
+        json_add_number(json, "rssi", rssi);
+    }
     json_add_string(json, "tz", settings.tz);
     if (net_time_is_known()) {
         char   local_time[LOCAL_TIME_MAX];

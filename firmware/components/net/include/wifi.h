@@ -50,6 +50,10 @@ void wifi_get_status(wifi_status_t *status);
 
 bool wifi_is_online(void);
 
+/* The signal of the access point the device is on, in dBm, as the device
+ * hears it; false when it is on none. */
+bool wifi_signal(int *rssi);
+
 /* DEADLINE_WIFI_RETRY has come: time to try the network again. */
 void wifi_retry_is_due(void);
 

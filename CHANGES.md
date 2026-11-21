@@ -4,7 +4,12 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
-## 0.1.72
+## 0.1.74
+
+- The log no longer reports a lost network when power saving turns the radio off; a joined or
+  lost network is logged with its access point and signal, and the status has the signal.
+
+## 0.1.73
 
 - A device flashed from scratch comes with Weather, Clock, ISS, Calendar, Timer, Stopwatch,
   Stocks and Air quality installed, in place of Hello, the SDK's sample. They are ordinary
@@ -14,6 +19,9 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 - With Wi-Fi off and power saving on, an application is told there is no network at once.
 - Sources saved while the catalog is being read are read again from the new list.
 - A request to the device that names no network is refused instead of being asked about.
+
+## 0.1.72
+
 - An application's info names a host taken from the user's own list as "Set by the user".
 - The application guide is printed at its own size: the cover reaches the page's edges and the
   text is 9 pt again. One row wider than the page had shrunk the whole document to 91%.
