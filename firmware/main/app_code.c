@@ -6,6 +6,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -34,7 +35,7 @@ static const char *TAG = "app_code";
 /* A module takes a sector at least: the partition is 80 of them. */
 #define EXTENTS_MAX       96
 
-/* The first bytes of a module's piece. The size, its check and the name are
+/* The first bytes of a module's piece. The size, the name and their check are
  * written before the body, the mark after it: a piece that was being written
  * when the power went is not taken for a module, and what its body holds is
  * not read as the header of another. */
@@ -44,10 +45,11 @@ typedef struct {
     uint32_t magic;
     uint32_t size;
     char     name[APP_NAME_MAX + 1];
-    /* The size's complement, little-endian. Writing only clears bits and
-     * erasing only sets them, so a write or an erase cut short leaves the two
-     * disagreeing, and the size of such a header is not believed. Modules
-     * written by an older firmware have it erased. */
+    /* How many bits of the size and the name are 0, little-endian. Writing
+     * only clears bits and erasing only sets them, so a write or an erase cut
+     * short changes the count one way and the bits it counts the other: the
+     * size and the name of such a header are not believed. Modules written
+     * by an older firmware have it erased. */
     uint8_t  check[CHECK_BYTES];
     uint8_t  unused[APP_CODE_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1) - CHECK_BYTES];
 } slot_header_t;
@@ -97,6 +99,17 @@ static const slot_header_t *header_at(int sector)
  * size and a name make a piece, with or without the mark: the sectors of
  * one whose writing was cut short are its own until they are erased, and
  * a header its body carries is never looked for. */
+/* The check of a header: the 0 bits of its size and its name. */
+static uint32_t zero_bits(const slot_header_t *header)
+{
+    const uint8_t *covered = (const uint8_t *)header + offsetof(slot_header_t, size);
+    uint32_t       zeros = 0;
+    for (size_t i = 0; i < offsetof(slot_header_t, check) - offsetof(slot_header_t, size); i++) {
+        zeros += 8 - (uint32_t)__builtin_popcount(covered[i]);
+    }
+    return zeros;
+}
+
 static int piece_at(int sector)
 {
     const slot_header_t *header = header_at(sector);
@@ -105,7 +118,7 @@ static int piece_at(int sector)
         check = check << 8 | header->check[i];
     }
     /* A marked module of an older firmware has no check. */
-    bool is_checked = check == ~header->size ||
+    bool is_checked = check == zero_bits(header) ||
                       (header->magic == SLOT_MAGIC && check == UINT32_MAX);
     if (!is_checked || header->size < 1 || header->size > MANIFEST_MODULE_MAX_BYTES ||
         sector + sectors_for(header->size) > s_sectors ||
@@ -217,8 +230,8 @@ size_t app_code_free_bytes(void)
  * can carry bytes that look like one, and the scan looks at every sector.
  * The first sector goes last, so that its header covers the rest until
  * they are erased, whenever the power goes; its mark is cleared before, so
- * that a header that erase leaves half done, its size grown, is no module's
- * of an older firmware either and has to agree with its check. */
+ * that a header that erase leaves half done, its size or name changed, is
+ * no module's of an older firmware either and has to agree with its check. */
 static bool erase_run(int start, int sectors)
 {
     static const uint32_t CLEARED = 0;
@@ -283,12 +296,13 @@ static bool place(const char *app_name, const char *path)
                                                    (size_t)sectors * SECTOR_BYTES) == ESP_OK;
     slot_header_t header = { .magic = SLOT_MAGIC, .size = (uint32_t)found.st_size };
     strlcpy(header.name, app_name, sizeof header.name);
+    uint32_t zeros = zero_bits(&header);
     for (int i = 0; i < CHECK_BYTES; i++) {
-        header.check[i] = (uint8_t)(~header.size >> (8 * i));
+        header.check[i] = (uint8_t)(zeros >> (8 * i));
     }
     memset(header.unused, 0xFF, sizeof header.unused);
-    /* All but the mark first, the size and its check in one write: from
-     * here the run is one piece, whatever the body brings. */
+    /* All but the mark first, the size, the name and their check in one
+     * write: from here the run is one piece, whatever the body brings. */
     bool is_begun = is_stored &&
                     esp_partition_write(s_partition, start + sizeof header.magic,
                                         (const uint8_t *)&header + sizeof header.magic,

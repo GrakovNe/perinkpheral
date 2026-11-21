@@ -19,8 +19,10 @@ static const char *stat_failure, *rename_failure, *open_failure;
 static bool read_failure, erase_failure;
 /* The power goes as a module's mark is about to be written: nothing more reaches the flash. */
 static bool cuts_before_mark, is_cut;
-/* The power goes while the first sector is erased: some bits are back to 1, the size's among them. */
-static bool tears_first_erase;
+/* The power goes while the first sector is erased: some bits are back to 1, the mark's
+ * all of them, and the size's (TEARS_SIZE) or the name's (TEARS_NAME) some. */
+enum { TEARS_NOTHING, TEARS_SIZE, TEARS_NAME };
+static int tears_first_erase;
 
 const esp_partition_t *esp_partition_find_first(int type, int subtype, const char *label)
 {
@@ -46,7 +48,11 @@ esp_err_t esp_partition_erase_range(const esp_partition_t *part, size_t offset, 
     if (tears_first_erase && offset == 0 && size == 4096) {
         uint32_t *words = (uint32_t *)flash;
         words[0] |= 0x50414b50u; /* the mark as it was */
-        words[1] |= 0x2000;      /* two sectors claim four */
+        if (tears_first_erase == TEARS_SIZE) {
+            words[1] |= 0x2000; /* two sectors claim four */
+        } else {
+            flash[8] |= 0x02;   /* "a" reads "c" */
+        }
         is_cut = true;
         return ESP_FAIL;
     }
@@ -284,9 +290,10 @@ int main(void)
     app_code_adopt(root);
     CHECK(header_at(0)->magic == SLOT_MAGIC && header_at(2)->magic == SLOT_MAGIC);
     CHECK(rmdir(alpha) == 0);
-    tears_first_erase = true;
+    tears_first_erase = TEARS_SIZE;
     app_code_adopt(root);
-    tears_first_erase = is_cut = false;
+    tears_first_erase = TEARS_NOTHING;
+    is_cut = false;
     CHECK(header_at(0)->magic == SLOT_MAGIC && header_at(0)->size > 3 * SECTOR_BYTES);
     app_code_start(); /* the next start */
     code = app_code_find(root, "beta", &size);
@@ -297,6 +304,35 @@ int main(void)
     CHECK(rmdir(beta) == 0);
     app_code_adopt(root);
     CHECK(app_code_find(root, "beta", &size) == NULL && header_at(2)->magic != SLOT_MAGIC);
+
+    /* Nor does it give the module of "a", gone, to "c", which is installed. */
+    memset(flash, 0xff, sizeof flash);
+    app_code_start();
+    char a[128], a_module[128], c[128], c_module[128];
+    snprintf(a, sizeof a, "%s/a", root);
+    snprintf(a_module, sizeof a_module, "%s/a/app.wasm", root);
+    snprintf(c, sizeof c, "%s/c", root);
+    snprintf(c_module, sizeof c_module, "%s/c/app.wasm", root);
+    CHECK(mkdir(a, 0700) == 0);
+    write_bytes(a_module, "aaaa");
+    app_code_adopt(root);
+    CHECK(mkdir(c, 0700) == 0);
+    write_bytes(c_module, "cccc");
+    app_code_adopt(root);
+    CHECK(strcmp(header_at(0)->name, "a") == 0 && strcmp(header_at(1)->name, "c") == 0);
+    CHECK(rmdir(a) == 0);
+    tears_first_erase = TEARS_NAME;
+    app_code_adopt(root);
+    tears_first_erase = TEARS_NOTHING;
+    is_cut = false;
+    CHECK(header_at(0)->magic == SLOT_MAGIC && strcmp(header_at(0)->name, "c") == 0);
+    app_code_start(); /* the next start */
+    code = app_code_find(root, "c", &size);
+    CHECK(code != NULL && size == 4 && memcmp(code, "cccc", 4) == 0);
+    app_code_adopt(root);
+    code = app_code_find(root, "c", &size);
+    CHECK(code != NULL && size == 4 && memcmp(code, "cccc", 4) == 0);
+    CHECK(rmdir(c) == 0);
     CHECK(rmdir(root) == 0);
     REPORT();
 }

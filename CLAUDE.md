@@ -587,6 +587,7 @@ Open:
 - **Network access.** The owner chose physical confirmation for firmware, reset, Wi-Fi and system-app installation (2026-11-12). Other local-network operations have no password; `SECURITY.md` records that scope.
 - **Development uploads.** `tools/perinkpheral run` restarts into the application. Catalog installation and removal reload the list without restarting.
 - **Server certificates.** A setting for a user's self-signed server remains unimplemented; packaged authority roots are supported.
+- **Code partition.** A module header whose check reads erased is taken as an older firmware's, unchecked, so an erase of its first sector cut short that restores the cleared 32-bit mark bit for bit can grow its size over the next module, which the next start then erases.
 
 Firmware updates keep installed packages. ABI 2 packages must be rebuilt for ABI 3; a newer firmware minimum gives "Update the firmware." The developer guide is built from `docs/guide/source/guide.html`; Russian comes from `docs/guide/source/guide.ru.txt`. The English source governs. An API addition is documented there; a changed signature or meaning needs a new ABI.
 
