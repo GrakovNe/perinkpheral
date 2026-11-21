@@ -389,6 +389,11 @@ static void commit_install(void *argument)
         }
         char certificates[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
         int count = app_manifest_certificates(job->incoming_manifest, certificates, MANIFEST_CERTIFICATES_MAX);
+        if (count < 0) {
+            /* Unread, the authorities cannot be compared with those approved: no unattended update. */
+            job->problem = "Update requires manual installation.";
+            return;
+        }
         for (int i = 0; i < count; i++) {
             if (!same_certificate(job->name, certificates[i])) {
                 job->problem = "Update requires manual installation.";
