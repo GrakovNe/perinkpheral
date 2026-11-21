@@ -368,6 +368,10 @@ static int32_t store(const char *key, int32_t key_length, const void *bytes, int
 void standin_set(const char *key, const char *text)
 {
     standin();
+    if (!is_key(key, (int32_t)strlen(key)) || (text != NULL && strlen(text) > HOST_KV_VALUE_MAX)) {
+        fprintf(stderr, "standin: \"%s\" is no key of the store, or its value is longer than one may be\n", key);
+        exit(2);
+    }
     /* A setting saved empty is kept empty, over its default; NULL forgets it. */
     int32_t result = store(key, (int32_t)strlen(key), text != NULL ? text : "",
                            text != NULL ? (int32_t)strlen(text) : 0, text != NULL);
@@ -1587,6 +1591,18 @@ static void mix_number(int32_t number)
     mix(&number, sizeof number);
 }
 
+/* What the device draws of a text (app_text_copy(), the renderer): to its first NUL, and no
+ * more than HOST_TEXT_MAX bytes. */
+static int32_t text_shown(const char *text, int32_t length)
+{
+    return text != NULL && length > 0 ? (int32_t)strnlen(text, (size_t)(length < HOST_TEXT_MAX ? length : HOST_TEXT_MAX)) : 0;
+}
+
+static void mix_text(const char *text, int32_t length)
+{
+    mix(text != NULL ? text : "", (size_t)text_shown(text, length));
+}
+
 /* A fixed text field of a struct: up to its terminator, for what follows it is not text. */
 static void mix_field(const char *field, size_t size)
 {
@@ -1720,13 +1736,13 @@ int32_t gfx_draw_text(int32_t x, int32_t y, int32_t font, const char *text, int3
     if (length > HOST_TEXT_MAX) {
         length = HOST_TEXT_MAX;
     }
-    if (length == 0) {
+    if (text_shown(text, length) == 0) {
         world->draw_calls--; /* a text of no letters sets no pixel */
     }
     mix_number(x);
     mix_number(y);
     mix_number(font);
-    mix(text, (size_t)length);
+    mix_text(text, length);
     return text_width(font, text, length);
 }
 
@@ -1806,8 +1822,14 @@ int32_t gfx_draw_rect(int32_t x, int32_t y, int32_t width, int32_t height, int32
     }
     int32_t numbers[] = { x, y, width, height, fill };
     mix(numbers, sizeof numbers);
-    /* gfx_fill() of no size, or wholly off the surface, sets no pixel: no call that draws. */
-    if (width <= 0 || height <= 0 || x >= SURFACE_WIDTH || y >= surface_height() || x + width <= 0 || y + height <= 0) {
+    /* gfx_fill() of no size, or wholly off the surface, sets no pixel: no call that draws. An
+     * outline is gfx_frame()'s four strokes of one pixel: something unless it has neither width
+     * nor height. */
+    bool is_nothing = fill == HOST_RECT_FILLED
+                          ? width <= 0 || height <= 0 || x >= SURFACE_WIDTH || y >= surface_height() ||
+                                x + width <= 0 || y + height <= 0
+                          : width <= 0 && height <= 0;
+    if (is_nothing) {
         world->draw_calls--;
     }
     return HOST_OK;
@@ -1861,7 +1883,7 @@ int32_t gfx_draw_qr(int32_t x, int32_t y, int32_t cell, const char *text, int32_
     if (cell != 0) {
         int32_t numbers[] = { x, y, cell };
         mix(numbers, sizeof numbers);
-        mix(text, (size_t)length);
+        mix_text(text, length);
     }
     /* A version every 16 bytes, four modules a version: near enough to lay a page out by. */
     int32_t modules = 21 + 4 * (length / 16);
@@ -2016,9 +2038,9 @@ int32_t ui_draw_list_row(const host_list_t *list, int32_t index, const char *lab
     }
     mix(list, sizeof *list);
     mix_number(index);
-    mix(label, (size_t)label_length);
+    mix_text(label, label_length);
     mix_number(icon);
-    mix(value, (size_t)value_length);
+    mix_text(value, value_length);
     return HOST_OK;
 }
 
@@ -2124,8 +2146,12 @@ int32_t ui_draw_text_lines(int32_t x, int32_t y, int32_t style, const char *text
     }
     int32_t numbers[] = { x, y, style, width, max_lines };
     mix(numbers, sizeof numbers);
-    mix(text, (size_t)length);
-    return text_lines(STYLE_FONTS[style], text, length, width, max_lines);
+    mix_text(text, length);
+    int32_t lines = text_lines(STYLE_FONTS[style], text, length, width, max_lines);
+    if (lines == 0) {
+        world->draw_calls--; /* kit_text_lines() draws no line of an empty text */
+    }
+    return lines;
 }
 
 int32_t ui_text_width(int32_t style, const char *text, int32_t length)
@@ -2147,7 +2173,7 @@ int32_t ui_draw_title(const char *text, int32_t length)
     if (!is_text(text, length)) {
         return refused_draw("ui_draw_title");
     }
-    mix(text, (size_t)length);
+    mix_text(text, length);
     return TITLE_TOP + FONTS[HOST_FONT_MEDIUM].ascent + TITLE_RULE_GAP + 1 + TITLE_AFTER_RULE;
 }
 
@@ -2178,9 +2204,9 @@ int32_t ui_draw_button(int32_t x, int32_t y, const char *name, int32_t name_leng
     }
     int32_t numbers[] = { x, y, mirrored };
     mix(numbers, sizeof numbers);
-    mix(name, (size_t)name_length);
+    mix_text(name, name_length);
     mix_number(0);
-    mix(action, (size_t)action_length);
+    mix_text(action, action_length);
     /* kit_button_width(): the key, its name padded, and the action after a gap. */
     int32_t width = text_width(HOST_FONT_TEXT, name, name_length) + 2 * KEY_PAD_X;
     return action_length > 0 && action[0] != '\0' ? width + KEY_ACTION_GAP + text_width(HOST_FONT_TEXT, action, action_length)
@@ -2195,9 +2221,12 @@ int32_t ui_draw_actions(const char *ok, int32_t ok_length, const char *back, int
     if (!is_text(ok, ok_length) || !is_text(back, back_length)) {
         return refused_draw("ui_draw_actions");
     }
-    mix(ok, (size_t)ok_length);
+    mix_text(ok, ok_length);
     mix_number(0);
-    mix(back, (size_t)back_length);
+    mix_text(back, back_length);
+    if (text_shown(ok, ok_length) == 0 && text_shown(back, back_length) == 0) {
+        world->draw_calls--; /* kit_actions() draws nothing of two empty labels */
+    }
     return HOST_OK;
 }
 
@@ -2257,9 +2286,9 @@ int32_t ui_draw_value(int32_t x, int32_t y, int32_t font, const char *value, int
     }
     int32_t numbers[] = { x, y, font };
     mix(numbers, sizeof numbers);
-    mix(value, (size_t)value_length);
+    mix_text(value, value_length);
     mix_number(0);
-    mix(unit, (size_t)unit_length);
+    mix_text(unit, unit_length);
     return value_width(font, value, value_length, unit, unit_length);
 }
 

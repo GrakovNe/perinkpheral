@@ -147,6 +147,12 @@ object AppCheckTest {
         Break("drawing", "app_on_draw() draws only the reason of an answer that came, which is nothing",
             listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    ui_draw_reason(200);\n    return;\n"),
             "drew nothing"),
+        Break("drawing", "app_on_draw() draws only the lines of an empty text",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    ui_draw_text_lines(0, 0, HOST_UI_TEXT, \"\", 0, 100, 1);\n    return;\n"),
+            "drew nothing"),
+        Break("drawing", "app_on_draw() draws only actions with no labels",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    ui_draw_actions(\"\", 0, \"\", 0);\n    return;\n"),
+            "drew nothing"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
@@ -210,6 +216,14 @@ object AppCheckTest {
         Break("timers", "a countdown of three seconds, over by the time a late tick comes",
             listOf("void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER) {" to
                 "void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER && time_uptime_ms() < 3000) {"), ""),
+        Break("drawing", "an outline of no height, which is a stroke", listOf("void app_on_draw(void)\n{\n" to
+            "void app_on_draw(void)\n{\n    gfx_draw_rect(10, 10, 10, 0, HOST_RECT_OUTLINE);\n    return;\n"), ""),
+        Break("drawing", "a text whose bytes past its end change, with no redraw: nothing shown changed",
+            listOf("static int32_t count;" to "static char shown_text[8] = \"OK\";\nstatic int32_t count;",
+                "void app_on_button(int32_t event)\n{\n" to "void app_on_button(int32_t event)\n{\n    shown_text[7]++;\n",
+                "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
+                    "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" +
+                    "    gfx_draw_text(MARGIN, 200, HOST_FONT_TEXT, shown_text, sizeof shown_text);\n"), ""),
         Break("timers", "an alarm set again by every instance in app_on_load(), and nothing in app_on_updated()",
             listOf("void app_on_load(void)\n{\n" to
                 "void app_on_load(void)\n{\n    if (time_now() != 0) {\n        alarm_set_at(1, time_now() + 3600);\n    }\n"), ""),
