@@ -87,8 +87,9 @@ void events_post_button(uint8_t index, event_press_t press)
         }
     } else {
         posted = places > RELEASE_PLACES && xQueueSend(s_input, &event, 0) == pdTRUE;
-        if (press == EVENT_PRESS_DOWN && index < RELEASE_PLACES) {
-            s_press_taken[index] = posted;
+        if (press == EVENT_PRESS_DOWN && index < RELEASE_PLACES && posted) {
+            /* A press refused leaves one taken before it waiting for its release. */
+            s_press_taken[index] = true;
         }
     }
     xSemaphoreGive(s_button_lock);
