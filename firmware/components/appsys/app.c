@@ -25,7 +25,8 @@
 #define HANDLER_BUDGET_MS 3000
 
 /* The clock is looked at once in this many yields of the interpreter,
- * which yields on every call and every turn of a loop. */
+ * which yields on every call and every turn of a loop; and after every
+ * call of the contract (call_host below), which may take milliseconds. */
 #define YIELDS_PER_CLOCK_CHECK 1024
 
 static const char STOPPED_TOO_LONG[] = "it ran too long";
@@ -235,21 +236,39 @@ static app_load_result_t check_imports(const uint8_t *wasm, size_t wasm_size, un
     return APP_OK;
 }
 
+/* Every import is linked through here, the call itself in its userdata.
+ * A call of the contract is one yield however long it takes, so a
+ * thousand full-screen fills would pass before m3_Yield looked at the
+ * clock: it is looked at after each, and the deadline is passed by one
+ * call at most. One reading of the clock is about a microsecond, less
+ * than the call itself. */
+static const void *call_host(IM3Runtime runtime, IM3ImportContext context, uint64_t *sp, void *memory)
+{
+    M3RawCall function = *(const M3RawCall *)context->userdata;
+    const void *trap = function(runtime, context, sp, memory);
+    if (trap == m3Err_none && s_running.services != NULL &&
+        s_running.services->uptime_ms() > s_running.deadline_ms) {
+        return STOPPED_TOO_LONG;
+    }
+    return trap;
+}
+
 /* False when the module declares one of these with another signature. A
  * function the module does not import is simply not linked. */
 static bool link_host_api(IM3Module module)
 {
     for (size_t i = 0; i < HOST_API_COUNT; i++) {
-        M3Result result = m3_LinkRawFunction(module, HOST_MODULE, HOST_API[i].name,
-                                             HOST_API[i].signature, HOST_API[i].function);
+        M3Result result = m3_LinkRawFunctionEx(module, HOST_MODULE, HOST_API[i].name,
+                                               HOST_API[i].signature, call_host, &HOST_API[i].function);
         if (result != m3Err_none && result != m3Err_functionLookupFailed) {
             return false;
         }
     }
     /* Who may import these was settled before the module was parsed. */
     for (size_t i = 0; i < SYSTEM_API_COUNT; i++) {
-        M3Result result = m3_LinkRawFunction(module, HOST_MODULE, SYSTEM_API[i].name,
-                                             SYSTEM_API[i].signature, SYSTEM_API[i].function);
+        M3Result result = m3_LinkRawFunctionEx(module, HOST_MODULE, SYSTEM_API[i].name,
+                                               SYSTEM_API[i].signature, call_host,
+                                               &SYSTEM_API[i].function);
         if (result != m3Err_none && result != m3Err_functionLookupFailed) {
             return false;
         }
@@ -405,8 +424,10 @@ static void load_strings(app_t *app)
     IM3Function strings_buffer = HANDLER(app, app_strings_buffer);
     const char *language = app->services->language != NULL ? app->services->language() : "en";
     uint32_t    offset = 0;
-    if (strings_buffer == NULL || strcmp(language, "en") == 0 || app->services->file_size == NULL ||
-        app->services->file_read == NULL) {
+    /* After a trap in app_data_buffer or the start function, a call would
+     * run the start function again on a budget of its own. */
+    if (app->stop_reason != NULL || strings_buffer == NULL || strcmp(language, "en") == 0 ||
+        app->services->file_size == NULL || app->services->file_read == NULL) {
         return;
     }
     start_budget(app->services);

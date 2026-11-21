@@ -176,6 +176,13 @@ build/wrongarg/app.wasm: apps/wrongarg/wrongarg.c apps/wrongarg/manifest.json $(
 build/wrongarg_wasm.h: build/wrongarg/app.wasm
 	(echo "static const unsigned char wrongarg_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
+build/budget/app.wasm: apps/budget/budget.c $(TOOLS)
+	@mkdir -p build/budget
+	$(WASI_SDK_PATH)/bin/clang $(subst ;, ,$(shell $(TOOLS) flags compile)) $(subst ;, ,$(shell $(TOOLS) flags link)) $< -o $@
+
+build/budget_wasm.h: build/budget/app.wasm
+	(echo "static const unsigned char budget_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
+
 build/host_imports.inc: $(SDK)/host_api.h $(wildcard $(SDK)/host/*.h)
 	$(TOOLS) imports build
 
@@ -192,7 +199,7 @@ build/frozen_probe_wasm.h: ../../../sdk/abi/3/probe/app.wasm
 	@mkdir -p build
 	(echo "static const unsigned char frozen_probe_wasm[] = {"; $(call c_bytes,$<); echo "};") > $@
 
-test_app: test_app.c tinytest.h build/frozen_probe_wasm.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
+test_app: test_app.c tinytest.h build/budget_wasm.h build/frozen_probe_wasm.h build/host_imports.inc build/probe_wasm.h build/every_call_wasm.h build/wrongret_wasm.h build/wrongarg_wasm.h $(APP_SRCS) $(APPSYS)/app_internal.h $(APPSYS)/include/app.h $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(WASM3_OBJS)
 	$(CC) $(CFLAGS) -Ibuild -I$(APPSYS)/include -I$(UI)/include -I$(GFX)/include -I$(GFX)/fonts -I$(WASM3) -I$(SDK) -I$(SDK_LIB) \
 		-Dd_m3MaxLinearMemoryPages=1 $(QR_INCS) -o $@ test_app.c $(APP_SRCS) $(SDK_LIB)/json_pick.c $(UI)/list.c $(UI)/notice.c $(UI)/kit.c $(UI)/scrollbar.c $(GFX)/gfx.c $(GFX)/gfx_icons.c $(GFX)/gfx_icon_art.c $(WORDS)/words.c $(GFX)/font_square.c $(QR)/qrcodegen/qrcodegen.c $(WASM3_OBJS)
 

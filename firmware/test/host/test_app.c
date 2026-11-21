@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include "host_api.h"
+#include "budget_wasm.h"
 #include "every_call_wasm.h"
 #include "probe_wasm.h"
 #include "frozen_probe_wasm.h"
@@ -93,9 +94,13 @@ static int64_t fake_uptime_ms(void)
     return clock_ms;
 }
 
+/* What one line of the log costs the clock, for apps/budget. */
+static int64_t log_cost_ms;
+
 static void record_log(int level, const char *text, int length)
 {
     (void)level;
+    clock_ms += log_cost_ms;
     size_t used = strlen(logged);
     size_t room = sizeof logged - used - 2; /* the separator and the end */
     if (used + 2 > sizeof logged) {
@@ -901,6 +906,60 @@ static void test_frozen_hello_state(void)
     free(bytes);
 }
 
+static const char *russian(void)
+{
+    return "ru";
+}
+
+static int count_of(const char *text, const char *part)
+{
+    int count = 0;
+    for (const char *at = strstr(text, part); at != NULL; at = strstr(at + 1, part)) {
+        count++;
+    }
+    return count;
+}
+
+static void test_host_calls_count_against_the_budget(void)
+{
+    app_t *app = NULL;
+    logged[0] = '\0';
+    clock_runs = false;
+    clock_ms = FAKE_UPTIME_MS;
+    CHECK(app_load("budget", HOST_API_VERSION, budget_wasm, sizeof budget_wasm, 0, &SERVICES, &app) ==
+          APP_OK);
+    CHECK(!app_has_stopped(app));
+    /* a hundred calls of 100 ms each and no loop of a thousand turns: the
+     * one that passes 3 s is the last */
+    logged[0] = '\0';
+    log_cost_ms = 100;
+    app_button(app, 1, BTN_PRESSED);
+    log_cost_ms = 0;
+    CHECK(app_has_stopped(app));
+    CHECK_STR(app_stop_reason(app), "it ran too long");
+    CHECK(count_of(logged, "x;") == 31);
+    app_unload(app);
+
+    /* a trap while loading is the end of the load: the strings are not asked for */
+    static app_services_t in_russian;
+    in_russian = SERVICES;
+    in_russian.language = russian;
+    CHECK(fake_kv_set("budget", "trap", "1", 1) == HOST_OK);
+    logged[0] = '\0';
+    CHECK(app_load("budget", HOST_API_VERSION, budget_wasm, sizeof budget_wasm, 0, &in_russian, &app) ==
+          APP_OK);
+    CHECK(app_has_stopped(app));
+    CHECK(strstr(logged, "strings") == NULL);
+    app_unload(app);
+    CHECK(fake_kv_set("budget", "trap", "", 0) == HOST_OK);
+    logged[0] = '\0';
+    CHECK(app_load("budget", HOST_API_VERSION, budget_wasm, sizeof budget_wasm, 0, &in_russian, &app) ==
+          APP_OK);
+    CHECK(!app_has_stopped(app));
+    CHECK(strstr(logged, "strings") != NULL);
+    app_unload(app);
+}
+
 int main(void)
 {
     test_screen_inversion();
@@ -911,5 +970,6 @@ int main(void)
     probe_size = sizeof frozen_probe_wasm;
     test_probe_contract();
     test_frozen_hello_state();
+    test_host_calls_count_against_the_budget();
     REPORT();
 }
