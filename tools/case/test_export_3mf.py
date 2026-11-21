@@ -59,6 +59,8 @@ class GeometryTests(unittest.TestCase):
         for name in ("Slab", "Logo", "CornerBracket"):
             self.assertAlmostEqual(exporter.rotate_for_print(name, (0, -cosine, sine))[2], -1)
         self.assertEqual(exporter.rotate_for_print("Foot", (0, 0, 1)), (0, 0, -1))
+        for number in range(1, 5):
+            self.assertEqual(exporter.rotate_for_print(f"Cap{number}", (0, 0, 1)), (0, 0, -1))
 
     def test_group_placement_preserves_logo_registration(self):
         frame = tetrahedron("Slab")
