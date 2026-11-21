@@ -322,7 +322,13 @@ bool app_store_drop_incoming(const char *root, const char *name)
     if (stat(folder, &found) != 0) {
         return errno == ENOENT;
     }
-    return settle_incoming(folder, false);
+    if (!settle_incoming(folder, false)) {
+        return false;
+    }
+    /* One a failed first install made holds nothing and is nobody's; a
+     * folder with a file in it is not removed. */
+    rmdir(folder);
+    return true;
 }
 
 void app_store_recover(const char *root)
@@ -342,8 +348,9 @@ void app_store_recover(const char *root)
         if (!was_commit_interrupted && errno != ENOENT) {
             continue;
         }
-        if (settle_incoming(folder, was_commit_interrupted) && was_commit_interrupted) {
-            remove(mark);
+        if (settle_incoming(folder, was_commit_interrupted) &&
+            (!was_commit_interrupted || remove(mark) == 0)) {
+            rmdir(folder); /* only an empty one goes: a first install that failed */
         }
     }
     closedir(directory);

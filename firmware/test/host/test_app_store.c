@@ -186,6 +186,20 @@ static void test_several_files_at_once(void)
     CHECK(app_store_commit_all(root, "app"));
     CHECK(app_store_file_size(root, "app", "stale.bin") < 0);
     CHECK(!app_store_commit_all(root, "../escape"));
+
+    /* a first install that failed leaves no folder behind, dropped or found at start;
+     * a folder that holds a file stays */
+    char folder[160];
+    struct stat found;
+    CHECK(begin_file("failed", APP_FILE_MODULE, "half"));
+    CHECK(app_store_drop_incoming(root, "failed"));
+    snprintf(folder, sizeof folder, "%s/failed", root);
+    CHECK(stat(folder, &found) != 0);
+    CHECK(begin_file("failed", APP_FILE_MODULE, "half"));
+    app_store_recover(root);
+    CHECK(stat(folder, &found) != 0);
+    snprintf(folder, sizeof folder, "%s/app", root);
+    CHECK(stat(folder, &found) == 0 && app_store_file_size(root, "app", APP_FILE_MODULE) == 13);
 }
 
 static void test_install_files(void)
