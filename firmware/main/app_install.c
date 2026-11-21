@@ -318,6 +318,9 @@ typedef struct {
     const char *source;
     int source_index;
     const app_install_options_t *options;
+    const json_t *files;
+    long files_bytes, manifest_bytes; /* the package's data files and manifest, in blocks */
+    bool writes_files;
     char *previous_manifest;
     char *incoming_manifest;
     uint32_t previous_id;
@@ -423,6 +426,13 @@ static void commit_install(void *argument)
             }
         }
     }
+    /* Counted again here, where the application cannot write meanwhile: it
+     * may have while the package was downloaded. */
+    if (job->writes_files && job->files_bytes + kept_files_bytes(job->name, job->files) +
+                                     job->manifest_bytes > HOST_FILES_WRITER_MAX) {
+        job->problem = "Not enough storage.";
+        return;
+    }
     job->committed = app_store_commit_all(STORAGE_APPS_ROOT, job->name);
     /* Installation callbacks may remove the application: the files no
      * longer have an open download, and the writer lock still excludes uploads. */
@@ -473,6 +483,10 @@ static const char *install_package(install_job_t *job, const json_t *files)
                         !files_room_holds(job->name, true, files_after, 0))) {
         return "Not enough storage.";
     }
+    job->files = files;
+    job->files_bytes = files_bytes;
+    job->manifest_bytes = manifest_bytes;
+    job->writes_files = writes_files;
     if (asks_for_system && job->options->installed_id == 0) {
         if (job->options->confirm_system == NULL) return "Not confirmed.";
         problem = job->options->confirm_system();

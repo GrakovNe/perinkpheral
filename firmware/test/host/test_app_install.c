@@ -21,6 +21,7 @@ static char sequence[64];
 static const char *new_manifest;
 static const char *new_certificate;
 static const char *module = "test module";
+static const char *written_meanwhile; /* what the running application writes during the download */
 
 static void note(char step) { size_t used = strlen(sequence); sequence[used] = step; sequence[used + 1] = '\0'; }
 static void file_path(char *path, const char *file) { snprintf(path, APP_STORE_PATH_MAX, "%s/test/%s", test_root, file); }
@@ -110,6 +111,7 @@ bool poller_fetch(const char *url, size_t maximum, poller_take_fn take, void *co
     const char *file = strrchr(url, '/') + 1;
     const char *bytes = strcmp(file, "app.wasm") == 0 ? module : strcmp(file, "manifest.json") != 0 ? new_certificate : new_manifest;
     if (change_id) present.id = 99;
+    if (written_meanwhile != NULL && strcmp(file, "manifest.json") == 0) put_file("cache.dat", written_meanwhile);
     if (change_source) strcpy(source_text, "https://changed.example/catalog");
     if (turn_off) config.app_auto_update = 0;
     *status = 200;
@@ -185,7 +187,11 @@ int main(void) {
     CHECK(run(false) == NULL); CHECK(commits == 1); cleanup();
     kept[sizeof kept - 2] = '\0'; /* a block less beside the package's: it fits */
     reset(OLD); new_manifest = WRITER; new_certificate = "data"; data_name = "new.dat"; put_file("old.dat", kept);
-    CHECK(run(false) == NULL); CHECK(commits == 1); data_name = "root.pem"; cleanup();
+    CHECK(run(false) == NULL); CHECK(commits == 1); cleanup();
+    /* What the application writes while the package is downloaded counts at the commit. */
+    kept[sizeof kept - 2] = 'k'; /* six blocks and a byte again */
+    reset(OLD); new_manifest = WRITER; new_certificate = "data"; written_meanwhile = kept;
+    CHECK_STR(run(false), "Not enough storage."); CHECK(commits == 0); written_meanwhile = NULL; data_name = "root.pem"; cleanup();
     CHECK(app_install_network_is_retryable(503)); CHECK(app_install_network_is_retryable(HOST_FAILED_TIMEOUT)); CHECK(!app_install_network_is_retryable(404)); CHECK(!app_install_network_is_retryable(HOST_FAILED_NOT_TRUSTED));
     REPORT();
 }
