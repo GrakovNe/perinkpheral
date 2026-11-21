@@ -216,7 +216,7 @@ static void trust_of(const char *app_name)
     char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
     int  count = app_manifest_certificates(manifest, files, MANIFEST_CERTIFICATES_MAX);
     free(manifest);
-    if (count == 0) {
+    if (count <= 0) {
         return;
     }
     mbedtls_x509_crt_init(&s_trusted);

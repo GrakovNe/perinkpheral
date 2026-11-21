@@ -822,6 +822,9 @@ static bool read_certificates(const json_t *certificates, int *count)
 int app_manifest_certificates(const char *json, char files[][MANIFEST_FILE_NAME_MAX + 1], int capacity)
 {
     json_t *root = json_parse(json);
+    if (root == NULL) {
+        return -1; /* not even out of memory may pass for "none" */
+    }
     const json_t *certificates = json_get(root, "certificates");
     int count = 0;
     if (json_is_array(certificates)) {

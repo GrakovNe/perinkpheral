@@ -306,6 +306,16 @@ static void test_package_files_are_not_written(void)
     /* a file of its own, of any name else, is its own */
     CHECK(app_store_write_file(root, "certs", "other.pem", 0, "x", 1) == APP_WRITE_OK);
     CHECK(app_store_write_file(root, "certs", "manifest", 0, "x", 1) == APP_WRITE_OK);
+    /* a manifest that cannot be read cannot say which are its certificates: no write */
+    write_file("certs", APP_FILE_MANIFEST, "{oops", 5);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "", 0) == APP_WRITE_FAILED);
+    CHECK(app_store_write_file(root, "certs", "other.pem", 0, "y", 1) == APP_WRITE_FAILED);
+    CHECK(app_store_file_size(root, "certs", "root.pem") == 5);
+    char gone[APP_STORE_PATH_MAX];
+    snprintf(gone, sizeof gone, "%s/certs/%s", root, APP_FILE_MANIFEST);
+    CHECK(remove(gone) == 0);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "", 0) == APP_WRITE_FAILED);
+    CHECK(app_store_file_size(root, "certs", "root.pem") == 5);
 }
 
 int main(void)

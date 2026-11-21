@@ -256,6 +256,7 @@ static void test_settings(void)
               strcmp(files[0], "a.pem") == 0 && strcmp(files[1], "b.der") == 0);
         CHECK(app_manifest_certificates("{\"certificates\":[\"a.pem\",\"b.der\"]}", files, 1) == 1);
         CHECK(app_manifest_certificates("{}", files, 2) == 0);
+        CHECK(app_manifest_certificates("{oops", files, 2) == -1);
     }
 
     /* a default is a value the setting itself would take */

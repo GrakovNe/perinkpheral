@@ -108,11 +108,12 @@ typedef enum {
     APP_WRITE_OK,
     APP_WRITE_REFUSED,  /* not a data file's name, or an offset past its end */
     APP_WRITE_NO_SPACE, /* its data files would take more than APP_FILES_WRITER_MAX_BYTES */
-    APP_WRITE_FAILED,   /* the file system refused */
+    APP_WRITE_FAILED,   /* the file system refused, or the manifest could not be read */
 } app_write_result_t;
 
-/* Writes into a data file of an application - not its manifest and not
- * its module - at `offset`, which is inside the file or at its end.
+/* Writes into a data file of an application - not its manifest, its
+ * translations, its module or the certificates its manifest lists - at
+ * `offset`, which is inside the file or at its end.
  * length 0 at offset 0 removes the file. */
 app_write_result_t app_store_write_file(const char *root, const char *name, const char *file,
                                         long offset, const void *bytes, size_t length);

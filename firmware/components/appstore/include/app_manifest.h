@@ -244,7 +244,7 @@ int app_manifest_secret_keys(const char *json, char keys[][16], int capacity);
 
 /* The files of the certificate authorities the application trusts beside
  * the browsers' set, for its own requests ("certificates"); returns how
- * many, at most `capacity`. */
+ * many, at most `capacity`, or -1 when the manifest cannot be parsed. */
 int app_manifest_certificates(const char *json, char files[][MANIFEST_FILE_NAME_MAX + 1], int capacity);
 
 /* Whether a poll over a list ("each") takes this item of it, by its
