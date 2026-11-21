@@ -291,7 +291,7 @@ class ManifestCheck(private val sdk: Sdk) {
             // The device's rules for a default (app_manifest.c, has_sound_default): what it would
             // refuse to load is refused here.
             val fits = default is String && default.isNotEmpty() && kind !in setOf("secret", "place") &&
-                default.toByteArray().size <= settingValueMax &&
+                default.toByteArray().size <= settingValueMax && default.all { it in ' '..'~' } &&
                 (kind != "toggle" || default in setOf("0", "1")) &&
                 (kind != "choice" || default in (setting["options"] as List<*>)) &&
                 (kind != "number" || Regex("""-?(\d+\.?\d*|\.\d+)""").matches(default)) &&

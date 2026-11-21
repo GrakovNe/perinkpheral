@@ -24,7 +24,7 @@ class ManifestAuthor(sdk: Sdk) {
 
     companion object {
         const val OFFICIAL = "Perinkpheral"
-        const val OFFICIAL_REPOSITORY = "GrakovNe/perinkpheral-apps"
+        const val OFFICIAL_REPOSITORY = "Perinkpheral/perinkpheral-apps"
         fun isOfficial(author: String): Boolean = author.trim().equals(OFFICIAL, ignoreCase = true)
     }
 }

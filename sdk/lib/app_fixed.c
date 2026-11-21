@@ -160,26 +160,48 @@ int64_t app_fixed_rescale(int64_t value, int32_t from_decimals, int32_t to_decim
 
 int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
 {
-    if (whole == 0) {
+    /* The least ratio that is not zero is 1 / 2^63, about 10^-19: with 38 decimals or more no
+     * result that is not zero fits in an int64, so there is no need to loop billions of times. */
+    if (whole == 0 || part == 0 || decimals >= 38) {
         return 0;
     }
     uint64_t dividend = magnitude_of(part), divisor = magnitude_of(whole);
     uint64_t result = dividend / divisor, rest = dividend % divisor;
+    bool is_negative = (part < 0) != (whole < 0);
+    uint64_t limit = (uint64_t)INT64_MAX + is_negative;
+    if (result > limit) {
+        return 0;
+    }
     /* A decimal at a time: rest * 10^decimals would not fit. */
     for (int32_t i = 0; i < decimals; i++) {
-        /* A divisor past a tenth of 64 bits: both halved until rest * 10 fits, the ratio kept. */
-        while (rest > UINT64_MAX / DECIMAL_BASE) {
-            rest >>= 1;
-            divisor >>= 1;
+        /* Add the remainder ten times without overflowing or discarding bits. */
+        uint64_t next_rest = 0;
+        uint64_t digit = 0;
+        for (int32_t count = 0; count < DECIMAL_BASE; count++) {
+            if (next_rest >= divisor - rest) {
+                next_rest -= divisor - rest;
+                digit++;
+            } else {
+                next_rest += rest;
+            }
         }
-        rest *= DECIMAL_BASE;
-        result = result * DECIMAL_BASE + rest / divisor;
-        rest %= divisor;
+        if (result > (limit - digit) / DECIMAL_BASE) {
+            return 0;
+        }
+        result = result * DECIMAL_BASE + digit;
+        rest = next_rest;
     }
     if (rest >= divisor - rest) {
+        if (result == limit) {
+            return 0;
+        }
         result++;
     }
-    return (part < 0) != (whole < 0) ? -(int64_t)result : (int64_t)result;
+    /* The negative endpoint has no positive signed counterpart to negate. */
+    if (is_negative && result == (uint64_t)INT64_MAX + 1) {
+        return INT64_MIN;
+    }
+    return is_negative ? -(int64_t)result : (int64_t)result;
 }
 
 /* Appends the digits of `number`, at least `width` of them. */

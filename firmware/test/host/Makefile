@@ -103,6 +103,7 @@ test: $(TESTS) $(if $(WASI_SDK_PATH),check-abi)
 	@$(TOOLS) check-languages
 	@$(TOOLS) check-layers ../..
 	@$(TOOLS) cities --check && echo "cities.h is what cities.json makes"
+	@$(MAKE) -C ../../../tools/simulator test
 
 test_json_tree: test_json_tree.c tinytest.h $(APPSTORE)/json_tree.c $(APPSTORE)/include/json_tree.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -o $@ test_json_tree.c $(APPSTORE)/json_tree.c

@@ -373,6 +373,13 @@ typedef struct job {
     int         number; /* the poll's index, or the request's tag */
     int         method;
     char        url[APP_URL_MAX + 1];
+    uint64_t    generation;
+    char       *manifest;
+    json_t     *host_values;
+    app_header_t header_templates[APP_HEADERS_MAX];
+    int         header_count;
+    char        each_key[APP_SETTING_KEY_MAX + 1];
+    char        each_value[APP_SETTING_VALUE_MAX + 1];
     char       *headers; /* "Name: value\n" each */
     uint8_t    *body;
     size_t      body_length;
@@ -392,6 +399,9 @@ static pthread_mutex_t s_jobs_lock = PTHREAD_MUTEX_INITIALIZER;
 static int             s_requests_waiting; /* of the application's own: HOST_HTTP_PENDING_MAX */
 static pthread_cond_t  s_jobs_waiting = PTHREAD_COND_INITIALIZER;
 static job_t          *s_jobs_asked;
+static job_t          *s_jobs_pending; /* owned by the main event loop */
+static bool            s_job_active;
+static uint64_t        s_generation;
 static int             s_jobs_done[2]; /* a pipe: the thread writes a finished job's pointer */
 static json_t         *s_mocks;
 static char            s_mocks_folder[PATH_BYTES];
@@ -607,8 +617,8 @@ static void exchange(job_t *job, char *next, size_t next_size)
     /* The application's own certificate authorities, as files: trusted for its requests beside
      * the computer's, as on the device. */
     char files[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
-    int  trusted = s_manifest_json != NULL
-                       ? app_manifest_certificates(s_manifest_json, files, MANIFEST_CERTIFICATES_MAX)
+    int  trusted = job->manifest != NULL
+                       ? app_manifest_certificates(job->manifest, files, MANIFEST_CERTIFICATES_MAX)
                        : 0;
     if (trusted > 0) {
         json_t *trust = json_new_array();
@@ -675,6 +685,15 @@ static void exchange(job_t *job, char *next, size_t next_size)
 
 #define REDIRECTS_MAX 3
 
+static bool job_setting(void *context, const char *key, char *value, size_t value_size)
+{
+    const job_t *job = context;
+    const json_t *stored = json_get(job->host_values, key);
+    return json_is_string(stored) && snprintf(value, value_size, "%s", stored->text) < (int)value_size;
+}
+
+static void free_job(job_t *job);
+
 /* A request as the device makes it (poller_net.c): a GET that is answered with a redirect is
  * asked again where it says, three times at most; one with a body is not sent twice. A
  * request of the application's own stays inside its manifest's "hosts", and the headers it
@@ -698,7 +717,7 @@ static void fetch(job_t *job)
         }
         bool is_refused = next[0] == '\x01';
         if (!is_refused && !app_manifest_is_same_host(first, next)) {
-            is_refused = !job->is_poll && !app_manifest_allows_url(s_manifest_json, next, setting_of, NULL);
+            is_refused = !job->is_poll && !app_manifest_allows_url(job->manifest, next, job_setting, job);
             free(job->headers);
             job->headers = NULL;
         }
@@ -731,7 +750,7 @@ static void *network_thread(void *unused)
         pthread_mutex_unlock(&s_jobs_lock);
         fetch(job);
         if (write(s_jobs_done[1], &job, sizeof job) != (ssize_t)sizeof job) {
-            free(job);
+            free_job(job);
         }
     }
     return NULL;
@@ -740,22 +759,98 @@ static void *network_thread(void *unused)
 /* One at a time for the whole device, as the device asks them. */
 static void ask(job_t *job)
 {
-    pthread_mutex_lock(&s_jobs_lock);
-    job_t **last = &s_jobs_asked;
+    job->generation = s_generation;
+    job_t **last = &s_jobs_pending;
     while (*last != NULL) {
         last = &(*last)->next;
     }
     *last = job;
-    pthread_cond_signal(&s_jobs_waiting);
-    pthread_mutex_unlock(&s_jobs_lock);
 }
 
 static void free_job(job_t *job)
 {
+    free(job->manifest);
+    json_free(job->host_values);
     free(job->headers);
     free(job->body);
     free(job->answer);
     free(job);
+}
+
+static void reset_jobs(void)
+{
+    s_generation++;
+    while (s_jobs_pending != NULL) {
+        job_t *job = s_jobs_pending;
+        s_jobs_pending = job->next;
+        free_job(job);
+    }
+    s_requests_waiting = 0;
+}
+
+static void add_header(char **headers, const char *name, const char *value);
+
+/* Settings saves and application writes cannot interleave with preparation here. */
+static void prepare_job(job_t *job)
+{
+    job->manifest = strdup(s_manifest_json);
+    job->host_values = json_new_object();
+    json_t *root = json_parse(job->manifest);
+    const json_t *setting;
+    json_for_each(setting, json_get(root, "settings")) {
+        const json_t *key = json_get(setting, "key");
+        char value[APP_SETTING_VALUE_MAX + 1];
+        if (json_is_string(key) && setting_of(NULL, key->text, value, sizeof value)) {
+            json_add_string(job->host_values, key->text, value);
+        }
+    }
+    json_free(root);
+    list_item_t each = { .key = job->each_key, .item = job->each_value };
+    if (job->is_poll) {
+        char url[APP_URL_MAX + 1];
+        if (!text_template_fill_url(job->url, setting_of,
+                                   job->each_key[0] != '\0' ? &each : NULL, url, sizeof url) ||
+            url[0] == '\0') {
+            job->status = HOST_FAILED_NOT_READY;
+            return;
+        }
+        snprintf(job->url, sizeof job->url, "%s", url);
+    }
+    if (!job->is_poll && !app_manifest_allows_url(job->manifest, job->url, job_setting, job)) {
+        job->status = HOST_FAILED_NOT_ALLOWED;
+        return;
+    }
+    for (int i = 0; i < job->header_count; i++) {
+        char value[APP_HEADER_VALUE_MAX + 1];
+        if (!text_template_fill(job->header_templates[i].value, setting_of,
+                                job->each_key[0] != '\0' ? &each : NULL, value, sizeof value) ||
+            strpbrk(value, "\r\n") != NULL) {
+            job->status = HOST_FAILED_NOT_READY;
+            return;
+        }
+        add_header(&job->headers, job->header_templates[i].name, value);
+    }
+}
+
+static void dispatch_job(void)
+{
+    if (s_job_active || s_jobs_pending == NULL) {
+        return;
+    }
+    job_t *job = s_jobs_pending;
+    s_jobs_pending = job->next;
+    job->next = NULL;
+    prepare_job(job);
+    s_job_active = true;
+    pthread_mutex_lock(&s_jobs_lock);
+    s_jobs_asked = job;
+    pthread_cond_signal(&s_jobs_waiting);
+    pthread_mutex_unlock(&s_jobs_lock);
+}
+
+static bool accepts_job(const job_t *job)
+{
+    return job->generation == s_generation;
 }
 
 /* An answer to the application, as the device gives one: the values it
@@ -763,7 +858,7 @@ static void free_job(job_t *job)
 static void hand_over(job_t *job)
 {
     if (job->status == HOST_FAILED_NOT_ALLOWED) {
-        say('W', "sim", "%s: redirected to a host its manifest does not list", s_options.app);
+        say('W', "sim", "%s: a request to a host its manifest does not list", s_options.app);
     }
     bool failed = job->status == HOST_FAILED_NO_NETWORK || job->status == HOST_FAILED_NO_ANSWER ||
                   job->status == HOST_FAILED_TIMEOUT;
@@ -857,22 +952,13 @@ static void start_poll_request(const app_poll_t *poll, int number, const list_it
     job->wants_values = poll->pick_count > 0;
     job->pick_count = poll->pick_count;
     memcpy(job->pick, poll->pick, sizeof poll->pick);
-    bool is_ready = text_template_fill_url(poll->url, setting_of, (void *)each, job->url,
-                                           sizeof job->url);
-    for (int i = 0; is_ready && i < poll->header_count; i++) {
-        char value[APP_HEADER_VALUE_MAX + 1];
-        is_ready = text_template_fill(poll->headers[i].value, setting_of, (void *)each, value,
-                                      sizeof value) &&
-                   strpbrk(value, "\r\n") == NULL;
-        if (is_ready) {
-            add_header(&job->headers, poll->headers[i].name, value);
-        }
-    }
-    if (!is_ready) {
-        job->status = HOST_FAILED_NOT_READY;
-        hand_over(job);
-        free_job(job);
-        return;
+    /* Poll destinations and credentials must use the same settings at send time. */
+    snprintf(job->url, sizeof job->url, "%s", poll->url);
+    job->header_count = poll->header_count;
+    memcpy(job->header_templates, poll->headers, sizeof job->header_templates);
+    if (each != NULL) {
+        snprintf(job->each_key, sizeof job->each_key, "%s", each->key);
+        snprintf(job->each_value, sizeof job->each_value, "%s", each->item);
     }
     ask(job);
 }
@@ -1030,15 +1116,9 @@ static int32_t services_request(const char *app_name, const app_request_t *reque
     job->item = -1;
     job->method = request->method;
     snprintf(job->url, sizeof job->url, "%s", url);
-    for (int i = 0; i < request->header_count; i++) {
-        char value[APP_HEADER_VALUE_MAX + 1];
-        if (!text_template_fill(request->headers[i].value, setting_of, NULL, value, sizeof value) ||
-            strpbrk(value, "\r\n") != NULL) {
-            job->status = HOST_FAILED_NOT_READY;
-            break;
-        }
-        add_header(&job->headers, request->headers[i].name, value);
-    }
+    job->header_count = request->header_count;
+    memcpy(job->header_templates, request->headers,
+           (size_t)request->header_count * sizeof job->header_templates[0]);
     if (request->body_length > 0) {
         job->body = malloc((size_t)request->body_length);
         memcpy(job->body, request->body, (size_t)request->body_length);
@@ -1405,6 +1485,7 @@ static bool load_app(void)
          * leaves no row that opens the scene just freed. */
         s_menu = scene_menu(&s_menu_entry, 0);
     }
+    reset_jobs();
     free(s_manifest_json);
     s_manifest_json = app_store_read_manifest(s_options.apps, s_options.app);
     if (s_manifest_json == NULL) {
@@ -2115,6 +2196,7 @@ int main(int argc, char **argv)
             answer_due(&due);
         }
         show();
+        dispatch_job();
         int64_t nearest = deadline_table_nearest(&s_deadlines);
         int64_t wait_ms = nearest == DEADLINE_NONE ? WAIT_MAX_MS : nearest - monotonic_ms();
         if (wait_ms > WAIT_MAX_MS) wait_ms = WAIT_MAX_MS;
@@ -2132,7 +2214,10 @@ int main(int argc, char **argv)
         if (FD_ISSET(s_jobs_done[0], &ready)) {
             job_t *job;
             if (read(s_jobs_done[0], &job, sizeof job) == (ssize_t)sizeof job) {
-                hand_over(job);
+                s_job_active = false;
+                if (accepts_job(job)) {
+                    hand_over(job);
+                }
                 free_job(job);
             }
         }

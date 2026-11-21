@@ -233,7 +233,8 @@ object PublisherTest {
             fails { fixture.publish() }
             check(fixture.pushes == 0 && fixture.head() == head)
         }
-        val official = Fixture(repository = ManifestAuthor.OFFICIAL_REPOSITORY)
+        check(ManifestAuthor.OFFICIAL_REPOSITORY == "Perinkpheral/perinkpheral-apps")
+        val official = Fixture(repository = "Perinkpheral/perinkpheral-apps")
         official.author = ManifestAuthor.OFFICIAL
         check(official.publish().changed)
         check(official.file("catalog/clock/manifest.json").contains(ManifestAuthor.OFFICIAL))
