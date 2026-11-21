@@ -4,6 +4,18 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## next
+
+- An application's handler is stopped at 3 seconds also when it spends them in calls to
+  Perinkpheral OS: the clock is looked at after every call, not once in a thousand of them.
+- An application that loops while it loads is stopped once, not given a second 3 seconds.
+- An application that writes files cannot rewrite its manifest's translations or the
+  certificate authorities its manifest names.
+- One application whose translation cannot be read is left out of the page's list of
+  installed applications instead of emptying it.
+- A notice posted while a long BACK leaves an application waits for the next press, as
+  notices that were showing already did, and does not open over the menu.
+
 ## 0.1.77
 
 - BACK held with UP or DOWN switches applications even when the whole chord is made while the

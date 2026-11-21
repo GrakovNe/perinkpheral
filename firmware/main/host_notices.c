@@ -151,6 +151,13 @@ void host_notices_note_press(void)
     s_is_held_by_user = false;
 }
 
+/* Whether or not a notice was showing: one posted by app_on_blur or
+ * app_on_terminate on the way home would otherwise open over the menu. */
+void host_notices_note_home_press(void)
+{
+    s_is_held_by_user = true;
+}
+
 /* The one that was dismissed leaves, and the next one that waits is shown. */
 static void process_notifications(void)
 {
