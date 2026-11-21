@@ -191,7 +191,7 @@ static const scene_button_t BUTTON_ROLE[] = {
     SCENE_BUTTON_UP, SCENE_BUTTON_OK, SCENE_BUTTON_DOWN, SCENE_BUTTON_BACK,
 };
 
-static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_ms)
+static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_ms, uint32_t seq)
 {
     static const scene_press_t SCENE_PRESS_OF[] = {
         [EVENT_PRESS_DOWN] = SCENE_PRESS_DOWN,
@@ -214,16 +214,25 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
      * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
+    static uint32_t            s_back_held_since; /* the seq of the BACK down the hold began with */
     /* The queue of presses is short and drops what does not fit: BACK's release among it. A
-     * hold whose release was dropped is ended here, or the long BACK would never come and UP and
-     * DOWN would switch applications until BACK went down again. Only a dropped release: one
-     * still waiting in the queue ends the hold in its turn, and a chord made faster than the
-     * loop takes it stays a chord. */
-    if (events_take_release_dropped(BUTTON_BACK_INDEX) && s_back_switch.back_is_held) {
-        ESP_LOGW(TAG, "BACK's release was lost: the hold is ended");
-        if (back_switch_release_lost(&s_back_switch)) {
-            wm_button(wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+     * hold whose release was dropped is ended, or the long BACK would never come and UP and DOWN
+     * would switch applications until BACK went down again - but only at the first event posted
+     * after that release, when everything queued before it has had its turn (a chord made faster
+     * than the loop takes it stays a chord), and only a hold that began before it (a release
+     * dropped by one task and told late must not end a newer hold). */
+    uint32_t dropped = events_dropped_release(BUTTON_BACK_INDEX);
+    if (dropped != 0 && (int32_t)(seq - dropped) > 0) {
+        if (s_back_switch.back_is_held && (int32_t)(s_back_held_since - dropped) < 0) {
+            ESP_LOGW(TAG, "BACK's release was lost: the hold is ended");
+            if (back_switch_release_lost(&s_back_switch)) {
+                wm_button(wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
+            }
         }
+        events_forget_dropped_release(BUTTON_BACK_INDEX, dropped);
+    }
+    if (index == BUTTON_BACK_INDEX && press == EVENT_PRESS_DOWN) {
+        s_back_held_since = seq;
     }
     back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press],
                                             wm->current != wm->home);
@@ -687,7 +696,7 @@ void host_run(void)
         const scene_t *scene_before = host_wm.current;
         switch (event.kind) {
         case EVENT_BUTTON:
-            on_button(&host_wm, event.button.index, event.button.press, event.button.at_ms);
+            on_button(&host_wm, event.button.index, event.button.press, event.button.at_ms, event.button.seq);
             break;
         case EVENT_DEADLINES:
             answer_deadlines();

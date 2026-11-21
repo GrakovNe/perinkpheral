@@ -66,41 +66,25 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_panic_handler")
 # needs a checkout of the catalog repository (PERINKPHERAL_APPS).
 set(repo_dir "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(apps_image_dir "${CMAKE_BINARY_DIR}/apps_image")
-set(preinstalled_done "")
 if(NOT CONFIG_APP_BUNDLE_APPS)
-    # Or the applications of an earlier build would still be packed. The stamp goes with them, or
-    # turned on again the image would be taken for made and packed empty.
+    # Or the applications of an earlier build would still be packed.
     file(REMOVE_RECURSE "${apps_image_dir}")
-    file(REMOVE "${CMAKE_BINARY_DIR}/preinstalled.done")
 endif()
 file(MAKE_DIRECTORY "${apps_image_dir}")
 if(CONFIG_APP_BUNDLE_APPS)
-    # A stamp beside an empty image is no image made.
-    file(GLOB packed_apps "${apps_image_dir}/*")
-    if(NOT packed_apps)
-        file(REMOVE "${CMAKE_BINARY_DIR}/preinstalled.done")
-    endif()
     get_filename_component(preinstalled_list "${CMAKE_CURRENT_LIST_DIR}/../preinstalled.properties" ABSOLUTE)
-    # Beside the image's folder, not in it: whatever is in it is flashed.
-    set(preinstalled_done "${CMAKE_BINARY_DIR}/preinstalled.done")
     idf_build_get_property(firmware_version PROJECT_VER)
-    # What the command holds the packages to: the device's limits and the tool itself.
-    file(GLOB_RECURSE preinstalled_inputs CONFIGURE_DEPENDS "${repo_dir}/tools/core/src/main/*" "${repo_dir}/tools/cli/src/main/*")
-    list(APPEND preinstalled_inputs "${preinstalled_list}" "${partitions_csv}"
-         "${repo_dir}/sdk/lib/manifest_limits.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.h" "${CMAKE_CURRENT_LIST_DIR}/app_code.c"
-         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/catalog.h"
-         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_room.h"
-         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/include/app_abi.h"
-         "${CMAKE_CURRENT_LIST_DIR}/../components/appstore/app_store.c")
-    add_custom_command(OUTPUT "${preinstalled_done}"
-                       COMMAND "${repo_dir}/tools/perinkpheral" preinstalled build "${preinstalled_list}"
-                               --out "${apps_image_dir}" --cache "${CMAKE_BINARY_DIR}/preinstalled_cache"
-                               --firmware "${firmware_version}"
-                       COMMAND "${CMAKE_COMMAND}" -E touch "${preinstalled_done}"
-                       DEPENDS ${preinstalled_inputs}
-                       VERBATIM)
+    # Run at every build, with no stamp: the folder is made anew from the cache and every file
+    # checked again, so an image is never packed from a folder that something emptied or changed
+    # after a stamp said it was made. From the cache it takes a moment and no network.
+    add_custom_target(preinstalled_apps
+                      COMMAND "${repo_dir}/tools/perinkpheral" preinstalled build "${preinstalled_list}"
+                              --out "${apps_image_dir}" --cache "${CMAKE_BINARY_DIR}/preinstalled_cache"
+                              --firmware "${firmware_version}"
+                      VERBATIM)
+else()
+    add_custom_target(preinstalled_apps)
 endif()
-add_custom_target(preinstalled_apps DEPENDS ${preinstalled_done})
 
 # The system applications in firmware/system are built with the SDK
 # (tools/perinkpheral build) and are part of the firmware itself: an update

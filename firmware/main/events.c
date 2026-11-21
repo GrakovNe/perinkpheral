@@ -27,9 +27,11 @@ static QueueHandle_t    s_input;
 static QueueSetHandle_t s_either;
 static volatile uint32_t s_dropped;
 static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
-/* A release the full queue could not take, a bit a button: the host loop ends the hold it ended.
- * Only a dropped release counts - one still waiting in the queue is not lost. */
-static atomic_uint s_releases_dropped;
+/* Buttons' events are numbered as they are posted, so that the host loop can tell what came
+ * before a release the full queue dropped from what came after it. 0 is "none". */
+#define DROPPABLE_BUTTONS 4
+static atomic_uint s_button_seq = 1;
+static atomic_uint s_dropped_release[DROPPABLE_BUTTONS];
 
 void events_start(void)
 {
@@ -71,17 +73,26 @@ void events_post_button(uint8_t index, event_press_t press)
     event_t event = { .kind = EVENT_BUTTON,
                       .button = { .index = index, .press = press,
                                   .at_ms = esp_timer_get_time() / US_PER_MS } };
-    if (!events_post(&event) && press == EVENT_PRESS_UP && index < 32) {
-        atomic_fetch_or(&s_releases_dropped, 1u << index);
+    event.button.seq = atomic_fetch_add(&s_button_seq, 1);
+    if (event.button.seq == 0) { /* wrapped: 0 is "none" */
+        event.button.seq = atomic_fetch_add(&s_button_seq, 1);
+    }
+    if (!events_post(&event) && press == EVENT_PRESS_UP && index < DROPPABLE_BUTTONS) {
+        atomic_store(&s_dropped_release[index], event.button.seq);
     }
 }
 
-bool events_take_release_dropped(uint8_t index)
+uint32_t events_dropped_release(uint8_t index)
 {
-    if (index >= 32) {
-        return false;
+    return index < DROPPABLE_BUTTONS ? atomic_load(&s_dropped_release[index]) : 0;
+}
+
+void events_forget_dropped_release(uint8_t index, uint32_t seq)
+{
+    if (index < DROPPABLE_BUTTONS) {
+        unsigned expected = seq;
+        atomic_compare_exchange_strong(&s_dropped_release[index], &expected, 0);
     }
-    return (atomic_fetch_and(&s_releases_dropped, ~(1u << index)) & (1u << index)) != 0;
 }
 
 typedef struct {
