@@ -7,7 +7,7 @@ shows what the row expects.
 
 Write the result of every row: `ok`, `fail` with what was seen, or `skip` with the reason.
 A photograph of the panel is the evidence for a `fail`. Results of a completed pass go in
-a dated record beside this file, as [acceptance-2026-11-18.md](acceptance-2026-11-18.md) did.
+a dated record beside this file, as [acceptance-2026-11-20.md](acceptance-2026-11-20.md) does.
 
 ## Candidate
 

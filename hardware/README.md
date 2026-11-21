@@ -1,6 +1,6 @@
 # Hardware notes
 
-Everything learned about the panel and the board on the bench: the working driver sequence, the pitfalls, the panel's limits and the sources. Parts, wiring and assembly are documented on the [Hardware page](https://perinkpheral.dev/hardware). [Print files](https://perinkpheral.dev/hardware/print) come from [step/rev1](step/rev1/); the [exporter](../tools/case/README.md) checks their geometry. Unimplemented mechanical ideas belong in [concepts](concepts/README.md). The driver is [epd.c](../firmware/components/epd/epd.c).
+Everything learned about the panel and the board on the bench: the working driver sequence, the pitfalls, the panel's limits and the sources. Parts, wiring and assembly are documented on the [Hardware page](https://perinkpheral.dev/hardware). [Print files](https://perinkpheral.dev/hardware/print) come from [step/rev1](step/rev1/); the [exporter](../tools/case/README.md) checks their geometry. The driver is [epd.c](../firmware/components/epd/epd.c).
 
 ## What has been verified
 - Full refresh: the image settles in a single pass, BUSY releases after 2190 ms.
