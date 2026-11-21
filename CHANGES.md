@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.74
+
+- The log no longer reports a lost network when power saving turns the radio off; a joined or
+  lost network is logged with its access point and signal, and the status has the signal.
+
 ## 0.1.73
 
 - A device flashed from scratch comes with Weather, Clock, ISS, Calendar, Timer, Stopwatch,

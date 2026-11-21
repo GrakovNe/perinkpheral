@@ -49,6 +49,9 @@ static struct {
     QueueHandle_t      events;
     bool               access_point_up;
     bool               radio_off; /* the Wi-Fi task's alone */
+    /* radio_off as the ESP event task may read it: the disconnect that
+     * stopping the radio brings is ours, not a lost network. */
+    atomic_bool        radio_stopped;
     /* Scan holds this while driver work is in progress, delaying retries and
      * power changes without blocking the ESP event task that completes scans. */
     SemaphoreHandle_t driver_lock;
@@ -109,6 +112,9 @@ static void remember_where_found(void)
     if (esp_wifi_sta_get_ap_info(&found) != ESP_OK) {
         return;
     }
+    ESP_LOGI(TAG, "joined \"%s\" at %02x:%02x:%02x:%02x:%02x:%02x, channel %d, %d dBm%s", s_wifi.ssid,
+             found.bssid[0], found.bssid[1], found.bssid[2], found.bssid[3], found.bssid[4],
+             found.bssid[5], found.primary, found.rssi, s_is_looking_in_one_place ? ", as last time" : "");
     memcpy(s_found_at.access_point, found.bssid, sizeof s_found_at.access_point);
     s_found_at.channel = found.primary;
     strlcpy(s_found_at.ssid, s_wifi.ssid, sizeof s_found_at.ssid);
@@ -124,8 +130,8 @@ static void on_got_address(void *arg, esp_event_base_t base, int32_t id, void *d
     xSemaphoreTake(s_wifi.lock, portMAX_DELAY);
     esp_ip4addr_ntoa(&got->ip_info.ip, s_wifi.address, sizeof s_wifi.address);
     xSemaphoreGive(s_wifi.lock);
-    s_is_looking_in_one_place = false;
     remember_where_found();
+    s_is_looking_in_one_place = false;
     post(WIFI_EVENT_CONNECTED);
 }
 
@@ -135,7 +141,16 @@ static void on_station_disconnected(void *arg, esp_event_base_t base, int32_t id
     (void)base;
     (void)id;
     const wifi_event_sta_disconnected_t *lost = data;
-    ESP_LOGW(TAG, "not connected to \"%s\", reason %d", s_wifi.ssid, lost->reason);
+    if (atomic_load(&s_wifi.radio_stopped)) {
+        ESP_LOGI(TAG, "radio off to save power");
+    } else {
+        /* The access point and the signal it was last heard at: which of a
+         * mesh's points dropped the device, and how far away it was. */
+        ESP_LOGW(TAG, "not connected to \"%s\", reason %d, %02x:%02x:%02x:%02x:%02x:%02x, %d dBm%s",
+                 s_wifi.ssid, lost->reason, lost->bssid[0], lost->bssid[1], lost->bssid[2],
+                 lost->bssid[3], lost->bssid[4], lost->bssid[5], lost->rssi,
+                 s_is_looking_in_one_place ? ", as last time" : "");
+    }
     if (s_is_looking_in_one_place) {
         /* Not there any more - another channel, another access point. */
         s_is_looking_in_one_place = false;
@@ -299,6 +314,7 @@ static void handle_event(wifi_plan_event_t event)
         if (!s_wifi.radio_off && s_wifi.plan.has_network &&
             !wifi_phase_has_access_point(s_wifi.plan.phase)) {
             s_wifi.radio_off = true;
+            atomic_store(&s_wifi.radio_stopped, true);
             s_wifi.connecting = false;
             deadlines_cancel(DEADLINE_WIFI_RETRY, 0, 0);
             esp_wifi_stop();
@@ -309,6 +325,7 @@ static void handle_event(wifi_plan_event_t event)
     if (event == RADIO_ON_ASKED) {
         if (s_wifi.radio_off) {
             s_wifi.radio_off = false;
+            atomic_store(&s_wifi.radio_stopped, false);
             /* A new run of attempts: the old failures are not counted. */
             wifi_plan_init(&s_wifi.plan, true, false);
             esp_wifi_start(); /* and the radio says when it has started */
@@ -438,6 +455,14 @@ void wifi_get_status(wifi_status_t *status)
     status->was_reached = s_wifi.was_reached;
     strlcpy(status->address, s_wifi.address, sizeof status->address);
     xSemaphoreGive(s_wifi.lock);
+}
+
+bool wifi_signal(int *rssi)
+{
+    if (!wifi_is_online()) {
+        return false;
+    }
+    return esp_wifi_sta_get_rssi(rssi) == ESP_OK;
 }
 
 void wifi_set_radio(bool on)

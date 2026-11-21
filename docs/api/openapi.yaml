@@ -88,6 +88,7 @@ components:
         wifi: { type: string, enum: [online, connecting, setup, rescue, off], description: "off: Wi-Fi turned off by forgetting the network; this API is not reachable then" }
         ssid: { type: string }
         address: { type: string }
+        rssi: { type: integer, description: "The signal of the access point the device is on, in dBm; absent when it is on none" }
         tz: { type: string, description: POSIX TZ string }
         time: { type: string, description: "Local time, when known" }
         hostname: { type: string }
