@@ -14,8 +14,11 @@
 _Alignas(uint32_t) static uint8_t flash[4 * 4096];
 static const esp_partition_t partition = { sizeof flash };
 static int erases;
+static size_t last_erased;
 static const char *stat_failure, *rename_failure, *open_failure;
 static bool read_failure, erase_failure;
+/* The power goes as a module's mark is about to be written: nothing more reaches the flash. */
+static bool cuts_before_mark, is_cut;
 
 const esp_partition_t *esp_partition_find_first(int type, int subtype, const char *label)
 {
@@ -35,11 +38,12 @@ esp_err_t esp_partition_erase_range(const esp_partition_t *part, size_t offset, 
 {
     (void)part;
     CHECK(offset + size <= sizeof flash);
-    if (erase_failure) {
+    if (erase_failure || is_cut) {
         return ESP_FAIL;
     }
     memset(flash + offset, 0xff, size);
     erases++;
+    last_erased = offset;
     return ESP_OK;
 }
 
@@ -47,6 +51,10 @@ esp_err_t esp_partition_write(const esp_partition_t *part, size_t offset, const 
 {
     (void)part;
     CHECK(offset + size <= sizeof flash);
+    is_cut = is_cut || (cuts_before_mark && offset % 4096 == 0); /* a module's mark begins a sector */
+    if (is_cut) {
+        return ESP_FAIL;
+    }
     memcpy(flash + offset, bytes, size);
     return ESP_OK;
 }
@@ -202,6 +210,48 @@ int main(void)
     CHECK(!app_store_is_ready(root, "clock"));
     stat_failure = NULL;
     CHECK(app_store_remove(root, "clock"));
+
+    /* A module cut short before its mark carries, where its second sector
+     * begins, the header of a module named as another application. It is
+     * never taken for that application's, and the next adoption erases it. */
+    seed_code(3);
+    CHECK(mkdir(folder, 0700) == 0);
+    char donor[128], donor_module[128];
+    snprintf(donor, sizeof donor, "%s/donor", root);
+    snprintf(donor_module, sizeof donor_module, "%s/donor/app.wasm", root);
+    CHECK(mkdir(donor, 0700) == 0);
+    static uint8_t body[4100];
+    memset(body, 'd', sizeof body);
+    slot_header_t fake = { .magic = SLOT_MAGIC, .size = 4 };
+    strcpy(fake.name, "clock");
+    size_t at_second = SECTOR_BYTES - sizeof(slot_header_t);
+    memcpy(body + at_second, &fake, sizeof fake);
+    memcpy(body + at_second + sizeof fake, "evil", 4);
+    FILE *output = fopen(donor_module, "wb");
+    CHECK(output != NULL && fwrite(body, 1, sizeof body, output) == sizeof body && fclose(output) == 0);
+    cuts_before_mark = true;
+    app_code_adopt(root);
+    cuts_before_mark = is_cut = false;
+    CHECK(header_at(0)->magic != SLOT_MAGIC && header_at(1)->magic == SLOT_MAGIC);
+    app_code_start(); /* the next start */
+    const uint8_t *code = app_code_find(root, "clock", &size);
+    CHECK(code != NULL && size == 4 && memcmp(code, "old!", 4) == 0);
+    CHECK(app_code_free_bytes() == SECTOR_BYTES); /* the cut piece's two sectors are not free yet */
+    erases = 0;
+    app_code_adopt(root);
+    code = app_code_find(root, "clock", &size);
+    CHECK(code != NULL && size == 4 && memcmp(code, "old!", 4) == 0);
+    code = app_code_find(root, "donor", &size);
+    CHECK(code != NULL && size == sizeof body && memcmp(code, body, sizeof body) == 0);
+    CHECK(access(donor_module, F_OK) != 0);
+    /* Forgotten, a piece loses its first sector last: its header covers the rest until then. */
+    CHECK(rmdir(donor) == 0);
+    erases = 0;
+    app_code_adopt(root);
+    CHECK(erases == 2 && last_erased == 0 && app_code_find(root, "donor", &size) == NULL);
+    CHECK(header_at(1)->magic != SLOT_MAGIC);
+    CHECK(memcmp(app_code_find(root, "clock", &size), "old!", 4) == 0);
+    CHECK(rmdir(folder) == 0);
     CHECK(rmdir(root) == 0);
     REPORT();
 }
