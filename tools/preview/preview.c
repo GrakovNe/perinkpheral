@@ -114,8 +114,8 @@ int main(int argc, char **argv)
     }
 
     /* A list longer than the screen: at its start, in the middle, at its end. */
-    const char *many[] = { "Weather", "Clock", "Timer", "Hello", "Bad Apple",
-                           "Settings", "About", "Calendar", "Plex", "Stars" };
+    const char *many[] = { "Weather", "Clock", "Timer", "Stocks", "donut.c",
+                           "Settings", "About", "Calendar", "Air quality", "Stopwatch" };
     const int selections[] = { 0, 5, 9 };
     const char *const names[] = { "menu-scroll-start", "menu-scroll-middle", "menu-scroll-end" };
     for (int shot = 0; shot < 3; shot++) {
