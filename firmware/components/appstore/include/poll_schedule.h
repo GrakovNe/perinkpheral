@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "app_manifest.h"
+#include "catalog.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,13 +20,18 @@ extern "C" {
  * is a deadline like any other, and this says only how far the next one
  * is. Pure, host-tested. */
 
-#define POLL_SCHEDULE_MAX 32
+/* Every poll of the most applications a device holds: one left out would
+ * never run, with nothing to say so. */
+#define POLL_SCHEDULE_MAX (CATALOG_INSTALLED_MAX * APP_POLLS_MAX)
 
 typedef struct {
     int      app;      /* whose poll: the application's id, as the caller has it */
     int      poll;     /* its number in that application's manifest */
     uint32_t every_ms;
     bool     is_wanted;    /* its time has come, or somebody asked for it */
+    /* A poll_run() was put off to keep the pace of such calls: the run
+     * under way must not set this poll a whole period away when it ends. */
+    bool     is_due_soon;
     uint32_t wanted_order; /* of several that are wanted the first to be goes first */
 } poll_entry_t;
 
@@ -91,8 +97,18 @@ void poll_schedule_want_all(poll_schedule_t *schedule);
 /* The poll to ask next, or NULL when none is wanted. */
 const poll_entry_t *poll_schedule_next_wanted(const poll_schedule_t *schedule);
 
-/* The poll was fetched, or failed: it is not wanted any more. */
+/* The poll was taken to be asked: it is not wanted any more, and a
+ * poll_run() put off before it is spent. */
 void poll_schedule_answered(poll_schedule_t *schedule, int app, int poll);
+
+/* A poll_run() of the poll was put off by a moment: its deadline is set
+ * for that, and the run under way leaves it there. False when there is no
+ * such poll. */
+bool poll_schedule_due_soon(poll_schedule_t *schedule, int app, int poll);
+
+/* Whether a poll_run() was put off since the poll was last taken: then the
+ * run that ends does not set its next deadline. */
+bool poll_schedule_is_due_soon(const poll_schedule_t *schedule, int app, int poll);
 
 #ifdef __cplusplus
 }
