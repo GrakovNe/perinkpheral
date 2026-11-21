@@ -481,6 +481,8 @@ static standin_stored_file_t *file_of(const char *name, int32_t length)
     return NULL;
 }
 
+#define WASM_PAGE_BYTES 65536
+
 static int32_t blocks_of(int32_t size)
 {
     return (size + FILE_BLOCK_BYTES - 1) / FILE_BLOCK_BYTES * FILE_BLOCK_BYTES;
@@ -561,7 +563,11 @@ int32_t file_write(const char *name, int32_t name_length, int32_t offset, const 
     standin_t *host = standin();
     if (!standin_subject.writes_files || !is_file_name(name, name_length) || ends_with(name, name_length, ".new") ||
         is_named(name, name_length, "app.wasm") || is_named(name, name_length, "manifest.json") ||
-        offset < 0 || length < 0 || (bytes == NULL && length > 0)) {
+        offset < 0 || length < 0 || (bytes == NULL && length > 0) ||
+        /* The device reads the bytes from the module's page (app_memory_at): no more than it has. */
+        length > WASM_PAGE_BYTES || offset > HOST_FILES_MAX ||
+        /* Nothing written somewhere but at the start is no removal: app_store.c refuses it. */
+        (length == 0 && offset != 0)) {
         return refused_write(HOST_ERR_ARGUMENT, "file_write", name != NULL ? name : "", name != NULL ? name_length : 0, length);
     }
     standin_stored_file_t *file = file_of(name, name_length);
@@ -800,11 +806,18 @@ uint32_t time_boot_id(void)
 
 /* ---- Alarms and timers ---- */
 
+/* A call the device answers HOST_ERR_ARGUMENT: a finding of the timers check. */
+static int32_t refused_timer(const char *call, int32_t id)
+{
+    say(world->refused_timer, "%s(%d, ...) in %s answered HOST_ERR_ARGUMENT", call, id, running());
+    return HOST_ERR_ARGUMENT;
+}
+
 int32_t alarm_set(int32_t id, int32_t seconds)
 {
     standin_t *host = standin();
     if (id < 0 || id >= HOST_ALARM_COUNT || seconds < 0) {
-        return HOST_ERR_ARGUMENT;
+        return refused_timer("alarm_set", id);
     }
     host->alarms[id] = (standin_alarm_t){ .kind = seconds > 0 ? STANDIN_ALARM_IN : STANDIN_ALARM_NONE,
                                            .due_uptime_ms = host->uptime_ms + (int64_t)seconds * MS_PER_SECOND };
@@ -815,7 +828,7 @@ int32_t alarm_set_at(int32_t id, int64_t unix_time)
 {
     standin_t *host = standin();
     if (id < 0 || id >= HOST_ALARM_COUNT || !is_moment(unix_time)) {
-        return HOST_ERR_ARGUMENT;
+        return refused_timer("alarm_set_at", id);
     }
     host->alarms[id] = (standin_alarm_t){ .kind = STANDIN_ALARM_AT, .at = unix_time };
     return HOST_OK;
@@ -826,10 +839,10 @@ int32_t alarm_set_every(int32_t id, int32_t seconds, int32_t first_in)
     standin_t *host = standin();
     if (id < 0 || id >= HOST_ALARM_COUNT || seconds < HOST_ALARM_EVERY_MIN || seconds > HOST_ALARM_EVERY_MAX ||
         first_in < 0 || first_in > HOST_ALARM_EVERY_MAX) {
-        return HOST_ERR_ARGUMENT;
+        return refused_timer("alarm_set_every", id);
     }
     host->alarms[id] = (standin_alarm_t){
-        .kind = STANDIN_ALARM_EVERY, .every = seconds,
+        .kind = STANDIN_ALARM_EVERY, .every = seconds, .first_in = first_in,
         .due_uptime_ms = host->uptime_ms + (int64_t)(first_in > 0 ? first_in : seconds) * MS_PER_SECOND };
     return HOST_OK;
 }
@@ -838,7 +851,7 @@ int32_t timer_set(int32_t id, int32_t milliseconds)
 {
     standin_t *host = standin();
     if (id < 0 || id >= HOST_TIMER_COUNT || milliseconds < 0) {
-        return HOST_ERR_ARGUMENT;
+        return refused_timer("timer_set", id);
     }
     host->timer_due_ms[id] = milliseconds > 0 ? host->uptime_ms + milliseconds : 0;
     host->timer_sets++;
@@ -1754,9 +1767,11 @@ int32_t gfx_font_ascent(int32_t font)
 
 int32_t gfx_set_color(int32_t color)
 {
-    if (!is_frame("gfx_set_color")) {
+    /* In the frame's picture, and no call that puts anything on the surface. */
+    if (!is_measuring("gfx_set_color")) {
         return HOST_ERR_NOT_DRAWING;
     }
+    mix("gfx_set_color", sizeof "gfx_set_color" - 1);
     if (color < HOST_PAPER || color > HOST_INK) {
         return refused_draw("gfx_set_color");
     }
@@ -2625,10 +2640,13 @@ void standin_picked(int32_t poll, int32_t item, int32_t status, const void *body
         json_pick_init(&picked, asked->picks, asked->pick_count);
         json_pick_lists(&picked, picked_lists, sizeof picked_lists);
         /* As poller_net.c reads it: an answer the picker cannot read whole is no answer, whatever
-         * its status; an empty one is a whole document of no values, and keeps its status. */
-        if (json_pick_feed(&picked, body != NULL ? body : "", (size_t)length) && json_pick_finish(&picked)) {
-            has_picked = true;
-        } else {
+         * its status; an empty one is a whole document of no values, and keeps its status. What
+         * was picked before it broke off is handed over all the same (app_values()), for the
+         * application to leave alone. */
+        bool is_whole = json_pick_feed(&picked, body != NULL ? body : "", (size_t)length);
+        is_whole = json_pick_finish(&picked) && is_whole;
+        has_picked = true;
+        if (!is_whole) {
             status = HOST_FAILED_NO_ANSWER;
         }
     }

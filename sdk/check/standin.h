@@ -159,6 +159,7 @@ typedef struct {
     int64_t due_uptime_ms; /* IN and EVERY */
     int64_t at;            /* AT */
     int32_t every;
+    int32_t first_in; /* EVERY: as alarm_set_every() was given it, 0 for a whole period */
 } standin_alarm_t;
 
 typedef struct {
@@ -190,6 +191,7 @@ typedef struct {
     int32_t handler_writes;  /* attempts since the handler began */
     int32_t most_handler_writes;
     char    refused_what[STANDIN_NOTE_BYTES]; /* the first write the limits refused */
+    char    refused_timer[STANDIN_NOTE_BYTES]; /* the first timer or alarm the device refuses */
 
     /* The session: kept while the application is in the stack. */
     uint8_t session[HOST_SESSION_MAX];

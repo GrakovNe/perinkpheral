@@ -98,6 +98,23 @@ object AppCheckTest {
                 "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" +
                 "    static const uint8_t nothing[] = { 0, 1 };\n    gfx_draw_picture(MARGIN, MARGIN, nothing, 1);\n"),
             "gfx_draw_picture() answered HOST_ERR_ARGUMENT"),
+        Break("network", "a value picked from an answer that broke off is kept",
+            listOf("    if (request != 0 || http_status != 200) {" to "    (void)http_status;\n    if (request != 0) {"),
+            "failed with no pieces"),
+        Break("timers", "a timer of an id the device does not have",
+            listOf("#define TICK_TIMER     0" to "#define TICK_TIMER     HOST_TIMER_COUNT"),
+            "timer_set("),
+        Break("drawing", "app_on_draw() chooses a colour and draws nothing",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    gfx_set_color(HOST_INK);\n    return;\n"),
+            "drew nothing"),
+        Break("store", "nothing written at an offset of a file",
+            listOf("    if (event != BTN_OK_PRESSED) {\n" to
+                "    file_write(\"cache\", 5, 0, \"x\", 1);\n    file_write(\"cache\", 5, 1, NULL, 0);\n    if (event != BTN_OK_PRESSED) {\n"),
+            "file_write(\"cache\"", listOf("\"fullscreen\": false," to "\"fullscreen\": false, \"writes_files\": true,")),
+        Break("store", "a write longer than the module's page",
+            listOf("    if (event != BTN_OK_PRESSED) {\n" to
+                "    static char byte;\n    file_write(\"cache\", 5, 0, &byte, 2147483647);\n    if (event != BTN_OK_PRESSED) {\n"),
+            "2147483647 bytes", listOf("\"fullscreen\": false," to "\"fullscreen\": false, \"writes_files\": true,")),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),

@@ -290,11 +290,16 @@ static void deliver(int32_t request, int32_t item, bool is_picked, const char *u
         return;
     }
     if (is_picked) {
-        /* One that fails late is, for the application, one that failed. */
-        if (round->kind == ROUND_FAILED_LATE) {
-            status = HOST_FAILED_NO_ANSWER;
+        /* One that fails late is, for the application, one that failed - with what the picker
+         * read before it broke off: here all of it before its last closing bracket, so that every
+         * value but the one it closes was read and the document is not whole. */
+        int32_t length = answer.length;
+        if (round->kind == ROUND_FAILED_LATE && length > 0) {
+            do {
+                length--;
+            } while (length > 0 && answer.body[length] != '}' && answer.body[length] != ']');
         }
-        standin_picked(request, item, status, answer.body, answer.length);
+        standin_picked(request, item, status, answer.body, length);
         return;
     }
     /* A request with no pieces to give fails the way the round's answers fail. */
@@ -586,7 +591,7 @@ static bool play(const scene_t *scene)
     host->stray_draw[0] = host->refused_draw[0] = host->refused_what[0] = '\0';
     host->most_handler_writes = 0;
     host->is_leaving = false;
-    host->refused_request[0] = '\0';
+    host->refused_request[0] = host->refused_timer[0] = '\0';
     scene_t copy = *scene;
     results[checking].checks++;
     /* Off the screen the scene is told here, and each thing it is given runs in an instance of its own. */
@@ -615,6 +620,9 @@ static bool play(const scene_t *scene)
     }
     if (!scene->is_off_screen && standin_handlers.on_draw != NULL && host->marks[MARK_CALLS] <= BLANK_FRAME) {
         problem(DRAWING, "%s: app_on_draw() drew nothing", told(scene));
+    }
+    if (host->refused_timer[0] != '\0') {
+        problem(TIMERS, "%s: %s", told(scene), host->refused_timer);
     }
     if (host->refused_request[0] != '\0') {
         problem(NETWORK, "%s: %s", told(scene), host->refused_request);
