@@ -385,6 +385,34 @@ static bool is_data_file(const char *file)
            !is_incoming;
 }
 
+/* Files Perinkpheral OS reads as the package gave them: the manifest, its
+ * translations, the certificate authorities the page showed before
+ * installing. Not the application's to rewrite: APP_WRITE_REFUSED. A
+ * manifest that cannot be read or parsed, if only for memory, cannot say
+ * which are its certificates: APP_WRITE_FAILED. */
+static app_write_result_t package_file_check(const char *root, const char *name, const char *file)
+{
+    if (strncmp(file, "manifest.", sizeof "manifest." - 1) == 0) {
+        return APP_WRITE_REFUSED;
+    }
+    char *manifest = app_store_read_manifest(root, name);
+    if (manifest == NULL) {
+        return APP_WRITE_FAILED;
+    }
+    char certificates[MANIFEST_CERTIFICATES_MAX][MANIFEST_FILE_NAME_MAX + 1];
+    int  count = app_manifest_certificates(manifest, certificates, MANIFEST_CERTIFICATES_MAX);
+    free(manifest);
+    if (count < 0) {
+        return APP_WRITE_FAILED;
+    }
+    for (int i = 0; i < count; i++) {
+        if (strcmp(certificates[i], file) == 0) {
+            return APP_WRITE_REFUSED;
+        }
+    }
+    return APP_WRITE_OK;
+}
+
 /* What a file of so many bytes takes of the partition: whole blocks. */
 static long taken_by(long size)
 {
@@ -427,6 +455,10 @@ app_write_result_t app_store_write_file(const char *root, const char *name, cons
     char path[PATH_MAX_BYTES];
     if (offset < 0 || !is_data_file(file) || !file_path_of(path, root, name, file, "")) {
         return APP_WRITE_REFUSED;
+    }
+    app_write_result_t package = package_file_check(root, name, file);
+    if (package != APP_WRITE_OK) {
+        return package;
     }
     long size = app_store_file_size(root, name, file);
     if (length == 0) {

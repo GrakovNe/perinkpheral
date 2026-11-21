@@ -210,6 +210,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
+    /* Not inside the long BACK's notice window: whether this release is the long BACK is known
+     * only below, and a window over every release would hold notices after a chord too. A notice
+     * the answer's owner posts here can show over the menu; it is closed with one press. */
     host_end_background_answer();
     /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
      * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
@@ -243,7 +246,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {
         return;
     }
+    host_notices_note_going_home(is_home_press);
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
+    host_notices_note_going_home(false);
 }
 
 /* How many times the panel was refreshed since start: lets a tool tell a

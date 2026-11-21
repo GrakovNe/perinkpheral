@@ -287,6 +287,37 @@ static void test_install_files(void)
     CHECK(app_store_file_max_bytes(APP_FILE_MANIFEST) < APP_MODULE_MAX_BYTES);
 }
 
+static void test_package_files_are_not_written(void)
+{
+    fresh_root();
+    static const char manifest[] =
+        "{\"name\":\"certs\",\"title\":\"Certs\",\"abi\":3,\"writes_files\":true,"
+        "\"certificates\":[\"root.pem\"]}";
+    write_file("certs", APP_FILE_MANIFEST, manifest, strlen(manifest));
+    write_file("certs", APP_FILE_MODULE, "\0asm", 4);
+    write_file("certs", "root.pem", "-----", 5);
+    /* what Perinkpheral OS reads as the package gave it: its translations, its authorities */
+    CHECK(app_store_write_file(root, "certs", "manifest.ru", 0, "{", 1) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "certs", "manifest.de", 0, "", 0) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "x", 1) == APP_WRITE_REFUSED);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "", 0) == APP_WRITE_REFUSED);
+    CHECK(app_store_file_size(root, "certs", "manifest.ru") < 0);
+    CHECK(app_store_file_size(root, "certs", "root.pem") == 5);
+    /* a file of its own, of any name else, is its own */
+    CHECK(app_store_write_file(root, "certs", "other.pem", 0, "x", 1) == APP_WRITE_OK);
+    CHECK(app_store_write_file(root, "certs", "manifest", 0, "x", 1) == APP_WRITE_OK);
+    /* a manifest that cannot be read cannot say which are its certificates: no write */
+    write_file("certs", APP_FILE_MANIFEST, "{oops", 5);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "", 0) == APP_WRITE_FAILED);
+    CHECK(app_store_write_file(root, "certs", "other.pem", 0, "y", 1) == APP_WRITE_FAILED);
+    CHECK(app_store_file_size(root, "certs", "root.pem") == 5);
+    char gone[APP_STORE_PATH_MAX];
+    snprintf(gone, sizeof gone, "%s/certs/%s", root, APP_FILE_MANIFEST);
+    CHECK(remove(gone) == 0);
+    CHECK(app_store_write_file(root, "certs", "root.pem", 0, "", 0) == APP_WRITE_FAILED);
+    CHECK(app_store_file_size(root, "certs", "root.pem") == 5);
+}
+
 int main(void)
 {
     test_list_is_sorted_by_title();
@@ -295,5 +326,6 @@ int main(void)
     test_read_module();
     test_install_files();
     test_several_files_at_once();
+    test_package_files_are_not_written();
     REPORT();
 }

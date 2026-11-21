@@ -127,9 +127,17 @@ _Static_assert(NOTICE_QUEUE_LINE_BYTES == sizeof(((host_notice_t *)0)->first) &&
 static notice_queue_t s_notices;
 static scene_t       *s_notice_scene;
 
+/* While a long BACK takes the screen home: the scenes leaving it run their last handlers. */
+static bool s_is_going_home;
+static bool s_is_held_by_user;
+
 bool host_notify(const char *first, const char *second, const char *detail, int icon)
 {
-    return notice_queue_add(&s_notices, first, second, detail, icon);
+    bool is_added = notice_queue_add(&s_notices, first, second, detail, icon);
+    if (is_added && s_is_going_home) {
+        s_is_held_by_user = true; /* not over the menu the user asked for */
+    }
+    return is_added;
 }
 
 static void on_notice_seen(void)
@@ -142,13 +150,18 @@ static const char *line_or_none(const char *text)
     return text[0] != '\0' ? text : NULL;
 }
 
-/* The user left a notice with the long press that empties the stack: they want the menu, and
- * the notices that wait are shown at their next press, not over it at once. */
-static bool s_is_held_by_user;
+/* s_is_held_by_user: the user left a notice with the long press that empties the stack, or one
+ * was posted on the way: they want the menu, and the notices that wait are shown at their next
+ * press, not over it at once. */
 
 void host_notices_note_press(void)
 {
     s_is_held_by_user = false;
+}
+
+void host_notices_note_going_home(bool is_going)
+{
+    s_is_going_home = is_going;
 }
 
 /* The one that was dismissed leaves, and the next one that waits is shown. */

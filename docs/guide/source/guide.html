@@ -214,7 +214,7 @@
   <tr><td>Store total</td><td class="n">2048 bytes</td><td>Per application, settings included, counted as stored: 64 bytes per value plus its length rounded up to a multiple of 32 bytes. Guaranteed for every installed application. Removed applications' stores may be reclaimed when storage is full</td></tr>
   <tr><td>Files of a package</td><td class="n">64 KB</td><td>Per application. Each file counts as whole 4 KB blocks</td></tr>
   <tr><td>Files of an application that writes</td><td class="n">32 KB</td><td>With <code>"writes_files": true</code>, unused space within the quota is reserved from installation. Catalog installation counts data files plus the manifest; runtime writes count data files only. Each file is rounded up to 4 KB</td></tr>
-  <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>. Names ending in <code>.new</code> are reserved. <code>file_write()</code> also refuses <code>app.wasm</code> and <code>manifest.json</code></td></tr>
+  <tr><td>File name</td><td class="n">1 - 23 characters</td><td><code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>. Names ending in <code>.new</code> are reserved. <code>file_write()</code> also refuses <code>app.wasm</code>, <code>manifest.json</code>, its translations <code>manifest.&lt;language&gt;</code> and the files the manifest lists in <code>certificates</code></td></tr>
 </table>
 
 <h2 id="char-network">Network</h2>

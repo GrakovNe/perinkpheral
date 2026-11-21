@@ -385,8 +385,8 @@ File name
 1 - 23 characters
 1 - 23 символа
 
-<code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>. Names ending in <code>.new</code> are reserved. <code>file_write()</code> also refuses <code>app.wasm</code> and <code>manifest.json</code>
-<code>a-z 0-9 . - _</code>; первый символ - буква, цифра, <code>-</code> или <code>_</code>. Имена с окончанием <code>.new</code> зарезервированы. <code>file_write()</code> также запрещает <code>app.wasm</code> и <code>manifest.json</code>
+<code>a-z 0-9 . - _</code>; the first character is a letter, digit, <code>-</code> or <code>_</code>. Names ending in <code>.new</code> are reserved. <code>file_write()</code> also refuses <code>app.wasm</code>, <code>manifest.json</code>, its translations <code>manifest.&lt;language&gt;</code> and the files the manifest lists in <code>certificates</code>
+<code>a-z 0-9 . - _</code>; первый символ - буква, цифра, <code>-</code> или <code>_</code>. Имена с окончанием <code>.new</code> зарезервированы. <code>file_write()</code> также запрещает <code>app.wasm</code>, <code>manifest.json</code>, его переводы <code>manifest.&lt;language&gt;</code> и файлы, перечисленные в <code>certificates</code> манифеста
 
 Network
 Сеть

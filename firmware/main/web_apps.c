@@ -99,25 +99,28 @@ static void copy_app_list(void *argument)
     }
 }
 
-/* Missing translations are ordinary. A file that exists but cannot be
- * read or parsed must fail the response. */
-static bool translation_of(const char *app_name, json_t **translation)
+/* NULL when there is no translation. One that cannot be read or parsed is
+ * treated as none: the application is listed in English, so that it can
+ * still be set up or removed from the page. */
+static json_t *translation_of(const char *app_name)
 {
-    *translation = NULL;
     appconf_t settings;
     settings_read(&settings);
     if (strcmp(settings.language, "en") == 0) {
-        return true;
+        return NULL;
     }
     char file[APP_FILE_NAME_MAX + 1];
     snprintf(file, sizeof file, "manifest.%s", settings.language);
     if (app_store_file_size(STORAGE_APPS_ROOT, app_name, file) < 0) {
-        return true;
+        return NULL;
     }
-    char *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
-    *translation = text != NULL ? json_parse(text) : NULL;
+    char   *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
+    json_t *translation = text != NULL ? json_parse(text) : NULL;
     free(text);
-    return *translation != NULL;
+    if (translation == NULL) {
+        ESP_LOGW(TAG, "%s: %s cannot be read, listed in English", app_name, file);
+    }
+    return translation;
 }
 
 /* The labels are translated separately from the option values. */
@@ -285,9 +288,8 @@ static char *app_list_json(const app_list_entry_t *entry)
     char *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, entry->name);
     json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
     free(manifest_text);
-    json_t *translation = NULL;
+    json_t *translation = manifest != NULL ? translation_of(entry->name) : NULL;
     bool complete = manifest != NULL && add_trusts(app, entry->name, manifest) &&
-                    translation_of(entry->name, &translation) &&
                     add_settings(app, manifest, translation, entry->name);
     json_free(translation);
     json_free(manifest);

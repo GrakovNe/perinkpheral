@@ -49,6 +49,9 @@ void host_notices_start(void);
 void host_notices_after_event(void);
 /* A press of the user's: notices held back since their long BACK may show again. */
 void host_notices_note_press(void);
+/* Around the long BACK that takes the screen home: a notice posted on the
+ * way, by app_on_blur or app_on_terminate, shows at the next press. */
+void host_notices_note_going_home(bool is_going);
 void host_confirm_timed_out(void);
 
 /* ---- host_apps.c ---- */
