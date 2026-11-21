@@ -4,6 +4,14 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.78
+
+- A new firmware with no network stored is confirmed only when its setup access point is really
+  up, not when it should have been.
+- A new firmware whose confirmation cannot be written restarts into recovery instead of staying on
+  probation and refusing every update.
+- Recovery gives back what a failed start of an upload took.
+
 ## 0.1.75
 
 - The button caps print face down: the face a finger touches is the first layer, flat and
