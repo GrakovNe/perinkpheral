@@ -419,12 +419,12 @@ static void scene_run(void *context)
         }
         host->refuse_writes = index == 0 ? scene->refusal : HOST_OK;
         answer_round(&scene->rounds[index]);
-        int32_t writes = host->store_writes + host->file_writes;
+        int32_t writes = host->store_changes + host->file_writes;
         for (int32_t again = 1; again < scene->rounds[index].times; again++) {
             ask_again();
             answer_round(&scene->rounds[index]);
         }
-        host->marks[MARK_WRITES_AGAIN] += (uint64_t)(host->store_writes + host->file_writes - writes);
+        host->marks[MARK_WRITES_AGAIN] += (uint64_t)(host->store_changes + host->file_writes - writes);
         host->refuse_writes = HOST_OK;
         if (!scene->is_off_screen) {
             host->marks[MARK_ROUND_PICTURE + index] = frame();
@@ -663,7 +663,7 @@ static void check_sessions(void)
 
 static int32_t flash_writes(void)
 {
-    return standin()->store_writes + standin()->file_writes;
+    return standin()->store_changes + standin()->file_writes;
 }
 
 static void check_unchanged(void)

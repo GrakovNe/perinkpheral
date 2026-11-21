@@ -24,8 +24,10 @@ object AppCheckTest {
         Break("sessions", "a handler never returns",
             listOf("void app_on_back(void)\n{\n" to "static volatile int forever = 1;\n\nvoid app_on_back(void)\n{\n    while (forever) { }\n"),
             "did not return in 3 s"),
-        Break("store", "the store is written whether the value changed or not",
-            listOf("    if (is_same(kept, text) && !*is_unsaved) {" to "    if (is_same(kept, text) && kept == NULL) {"), "unchanged answers"),
+        Break("store", "every answer is counted in the store, changed or not",
+            listOf("{\n    if (is_same(kept, text) && !*is_unsaved) {" to
+                "{\n    static int32_t answers;\n    answers++;\n    kv_set(\"answers\", 7, &answers, sizeof answers);\n" +
+                "    if (is_same(kept, text) && !*is_unsaved) {"), "unchanged answers"),
         Break("store", "a refused write is not tried again",
             listOf("    if (is_same(kept, text) && !*is_unsaved) {" to "    if (is_same(kept, text)) {"),
             "not saved when the same answer comes again"),

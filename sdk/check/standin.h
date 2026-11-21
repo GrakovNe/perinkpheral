@@ -172,7 +172,9 @@ typedef struct {
     standin_value_t       values[STANDIN_STORE_VALUES];
     standin_stored_file_t files[STANDIN_FILES];
     int32_t refuse_writes;   /* a HOST_ERR_*: every write of the store and the files answers it */
-    int32_t store_writes;    /* kv_set calls that reached the flash */
+    int32_t store_writes;    /* kv_set calls the store took */
+    int32_t store_changes;   /* those that changed what it holds: the device's store writes the flash
+                                for no other (NVS compares first) */
     int32_t file_writes;
     int32_t refused_writes;  /* answered with an error: the limits, or refuse_writes */
     int32_t handler_writes;  /* attempts since the handler began */

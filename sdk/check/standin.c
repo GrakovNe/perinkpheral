@@ -409,11 +409,17 @@ int32_t kv_set(const char *key, int32_t key_length, const void *bytes, int32_t l
     if (host->refuse_writes != HOST_OK) {
         return refused_write(host->refuse_writes, "kv_set", key, key_length, length);
     }
+    /* The device's store (NVS) compares before it writes: the value it already holds, or the
+     * removal of one it does not, leaves the flash as it was. */
+    const standin_value_t *held = value_of(key, key_length);
+    bool is_change = length == 0 ? held != NULL
+                                 : held == NULL || held->length != length || memcmp(held->value, bytes, (size_t)length) != 0;
     int32_t result = store(key, key_length, bytes, length, false);
     if (result != HOST_OK) {
         return refused_write(result, "kv_set", key, key_length, length);
     }
     host->store_writes++;
+    host->store_changes += is_change;
     return HOST_OK;
 }
 
