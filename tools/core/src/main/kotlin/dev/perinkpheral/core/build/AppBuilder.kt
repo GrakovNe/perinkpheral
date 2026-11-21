@@ -7,7 +7,8 @@ import java.io.File
 import java.nio.file.Files
 
 /** An application built: its name, its manifest as checked, and the folder of its package. */
-class Built(val name: String, val manifest: Map<*, *>, val dir: File)
+/** A package that was built; `memoryEnd` is where the module's stack and data end in its page. */
+class Built(val name: String, val manifest: Map<*, *>, val dir: File, val memoryEnd: Long = 0)
 
 /**
  * Builds a perINKpheral application: C sources -> app.wasm and its package, checked by the
@@ -122,7 +123,7 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             wasm.delete()
             throw error
         }
-        return Built(manifest["name"] as String, manifest, outDir)
+        return Built(manifest["name"] as String, manifest, outDir, memoryEnd)
     }
 
     private fun prepareOutput(appDir: File, outDir: File, name: String) {

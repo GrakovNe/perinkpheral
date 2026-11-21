@@ -97,6 +97,15 @@ computer took: move the clock with `forward`, or mark the scenario `"serial": tr
 observer tests, plus catalog publishing against local Git repositories. They use
 temporary files and simulated endpoints, not a device or live GitHub writes.
 
+Applications against the contract, on this computer: `tools/perinkpheral app-check <folder>`
+runs the capability checks (sessions, store, timers, network, drawing) on every application of
+the folder and each application's own tests (`<application>/test/*.c`), compiled with the
+sanitizers against the stand-in host of `sdk/check`. It needs a C compiler and wasi-sdk.
+`--only <capability>` and `--app <name>` narrow it. The checks know no application: what one
+needs to be checked - a time, a store, answers to its requests - is its `test/check.json`.
+A call added to the contract is given its stand-in in `sdk/check/standin.c`, or an
+application that imports it does not link there.
+
 The tools are `tools/perinkpheral` (Kotlin: `tools/cli` over the library `tools/core`; Java 21, built on first use).
 An application: `tools/perinkpheral build sdk/apps/<name> --out <dir>`
 builds `app.wasm` without a C library, with one page of memory,

@@ -1,0 +1,17 @@
+{
+  "name": "specimen",
+  "title": "Specimen",
+  "author": "Perinkpheral",
+  "description": "What the capability checks are tried on.",
+  "version": "0.1.0",
+  "abi": 3,
+  "fullscreen": false,
+  "polls": [
+    { "url": "https://example.test/now?place={{place}}", "every": 60, "pick": ["value"] }
+  ],
+  "hosts": ["example.test"],
+  "settings": [
+    { "key": "place", "type": "text", "title": "Place", "default": "here" },
+    { "key": "server", "type": "url", "title": "Server" }
+  ]
+}
