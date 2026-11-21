@@ -19,6 +19,8 @@ static const char *stat_failure, *rename_failure, *open_failure;
 static bool read_failure, erase_failure;
 /* The power goes as a module's mark is about to be written: nothing more reaches the flash. */
 static bool cuts_before_mark, is_cut;
+/* The power goes while the first sector is erased: some bits are back to 1, the size's among them. */
+static bool tears_first_erase;
 
 const esp_partition_t *esp_partition_find_first(int type, int subtype, const char *label)
 {
@@ -39,6 +41,13 @@ esp_err_t esp_partition_erase_range(const esp_partition_t *part, size_t offset, 
     (void)part;
     CHECK(offset + size <= sizeof flash);
     if (erase_failure || is_cut) {
+        return ESP_FAIL;
+    }
+    if (tears_first_erase && offset == 0 && size == 4096) {
+        uint32_t *words = (uint32_t *)flash;
+        words[0] |= 0x50414b50u; /* the mark as it was */
+        words[1] |= 0x2000;      /* two sectors claim four */
+        is_cut = true;
         return ESP_FAIL;
     }
     memset(flash + offset, 0xff, size);
@@ -195,7 +204,8 @@ int main(void)
     stat_failure = NULL;
     erase_failure = true;
     app_code_adopt(root);
-    CHECK(header_at(1)->magic == SLOT_MAGIC);
+    /* Its mark is cleared before the erase that was refused: the file stays what runs. */
+    CHECK(header_at(1)->magic == 0);
     CHECK(app_code_find(root, "clock", &size) == NULL);
     uint8_t *fallback = app_store_read_module(root, "clock", &size);
     CHECK(fallback != NULL && size == 4 && memcmp(fallback, "new!", 4) == 0);
@@ -252,6 +262,41 @@ int main(void)
     CHECK(header_at(1)->magic != SLOT_MAGIC);
     CHECK(memcmp(app_code_find(root, "clock", &size), "old!", 4) == 0);
     CHECK(rmdir(folder) == 0);
+
+    /* An erase of a first sector cut short grows its size: that header does not take the
+     * module after it along, now or when the next start forgets what is unfinished. */
+    memset(flash, 0xff, sizeof flash);
+    app_code_start();
+    char alpha[128], alpha_module[128], beta[128], beta_module[128];
+    snprintf(alpha, sizeof alpha, "%s/alpha", root);
+    snprintf(alpha_module, sizeof alpha_module, "%s/alpha/app.wasm", root);
+    snprintf(beta, sizeof beta, "%s/beta", root);
+    snprintf(beta_module, sizeof beta_module, "%s/beta/app.wasm", root);
+    CHECK(mkdir(alpha, 0700) == 0);
+    memset(body, 'a', sizeof body);
+    output = fopen(alpha_module, "wb");
+    CHECK(output != NULL && fwrite(body, 1, sizeof body, output) == sizeof body && fclose(output) == 0);
+    app_code_adopt(root);
+    CHECK(mkdir(beta, 0700) == 0);
+    memset(body, 'b', sizeof body);
+    output = fopen(beta_module, "wb");
+    CHECK(output != NULL && fwrite(body, 1, sizeof body, output) == sizeof body && fclose(output) == 0);
+    app_code_adopt(root);
+    CHECK(header_at(0)->magic == SLOT_MAGIC && header_at(2)->magic == SLOT_MAGIC);
+    CHECK(rmdir(alpha) == 0);
+    tears_first_erase = true;
+    app_code_adopt(root);
+    tears_first_erase = is_cut = false;
+    CHECK(header_at(0)->magic == SLOT_MAGIC && header_at(0)->size > 3 * SECTOR_BYTES);
+    app_code_start(); /* the next start */
+    code = app_code_find(root, "beta", &size);
+    CHECK(code != NULL && size == sizeof body && memcmp(code, body, sizeof body) == 0);
+    app_code_adopt(root);
+    code = app_code_find(root, "beta", &size);
+    CHECK(code != NULL && size == sizeof body && memcmp(code, body, sizeof body) == 0);
+    CHECK(rmdir(beta) == 0);
+    app_code_adopt(root);
+    CHECK(app_code_find(root, "beta", &size) == NULL && header_at(2)->magic != SLOT_MAGIC);
     CHECK(rmdir(root) == 0);
     REPORT();
 }
