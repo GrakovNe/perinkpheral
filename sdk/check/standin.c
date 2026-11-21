@@ -1286,6 +1286,20 @@ int32_t standin_poll_item(int32_t poll, int32_t index)
     return -1;
 }
 
+bool standin_poll_list_is_empty(int32_t poll)
+{
+    standin();
+    const standin_poll_t *asked = &standin_subject.polls[poll];
+    char list[HOST_KV_VALUE_MAX + 1];
+    const char *item;
+    int32_t length;
+    if (asked->each == NULL) {
+        return false;
+    }
+    setting_text(asked->each, (int32_t)strlen(asked->each), list, sizeof list);
+    return !list_item(list, 0, &item, &length);
+}
+
 int32_t standin_poll_items(int32_t poll)
 {
     if (standin_subject.polls[poll].each == NULL) {
@@ -1706,6 +1720,9 @@ int32_t gfx_draw_text(int32_t x, int32_t y, int32_t font, const char *text, int3
     if (length > HOST_TEXT_MAX) {
         length = HOST_TEXT_MAX;
     }
+    if (length == 0) {
+        world->draw_calls--; /* a text of no letters sets no pixel */
+    }
     mix_number(x);
     mix_number(y);
     mix_number(font);
@@ -1789,6 +1806,10 @@ int32_t gfx_draw_rect(int32_t x, int32_t y, int32_t width, int32_t height, int32
     }
     int32_t numbers[] = { x, y, width, height, fill };
     mix(numbers, sizeof numbers);
+    /* gfx_fill() of no size, or wholly off the surface, sets no pixel: no call that draws. */
+    if (width <= 0 || height <= 0 || x >= SURFACE_WIDTH || y >= surface_height() || x + width <= 0 || y + height <= 0) {
+        world->draw_calls--;
+    }
     return HOST_OK;
 }
 
@@ -2038,6 +2059,9 @@ int32_t ui_draw_text(int32_t x, int32_t y, int32_t style, const char *text, int3
     int32_t numbers[] = { x, y, style };
     mix(numbers, sizeof numbers);
     mix(cut, (size_t)cut_length);
+    if (cut_length == 0) {
+        world->draw_calls--; /* a text of no letters sets no pixel */
+    }
     return text_width(STYLE_FONTS[style], cut, cut_length);
 }
 

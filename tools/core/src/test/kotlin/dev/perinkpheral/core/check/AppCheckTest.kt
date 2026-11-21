@@ -115,6 +115,25 @@ object AppCheckTest {
             listOf("    if (event != BTN_OK_PRESSED) {\n" to
                 "    static char byte;\n    file_write(\"cache\", 5, 0, &byte, 2147483647);\n    if (event != BTN_OK_PRESSED) {\n"),
             "2147483647 bytes", listOf("\"fullscreen\": false," to "\"fullscreen\": false, \"writes_files\": true,")),
+        Break("drawing", "a press changes what is drawn, held in memory only, and asks for no redraw",
+            listOf("static int32_t count;" to "static int32_t presses_seen;\nstatic int32_t count;",
+                "void app_on_button(int32_t event)\n{\n" to "void app_on_button(int32_t event)\n{\n    presses_seen++;\n",
+                "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
+                    "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" +
+                    "    gfx_draw_text(MARGIN, 200, HOST_FONT_TEXT, presses_seen > 0 ? \"x\" : \"o\", 1);\n"),
+            "than it draws now"),
+        Break("network", "a handler hangs on the failure of a poll over an empty list, which has no item",
+            listOf("    char picked[HOST_VALUE_MAX + 1];\n" to "    char picked[HOST_VALUE_MAX + 1];\n" +
+                "    if (answer_item() < 0 && http_status < 0) {\n        static volatile int forever = 1;\n        while (forever) { }\n    }\n"),
+            "did not return",
+            listOf("\"url\": \"https://example.test/now?place={{place}}\", \"every\": 60," to
+                    "\"url\": \"https://example.test/now?place={{places}}\", \"every\": 60, \"each\": \"places\",",
+                "{ \"key\": \"place\", \"type\": \"text\", \"title\": \"Place\", \"default\": \"here\" }," to
+                    "{ \"key\": \"place\", \"type\": \"text\", \"title\": \"Place\", \"default\": \"here\" },\n" +
+                    "    { \"key\": \"places\", \"type\": \"list\", \"title\": \"Places\" },")),
+        Break("drawing", "app_on_draw() fills a rectangle of no size and draws nothing",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    gfx_draw_rect(0, 0, 0, 0, HOST_RECT_FILLED);\n    return;\n"),
+            "drew nothing"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
@@ -172,6 +191,14 @@ object AppCheckTest {
         println("app-check: the stand-in host's measures are the firmware's (${PINS.size + 2} pinned)")
     }
 
+    /** Copies of the specimen that are right, if unusual: the capability passes them. */
+    private val FINE = listOf(
+        Break("timers", "a timer as long as one may be", listOf("#define TICK_MS        1000" to "#define TICK_MS        2147483647"), ""),
+        Break("timers", "a countdown of three seconds, over by the time a late tick comes",
+            listOf("void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER) {" to
+                "void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER && time_uptime_ms() < 3000) {"), ""),
+    )
+
     @JvmStatic fun main(args: Array<String>) {
         check(AppCheck.text("a \"b\" \\ ?? \n é") == "\"a \\\"b\\\" \\\\ \\?\\? \\n \\303\\251\"")
         check(AppCheck.text(null) == "NULL")
@@ -214,7 +241,7 @@ object AppCheckTest {
 
         val scratch = Files.createTempDirectory("perinkpheral-app-check-test").toFile()
         try {
-            BREAKS.forEachIndexed { number, broken ->
+            fun copied(number: Int, broken: Break): File {
                 val copy = File(scratch, "$number/specimen")
                 specimen.copyRecursively(copy)
                 val source = File(copy, "specimen.c")
@@ -232,14 +259,24 @@ object AppCheckTest {
                 }
                 manifest.writeText(described)
                 said.clear()
-                val report = checker.run(copy.parentFile, only = broken.capability)
+                return copy
+            }
+            BREAKS.forEachIndexed { number, broken ->
+                val report = checker.run(copied(number, broken).parentFile, only = broken.capability)
                 val line = report.lines.single()
                 check(line.state == AppCheck.State.FAILED) { "${broken.what}: ${broken.capability} did not notice" }
                 check(line.details.any { broken.saying in it }) { "${broken.what}: ${line.details.joinToString("\n")}" }
             }
+            // And what is right, if unusual, passes: the checks find no fault the device would not have.
+            FINE.forEachIndexed { number, fine ->
+                val report = checker.run(copied(BREAKS.size + number, fine).parentFile, only = fine.capability)
+                val line = report.lines.single()
+                check(line.state == AppCheck.State.OK) { "${fine.what}: ${line.details.joinToString("\n")}" }
+            }
         } finally {
             scratch.deleteRecursively()
         }
-        println("app-check: the specimen passes; ${BREAKS.size} broken copies are each caught by their capability")
+        println("app-check: the specimen passes; ${BREAKS.size} broken copies are each caught by their capability, " +
+            "${FINE.size} unusual but right ones pass")
     }
 }

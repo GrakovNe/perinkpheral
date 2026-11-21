@@ -187,7 +187,9 @@ enum {
     MARK_LEFT,          /* it left the screen itself */
     MARK_WRITES_AGAIN,  /* writes of the flash in the repeats of a round after its first */
     MARK_LONGEST_TIMER, /* milliseconds */
+    MARK_LONGEST_BEFORE, /* before the clock was set */
     MARK_UNANSWERED,    /* requests no answer is kept for */
+    MARK_DRAWN_NOW,     /* what the instance would draw at its end, drawn where nothing of it is kept */
     MARK_ROUND_PICTURE, /* and the three after it: after each round */
     MARK_COUNT = MARK_ROUND_PICTURE + ROUNDS_MAX
 };
@@ -224,6 +226,7 @@ static struct {
     char     header[2][HOST_HEADER_TEXT_MAX + 1];
     char     status[2][HOST_STATUS_TEXT_MAX + 1];
     int32_t  icons[2];
+    int64_t  minute; /* of the clock, as the header shows it */
 } shown;
 
 static uint64_t show(void)
@@ -236,6 +239,10 @@ static uint64_t show(void)
         is_new_header = is_new_header || strcmp(shown.header[side], host->header_text[side]) != 0 ||
                         strcmp(shown.status[side], host->status_text[side]) != 0 || shown.icons[side] != host->status_icon[side];
     }
+    /* And another minute or day in the header's clock (status.c, header_differs): the window is
+     * drawn again, the application's frame with it. The header is taken to show the clock. */
+    int64_t minute = host->now != 0 ? (host->now + host->zone_offset) / 60 : -1;
+    is_new_header = is_new_header || minute != shown.minute;
     if (!shown.is_shown || host->redraws != shown.redraws || host->is_inverted != shown.is_inverted || is_new_header) {
         shown.picture = frame();
         shown.is_shown = true;
@@ -244,6 +251,7 @@ static uint64_t show(void)
         memcpy(shown.header, host->header_text, sizeof shown.header);
         memcpy(shown.status, host->status_text, sizeof shown.status);
         memcpy(shown.icons, host->status_icon, sizeof shown.icons);
+        shown.minute = minute;
     }
     return standin_screen(shown.picture);
 }
@@ -378,11 +386,12 @@ static void answer_round(const round_t *round)
     standin_t *host = standin();
     for (int32_t poll = 0; poll < standin_subject.poll_count; poll++) {
         int32_t items = standin_poll_items(poll);
-        for (int32_t index = 0; index < (items < 0 ? 1 : items); index++) {
-            delivery_t answer = { .alarm = -1, .request = poll, .item = items < 0 ? -1 : standin_poll_item(poll, index),
+        bool is_empty = standin_poll_list_is_empty(poll);
+        for (int32_t index = 0; index < (items < 0 || is_empty ? 1 : items); index++) {
+            delivery_t answer = { .alarm = -1, .request = poll, .item = items < 0 || is_empty ? -1 : standin_poll_item(poll, index),
                                   .is_picked = standin_subject.polls[poll].picks != NULL, .is_permitted = true,
                                   .round = round };
-            answer.is_ready = standin_poll_url(poll, answer.item, answer.url, sizeof answer.url) &&
+            answer.is_ready = !is_empty && standin_poll_url(poll, answer.item, answer.url, sizeof answer.url) &&
                               standin_poll_ready(poll, answer.item);
             hand(&answer);
         }
@@ -423,6 +432,13 @@ static void press(char key)
     }
 }
 
+/* A frame of the instance as it is, in a run whose doings are undone. */
+static void draw_now(void *context)
+{
+    (void)context;
+    standin()->marks[MARK_DRAWN_NOW] = standin_screen(standin_draw());
+}
+
 static void scene_run(void *context)
 {
     const scene_t *scene = context;
@@ -461,7 +477,7 @@ static void scene_run(void *context)
     host->marks[MARK_TIMERS_BEFORE] = standin_timers();
     int32_t timer = soonest_timer();
     if (scene->fire != FIRE_NONE && timer >= 0 && !host->is_leaving) {
-        standin_pass(standin_timer_left(timer) + (scene->fire == FIRE_LATE ? TIMER_LATE_MS : 0));
+        standin_pass((int64_t)standin_timer_left(timer) + (scene->fire == FIRE_LATE ? TIMER_LATE_MS : 0));
         /* What came due meanwhile comes too, as on the device: an alarm and the timer at one minute. */
         for (int32_t id = 0; id < HOST_ALARM_COUNT; id++) {
             if (standin_alarm_due(id)) {
@@ -474,6 +490,11 @@ static void scene_run(void *context)
         }
     }
     if (scene->clock != CLOCK_KEPT) {
+        for (int32_t id = 0; id < HOST_TIMER_COUNT; id++) {
+            if ((uint64_t)standin_timer_left(id) > host->marks[MARK_LONGEST_BEFORE]) {
+                host->marks[MARK_LONGEST_BEFORE] = (uint64_t)standin_timer_left(id);
+            }
+        }
         standin_clock(scene->clock == CLOCK_BECOMES_KNOWN ? time_known
                       : host->now + (scene->clock == CLOCK_FORWARD ? SECONDS_PER_DAY : -SECONDS_PER_DAY));
         standin_intent(HOST_INTENT_TIME_CHANGED);
@@ -516,6 +537,9 @@ static void scene_run(void *context)
         return;
     }
     host->marks[MARK_PICTURE] = show();
+    if (standin_handlers.on_draw != NULL) {
+        standin_try(draw_now, NULL);
+    }
     /* After the frame: an application that shows pictures in a row sets its timer when one is drawn. */
     host->marks[MARK_TIMERS] = standin_timers();
     host->marks[MARK_DEPTH] = 0;
@@ -629,6 +653,11 @@ static bool play(const scene_t *scene)
     }
     if (host->refused_what[0] != '\0') {
         problem(STORE, "%s: a write is over the limits: %s", told(scene), host->refused_what);
+    }
+    if (!scene->is_off_screen && standin_handlers.on_draw != NULL && host->marks[MARK_DRAWN_NOW] != 0 &&
+        host->marks[MARK_DRAWN_NOW] != host->marks[MARK_PICTURE]) {
+        problem(DRAWING, "%s: it shows another picture than it draws now - a change was not asked for with "
+                         "screen_redraw()", told(scene));
     }
     if (host->marks[MARK_DEPTH] == NEVER_LEAVES) {
         problem(SESSIONS, "%s: %d presses of BACK do not leave it", told(scene), DEPTH_MAX);
@@ -895,15 +924,18 @@ static void check_timer(const char *way)
         return;
     }
     uint64_t waiting = mark(MARK_TIMERS);
-    static const fire_t OTHERWISE[] = { FIRE_LATE, FIRE_TWICE };
-    for (size_t index = 0; index < sizeof OTHERWISE / sizeof OTHERWISE[0]; index++) {
-        standin_reset();
-        scene_t other = on_time;
-        other.fire = OTHERWISE[index];
-        if (play(&other) && !mark(MARK_LEFT)) {
-            expect(TIMERS, mark(MARK_TIMERS) == waiting, "%s: timers %#x wait after it, %#x after a timer on time",
-                   told(&other), (unsigned)mark(MARK_TIMERS), (unsigned)waiting);
-        }
+    /* Late, it is lived through: what it sets then is the application's - a countdown that is
+     * over by then sets nothing more. Twice at the same moment leaves what once leaves. */
+    standin_reset();
+    scene_t late = on_time;
+    late.fire = FIRE_LATE;
+    play(&late);
+    standin_reset();
+    scene_t twice = on_time;
+    twice.fire = FIRE_TWICE;
+    if (play(&twice) && !mark(MARK_LEFT)) {
+        expect(TIMERS, mark(MARK_TIMERS) == waiting, "%s: timers %#x wait after it, %#x after a timer on time",
+               told(&twice), (unsigned)mark(MARK_TIMERS), (unsigned)waiting);
     }
 }
 
@@ -935,7 +967,9 @@ static void check_clock(const char *way)
         }
         expect(TIMERS, mark(MARK_TIMERS) == mark(MARK_TIMERS_BEFORE), "%s: timers %#x wait after it, %#x before",
                told(&set), (unsigned)mark(MARK_TIMERS), (unsigned)mark(MARK_TIMERS_BEFORE));
-        expect(TIMERS, mark(MARK_LONGEST_TIMER) <= (uint64_t)TIMER_LONGEST_MS,
+        /* A delay worked out from a clock that jumped: longer than a day, and longer than before. */
+        expect(TIMERS, mark(MARK_LONGEST_TIMER) <= (uint64_t)TIMER_LONGEST_MS ||
+                           mark(MARK_LONGEST_TIMER) <= mark(MARK_LONGEST_BEFORE),
                "%s: a timer is set %lld hours ahead", told(&set), (long long)(mark(MARK_LONGEST_TIMER) / MS_PER_HOUR));
         /* And the timer that waits after it still comes to an application that takes it. */
         scene_t then = set;

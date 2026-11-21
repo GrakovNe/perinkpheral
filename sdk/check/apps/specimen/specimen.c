@@ -178,6 +178,8 @@ void app_on_draw(void)
     if (page == 0) {
         gfx_draw_text(MARGIN, MARGIN, HOST_FONT_TEXT, value, length_of(value));
         gfx_draw_text(MARGIN, MARGIN + line_height, HOST_FONT_TEXT, note, length_of(note));
+        /* A frame that shows something before any answer came: a blank one is a fault. */
+        gfx_draw_text(MARGIN, MARGIN + 2 * line_height, HOST_FONT_SMALL, "Specimen", 8);
         return;
     }
     char counter_buffer[32];

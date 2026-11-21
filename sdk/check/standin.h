@@ -289,6 +289,9 @@ bool standin_poll_ready(int32_t poll, int32_t item);
 bool standin_header_lines_ready(const char *headers, int32_t length);
 /* How many items a poll with "each" is asked for; -1 for a poll without. */
 int32_t standin_poll_items(int32_t poll);
+/* Whether the list a poll with "each" is asked over has no item at all: the device asks it once
+ * then, with no item, and the request is not ready (poller_net.c). */
+bool standin_poll_list_is_empty(int32_t poll);
 /* Item `index` of those the poll claims: its number in the list, or -1. */
 int32_t standin_poll_item(int32_t poll, int32_t index);
 
