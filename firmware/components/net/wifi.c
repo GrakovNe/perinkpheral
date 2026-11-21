@@ -49,6 +49,7 @@ static struct {
     QueueHandle_t      events;
     bool               access_point_up;
     bool               radio_off; /* the Wi-Fi task's alone */
+    bool               is_starting_again; /* the Wi-Fi task's alone: wanted on, would not start */
     /* radio_off as the ESP event task may read it: the disconnect that
      * stopping the radio brings is ours, not a lost network. */
     atomic_bool        radio_stopped;
@@ -90,6 +91,10 @@ static bool post(wifi_plan_event_t event)
 /* A retry that could not be told is not lost: it is asked again a moment
  * later, or the plan of connecting would wait for nothing. */
 #define RETRY_TOLD_AGAIN_MS 200
+
+/* A radio that would not start - out of memory, say - is tried again this
+ * long after, while it is wanted. */
+#define RADIO_START_AGAIN_MS 5000
 
 /* Where the network was found last: the access point and its channel.
  * With it the next connection looks in one place instead of scanning
@@ -307,9 +312,33 @@ static void publish_phase(bool failed_last)
     }
 }
 
+/* The radio stopped to save power is wanted again. */
+static void start_radio(void)
+{
+    s_wifi.radio_off = false;
+    atomic_store(&s_wifi.radio_stopped, false);
+    /* A new run of attempts: the old failures are not counted. */
+    wifi_plan_init(&s_wifi.plan, true, false);
+    esp_err_t err = esp_wifi_start(); /* and the radio says when it has started */
+    s_wifi.is_starting_again = err != ESP_OK;
+    if (err != ESP_OK) {
+        /* Still stopped, and tried again: taken as on, it would wait for a start
+         * that never comes, and no later request could turn it either way. */
+        ESP_LOGW(TAG, "cannot start the radio: %s", esp_err_to_name(err));
+        s_wifi.radio_off = true;
+        atomic_store(&s_wifi.radio_stopped, true);
+        deadlines_set_in(DEADLINE_WIFI_RETRY, 0, 0, RADIO_START_AGAIN_MS);
+    }
+}
+
 static void handle_event(wifi_plan_event_t event)
 {
     if (event == RADIO_OFF_ASKED) {
+        if (s_wifi.is_starting_again) {
+            /* Not wanted any more: no more tries. */
+            s_wifi.is_starting_again = false;
+            deadlines_cancel(DEADLINE_WIFI_RETRY, 0, 0);
+        }
         /* Only a device that is where it should be may go dark. */
         if (!s_wifi.radio_off && s_wifi.plan.has_network &&
             !wifi_phase_has_access_point(s_wifi.plan.phase)) {
@@ -324,17 +353,17 @@ static void handle_event(wifi_plan_event_t event)
     }
     if (event == RADIO_ON_ASKED) {
         if (s_wifi.radio_off) {
-            s_wifi.radio_off = false;
-            atomic_store(&s_wifi.radio_stopped, false);
-            /* A new run of attempts: the old failures are not counted. */
-            wifi_plan_init(&s_wifi.plan, true, false);
-            esp_wifi_start(); /* and the radio says when it has started */
+            start_radio();
         }
         publish_phase(false);
         return;
     }
     if (s_wifi.radio_off) {
-        return; /* the last words of a radio that was turned off */
+        if (event == WIFI_EVENT_RETRY_DUE && s_wifi.is_starting_again) {
+            start_radio();
+            publish_phase(false);
+        }
+        return; /* else the last words of a radio that was turned off */
     }
     if (event == WIFI_EVENT_CONNECTED || event == WIFI_EVENT_DISCONNECTED) {
         s_wifi.connecting = false;
