@@ -59,7 +59,8 @@ static int64_t now_ms(void)
  * and the radio for ever. A timer shuts the connection's socket when the
  * time is up, and every read under way or to come fails. The socket is let
  * go before anything that may close it, so a number given to another
- * connection since is never shut. */
+ * connection since is never shut. Opening - the TLS handshake - is not
+ * covered: esp-tls gives no socket until the handshake has ended. */
 static struct {
     SemaphoreHandle_t  lock;
     esp_timer_handle_t timer;
