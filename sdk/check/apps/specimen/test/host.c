@@ -200,6 +200,15 @@ static void test_answers(void)
     assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://elsewhere.test/", 23, NULL, 0, NULL, 0) ==
            HOST_ERR_ARGUMENT);
     assert(standin()->request_count == 0 && strstr(standin()->refused_request, "hosts") != NULL);
+    /* A header's value is filled when the request is sent; a key with no value makes it not ready. */
+    assert(!standin_header_lines_ready("Authorization: Bearer {{token}}", 31));
+    standin_set("token", "t");
+    assert(standin_header_lines_ready("Authorization: Bearer {{token}}", 31));
+    standin_set("token", NULL);
+    /* Hosts as app_manifest.c compares them: a name in any case, at its scheme's port. */
+    assert(standin_url_allowed("https://EXAMPLE.test/a") && standin_url_allowed("http://example.test:80/"));
+    assert(!standin_url_allowed("https://example.test:8443/") && !standin_url_allowed("ftp://example.test/") &&
+           !standin_url_allowed("https://user@example.test/"));
     standin_set("place", "a b");
     assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://example.test/{{place}}", 30, NULL, 0, NULL, 0) ==
            HOST_OK);

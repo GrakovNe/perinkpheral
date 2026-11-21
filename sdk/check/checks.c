@@ -221,16 +221,21 @@ static struct {
     uint64_t picture;
     int32_t  redraws;
     bool     is_inverted;
+    char     header[2][HOST_HEADER_TEXT_MAX + 1];
 } shown;
 
 static uint64_t show(void)
 {
     standin_t *host = standin();
-    if (!shown.is_shown || host->redraws != shown.redraws || host->is_inverted != shown.is_inverted) {
+    /* A new text in the header is a new picture, asked for or not (app_scene.c, reaction_of). */
+    bool is_new_header = strcmp(shown.header[0], host->header_text[0]) != 0 ||
+                         strcmp(shown.header[1], host->header_text[1]) != 0;
+    if (!shown.is_shown || host->redraws != shown.redraws || host->is_inverted != shown.is_inverted || is_new_header) {
         shown.picture = frame();
         shown.is_shown = true;
         shown.redraws = host->redraws;
         shown.is_inverted = host->is_inverted;
+        memcpy(shown.header, host->header_text, sizeof shown.header);
     }
     return standin_screen(shown.picture);
 }
@@ -364,7 +369,8 @@ static void answer_round(const round_t *round)
             delivery_t answer = { .alarm = -1, .request = poll, .item = items < 0 ? -1 : standin_poll_item(poll, index),
                                   .is_picked = standin_subject.polls[poll].picks != NULL, .is_permitted = true,
                                   .round = round };
-            answer.is_ready = standin_poll_url(poll, answer.item, answer.url, sizeof answer.url);
+            answer.is_ready = standin_poll_url(poll, answer.item, answer.url, sizeof answer.url) &&
+                              standin_poll_ready(poll);
             hand(&answer);
         }
     }

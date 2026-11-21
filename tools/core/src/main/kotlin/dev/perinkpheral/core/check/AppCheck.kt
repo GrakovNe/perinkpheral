@@ -254,8 +254,10 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
                 appendLine("static const standin_poll_t POLLS[] = {")
                 polls.forEachIndexed { index, poll ->
                     val picks = (poll["pick"] as? List<*>).orEmpty()
+                    // The manifest's headers as lines "Name: value", for the host to fill when it asks.
+                    val headers = (poll["headers"] as? Map<*, *>)?.entries?.joinToString("\n") { (name, value) -> "$name: $value" }
                     appendLine("    { ${text(poll["url"] as String)}, ${if (picks.isEmpty()) "NULL" else "PICKS_$index"}, ${picks.size}, " +
-                        "${text(poll["each"] as? String)}, ${text(poll["prefix"] as? String)} },")
+                        "${text(poll["each"] as? String)}, ${text(poll["prefix"] as? String)}, ${text(headers)} },")
                 }
                 appendLine("};")
             }
@@ -296,7 +298,7 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
                 changes.forEach { appendLine("    { ${it.instant.epochSecond}LL, ${it.offsetAfter.totalSeconds} },") }
                 appendLine("};")
             }
-            val arena = if (built.memoryEnd > 0) BuildFlags.WASM_PAGE - (built.memoryEnd + HEAP_ALIGNMENT - 1) / HEAP_ALIGNMENT * HEAP_ALIGNMENT else 0
+            val arena = arenaBytes(built.memoryEnd)
             val intents = (manifest["intents"] as? List<*>).orEmpty().sumOf { 1 shl (INTENTS.indexOf(it) + 1) }
             appendLine()
             appendLine("const standin_subject_t standin_subject = {")
@@ -395,6 +397,13 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
             "-Wno-attributes", "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer",
             "-DHOST_IMPORT(name,...)=__VA_ARGS__", "-DAPP_EXPORT(name,...)=__VA_ARGS__")
         private val LIBRARIES = listOf("-lm")
+
+        /** What app_alloc() has of the page after the module's stack and data, which end at
+         * `memoryEnd`: none when they fill it. Negative when the build could not say where they
+         * end, which the stand-in host takes for the whole page. */
+        fun arenaBytes(memoryEnd: Long): Long =
+            if (memoryEnd <= 0) -1L
+            else maxOf(0L, BuildFlags.WASM_PAGE - (memoryEnd + HEAP_ALIGNMENT - 1) / HEAP_ALIGNMENT * HEAP_ALIGNMENT)
 
         /** Which applications a capability is checked on. Every application is loaded and unloaded;
          * the rest is what its module asks of the host. */

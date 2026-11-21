@@ -841,6 +841,7 @@ int32_t timer_set(int32_t id, int32_t milliseconds)
         return HOST_ERR_ARGUMENT;
     }
     host->timer_due_ms[id] = milliseconds > 0 ? host->uptime_ms + milliseconds : 0;
+    host->timer_sets++;
     return HOST_OK;
 }
 
@@ -1075,10 +1076,51 @@ int32_t poll_set_interval(int32_t poll, int32_t seconds)
     return HOST_OK;
 }
 
+/* What request_queue.c counts of a request: its record as the device's 32-bit build lays it out,
+ * the address and every header's name and value with their terminators, the body. The queue
+ * takes 16 KB of them; here only the application's own are in it. */
+#define REQUEST_RECORD_BYTES 40
+#define REQUEST_QUEUE_BYTES  (16 * 1024)
+
+static int32_t request_bytes(const char *url, const char *headers, int32_t headers_length, int32_t body_length)
+{
+    int32_t bytes = REQUEST_RECORD_BYTES + (int32_t)strlen(url) + 1 + body_length;
+    for (int32_t at = 0; at < headers_length;) {
+        int32_t line_end = at;
+        while (line_end < headers_length && headers[line_end] != '\n') {
+            line_end++;
+        }
+        if (line_end > at) {
+            int32_t colon = at;
+            while (colon < line_end && headers[colon] != ':') {
+                colon++;
+            }
+            int32_t value = colon + 1;
+            while (value < line_end && headers[value] == ' ') {
+                value++;
+            }
+            bytes += (colon - at) + 1 + (line_end - value) + 1;
+        }
+        at = line_end + 1;
+    }
+    return bytes;
+}
+
+static int32_t queued_bytes(void)
+{
+    int32_t bytes = 0;
+    for (int32_t index = 0; index < world->request_count; index++) {
+        const standin_request_t *queued = &world->requests[index];
+        bytes += request_bytes(queued->url, queued->headers, queued->headers_length, queued->body_length);
+    }
+    return bytes;
+}
+
 /* A request the device refuses for what the application asked: a finding of the network check. */
 static int32_t refused_request(int32_t result, const char *why)
 {
-    say(world->refused_request, "http_send() in %s answered HOST_ERR_ARGUMENT: %s", running(), why);
+    say(world->refused_request, "http_send() in %s answered %s: %s", running(),
+        result == HOST_ERR_NO_SPACE ? "HOST_ERR_NO_SPACE" : "HOST_ERR_ARGUMENT", why);
     return result;
 }
 
@@ -1090,7 +1132,7 @@ int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_leng
         url == NULL || url_length < 1 || url_length >= STANDIN_URL_BYTES || headers_length < 0 ||
         headers_length > HOST_HTTP_HEADERS_MAX || (headers == NULL && headers_length > 0) || body_length < 0 ||
         body_length > HOST_HTTP_BODY_MAX || (body == NULL && body_length > 0)) {
-        return HOST_ERR_ARGUMENT;
+        return refused_request(HOST_ERR_ARGUMENT, "a tag, a method or a length the contract does not take");
     }
     /* As app_api_data.c and poller.c take it: printable text, at most four headers of
      * "Name: value", the address filled and its host one of the manifest's before it is queued. */
@@ -1134,9 +1176,19 @@ int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_leng
     if (host->refuse_requests != HOST_OK) {
         return host->refuse_requests;
     }
-    if (host->request_count >= HOST_HTTP_PENDING_MAX) {
+    int32_t bytes = request_bytes(filled, headers, headers_length, body_length);
+    if (host->request_count >= HOST_HTTP_PENDING_MAX || queued_bytes() + bytes > REQUEST_QUEUE_BYTES) {
+        /* Requests left from scenes that answered none would have gone on the device: only
+         * what one handler queued by itself and does not fit is the application's doing. */
+        if (host->handler_requests + 1 > HOST_HTTP_PENDING_MAX ||
+            host->handler_request_bytes + bytes > REQUEST_QUEUE_BYTES) {
+            return refused_request(HOST_ERR_NO_SPACE, "one handler asks more than the device's queue takes - 16 "
+                                                      "requests, and 16 KB of them with their addresses, headers and bodies");
+        }
         return HOST_ERR_NO_SPACE;
     }
+    host->handler_requests++;
+    host->handler_request_bytes += bytes;
     standin_request_t *request = &host->requests[host->request_count++];
     memset(request, 0, sizeof *request);
     request->tag = tag;
@@ -1317,30 +1369,92 @@ bool standin_fill_url(const char *written, char *url, int32_t capacity)
     return fill_text(written, NULL, -1, true, url, capacity);
 }
 
-/* The host an address names: between "://" and the path, the port left out. */
-static void host_of(const char *url, char *host, size_t size)
+/* A host as app_manifest.c reads one: the name, and the port when one is written. */
+typedef struct {
+    const char *name;
+    size_t      name_length;
+    int32_t     port; /* 0: none written */
+} host_t;
+
+static host_t host_of(const char *text, size_t length)
 {
-    const char *start = strstr(url, "://");
-    start = start != NULL ? start + 3 : url;
-    size_t length = strcspn(start, "/:?#");
-    snprintf(host, size, "%.*s", (int)length, start);
+    host_t host = { text, length, 0 };
+    const char *colon = memchr(text, ':', length);
+    if (colon != NULL) {
+        host.name_length = (size_t)(colon - text);
+        for (const char *digit = colon + 1; digit < text + length; digit++) {
+            host.port = host.port * 10 + (*digit - '0');
+        }
+    }
+    return host;
 }
 
+/* The host of an http or https address, its port the scheme's own when it names none; false
+ * when it has none to be sure of - another scheme, or a name and password before it. */
+static bool host_in_url(const char *url, host_t *host)
+{
+    bool is_https = strncmp(url, "https://", 8) == 0;
+    const char *text = is_https ? url + 8 : strncmp(url, "http://", 7) == 0 ? url + 7 : NULL;
+    if (text == NULL) {
+        return false;
+    }
+    size_t length = strcspn(text, "/?#");
+    if (length == 0 || memchr(text, '@', length) != NULL) {
+        return false;
+    }
+    *host = host_of(text, length);
+    if (host->port == 0) {
+        host->port = is_https ? 443 : 80;
+    }
+    return host->name_length > 0;
+}
+
+/* Host names are the same in any case. */
+static bool is_same_name(const host_t *host, const host_t *other)
+{
+    if (host->name_length != other->name_length) {
+        return false;
+    }
+    for (size_t at = 0; at < host->name_length; at++) {
+        char one = host->name[at], two = other->name[at];
+        one = one >= 'A' && one <= 'Z' ? (char)(one + 32) : one;
+        two = two >= 'A' && two <= 'Z' ? (char)(two + 32) : two;
+        if (one != two) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* As app_manifest_allows_url() decides: a name listed without a port is that name at 80 or
+ * 443; "{{server}}" is the host and the port of the address the user set. */
 bool standin_url_allowed(const char *url)
 {
-    char wanted[128], allowed[128], filled[STANDIN_URL_BYTES];
-    host_of(url, wanted, sizeof wanted);
+    host_t host;
+    if (!host_in_url(url, &host)) {
+        return false;
+    }
     for (int32_t index = 0; index < standin_subject.host_count; index++) {
         const char *entry = standin_subject.hosts[index];
-        /* "{{server}}": the host of the address the user set. */
-        if (strstr(entry, "{{") != NULL) {
-            if (!standin_fill_url(entry, filled, sizeof filled)) {
+        host_t named;
+        if (strncmp(entry, "{{", 2) == 0) {
+            char server[HOST_KV_VALUE_MAX + 1];
+            size_t key_length = strlen(entry) - 4;
+            int32_t length = key_length <= HOST_KV_KEY_MAX ? kv_get(entry + 2, (int32_t)key_length, server,
+                                                                    sizeof server - 1)
+                                                           : -1;
+            if (length < 0) {
                 continue;
             }
-            entry = filled;
+            server[length] = '\0';
+            if (host_in_url(server, &named) && is_same_name(&named, &host) && named.port == host.port) {
+                return true;
+            }
+            continue;
         }
-        host_of(entry, allowed, sizeof allowed);
-        if (allowed[0] != '\0' && strcmp(allowed, wanted) == 0) {
+        named = host_of(entry, strlen(entry));
+        bool is_same_port = named.port == 0 ? host.port == 80 || host.port == 443 : named.port == host.port;
+        if (is_same_name(&named, &host) && is_same_port) {
             return true;
         }
     }
@@ -1350,7 +1464,18 @@ bool standin_url_allowed(const char *url)
 /* The values of a queued request's headers, filled when it is sent. */
 bool standin_headers_ready(const standin_request_t *request)
 {
-    const char *at = request->headers, *end = request->headers + request->headers_length;
+    return standin_header_lines_ready(request->headers, request->headers_length);
+}
+
+bool standin_poll_ready(int32_t poll)
+{
+    const char *headers = standin_subject.polls[poll].headers;
+    return headers == NULL || standin_header_lines_ready(headers, (int32_t)strlen(headers));
+}
+
+bool standin_header_lines_ready(const char *headers, int32_t length)
+{
+    const char *at = headers, *end = headers + length;
     while (at < end) {
         const char *line_end = memchr(at, '\n', (size_t)(end - at));
         line_end = line_end != NULL ? line_end : end;
@@ -1376,10 +1501,11 @@ bool standin_headers_ready(const standin_request_t *request)
 /* What the fonts are on the device with Departure Mono, which is monospaced:
  * the line, the capitals and a character's advance (host/gfx.h). */
 static const struct {
-    int32_t line, capitals, advance;
+    int32_t line, capitals, advance, ascent;
 } FONTS[] = {
-    [HOST_FONT_TEXT] = { 30, 16, 14 },   [HOST_FONT_MEDIUM] = { 45, 24, 21 }, [HOST_FONT_LARGE] = { 60, 32, 28 },
-    [HOST_FONT_DISPLAY] = { 90, 48, 42 }, [HOST_FONT_HUGE] = { 150, 80, 70 },  [HOST_FONT_SMALL] = { 15, 8, 7 },
+    [HOST_FONT_TEXT] = { 30, 16, 14, 22 },    [HOST_FONT_MEDIUM] = { 45, 24, 21, 33 },
+    [HOST_FONT_LARGE] = { 60, 32, 28, 44 },   [HOST_FONT_DISPLAY] = { 90, 48, 42, 66 },
+    [HOST_FONT_HUGE] = { 150, 80, 70, 110 },  [HOST_FONT_SMALL] = { 15, 8, 7, 11 },
 };
 #define FONT_COUNT ((int32_t)(sizeof FONTS / sizeof FONTS[0]))
 /* The kit's styles in the fonts they are set in. */
@@ -1392,7 +1518,9 @@ static const int32_t STYLE_FONTS[] = {
 #define LIST_TOP_GAP    8
 #define CELL_PADDING     12 /* kit.c */
 #define CELL_PICTURE_GAP 14
-#define TITLE_HEIGHT    52
+#define TITLE_TOP        10 /* kit.c: the title's top, the gap under its letters, the rule, the gap after */
+#define TITLE_RULE_GAP   8
+#define TITLE_AFTER_RULE 10
 #define QR_MODULES_MAX  57
 
 static void mix(const void *bytes, size_t size)
@@ -1837,7 +1965,7 @@ int32_t ui_draw_notice(const host_notice_t *notice)
     if (!is_frame("ui_draw_notice")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (notice == NULL || (notice->icon != HOST_ICON_NONE && !is_icon(notice->icon))) {
+    if (notice == NULL || (notice->icon != HOST_ICON_NONE && !is_icon(notice->icon)) || notice->first[0] == '\0') {
         return refused_draw("ui_draw_notice");
     }
     mix_notice(notice);
@@ -1900,7 +2028,7 @@ int32_t ui_draw_title(const char *text, int32_t length)
         return refused_draw("ui_draw_title");
     }
     mix(text, (size_t)length);
-    return TITLE_HEIGHT;
+    return TITLE_TOP + FONTS[HOST_FONT_MEDIUM].ascent + TITLE_RULE_GAP + 1 + TITLE_AFTER_RULE;
 }
 
 int32_t ui_draw_icon(int32_t x, int32_t y, int32_t icon, int32_t size)
@@ -1922,7 +2050,9 @@ int32_t ui_draw_button(int32_t x, int32_t y, const char *name, int32_t name_leng
     if (!is_frame("ui_draw_button")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (!is_drawable(x) || !is_drawable(y) || !is_text(name, name_length) || !is_text(action, action_length)) {
+    /* The name of a button is a word: "BACK" is the longest there is (app_api_ui.c). */
+    if (!is_drawable(x) || !is_drawable(y) || !is_text(name, name_length) || name_length < 1 || name_length > 8 ||
+        !is_text(action, action_length)) {
         return refused_draw("ui_draw_button");
     }
     int32_t numbers[] = { x, y, mirrored };
@@ -1953,7 +2083,7 @@ int32_t ui_draw_bar(int32_t x, int32_t y, int32_t width, int32_t value, int32_t 
     if (!is_frame("ui_draw_bar")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || width < 0) {
+    if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || width < 1) {
         return refused_draw("ui_draw_bar");
     }
     int32_t numbers[] = { x, y, width, value, maximum };
@@ -1961,20 +2091,25 @@ int32_t ui_draw_bar(int32_t x, int32_t y, int32_t width, int32_t value, int32_t 
     return HOST_OK;
 }
 
+/* kit_value(): beside digits at least twice the text's capitals a unit is the text, 12 pixels
+ * after the value; beside smaller ones it is the caption, 5 after. */
+static bool is_large_value(int32_t font)
+{
+    return FONTS[font & ~HOST_FONT_TABULAR].capitals >= 2 * FONTS[HOST_FONT_TEXT].capitals;
+}
+
 static int32_t unit_font(int32_t font)
 {
-    /* The unit stands a size under its value. */
-    static const int32_t SMALLER[] = {
-        [HOST_FONT_TEXT] = HOST_FONT_SMALL, [HOST_FONT_MEDIUM] = HOST_FONT_TEXT, [HOST_FONT_LARGE] = HOST_FONT_MEDIUM,
-        [HOST_FONT_DISPLAY] = HOST_FONT_LARGE, [HOST_FONT_HUGE] = HOST_FONT_DISPLAY, [HOST_FONT_SMALL] = HOST_FONT_SMALL,
-    };
-    return SMALLER[font & ~HOST_FONT_TABULAR];
+    return is_large_value(font) ? HOST_FONT_TEXT : HOST_FONT_SMALL;
 }
 
 static int32_t value_width(int32_t font, const char *value, int32_t value_length, const char *unit,
                            int32_t unit_length)
 {
-    int32_t gap = unit_length > 0 ? advance_of(unit_font(font)) : 0;
+    if (unit_length <= 0) {
+        return text_width(font, value, value_length);
+    }
+    int32_t gap = is_large_value(font) ? 12 : 5;
     return text_width(font, value, value_length) + gap + text_width(unit_font(font), unit, unit_length);
 }
 
@@ -2021,7 +2156,7 @@ int32_t ui_draw_frame(int32_t x, int32_t y, int32_t width, int32_t height, int32
     if (!is_frame("ui_draw_frame")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || !is_drawable(height)) {
+    if (!is_drawable(x) || !is_drawable(y) || !is_drawable(width) || !is_drawable(height) || width < 1 || height < 1) {
         return refused_draw("ui_draw_frame");
     }
     int32_t numbers[] = { x, y, width, height, arrows };
@@ -2032,7 +2167,7 @@ int32_t ui_draw_frame(int32_t x, int32_t y, int32_t width, int32_t height, int32
 static bool is_cell(const host_cell_t *cell, int32_t icon)
 {
     return cell != NULL && is_drawable(cell->x) && is_drawable(cell->y) && is_drawable(cell->width) &&
-           is_drawable(cell->height) && cell->width >= 0 && cell->height >= 0 &&
+           is_drawable(cell->height) && cell->width > 0 && cell->height > 0 &&
            (icon == HOST_ICON_NONE || is_icon(icon));
 }
 
@@ -2145,8 +2280,9 @@ static int32_t arena_taken;
 /* What the tools read off the built module (the end of its data), or the whole room. */
 static int32_t arena_bytes(void)
 {
-    return standin_subject.arena_bytes > 0 && standin_subject.arena_bytes <= ARENA_BYTES ? standin_subject.arena_bytes
-                                                                                         : ARENA_BYTES;
+    /* Negative: the tools could not tell, and the whole page is the arena's. */
+    return standin_subject.arena_bytes >= 0 && standin_subject.arena_bytes <= ARENA_BYTES ? standin_subject.arena_bytes
+                                                                                          : ARENA_BYTES;
 }
 
 int32_t app_alloc_left(void)
@@ -2182,6 +2318,7 @@ static void begin(const char *handler)
 {
     standin()->handler = handler;
     world->handler_writes = 0;
+    world->handler_requests = world->handler_request_bytes = 0;
     alarm(HANDLER_SECONDS);
 }
 

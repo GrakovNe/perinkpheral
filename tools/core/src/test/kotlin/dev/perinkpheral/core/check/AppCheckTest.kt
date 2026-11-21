@@ -16,7 +16,8 @@ import java.nio.file.Files
  */
 object AppCheckTest {
     /** One line of the contract broken in the specimen, and the capability that has to notice. */
-    private class Break(val capability: String, val what: String, val edits: List<Pair<String, String>>, val saying: String)
+    private class Break(val capability: String, val what: String, val edits: List<Pair<String, String>>, val saying: String,
+                        val manifestEdits: List<Pair<String, String>> = emptyList())
 
     private val BREAKS = listOf(
         Break("sessions", "the page is not kept in the session",
@@ -67,6 +68,28 @@ object AppCheckTest {
             listOf("static const char NOTE_URL[] = \"https://example.test/note\";" to
                 "static const char NOTE_URL[] = \"https://elsewhere.test/note\";"),
             "does not list"),
+        Break("network", "a request with a tag the contract does not take",
+            listOf("#define NOTE_REQUEST   HOST_REQUEST_FIRST" to "#define NOTE_REQUEST   (HOST_REQUEST_FIRST - 1)"),
+            "does not take"),
+        Break("network", "a request to a listed host at another port",
+            listOf("static const char NOTE_URL[] = \"https://example.test/note\";" to
+                "static const char NOTE_URL[] = \"https://example.test:8443/note\";"),
+            "does not list"),
+        Break("network", "one handler queues more than the device's 16 KB of requests",
+            listOf("static void ask_note(void)\n{\n" to "static void ask_note(void)\n{\n" +
+                "    static char filler[HOST_HTTP_BODY_MAX], headers[4 * 252];\n" +
+                "    for (int32_t at = 0; at < (int32_t)sizeof headers; at++) {\n" +
+                "        headers[at] = at % 252 == 0 ? 'A' : at % 252 == 1 ? ':' : at % 252 == 251 ? '\\n' : 'x';\n" +
+                "    }\n" +
+                "    for (int32_t count = 0; count < 11; count++) {\n" +
+                "        http_send(NOTE_REQUEST + 1 + count, HOST_HTTP_POST, NOTE_URL, length_of(NOTE_URL), headers,\n" +
+                "                  sizeof headers, filler, sizeof filler);\n" +
+                "    }\n"),
+            "16 KB"),
+        Break("drawing", "a bar of no width",
+            listOf("    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
+                "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n    ui_draw_bar(MARGIN, MARGIN, 0, 1, 2);\n"),
+            "ui_draw_bar() answered HOST_ERR_ARGUMENT"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
@@ -83,6 +106,9 @@ object AppCheckTest {
         check(AppCheck.applies("network", emptySet(), emptySet(), mapOf("polls" to listOf(mapOf("url" to "https://a")))))
         check(!AppCheck.applies("network", setOf("poll_run"), emptySet(), emptyMap<String, Any>()))
         check(!AppCheck.applies("drawing", emptySet(), setOf("app_on_load"), emptyMap<String, Any>()))
+        // A module whose stack and data fill the page leaves app_alloc() nothing, not the default.
+        check(AppCheck.arenaBytes(65530) == 0L && AppCheck.arenaBytes(65536) == 0L)
+        check(AppCheck.arenaBytes(57000) == 65536L - 57008L && AppCheck.arenaBytes(0) == -1L)
 
         val root = generateSequence(File(System.getProperty("user.dir")).canonicalFile) { it.parentFile }
             .first { File(it, "sdk/host_api.h").isFile }
@@ -121,6 +147,13 @@ object AppCheckTest {
                     code = code.replace(from, to)
                 }
                 source.writeText(code)
+                val manifest = File(copy, "manifest.json")
+                var described = manifest.readText()
+                for ((from, to) in broken.manifestEdits) {
+                    check(from in described) { "${broken.what}: the specimen's manifest no longer has what this breaks" }
+                    described = described.replace(from, to)
+                }
+                manifest.writeText(described)
                 said.clear()
                 val report = checker.run(copy.parentFile, only = broken.capability)
                 val line = report.lines.single()

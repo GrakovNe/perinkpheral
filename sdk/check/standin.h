@@ -49,6 +49,7 @@ typedef struct {
     int32_t            pick_count;
     const char        *each;   /* the list setting it is asked over, or NULL */
     const char        *prefix; /* the items it claims, or NULL */
+    const char        *headers; /* the manifest's, as lines "Name: value", or NULL */
 } standin_poll_t;
 
 /* An answer kept for an address, as the simulator's mocks are: an address
@@ -92,7 +93,7 @@ typedef struct {
     int32_t                  zone_offset; /* before the first change */
     const standin_zone_change_t *zone_changes;
     int32_t                  zone_change_count;
-    int32_t                  arena_bytes; /* what the module's page leaves for app_alloc(); 0: 64 KB */
+    int32_t                  arena_bytes; /* what the module's page leaves for app_alloc(); negative: 64 KB */
     const standin_pair_t    *store;
     int32_t                  store_count;
     const standin_answer_t  *answers;
@@ -202,6 +203,7 @@ typedef struct {
 
     /* Timers of the instance on the screen, alarms of the application. */
     int64_t         timer_due_ms[HOST_TIMER_COUNT]; /* by the uptime; 0: not set */
+    int32_t         timer_sets;                     /* timer_set() calls the host took */
     standin_alarm_t alarms[HOST_ALARM_COUNT];
 
     /* What the handlers left for when they return. */
@@ -220,6 +222,7 @@ typedef struct {
     int32_t request_count;
     int32_t refuse_requests; /* a HOST_ERR_*: http_send answers it */
     char    refused_request[STANDIN_NOTE_BYTES]; /* the first request the device refuses for what it asks */
+    int32_t handler_requests, handler_request_bytes; /* queued since the handler began */
     int32_t sends;
     int32_t polls_run[4];
     int32_t poll_interval[4];
@@ -279,6 +282,9 @@ bool standin_fill_url(const char *written, char *url, int32_t capacity);
 bool standin_url_allowed(const char *url);
 /* Whether every value of a queued request's headers can be filled now. */
 bool standin_headers_ready(const standin_request_t *request);
+/* The same for a poll's headers of the manifest, and for header lines of any text. */
+bool standin_poll_ready(int32_t poll);
+bool standin_header_lines_ready(const char *headers, int32_t length);
 /* How many items a poll with "each" is asked for; -1 for a poll without. */
 int32_t standin_poll_items(int32_t poll);
 /* Item `index` of those the poll claims: its number in the list, or -1. */
