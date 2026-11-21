@@ -59,7 +59,12 @@ static bool begin(void *context, size_t size)
         esp_ota_set_boot_partition(running) != ESP_OK) {
         return false;
     }
+    handle = 0;
     writing = esp_ota_begin(main, size, &handle) == ESP_OK;
+    if (!writing && handle != 0) {
+        /* ESP-IDF hands out the handle before it erases the slot, and keeps it when that fails. */
+        esp_ota_abort(handle);
+    }
     return writing;
 }
 
