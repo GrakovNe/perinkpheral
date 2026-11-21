@@ -281,6 +281,44 @@ static void test_schedule_is_bounded(void)
     CHECK(!poll_schedule_add(&schedule, 99, 0, 60, &first_in_ms));
 }
 
+/* The most applications a device holds, each with the most polls: all scheduled. */
+static void test_schedule_holds_every_installed_poll(void)
+{
+    static poll_schedule_t schedule;
+    uint32_t first_in_ms;
+    poll_schedule_init(&schedule);
+    for (int app = 1; app <= CATALOG_INSTALLED_MAX; app++) {
+        for (int poll = 0; poll < APP_POLLS_MAX; poll++) {
+            CHECK(poll_schedule_add(&schedule, app, poll, 60, &first_in_ms));
+        }
+    }
+    CHECK(poll_schedule_has(&schedule, CATALOG_INSTALLED_MAX, APP_POLLS_MAX - 1));
+    CHECK(poll_schedule_pace_ms(&schedule, CATALOG_INSTALLED_MAX, APP_POLLS_MAX - 1) == 60000);
+}
+
+/* A poll_run() put off while its poll's answer is under way keeps its
+ * deadline: the end of that run does not set the poll a period away. */
+static void test_put_off_poll_run_survives_the_answer(void)
+{
+    poll_schedule_t schedule;
+    uint32_t first_in_ms;
+    poll_schedule_init(&schedule);
+    poll_schedule_add(&schedule, 0xA, 0, 86400, &first_in_ms);
+    poll_schedule_add(&schedule, 0xA, 1, 600, &first_in_ms);
+    CHECK(!poll_schedule_is_due_soon(&schedule, 0xA, 0));
+    /* taken to be asked; its answer calls poll_run() within the second */
+    CHECK(poll_schedule_want(&schedule, 0xA, 0));
+    poll_schedule_answered(&schedule, 0xA, 0);
+    CHECK(poll_schedule_due_soon(&schedule, 0xA, 0));
+    CHECK(poll_schedule_is_due_soon(&schedule, 0xA, 0));
+    CHECK(!poll_schedule_is_due_soon(&schedule, 0xA, 1));
+    /* the put-off run is taken: the run after it sets the period again */
+    poll_schedule_answered(&schedule, 0xA, 0);
+    CHECK(!poll_schedule_is_due_soon(&schedule, 0xA, 0));
+    CHECK(!poll_schedule_due_soon(&schedule, 0xB, 0));
+    CHECK(!poll_schedule_is_due_soon(&schedule, 0xB, 0));
+}
+
 static void test_pick(void)
 {
     static app_poll_t poll;
@@ -490,6 +528,8 @@ int main(void)
     test_template();
     test_schedule();
     test_schedule_is_bounded();
+    test_schedule_holds_every_installed_poll();
+    test_put_off_poll_run_survives_the_answer();
     test_pick();
     test_schedule_hurry();
     test_template_for_a_url();

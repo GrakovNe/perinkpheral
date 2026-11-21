@@ -587,6 +587,7 @@ Open:
 - **Network access.** The owner chose physical confirmation for firmware, reset, Wi-Fi and system-app installation (2026-11-12). Other local-network operations have no password; `SECURITY.md` records that scope.
 - **Development uploads.** `tools/perinkpheral run` restarts into the application. Catalog installation and removal reload the list without restarting.
 - **Server certificates.** A setting for a user's self-signed server remains unimplemented; packaged authority roots are supported.
+- **Slow TLS handshake.** The request timer in `poller_net.c` shuts a connection only after `esp_http_client_open()` returns, so a server that sends its handshake a byte at a time within each 15 s read timeout holds the poller and the radio until the handshake ends: esp-tls gives no socket before that and checks its own timeout only after `mbedtls_ssl_handshake()` returns.
 
 Firmware updates keep installed packages. ABI 2 packages must be rebuilt for ABI 3; a newer firmware minimum gives "Update the firmware." The developer guide is built from `docs/guide/source/guide.html`; Russian comes from `docs/guide/source/guide.ru.txt`. The English source governs. An API addition is documented there; a changed signature or meaning needs a new ABI.
 

@@ -251,6 +251,7 @@ static void rest(void)
 static request_queue_t s_queue;
 _Static_assert(LAUNCHER_INSTALLED_MAX <= REQUEST_QUEUE_APPS, "every application may have requests waiting");
 _Static_assert(NO_APP == REQUEST_QUEUE_NO_APP, "one way to say nobody");
+_Static_assert(POLL_SCHEDULE_MAX >= LAUNCHER_INSTALLED_MAX * APP_POLLS_MAX, "every installed poll is scheduled");
 
 /* Takes the request that is next and makes it - or, with `why_not` a
  * HOST_FAILED_*, answers it with that instead. */
@@ -666,6 +667,8 @@ static bool run_wanted_poll(void)
     /* By id: if the application is gone meanwhile, so is its poll. */
     lock();
     uint32_t pace_ms = poll_schedule_pace_ms(&s_schedule, app, poll);
+    /* A poll_run() its answer made and that was put off has its deadline already. */
+    bool is_due_soon = poll_schedule_is_due_soon(&s_schedule, app, poll);
     if (s_abandoned.is_one && s_abandoned.app == app && s_abandoned.poll == poll) {
         /* Its answer was cut short by somebody at the device: again when
          * they are likely done, not a whole period later. */
@@ -674,10 +677,11 @@ static bool run_wanted_poll(void)
             pace_ms = ABANDONED_AGAIN_MS;
         }
     }
-    unlock();
-    if (pace_ms > 0) {
+    /* Under the lock, so that a poll_run() put off meanwhile is not overwritten. */
+    if (pace_ms > 0 && !is_due_soon) {
         deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, pace_ms);
     }
+    unlock();
     return true;
 }
 
@@ -909,11 +913,13 @@ bool poller_poll_now(const char *app_name, int poll)
     int64_t since_ms = uptime_ms() - s_polled_now_at_ms;
     if (since_ms < POLL_NOW_EVERY_MS) {
         lock();
-        bool is_one = poll_schedule_pace_ms(&s_schedule, app, poll) > 0;
-        unlock();
-        if (is_one) {
-            deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll, (uint32_t)(POLL_NOW_EVERY_MS - since_ms));
+        bool is_one = poll_schedule_has(&s_schedule, app, poll);
+        /* Marked only when set: a poll left with no deadline would never run again. */
+        if (is_one && deadlines_set_in(DEADLINE_POLL, (uint32_t)app, poll,
+                                       (uint32_t)(POLL_NOW_EVERY_MS - since_ms))) {
+            poll_schedule_due_soon(&s_schedule, app, poll);
         }
+        unlock();
         return is_one;
     }
     s_polled_now_at_ms = uptime_ms();

@@ -80,6 +80,7 @@ bool poll_schedule_add(poll_schedule_t *schedule, int app, int poll, uint32_t ev
     entry->poll = poll;
     entry->every_ms = every_s * MS_PER_SECOND;
     entry->is_wanted = false;
+    entry->is_due_soon = false;
     return true;
 }
 
@@ -160,5 +161,22 @@ void poll_schedule_answered(poll_schedule_t *schedule, int app, int poll)
     poll_entry_t *entry = find(schedule, app, poll);
     if (entry != NULL) {
         entry->is_wanted = false;
+        entry->is_due_soon = false;
     }
+}
+
+bool poll_schedule_due_soon(poll_schedule_t *schedule, int app, int poll)
+{
+    poll_entry_t *entry = find(schedule, app, poll);
+    if (entry == NULL) {
+        return false;
+    }
+    entry->is_due_soon = true;
+    return true;
+}
+
+bool poll_schedule_is_due_soon(const poll_schedule_t *schedule, int app, int poll)
+{
+    const poll_entry_t *entry = find((poll_schedule_t *)schedule, app, poll);
+    return entry != NULL && entry->is_due_soon;
 }

@@ -13,6 +13,9 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "lwip/sockets.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/x509_crt.h"
 
@@ -43,14 +46,88 @@ static const char *TAG = "poller";
 
 static const poller_net_host_t *s_host;
 
-void poller_net_start(const poller_net_host_t *host)
-{
-    s_host = host;
-}
-
 static int64_t now_ms(void)
 {
     return esp_timer_get_time() / US_PER_MS;
+}
+
+/* ---- the time a request has, kept from outside it ----
+ *
+ * The client's own loops read for as long as bytes keep coming - headers
+ * that never end, a body a byte every few seconds - and each read waits
+ * only its own timeout, so a peer could keep the one request of the device
+ * and the radio for ever. A timer shuts the connection's socket when the
+ * time is up, and every read under way or to come fails. The socket is let
+ * go before anything that may close it, so a number given to another
+ * connection since is never shut. Opening - the TLS handshake - is not
+ * covered: esp-tls gives no socket until the handshake has ended. */
+static struct {
+    SemaphoreHandle_t  lock;
+    esp_timer_handle_t timer;
+    int                socket; /* the open connection's; -1 for none */
+    int64_t            by_ms;  /* only the poller's task sets it */
+} s_cut = { .socket = -1 };
+
+static void cut_if_late(void *unused)
+{
+    (void)unused;
+    xSemaphoreTake(s_cut.lock, portMAX_DELAY);
+    /* A timer that fired late for the request before finds a later time. */
+    if (s_cut.socket >= 0 && now_ms() >= s_cut.by_ms) {
+        shutdown(s_cut.socket, SHUT_RDWR);
+        s_cut.socket = -1;
+    }
+    xSemaphoreGive(s_cut.lock);
+}
+
+/* The request in hand has until `by_ms`. */
+static void cut_at(int64_t by_ms)
+{
+    esp_timer_stop(s_cut.timer);
+    xSemaphoreTake(s_cut.lock, portMAX_DELAY);
+    s_cut.by_ms = by_ms;
+    xSemaphoreGive(s_cut.lock);
+    int64_t in_ms = by_ms - now_ms();
+    esp_timer_start_once(s_cut.timer, (uint64_t)(in_ms > 0 ? in_ms : 0) * US_PER_MS);
+}
+
+/* The client has a connection open: its socket is the one to shut. */
+static void cut_watch(esp_http_client_handle_t client)
+{
+    int socket = esp_http_client_get_socket(client);
+    xSemaphoreTake(s_cut.lock, portMAX_DELAY);
+    s_cut.socket = socket;
+    xSemaphoreGive(s_cut.lock);
+    cut_if_late(NULL); /* the time ran out while it was being opened */
+}
+
+/* Before the client may close the connection. */
+static void cut_forget(void)
+{
+    xSemaphoreTake(s_cut.lock, portMAX_DELAY);
+    s_cut.socket = -1;
+    xSemaphoreGive(s_cut.lock);
+}
+
+/* The request is over: nothing to shut, and no timer to wake a sleeping chip. */
+static void cut_stop(void)
+{
+    cut_forget();
+    esp_timer_stop(s_cut.timer);
+}
+
+static bool is_late(void)
+{
+    return now_ms() >= s_cut.by_ms;
+}
+
+void poller_net_start(const poller_net_host_t *host)
+{
+    s_host = host;
+    s_cut.lock = xSemaphoreCreateMutex();
+    configASSERT(s_cut.lock != NULL);
+    const esp_timer_create_args_t timer = { .callback = cut_if_late, .name = "poll-cut" };
+    ESP_ERROR_CHECK(esp_timer_create(&timer, &s_cut.timer));
 }
 
 static void hand_over(const char *app_name, const app_delivery_t *delivery)
@@ -319,14 +396,11 @@ static int prepare(request_t *request, const char *app_name, int method,
  * wait: a server that sends a byte now and then would otherwise keep the
  * one connection of the device - and every other application's data - for
  * as long as it likes. Values are 256 KB at most, pieces 4 MB, a firmware
- * image 1.4 MB. */
+ * image 1.4 MB. The timer above holds it inside a read too. */
 #define VALUES_WITHIN_MS   (60 * MS_PER_SECOND)
 #define PIECES_WITHIN_MS   (5 * MS_PER_MINUTE)
 #define FIRMWARE_WITHIN_MS (5 * MS_PER_MINUTE)
 #define READ_TOO_LONG      (-1000) /* read_piece(): past the answer's time */
-
-/* When the answer in hand has to be read by; only the poller's task reads. */
-static int64_t s_read_by_ms;
 
 /* Up to a whole piece, however the network cuts it; less only at the end.
  * Negative when the connection broke, READ_TOO_LONG past the answer's time. */
@@ -335,13 +409,13 @@ static int read_piece(esp_http_client_handle_t client, uint8_t *piece)
     int length = 0;
     while (length < HOST_DATA_CHUNK_MAX) {
         /* Every read may wait its own timeout: the answer's time is looked at before each. */
-        if (now_ms() > s_read_by_ms) {
+        if (is_late()) {
             return READ_TOO_LONG;
         }
         int count = esp_http_client_read(client, (char *)piece + length,
                                          HOST_DATA_CHUNK_MAX - length);
         if (count < 0) {
-            return count;
+            return is_late() ? READ_TOO_LONG : count;
         }
         if (count == 0) {
             break;
@@ -370,6 +444,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     char *list = wants_lists ? malloc(HOST_LIST_BYTES) : NULL;
     if (wants_lists && list == NULL) {
         /* Without the room every list would come empty, and pass for an answer. */
+        cut_forget();
         esp_http_client_close(client);
         hand_over_values(app_name, poll_number, HOST_FAILED_NO_MEMORY, &request->response, &request->headers, &request->pick);
         return;
@@ -378,7 +453,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     size_t total = 0;
     int    length;
     bool   is_whole = true;
-    s_read_by_ms = now_ms() + VALUES_WITHIN_MS;
+    cut_at(now_ms() + VALUES_WITHIN_MS);
     while ((length = read_piece(client, request->piece)) > 0) {
         total += (size_t)length;
         if (total > ANSWER_MAX_BYTES || !json_pick_feed(&request->pick, (char *)request->piece,
@@ -390,6 +465,7 @@ static void fetch_values(request_t *request, esp_http_client_handle_t client,
     if (!json_pick_finish(&request->pick)) {
         is_whole = false; /* "{\"price\":123": values, and no document around them */
     }
+    cut_forget();
     esp_http_client_close(client);
     if (length < 0 || !is_whole) {
         /* Broke off, too long, or not JSON: what was read so far is not
@@ -416,7 +492,7 @@ static void fetch_pieces(request_t *request, esp_http_client_handle_t client,
                          const char *app_name, int poll_number, int http_status)
 {
     uint8_t *piece = request->piece, *next = request->next_piece;
-    s_read_by_ms = now_ms() + PIECES_WITHIN_MS;
+    cut_at(now_ms() + PIECES_WITHIN_MS);
     int      length = read_piece(client, piece);
     int      next_length = 0;
     int      flags = HOST_DATA_FIRST;
@@ -488,6 +564,7 @@ static bool is_redirect(int http_status)
  * the next answer. */
 static void discard_answer(esp_http_client_handle_t client)
 {
+    cut_forget();
     esp_http_client_clear_response_buffer(client);
     esp_http_client_close(client);
 }
@@ -505,7 +582,9 @@ typedef enum {
 static redirect_t follow_redirect(request_t *request, esp_http_client_handle_t client,
                                   const char *app_name, bool only_listed_hosts)
 {
+    cut_forget(); /* a redirect to another host closes the connection */
     if (esp_http_client_set_redirection(client) != ESP_OK) {
+        cut_watch(client); /* its body is read as the answer */
         return REDIRECT_NONE; /* no Location, or one too long to read */
     }
     char *next_url = (char *)request->piece;
@@ -538,7 +617,7 @@ static esp_err_t headers_or_why_not(esp_http_client_handle_t client, request_t *
     memset(&request->response, 0, sizeof request->response);
     answer_headers_reset(&request->headers);
     int64_t length = esp_http_client_fetch_headers(client);
-    if (length == -ESP_ERR_HTTP_EAGAIN) {
+    if (length == -ESP_ERR_HTTP_EAGAIN || (length < 0 && is_late())) {
         return ESP_ERR_TIMEOUT;
     }
     return length < 0 ? ESP_FAIL : ESP_OK;
@@ -603,7 +682,11 @@ static void ask_network(request_t *request, const char *app_name, int number, in
         return;
     }
     int64_t   started_ms = now_ms();
+    cut_at(started_ms + REQUEST_WITH_REDIRECTS_MS);
     esp_err_t err = esp_http_client_open(client, body_length);
+    if (err == ESP_OK) {
+        cut_watch(client);
+    }
     if (err == ESP_OK && body_length > 0 &&
         esp_http_client_write(client, (const char *)body, body_length) != body_length) {
         err = ESP_FAIL;
@@ -638,6 +721,7 @@ static void ask_network(request_t *request, const char *app_name, int number, in
         err = esp_http_client_open(client, 0);
         http_status = 0;
         if (err == ESP_OK) {
+            cut_watch(client);
             err = headers_or_why_not(client, request);
             http_status = esp_http_client_get_status_code(client);
         }
@@ -670,6 +754,7 @@ static void ask_network(request_t *request, const char *app_name, int number, in
         ESP_LOG_LEVEL(is_ok ? ESP_LOG_INFO : ESP_LOG_WARN, TAG, "%s/%d: HTTP %d in %d ms",
                       app_name, number, http_status, (int)(now_ms() - started_ms));
     }
+    cut_stop();
     esp_http_client_cleanup(client);
 }
 
@@ -793,27 +878,34 @@ bool poller_net_fetch(const char *url, size_t max_bytes, poller_net_take_fn take
     if (client == NULL) {
         return false;
     }
+    cut_at(now_ms() + REQUEST_WITH_REDIRECTS_MS);
     for (int hop = 0; hop <= REDIRECTS_MAX; hop++) {
         if (esp_http_client_open(client, 0) != ESP_OK) {
             break;
         }
+        cut_watch(client);
         esp_http_client_fetch_headers(client);
         *http_status = esp_http_client_get_status_code(client);
-        if (!is_redirect(*http_status) || esp_http_client_set_redirection(client) != ESP_OK) {
+        if (!is_redirect(*http_status)) {
             break;
+        }
+        cut_forget(); /* a redirect to another host closes the connection */
+        if (esp_http_client_set_redirection(client) != ESP_OK) {
+            break; /* a redirect is no file: nothing more is read */
         }
         discard_answer(client);
     }
     bool   is_ok = *http_status >= HTTP_OK_FIRST && *http_status <= HTTP_OK_LAST;
     size_t total = 0;
     int    length = 0;
-    s_read_by_ms = now_ms() + FIRMWARE_WITHIN_MS;
+    cut_at(now_ms() + FIRMWARE_WITHIN_MS);
     while (is_ok && (length = read_piece(client, piece)) > 0) {
         total += (size_t)length;
         if (total > max_bytes || !take(context, piece, (size_t)length)) {
             is_ok = false;
         }
     }
+    cut_stop();
     esp_http_client_cleanup(client);
     return is_ok && length == 0;
 }
