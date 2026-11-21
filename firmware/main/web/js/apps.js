@@ -87,6 +87,15 @@ function placeField(input, latitude, longitude) {
   return box;
 }
 
+/* What a setting reads as: what is stored, an empty value too, or with nothing stored its
+ * default - the device leaves such a setting out. A list's default is its items a line apart. */
+function settingValue(app, key) {
+  if (Object.prototype.hasOwnProperty.call(app.values, key)) return app.values[key];
+  const setting = app.settings.find(have => have.key === key);
+  const preset = setting && setting.default;
+  return Array.isArray(preset) ? preset.join("\n") : preset;
+}
+
 /* The fields of an application's settings, as its manifest describes them. */
 function settingFields(app) {
   const filled = new Set(app.settings.filter(setting => setting.type === "place")
@@ -94,7 +103,7 @@ function settingFields(app) {
   const hidden = {}, parts = [];
   for (const setting of app.settings) {
     if (!filled.has(setting.key)) continue;
-    hidden[setting.key] = make("input", { type: "hidden", value: app.values[setting.key] });
+    hidden[setting.key] = make("input", { type: "hidden", value: settingValue(app, setting.key) ?? "" });
     hidden[setting.key].dataset.key = setting.key;
     hidden[setting.key].dataset.type = setting.type;
     parts.push(hidden[setting.key]);
@@ -124,8 +133,7 @@ function listField(value) {
 function settingField(app, setting) {
   const preset = Array.isArray(setting.default) ? setting.default.join("\n") : setting.default;
   const id = "setting-" + setting.key;
-  const value = setting.type === "link" && preset ? (app.values[setting.key] ?? preset) :
-    (app.values[setting.key] || preset || "");
+  const value = settingValue(app, setting.key) ?? "";
   const label = make("label", { htmlFor: id, textContent: setting.title });
   let input;
   if (setting.type === "list") {
@@ -235,7 +243,8 @@ window.addEventListener("message", event => {
   if (said.perinkpheral === "ready") {
     const app = companion.app, values = {};
     for (const setting of app.settings)
-      if (setting.type !== "secret" && setting.type !== "link") values[setting.key] = app.values[setting.key];
+      if (setting.type !== "secret" && setting.type !== "link")
+        values[setting.key] = Object.prototype.hasOwnProperty.call(app.values, setting.key) ? app.values[setting.key] : "";
     companion.page.postMessage({ perinkpheral: "app", name: app.name, title: app.title,
                                  settings: app.settings, values }, companion.origin);
   } else if (said.perinkpheral === "settings" && said.values && typeof said.values === "object") {
@@ -435,6 +444,7 @@ function paceOf(app, every) {
   const key = typeof every === "string" ? (every.match(/^\{\{(.+)\}\}$/) || [])[1] : null;
   if (!key) return pace(every);
   const setting = app.settings.find(have => have.key === key);
+  /* An empty pace is no choice: the device takes the default then. */
   const chosen = app.values[key] || (setting && setting.default) || "";
   const at = setting && setting.options ? setting.options.indexOf(chosen) : -1;
   return at >= 0 && setting.labels ? setting.labels[at] : chosen || "-";
@@ -447,11 +457,12 @@ function hostOf(app, address) {
    * the user wrote there: said so, not shown as the template it is in the manifest. */
   if (!key && /^(?:\w+:\/\/)?[^/]*\{\{\w+\}\}/.test(address)) return t("Set by the user");
   /* An address the device keeps to itself - a calendar's - is named, not shown. */
-  if (key && typeof app.values[key] !== "string") {
+  const value = key ? settingValue(app, key) : "";
+  if (key && typeof value !== "string") {
     const kept = app.settings.find(have => have.key === key);
-    return (kept ? kept.title : key) + (app.values[key] ? "" : " (" + t("not set") + ")");
+    return (kept ? kept.title : key) + (value ? "" : " (" + t("not set") + ")");
   }
-  const whole = key ? address.replace("{{" + key + "}}", app.values[key] || "") : address;
+  const whole = key ? address.replace("{{" + key + "}}", value) : address;
   try {
     return new URL(whole.includes("://") ? whole : "http://" + whole).host;
   } catch (error) {

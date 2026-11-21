@@ -221,7 +221,8 @@ static bool add_setting_value(json_t *values, const json_t *setting, const char 
     value[length > 0 ? length : 0] = '\0';
     bool is_link = strcmp(type, "link") == 0;
     if (!is_link && strcmp(type, "secret") != 0) {
-        return json_add_string(values, key, value) != NULL;
+        /* Nothing stored is left out, for the default to show; an empty value is the user's. */
+        return length == HOST_ERR_NOT_FOUND || json_add_string(values, key, value) != NULL;
     }
 
     /* Only a manifest default is public. Custom links, like secrets, are
@@ -778,7 +779,7 @@ const web_route_t WEB_APPS_ROUTES[] = {
     { "/api/glyphs/remove", HTTP_POST, handle_glyphs_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/apps/remove", HTTP_POST, handle_remove, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/apps/install", HTTP_POST, handle_install, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE, WEB_WAITS },
-    { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE, WEB_AT_ONCE },
+    { "/api/catalog", HTTP_GET, handle_catalog, MEMORY_FOR_A_SESSION, WEB_OWN_PAGE, WEB_WAITS },
     { "/api/sources", HTTP_GET, handle_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
     { "/api/sources", HTTP_POST, handle_set_sources, WEB_NO_MEMORY_NEED, WEB_OWN_PAGE, WEB_AT_ONCE },
 };

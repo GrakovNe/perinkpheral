@@ -186,7 +186,9 @@ components:
           type: object
           additionalProperties: { oneOf: [{ type: string }, { type: boolean }] }
           description: >-
-            Stored values. A secret or custom link is returned only as set (true) or
+            Stored values. A setting other than a secret or link with nothing stored is
+            left out, so that its manifest default applies; a stored empty value is an empty
+            string and overrides the default. A secret or custom link is returned only as set (true) or
             not (false). An absent link with a public manifest default returns that
             default as text; a stored empty link returns false and overrides the default.
             Hidden is a form rule, not a restriction on API reads or writes.
@@ -557,6 +559,7 @@ paths:
             application/json: {}
         "404": { $ref: "#/components/responses/Error" }
         "502": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 
   /api/glyphs:
     get:
