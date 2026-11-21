@@ -24,6 +24,14 @@ static QueueHandle_t    s_queue;
 static QueueHandle_t    s_input;
 static QueueSetHandle_t s_either;
 static volatile uint32_t s_dropped;
+/* The input queue's last places are kept for releases. A release is posted only for a button
+ * whose press the queue took, so each button has at most one release to come: as many places as
+ * buttons are enough, and no release is ever dropped. Losing one would leave the button held for
+ * the host loop - BACK's long press never coming, UP and DOWN switching applications. */
+#define RELEASE_PLACES 4
+static SemaphoreHandle_t s_button_lock; /* one producer at a time between counting and posting */
+static bool              s_press_taken[RELEASE_PLACES];
+_Static_assert(INPUT_QUEUE_LENGTH > RELEASE_PLACES, "the queue must leave room for presses");
 static uint32_t s_dropped_reported; /* by the host loop, which has the stack to say so */
 
 void events_start(void)
@@ -31,7 +39,8 @@ void events_start(void)
     s_queue = xQueueCreate(QUEUE_LENGTH, sizeof(event_t));
     s_input = xQueueCreate(INPUT_QUEUE_LENGTH, sizeof(event_t));
     s_either = xQueueCreateSet(QUEUE_LENGTH + INPUT_QUEUE_LENGTH);
-    configASSERT(s_queue != NULL && s_input != NULL && s_either != NULL);
+    s_button_lock = xSemaphoreCreateMutex();
+    configASSERT(s_queue != NULL && s_input != NULL && s_either != NULL && s_button_lock != NULL);
     xQueueAddToSet(s_queue, s_either);
     xQueueAddToSet(s_input, s_either);
 }
@@ -66,7 +75,27 @@ void events_post_button(uint8_t index, event_press_t press)
     event_t event = { .kind = EVENT_BUTTON,
                       .button = { .index = index, .press = press,
                                   .at_ms = esp_timer_get_time() / US_PER_MS } };
-    events_post(&event);
+    bool posted = false;
+    xSemaphoreTake(s_button_lock, portMAX_DELAY);
+    UBaseType_t places = uxQueueSpacesAvailable(s_input);
+    if (press == EVENT_PRESS_UP) {
+        /* The release of a press the host loop never saw is not news to it either. */
+        bool was_taken = index >= RELEASE_PLACES || s_press_taken[index];
+        posted = was_taken && places > 0 && xQueueSend(s_input, &event, 0) == pdTRUE;
+        if (index < RELEASE_PLACES) {
+            s_press_taken[index] = false;
+        }
+    } else {
+        posted = places > RELEASE_PLACES && xQueueSend(s_input, &event, 0) == pdTRUE;
+        if (press == EVENT_PRESS_DOWN && index < RELEASE_PLACES && posted) {
+            /* A press refused leaves one taken before it waiting for its release. */
+            s_press_taken[index] = true;
+        }
+    }
+    xSemaphoreGive(s_button_lock);
+    if (!posted) {
+        s_dropped++;
+    }
 }
 
 typedef struct {

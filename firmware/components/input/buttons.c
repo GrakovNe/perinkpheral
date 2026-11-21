@@ -157,11 +157,6 @@ static void buttons_task(void *arg)
     }
 }
 
-bool buttons_is_down(uint8_t index)
-{
-    return index < BUTTONS_COUNT && gpio_get_level(s_gpio[index]) == 0;
-}
-
 void buttons_start(buttons_sink_fn sink)
 {
     s_sink = sink;

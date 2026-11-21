@@ -29,11 +29,6 @@ typedef struct {
     uint8_t swallowed; /* UP and DOWN that went down in a chord, until they go down again */
 } back_switch_state_t;
 
-/* BACK is up although no release came - the event was lost with a full queue. The hold is
- * over; true when it had passed the long press's time without a chord, and so was the long
- * BACK the user is still waiting for. */
-bool back_switch_release_lost(back_switch_state_t *state);
-
 /* What one event of one button is. Pure: the caller opens the application. `can_switch` is
  * false where there is nothing to switch from - the menu, whose UP and DOWN stay its own. */
 back_switch_t back_switch_press(back_switch_state_t *state, scene_button_t button, scene_press_t press,

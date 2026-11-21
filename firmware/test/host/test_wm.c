@@ -797,19 +797,6 @@ static void test_back_switch(void)
     CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, false) == BACK_SWITCH_PASS);
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, false) == BACK_SWITCH_SWALLOW);
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, false) == BACK_SWITCH_LONG_BACK);
-    /* A release lost with a full queue: the hold is ended from the pin. Past the long time and
-     * with no chord it was the long BACK; and UP and DOWN are the scene's again. */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
-    CHECK(back_switch_release_lost(&state));
-    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
-    CHECK(!back_switch_release_lost(&state)); /* nothing is held: nothing was lost */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
-    CHECK(!back_switch_release_lost(&state)); /* a hold short of the long time was no long BACK */
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PREVIOUS);
-    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
-    CHECK(!back_switch_release_lost(&state)); /* a hold that switched is nobody's long BACK */
     /* OK with BACK held is no chord. */
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
     CHECK(back_switch_press(&state, SCENE_BUTTON_OK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
