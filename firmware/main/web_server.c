@@ -371,8 +371,16 @@ static atomic_bool s_is_waiting; /* one such request at a time */
 static void answer_waiting(void *argument)
 {
     waiting_t *waiting = argument;
-    waiting->handler(waiting->request);
+    httpd_handle_t server = waiting->request->handle;
+    int            socket = httpd_req_to_sockfd(waiting->request);
+    esp_err_t      result = waiting->handler(waiting->request);
     httpd_req_async_handler_complete(waiting->request);
+    /* A failed handler's connection is closed, as the server's own task
+     * closes it: an answer cut short - a catalog whose source stopped - is
+     * known to the page only by that. */
+    if (result != ESP_OK) {
+        httpd_sess_trigger_close(server, socket);
+    }
     free(waiting);
     atomic_store(&s_is_waiting, false);
     vTaskDelete(NULL);

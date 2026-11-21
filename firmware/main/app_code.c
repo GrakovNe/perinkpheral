@@ -6,6 +6,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -26,20 +27,31 @@ static const char *TAG = "app_code";
 #define PARTITION_SUBTYPE 0x40 /* the "appcode" type of partitions.csv: one of the application's own */
 /* The first four bytes of a module's first sector: "PKAP" as they lie in
  * the flash. An erased sector begins with 0xFFFFFFFF, and a module whose
- * writing was cut short has no mark: the mark is written last. */
+ * writing was cut short has no mark: the mark is written last, after the
+ * size and the name, which go first. */
 #define SLOT_MAGIC        0x50414b50u
 #define COPY_CHUNK_BYTES  1024
 #define SECTOR_BYTES      4096
 /* A module takes a sector at least: the partition is 80 of them. */
 #define EXTENTS_MAX       96
 
-/* The first bytes of a module's piece. Written last, so that a piece that
- * was being written when the power went is not taken for a module. */
+/* The first bytes of a module's piece. The size, the name and their check are
+ * written before the body, the mark after it: a piece that was being written
+ * when the power went is not taken for a module, and what its body holds is
+ * not read as the header of another. */
+#define CHECK_BYTES 4
+
 typedef struct {
     uint32_t magic;
     uint32_t size;
     char     name[APP_NAME_MAX + 1];
-    uint8_t  unused[APP_CODE_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1)];
+    /* How many bits of the size and the name are 0, little-endian. Writing
+     * only clears bits and erasing only sets them, so a write or an erase cut
+     * short changes the count one way and the bits it counts the other: the
+     * size and the name of such a header are not believed. Modules written
+     * by an older firmware have it erased. */
+    uint8_t  check[CHECK_BYTES];
+    uint8_t  unused[APP_CODE_HEADER_BYTES - 2 * sizeof(uint32_t) - (APP_NAME_MAX + 1) - CHECK_BYTES];
 } slot_header_t;
 _Static_assert(sizeof(slot_header_t) == APP_CODE_HEADER_BYTES, "the header is its bytes");
 
@@ -83,28 +95,57 @@ static const slot_header_t *header_at(int sector)
     return (const slot_header_t *)(s_mapped + (size_t)sector * SECTOR_BYTES);
 }
 
-/* A module begins at this sector, and the partition holds all of it. */
-static bool is_module_at(int sector)
+/* How many sectors the piece that begins at this sector takes, or 0. A
+ * size and a name make a piece, with or without the mark: the sectors of
+ * one whose writing was cut short are its own until they are erased, and
+ * a header its body carries is never looked for. */
+/* The check of a header: the 0 bits of its size and its name. */
+static uint32_t zero_bits(const slot_header_t *header)
 {
-    const slot_header_t *header = header_at(sector);
-    return header->magic == SLOT_MAGIC && header->size >= 1 &&
-           header->size <= MANIFEST_MODULE_MAX_BYTES &&
-           sector + sectors_for(header->size) <= s_sectors &&
-           memchr(header->name, '\0', sizeof header->name) != NULL &&
-           app_manifest_is_valid_name(header->name);
+    const uint8_t *covered = (const uint8_t *)header + offsetof(slot_header_t, size);
+    uint32_t       zeros = 0;
+    for (size_t i = 0; i < offsetof(slot_header_t, check) - offsetof(slot_header_t, size); i++) {
+        zeros += 8 - (uint32_t)__builtin_popcount(covered[i]);
+    }
+    return zeros;
 }
 
-/* Reads what lies in the partition: a module at every sector that begins
+static int piece_at(int sector)
+{
+    const slot_header_t *header = header_at(sector);
+    uint32_t check = 0;
+    for (int i = CHECK_BYTES - 1; i >= 0; i--) {
+        check = check << 8 | header->check[i];
+    }
+    /* A marked module of an older firmware has no check. */
+    bool is_checked = check == zero_bits(header) ||
+                      (header->magic == SLOT_MAGIC && check == UINT32_MAX);
+    if (!is_checked || header->size < 1 || header->size > MANIFEST_MODULE_MAX_BYTES ||
+        sector + sectors_for(header->size) > s_sectors ||
+        memchr(header->name, '\0', sizeof header->name) == NULL ||
+        !app_manifest_is_valid_name(header->name)) {
+        return 0;
+    }
+    return sectors_for(header->size);
+}
+
+/* A whole module begins at this sector: a piece with its mark. */
+static bool is_module_at(int sector)
+{
+    return piece_at(sector) > 0 && header_at(sector)->magic == SLOT_MAGIC;
+}
+
+/* Reads what lies in the partition: a piece at every sector that begins
  * one, and after it the sectors it takes. */
 static void scan(void)
 {
     s_extent_count = 0;
     for (int sector = 0; sector < s_sectors && s_extent_count < EXTENTS_MAX;) {
-        if (!is_module_at(sector)) {
+        int sectors = piece_at(sector);
+        if (sectors == 0) {
             sector++;
             continue;
         }
-        int sectors = sectors_for(header_at(sector)->size);
         s_extents[s_extent_count++] = (app_room_extent_t){ sector, sectors };
         sector += sectors;
     }
@@ -114,7 +155,8 @@ static void scan(void)
 static int extent_of(const char *app_name)
 {
     for (int i = 0; i < s_extent_count; i++) {
-        if (strcmp(header_at(s_extents[i].start)->name, app_name) == 0) {
+        if (is_module_at(s_extents[i].start) &&
+            strcmp(header_at(s_extents[i].start)->name, app_name) == 0) {
             return i;
         }
     }
@@ -151,11 +193,11 @@ bool app_code_has_room(const char *app_name, size_t module_bytes)
      * walked here, and nothing of the host loop's is touched. */
     int free_sectors = s_sectors;
     for (int sector = 0; sector < s_sectors;) {
-        if (!is_module_at(sector)) {
+        int sectors = piece_at(sector);
+        if (sectors == 0) {
             sector++;
             continue;
         }
-        int sectors = sectors_for(header_at(sector)->size);
         if (strcmp(header_at(sector)->name, app_name) != 0) {
             free_sectors -= sectors;
         }
@@ -172,24 +214,39 @@ size_t app_code_free_bytes(void)
     /* Walked here, as for the room: asked from another task. */
     int free_sectors = s_sectors;
     for (int sector = 0; sector < s_sectors;) {
-        if (!is_module_at(sector)) {
+        int sectors = piece_at(sector);
+        if (sectors == 0) {
             sector++;
             continue;
         }
-        int sectors = sectors_for(header_at(sector)->size);
         free_sectors -= sectors;
         sector += sectors;
     }
     return (size_t)free_sectors * SECTOR_BYTES;
 }
 
-/* The module goes, all its sectors erased: what lay in its body must not be
+/* A piece goes, all its sectors erased: what lay in its body must not be
  * read as the mark of another module once the sectors are free - a module
- * can carry bytes that look like one, and the scan looks at every sector. */
+ * can carry bytes that look like one, and the scan looks at every sector.
+ * The first sector goes last, so that its header covers the rest until
+ * they are erased, whenever the power goes; its mark is cleared before, so
+ * that a header that erase leaves half done, its size or name changed, is
+ * no module's of an older firmware either and has to agree with its check. */
+static bool erase_run(int start, int sectors)
+{
+    static const uint32_t CLEARED = 0;
+    return (sectors < 2 ||
+            esp_partition_erase_range(s_partition, (size_t)(start + 1) * SECTOR_BYTES,
+                                      (size_t)(sectors - 1) * SECTOR_BYTES) == ESP_OK) &&
+           esp_partition_write(s_partition, (size_t)start * SECTOR_BYTES, &CLEARED,
+                               sizeof CLEARED) == ESP_OK &&
+           esp_partition_erase_range(s_partition, (size_t)start * SECTOR_BYTES, SECTOR_BYTES) ==
+               ESP_OK;
+}
+
 static bool forget(int extent)
 {
-    return esp_partition_erase_range(s_partition, (size_t)s_extents[extent].start * SECTOR_BYTES,
-                                     (size_t)s_extents[extent].sectors * SECTOR_BYTES) == ESP_OK;
+    return erase_run(s_extents[extent].start, s_extents[extent].sectors);
 }
 
 void app_code_erase_all(void)
@@ -237,22 +294,37 @@ static bool place(const char *app_name, const char *path)
     size_t   start = (size_t)sector * SECTOR_BYTES;
     bool     is_stored = esp_partition_erase_range(s_partition, start,
                                                    (size_t)sectors * SECTOR_BYTES) == ESP_OK;
+    slot_header_t header = { .magic = SLOT_MAGIC, .size = (uint32_t)found.st_size };
+    strlcpy(header.name, app_name, sizeof header.name);
+    uint32_t zeros = zero_bits(&header);
+    for (int i = 0; i < CHECK_BYTES; i++) {
+        header.check[i] = (uint8_t)(zeros >> (8 * i));
+    }
+    memset(header.unused, 0xFF, sizeof header.unused);
+    /* All but the mark first, the size, the name and their check in one
+     * write: from here the run is one piece, whatever the body brings. */
+    bool is_begun = is_stored &&
+                    esp_partition_write(s_partition, start + sizeof header.magic,
+                                        (const uint8_t *)&header + sizeof header.magic,
+                                        sizeof header - sizeof header.magic) == ESP_OK;
+    is_stored = is_begun;
     uint32_t size = 0;
     static uint8_t chunk[COPY_CHUNK_BYTES]; /* only the host loop stores */
     size_t   count;
     while (is_stored && (count = fread(chunk, 1, sizeof chunk, file)) > 0) {
-        is_stored = size + count <= (uint32_t)found.st_size &&
+        is_stored = size + count <= header.size &&
                     esp_partition_write(s_partition, start + sizeof(slot_header_t) + size, chunk,
                                         count) == ESP_OK;
         size += (uint32_t)count;
     }
-    is_stored = is_stored && !ferror(file) && size == (uint32_t)found.st_size;
+    is_stored = is_stored && !ferror(file) && size == header.size;
     fclose(file);
     if (is_stored) {
-        slot_header_t header = { .magic = SLOT_MAGIC, .size = size };
-        strlcpy(header.name, app_name, sizeof header.name);
-        memset(header.unused, 0xFF, sizeof header.unused);
-        is_stored = esp_partition_write(s_partition, start, &header, sizeof header) == ESP_OK;
+        is_stored = esp_partition_write(s_partition, start, &header.magic, sizeof header.magic) ==
+                    ESP_OK;
+    }
+    if (is_begun && !is_stored) {
+        erase_run(sector, sectors); /* refused, it goes at the next adoption */
     }
     return is_stored;
 }
@@ -297,7 +369,7 @@ static void pack(const char *apps_root)
         char name[APP_NAME_MAX + 1];
         char path[APP_STORE_PATH_MAX];
         strlcpy(name, header_at(s_extents[extent].start)->name, sizeof name);
-        if (!app_store_is_ready(apps_root, name)) {
+        if (!is_module_at(s_extents[extent].start) || !app_store_is_ready(apps_root, name)) {
             return;
         }
         struct stat existing;
@@ -347,11 +419,24 @@ static bool store(const char *app_name, const char *path, const char *apps_root)
     return place(app_name, path);
 }
 
+/* A piece whose writing was cut short is nobody's: whatever its body
+ * holds goes before anything is placed. */
+static void forget_unfinished(void)
+{
+    scan();
+    for (int i = 0; i < s_extent_count; i++) {
+        if (!is_module_at(s_extents[i].start)) {
+            forget(i);
+        }
+    }
+}
+
 void app_code_adopt(const char *apps_root)
 {
     if (s_partition == NULL) {
         return;
     }
+    forget_unfinished();
     DIR *directory = opendir(apps_root);
     if (directory == NULL) {
         return;

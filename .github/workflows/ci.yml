@@ -98,6 +98,7 @@ jobs:
           tools/cli/gradlew -p tools/core check
           node firmware/test/web/test_firmware_update.js
           node firmware/test/web/test_app_requests.js
+          node firmware/test/web/test_app_settings.js
       - name: The applications in the simulator
         run: tools/perinkpheral sim-test firmware/test/sim
       - name: The pictures that differ

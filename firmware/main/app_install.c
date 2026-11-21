@@ -158,7 +158,7 @@ static const char *install_file(const char *source, int source_index, const char
 }
 
 /* The files as the page read them from the index: the module first, the
- * manifest last, and both there. */
+ * manifest last, both there, and none twice. */
 bool app_install_files_are_valid(const json_t *files)
 {
     int count = json_is_array(files) ? json_count(files) : 0;
@@ -171,6 +171,19 @@ bool app_install_files_are_valid(const json_t *files)
     if (!json_is_string(first) || strcmp(first->text, APP_FILE_MODULE) != 0 ||
         !json_is_string(last) || strcmp(last->text, APP_FILE_MANIFEST) != 0) {
         return false;
+    }
+    /* Each file once: a second download of a name would replace the first
+     * unseen - the manifest's kept text among it - and be counted twice. */
+    for (int i = 0; i < count; i++) {
+        const json_t *name = json_get(json_at(files, i), "name");
+        if (!json_is_string(name)) {
+            return false;
+        }
+        for (int j = 0; j < i; j++) {
+            if (strcmp(name->text, json_get(json_at(files, j), "name")->text) == 0) {
+                return false;
+            }
+        }
     }
     /* The two have a size, as the room for them is reckoned from it. */
     const json_t *first_size = json_get(json_at(files, 0), "size");
@@ -214,6 +227,20 @@ static long data_files_bytes(const json_t *files)
         taken += bytes_in_blocks(json_get(json_at(files, i), "size")->number);
     }
     return taken;
+}
+
+/* What the data files of the folder take that the package does not
+ * replace: an update keeps them, those the application wrote among them,
+ * so they count with the package's. */
+static long kept_files_bytes(const char *app_name, const json_t *files)
+{
+    long kept = app_store_files_bytes(STORAGE_APPS_ROOT, app_name);
+    for (int i = 1; i < json_count(files) - 1; i++) {
+        long replaced = app_store_file_size(STORAGE_APPS_ROOT, app_name,
+                                            json_get(json_at(files, i), "name")->text);
+        kept -= replaced > 0 ? bytes_in_blocks((double)replaced) : 0;
+    }
+    return kept;
 }
 
 /* Whether the files promised to the applications that write, the one being
@@ -291,6 +318,9 @@ typedef struct {
     const char *source;
     int source_index;
     const app_install_options_t *options;
+    const json_t *files;
+    long files_bytes, manifest_bytes; /* the package's data files and manifest, in blocks */
+    bool writes_files;
     char *previous_manifest;
     char *incoming_manifest;
     uint32_t previous_id;
@@ -396,6 +426,13 @@ static void commit_install(void *argument)
             }
         }
     }
+    /* Counted again here, where the application cannot write meanwhile: it
+     * may have while the package was downloaded. */
+    if (job->writes_files && job->files_bytes + kept_files_bytes(job->name, job->files) +
+                                     job->manifest_bytes > HOST_FILES_WRITER_MAX) {
+        job->problem = "Not enough storage.";
+        return;
+    }
     job->committed = app_store_commit_all(STORAGE_APPS_ROOT, job->name);
     /* Installation callbacks may remove the application: the files no
      * longer have an open download, and the writer lock still excludes uploads. */
@@ -418,10 +455,11 @@ static const char *install_package(install_job_t *job, const json_t *files)
     free(installed);
     long module_bytes = (long)json_get(json_at(files, 0), "size")->number;
     long files_bytes = data_files_bytes(files);
+    long files_after = files_bytes + kept_files_bytes(job->name, files);
     long manifest_bytes = bytes_in_blocks(json_get(json_at(files, json_count(files) - 1), "size")->number);
     if ((!job->was_installed && count >= CATALOG_INSTALLED_MAX) ||
         !app_code_has_room(job->name, (size_t)module_bytes) ||
-        !files_room_holds(job->name, false, files_bytes,
+        !files_room_holds(job->name, false, files_after,
                           bytes_in_blocks((double)module_bytes) + files_bytes + manifest_bytes)) {
         return "Not enough storage.";
     }
@@ -441,10 +479,14 @@ static const char *install_package(install_job_t *job, const json_t *files)
         (job->options->version != NULL && strcmp(job->options->version, incoming.version) != 0)) {
         return "Invalid manifest.";
     }
-    if (writes_files && (files_bytes + manifest_bytes > HOST_FILES_WRITER_MAX ||
-                        !files_room_holds(job->name, true, files_bytes, 0))) {
+    if (writes_files && (files_after + manifest_bytes > HOST_FILES_WRITER_MAX ||
+                        !files_room_holds(job->name, true, files_after, 0))) {
         return "Not enough storage.";
     }
+    job->files = files;
+    job->files_bytes = files_bytes;
+    job->manifest_bytes = manifest_bytes;
+    job->writes_files = writes_files;
     if (asks_for_system && job->options->installed_id == 0) {
         if (job->options->confirm_system == NULL) return "Not confirmed.";
         problem = job->options->confirm_system();
