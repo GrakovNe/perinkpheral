@@ -210,11 +210,10 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     /* A press is for what is on the screen, and that is not loaded while
      * another application takes an answer piece by piece: the answer gives
      * way, the press is not lost. */
-    /* BACK's release may be the long BACK home: a notice the answer's owner posts as it is ended
-     * waits for the next press, as one from the application on the screen does. */
-    host_notices_note_going_home(index == BUTTON_BACK_INDEX && press == EVENT_PRESS_UP);
+    /* Not inside the long BACK's notice window: whether this release is the long BACK is known
+     * only below, and a window over every release would hold notices after a chord too. A notice
+     * the answer's owner posts here can show over the menu; it is closed with one press. */
     host_end_background_answer();
-    host_notices_note_going_home(false);
     /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
      * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
