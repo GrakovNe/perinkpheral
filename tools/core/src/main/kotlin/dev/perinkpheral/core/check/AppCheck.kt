@@ -265,8 +265,8 @@ class AppCheck(private val sdk: Sdk, private val wasiSdk: File, private val say:
             if (hosts.isNotEmpty()) appendLine("static const char *const HOSTS[] = { ${hosts.joinToString(", ") { text(it) }} };")
             // The package as it is installed: its files and the tables of its languages, which count
             // against what it may write as the files it writes do; not the module and the manifest.
-            val files = built.dir.listFiles().orEmpty()
-                .filter { it.isFile && it.name != MANIFEST && it.name != MODULE }.sortedBy { it.name }
+            val files = AppBuilder.packageFiles(built.dir).filter { it != MANIFEST && it != MODULE }
+                .map { File(built.dir, it) }.filter { it.isFile }
             if (files.isNotEmpty()) {
                 appendLine("static const standin_file_t FILES[] = {")
                 files.forEach { appendLine("    { ${text(it.name)}, ${text(it.path)} },") }

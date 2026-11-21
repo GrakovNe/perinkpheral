@@ -1382,8 +1382,12 @@ static host_t host_of(const char *text, size_t length)
     const char *colon = memchr(text, ':', length);
     if (colon != NULL) {
         host.name_length = (size_t)(colon - text);
-        for (const char *digit = colon + 1; digit < text + length; digit++) {
-            host.port = host.port * 10 + (*digit - '0');
+        /* Digits, and no more than a port has: anything else is no port and matches none. The
+         * firmware reads any characters as digits; no address it lets through differs. */
+        for (const char *digit = colon + 1; digit < text + length && host.port >= 0; digit++) {
+            bool is_digit = *digit >= '0' && *digit <= '9';
+            host.port = is_digit && host.port <= 6553 ? host.port * 10 + (*digit - '0') : -1;
+            host.port = host.port > 65535 ? -1 : host.port;
         }
     }
     return host;
@@ -1403,6 +1407,9 @@ static bool host_in_url(const char *url, host_t *host)
         return false;
     }
     *host = host_of(text, length);
+    if (host->port < 0) {
+        return false;
+    }
     if (host->port == 0) {
         host->port = is_https ? 443 : 80;
     }
@@ -1467,13 +1474,21 @@ bool standin_headers_ready(const standin_request_t *request)
     return standin_header_lines_ready(request->headers, request->headers_length);
 }
 
-bool standin_poll_ready(int32_t poll)
+static bool header_lines_ready(const char *headers, int32_t length, const standin_poll_t *asked, int32_t item);
+
+bool standin_poll_ready(int32_t poll, int32_t item)
 {
-    const char *headers = standin_subject.polls[poll].headers;
-    return headers == NULL || standin_header_lines_ready(headers, (int32_t)strlen(headers));
+    const standin_poll_t *asked = &standin_subject.polls[poll];
+    return asked->headers == NULL || header_lines_ready(asked->headers, (int32_t)strlen(asked->headers), asked, item);
 }
 
 bool standin_header_lines_ready(const char *headers, int32_t length)
+{
+    return header_lines_ready(headers, length, NULL, -1);
+}
+
+/* As poller_net.c fills them: the key of a poll's list is the item it is asked for there too. */
+static bool header_lines_ready(const char *headers, int32_t length, const standin_poll_t *asked, int32_t item)
 {
     const char *at = headers, *end = headers + length;
     while (at < end) {
@@ -1487,7 +1502,7 @@ bool standin_header_lines_ready(const char *headers, int32_t length)
                 value++;
             }
             snprintf(written, sizeof written, "%.*s", (int)(line_end - value), value);
-            if (!fill_text(written, NULL, -1, false, filled, sizeof filled)) {
+            if (!fill_text(written, asked, item, false, filled, sizeof filled)) {
                 return false;
             }
         }
@@ -1498,14 +1513,16 @@ bool standin_header_lines_ready(const char *headers, int32_t length)
 
 /* ---- Drawing: recorded, not drawn ---- */
 
+#define DEPARTURE_ASCENT 11 /* departure_11.h: dots above the baseline, times the size's scale */
+
 /* What the fonts are on the device with Departure Mono, which is monospaced:
  * the line, the capitals and a character's advance (host/gfx.h). */
 static const struct {
     int32_t line, capitals, advance, ascent;
 } FONTS[] = {
-    [HOST_FONT_TEXT] = { 30, 16, 14, 22 },    [HOST_FONT_MEDIUM] = { 45, 24, 21, 33 },
-    [HOST_FONT_LARGE] = { 60, 32, 28, 44 },   [HOST_FONT_DISPLAY] = { 90, 48, 42, 66 },
-    [HOST_FONT_HUGE] = { 150, 80, 70, 110 },  [HOST_FONT_SMALL] = { 15, 8, 7, 11 },
+    [HOST_FONT_TEXT] = { 30, 16, 14, 2 * DEPARTURE_ASCENT },    [HOST_FONT_MEDIUM] = { 45, 24, 21, 3 * DEPARTURE_ASCENT },
+    [HOST_FONT_LARGE] = { 60, 32, 28, 4 * DEPARTURE_ASCENT },   [HOST_FONT_DISPLAY] = { 90, 48, 42, 6 * DEPARTURE_ASCENT },
+    [HOST_FONT_HUGE] = { 150, 80, 70, 10 * DEPARTURE_ASCENT },  [HOST_FONT_SMALL] = { 15, 8, 7, 1 * DEPARTURE_ASCENT },
 };
 #define FONT_COUNT ((int32_t)(sizeof FONTS / sizeof FONTS[0]))
 /* The kit's styles in the fonts they are set in. */
@@ -1516,8 +1533,15 @@ static const int32_t STYLE_FONTS[] = {
 #define STYLE_COUNT ((int32_t)(sizeof STYLE_FONTS / sizeof STYLE_FONTS[0]))
 #define LIST_ROW_HEIGHT 42
 #define LIST_TOP_GAP    8
-#define CELL_PADDING     12 /* kit.c */
-#define CELL_PICTURE_GAP 14
+/* What kit.c, list.c and app_api_ui.c measure with; the tools' test holds them to those files. */
+#define CELL_PADDING         12
+#define CELL_PICTURE_GAP     14
+#define KEY_PAD_X            6
+#define KEY_ACTION_GAP       8
+#define VALUE_UNIT_GAP       5
+#define VALUE_UNIT_GAP_LARGE 12
+#define BUTTON_NAME_MAX      8
+#define KIT_TEXT_BUFFER      128 /* kit.c's TEXT_BUFFER */
 #define TITLE_TOP        10 /* kit.c: the title's top, the gap under its letters, the rule, the gap after */
 #define TITLE_RULE_GAP   8
 #define TITLE_AFTER_RULE 10
@@ -1637,14 +1661,25 @@ static int32_t surface_height(void)
     return standin_subject.is_fullscreen ? SURFACE_HEIGHT : SURFACE_HEIGHT - HEADER_HEIGHT;
 }
 
+/* A call that measures for a frame: the device answers it only while one is drawn. */
+static bool is_measuring(const char *call)
+{
+    if (standin()->is_drawing) {
+        return true;
+    }
+    world->stray_draws++;
+    say(world->stray_draw, "%s() in %s", call, running());
+    return false;
+}
+
 int32_t gfx_width(void)
 {
-    return is_frame("gfx_width") ? SURFACE_WIDTH : HOST_ERR_NOT_DRAWING;
+    return is_measuring("gfx_width") ? SURFACE_WIDTH : HOST_ERR_NOT_DRAWING;
 }
 
 int32_t gfx_height(void)
 {
-    return is_frame("gfx_height") ? surface_height() : HOST_ERR_NOT_DRAWING;
+    return is_measuring("gfx_height") ? surface_height() : HOST_ERR_NOT_DRAWING;
 }
 
 int32_t gfx_draw_text(int32_t x, int32_t y, int32_t font, const char *text, int32_t length)
@@ -1714,7 +1749,7 @@ int32_t gfx_font_ascent(int32_t font)
         return HOST_ERR_ARGUMENT;
     }
     font &= ~HOST_FONT_TABULAR;
-    return FONTS[font].capitals + (FONTS[font].line - FONTS[font].capitals) / 2;
+    return FONTS[font].ascent;
 }
 
 int32_t gfx_set_color(int32_t color)
@@ -1803,10 +1838,16 @@ int32_t gfx_draw_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height
     if (!is_frame("gfx_draw_bitmap_file")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    standin_stored_file_t *file = is_file_name(name, name_length) ? file_of(name, name_length) : NULL;
-    int32_t size = is_bitmap_box(x, y, width, height) ? (width + 7) / 8 * height : 0;
-    if (file == NULL || size == 0 || offset < 0 || offset > file->size - size) {
+    /* As app_api_draw.c takes it: what the application asked wrong is refused; a file that is
+     * not there, or ends before the picture does, is HOST_ERR_NOT_FOUND, for it to draw without. */
+    if (!is_file_name(name, name_length) || !is_bitmap_box(x, y, width, height) || offset < 0 ||
+        offset > HOST_FILES_MAX) {
         return refused_draw("gfx_draw_bitmap_file");
+    }
+    standin_stored_file_t *file = file_of(name, name_length);
+    int32_t size = (width + 7) / 8 * height;
+    if (file == NULL || offset > file->size - size) {
+        return HOST_ERR_NOT_FOUND;
     }
     int32_t numbers[] = { x, y, width, height };
     mix(numbers, sizeof numbers);
@@ -1844,6 +1885,12 @@ int32_t gfx_icon_ink(int32_t icon, int32_t cell, host_icon_ink_t *ink)
     return HOST_OK;
 }
 
+/* A picture as app_picture_at() takes one: neither of its sizes 0. */
+static bool is_picture(const uint8_t *picture)
+{
+    return picture != NULL && picture[0] != 0 && picture[1] != 0;
+}
+
 /* A picture's bytes: its two sizes and a bit a cell. */
 static size_t picture_bytes(const uint8_t *picture)
 {
@@ -1855,7 +1902,7 @@ int32_t gfx_draw_picture(int32_t x, int32_t y, const uint8_t *picture, int32_t c
     if (!is_frame("gfx_draw_picture")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (picture == NULL || !is_drawable(x) || !is_drawable(y) || cell < 1 || cell > HOST_ICON_CELL_MAX) {
+    if (!is_picture(picture) || !is_drawable(x) || !is_drawable(y) || cell < 1 || cell > HOST_ICON_CELL_MAX) {
         return refused_draw("gfx_draw_picture");
     }
     int32_t numbers[] = { x, y, cell };
@@ -1889,17 +1936,6 @@ static int32_t list_rows(const host_list_t *list)
     int32_t height = list->height > 0 && list->height < room ? list->height : room;
     int32_t rows = (height - LIST_TOP_GAP) / LIST_ROW_HEIGHT;
     return rows > 0 ? rows : 0;
-}
-
-/* A call that measures for a frame: the device answers it only while one is drawn. */
-static bool is_measuring(const char *call)
-{
-    if (standin()->is_drawing) {
-        return true;
-    }
-    world->stray_draws++;
-    say(world->stray_draw, "%s() in %s", call, running());
-    return false;
 }
 
 int32_t ui_list_visible(const host_list_t *list)
@@ -1990,6 +2026,52 @@ int32_t ui_draw_text(int32_t x, int32_t y, int32_t style, const char *text, int3
     return text_width(STYLE_FONTS[style], cut, cut_length);
 }
 
+/* kit.c, line_of(): how much of the text - whole words while it has spaces - fits the width. */
+static int32_t line_of(int32_t font, const char *text, int32_t width, int32_t *next)
+{
+    int32_t end = 0, fits = 0, after = 0;
+    for (;;) {
+        while (text[end] != '\0' && text[end] != ' ' && end < KIT_TEXT_BUFFER - 1) {
+            end++;
+        }
+        if (text_width(font, text, end) > width && fits > 0) {
+            break;
+        }
+        fits = end;
+        after = end;
+        while (text[after] == ' ') {
+            after++;
+        }
+        if (text[after] == '\0' || end >= KIT_TEXT_BUFFER - 1 || text_width(font, text, end) > width) {
+            break;
+        }
+        end = after;
+    }
+    *next = after;
+    return fits;
+}
+
+/* kit_text_lines(): the lines the text is drawn in, the last cut when more remains. */
+static int32_t text_lines(int32_t font, const char *given, int32_t length, int32_t width, int32_t max_lines)
+{
+    char copy_of[HOST_TEXT_MAX + 1];
+    length = length < HOST_TEXT_MAX ? length : HOST_TEXT_MAX;
+    copy(copy_of, given, (size_t)length);
+    copy_of[length] = '\0';
+    const char *text = copy_of;
+    int32_t lines = 0;
+    while (*text == ' ') {
+        text++;
+    }
+    while (*text != '\0' && lines < max_lines) {
+        int32_t next = 0;
+        line_of(font, text, width, &next);
+        lines++;
+        text += next;
+    }
+    return lines;
+}
+
 int32_t ui_draw_text_lines(int32_t x, int32_t y, int32_t style, const char *text, int32_t length, int32_t width,
                            int32_t max_lines)
 {
@@ -2003,9 +2085,7 @@ int32_t ui_draw_text_lines(int32_t x, int32_t y, int32_t style, const char *text
     int32_t numbers[] = { x, y, style, width, max_lines };
     mix(numbers, sizeof numbers);
     mix(text, (size_t)length);
-    int32_t per_line = width / advance_of(STYLE_FONTS[style]);
-    int32_t lines = per_line > 0 ? (characters(text, length) + per_line - 1) / per_line : max_lines;
-    return lines < max_lines ? (lines > 0 ? lines : 1) : max_lines;
+    return text_lines(STYLE_FONTS[style], text, length, width, max_lines);
 }
 
 int32_t ui_text_width(int32_t style, const char *text, int32_t length)
@@ -2051,7 +2131,8 @@ int32_t ui_draw_button(int32_t x, int32_t y, const char *name, int32_t name_leng
         return HOST_ERR_NOT_DRAWING;
     }
     /* The name of a button is a word: "BACK" is the longest there is (app_api_ui.c). */
-    if (!is_drawable(x) || !is_drawable(y) || !is_text(name, name_length) || name_length < 1 || name_length > 8 ||
+    if (!is_drawable(x) || !is_drawable(y) || !is_text(name, name_length) || name_length < 1 ||
+        name_length > BUTTON_NAME_MAX ||
         !is_text(action, action_length)) {
         return refused_draw("ui_draw_button");
     }
@@ -2060,8 +2141,10 @@ int32_t ui_draw_button(int32_t x, int32_t y, const char *name, int32_t name_leng
     mix(name, (size_t)name_length);
     mix_number(0);
     mix(action, (size_t)action_length);
-    return text_width(HOST_FONT_TEXT, name, name_length) + text_width(HOST_FONT_TEXT, action, action_length) +
-           advance_of(HOST_FONT_TEXT);
+    /* kit_button_width(): the key, its name padded, and the action after a gap. */
+    int32_t width = text_width(HOST_FONT_TEXT, name, name_length) + 2 * KEY_PAD_X;
+    return action_length > 0 && action[0] != '\0' ? width + KEY_ACTION_GAP + text_width(HOST_FONT_TEXT, action, action_length)
+                                                 : width;
 }
 
 int32_t ui_draw_actions(const char *ok, int32_t ok_length, const char *back, int32_t back_length)
@@ -2109,7 +2192,7 @@ static int32_t value_width(int32_t font, const char *value, int32_t value_length
     if (unit_length <= 0) {
         return text_width(font, value, value_length);
     }
-    int32_t gap = is_large_value(font) ? 12 : 5;
+    int32_t gap = is_large_value(font) ? VALUE_UNIT_GAP_LARGE : VALUE_UNIT_GAP;
     return text_width(font, value, value_length) + gap + text_width(unit_font(font), unit, unit_length);
 }
 
@@ -2196,7 +2279,8 @@ int32_t ui_cell_fit(const host_cell_t *cell, const uint8_t *picture, int32_t ico
     if (!is_measuring("ui_cell_fit")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    return is_cell(cell, icon) ? cell_size(cell, picture, icon) : HOST_ERR_ARGUMENT;
+    return is_cell(cell, icon) && (picture == NULL || is_picture(picture)) ? cell_size(cell, picture, icon)
+                                                                          : HOST_ERR_ARGUMENT;
 }
 
 int32_t ui_draw_cell(const host_cell_t *cell, const uint8_t *picture, int32_t icon)
@@ -2204,7 +2288,7 @@ int32_t ui_draw_cell(const host_cell_t *cell, const uint8_t *picture, int32_t ic
     if (!is_frame("ui_draw_cell")) {
         return HOST_ERR_NOT_DRAWING;
     }
-    if (!is_cell(cell, icon)) {
+    if (!is_cell(cell, icon) || (picture != NULL && !is_picture(picture))) {
         return refused_draw("ui_draw_cell");
     }
     int32_t numbers[] = { cell->x, cell->y, cell->width, cell->height, cell->size, icon };

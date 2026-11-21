@@ -255,7 +255,25 @@ static void test_drawing(void)
     standin()->is_drawing = true;
     assert(gfx_draw_rect(0, 0, 5000, 10, HOST_RECT_FILLED) == HOST_ERR_ARGUMENT && standin()->refused_draws == 1);
     assert(gfx_width() == 400 && gfx_height() == 260);
+    /* What the kit and the fonts measure on the device (kit.c, gfx.c): a title, a button, a
+     * value with its unit, a text's lines, the largest font's ascent. */
+    int32_t calls = standin()->draw_calls;
+    assert(gfx_width() == 400 && standin()->draw_calls == calls); /* measuring is no drawing */
+    assert(ui_draw_title("Title", 5) == 62 && gfx_font_ascent(HOST_FONT_HUGE) == 110);
+    assert(ui_draw_button(0, 0, "OK", 2, "Go", 2, 0) == 76 && ui_draw_button(0, 0, "OK", 2, "", 0, 0) == 40);
+    assert(ui_value_width(HOST_FONT_LARGE, "1", 1, "s", 1) == 54 && ui_value_width(HOST_FONT_TEXT, "1", 1, "s", 1) == 26);
+    assert(ui_draw_text_lines(0, 0, HOST_UI_TEXT, "", 0, 100, 4) == 0);
+    assert(ui_draw_text_lines(0, 0, HOST_UI_TEXT, "one two three", 13, 100, 4) == 2);
+    /* A picture of no size is refused; a bitmap file that is not there is no argument wrong. */
+    static const uint8_t nothing[] = { 0, 1 };
+    int32_t refused = standin()->refused_draws;
+    assert(gfx_draw_picture(0, 0, nothing, 1) == HOST_ERR_ARGUMENT && standin()->refused_draws == refused + 1);
+    assert(gfx_draw_bitmap_file(0, 0, 8, 8, "absent", 6, 0) == HOST_ERR_NOT_FOUND &&
+           standin()->refused_draws == refused + 1);
     standin()->is_drawing = false;
+    /* A port too long for one is no port: refused, and read without overflowing. */
+    assert(http_send(HOST_REQUEST_FIRST, HOST_HTTP_GET, "https://example.test:2147483648/", 32, NULL, 0, NULL, 0) ==
+           HOST_ERR_ARGUMENT);
 }
 
 int main(void)

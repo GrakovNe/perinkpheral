@@ -283,7 +283,7 @@ bool standin_url_allowed(const char *url);
 /* Whether every value of a queued request's headers can be filled now. */
 bool standin_headers_ready(const standin_request_t *request);
 /* The same for a poll's headers of the manifest, and for header lines of any text. */
-bool standin_poll_ready(int32_t poll);
+bool standin_poll_ready(int32_t poll, int32_t item);
 bool standin_header_lines_ready(const char *headers, int32_t length);
 /* How many items a poll with "each" is asked for; -1 for a poll without. */
 int32_t standin_poll_items(int32_t poll);

@@ -222,20 +222,28 @@ static struct {
     int32_t  redraws;
     bool     is_inverted;
     char     header[2][HOST_HEADER_TEXT_MAX + 1];
+    char     status[2][HOST_STATUS_TEXT_MAX + 1];
+    int32_t  icons[2];
 } shown;
 
 static uint64_t show(void)
 {
     standin_t *host = standin();
     /* A new text in the header is a new picture, asked for or not (app_scene.c, reaction_of). */
-    bool is_new_header = strcmp(shown.header[0], host->header_text[0]) != 0 ||
-                         strcmp(shown.header[1], host->header_text[1]) != 0;
+    /* So is a new status there: host_apps.c invalidates the window, and the scene is drawn whole. */
+    bool is_new_header = false;
+    for (int side = 0; side < 2; side++) {
+        is_new_header = is_new_header || strcmp(shown.header[side], host->header_text[side]) != 0 ||
+                        strcmp(shown.status[side], host->status_text[side]) != 0 || shown.icons[side] != host->status_icon[side];
+    }
     if (!shown.is_shown || host->redraws != shown.redraws || host->is_inverted != shown.is_inverted || is_new_header) {
         shown.picture = frame();
         shown.is_shown = true;
         shown.redraws = host->redraws;
         shown.is_inverted = host->is_inverted;
         memcpy(shown.header, host->header_text, sizeof shown.header);
+        memcpy(shown.status, host->status_text, sizeof shown.status);
+        memcpy(shown.icons, host->status_icon, sizeof shown.icons);
     }
     return standin_screen(shown.picture);
 }
@@ -370,7 +378,7 @@ static void answer_round(const round_t *round)
                                   .is_picked = standin_subject.polls[poll].picks != NULL, .is_permitted = true,
                                   .round = round };
             answer.is_ready = standin_poll_url(poll, answer.item, answer.url, sizeof answer.url) &&
-                              standin_poll_ready(poll);
+                              standin_poll_ready(poll, answer.item);
             hand(&answer);
         }
     }

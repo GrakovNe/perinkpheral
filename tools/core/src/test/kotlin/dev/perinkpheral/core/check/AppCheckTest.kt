@@ -90,11 +90,70 @@ object AppCheckTest {
             listOf("    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
                 "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n    ui_draw_bar(MARGIN, MARGIN, 0, 1, 2);\n"),
             "ui_draw_bar() answered HOST_ERR_ARGUMENT"),
+        Break("drawing", "app_on_draw() asks the surface's size and draws nothing",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    (void)gfx_width();\n    return;\n"),
+            "drew nothing"),
+        Break("drawing", "a picture of no width",
+            listOf("    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" to
+                "    int32_t line_height = gfx_font_height(HOST_FONT_TEXT);\n" +
+                "    static const uint8_t nothing[] = { 0, 1 };\n    gfx_draw_picture(MARGIN, MARGIN, nothing, 1);\n"),
+            "gfx_draw_picture() answered HOST_ERR_ARGUMENT"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
             "over the limits"),
     )
+
+    /** What the stand-in host copied from the firmware, as a name there and a name here. */
+    private val PINS = listOf(
+        Triple("firmware/components/ui/kit.c", "TITLE_TOP", "TITLE_TOP"),
+        Triple("firmware/components/ui/kit.c", "TITLE_RULE_GAP", "TITLE_RULE_GAP"),
+        Triple("firmware/components/ui/kit.c", "TITLE_AFTER_RULE", "TITLE_AFTER_RULE"),
+        Triple("firmware/components/ui/kit.c", "CELL_PADDING", "CELL_PADDING"),
+        Triple("firmware/components/ui/kit.c", "CELL_PICTURE_GAP", "CELL_PICTURE_GAP"),
+        Triple("firmware/components/ui/kit.c", "KEY_PAD_X", "KEY_PAD_X"),
+        Triple("firmware/components/ui/kit.c", "KEY_ACTION_GAP", "KEY_ACTION_GAP"),
+        Triple("firmware/components/ui/kit.c", "VALUE_UNIT_GAP", "VALUE_UNIT_GAP"),
+        Triple("firmware/components/ui/kit.c", "VALUE_UNIT_GAP_LARGE", "VALUE_UNIT_GAP_LARGE"),
+        Triple("firmware/components/ui/kit.c", "TEXT_BUFFER", "KIT_TEXT_BUFFER"),
+        Triple("firmware/components/ui/list.c", "ROW_HEIGHT", "LIST_ROW_HEIGHT"),
+        Triple("firmware/components/ui/list.c", "TOP_GAP", "LIST_TOP_GAP"),
+        Triple("firmware/components/appsys/app_api_ui.c", "BUTTON_NAME_MAX", "BUTTON_NAME_MAX"),
+        Triple("firmware/components/appstore/include/request_queue.h", "REQUEST_QUEUE_BYTES_MAX", "REQUEST_QUEUE_BYTES"),
+    )
+
+    private fun defines(file: File): Map<String, String> =
+        Regex("""^#define\s+(\w+)\s+([^/\n]*?)\s*(/\*.*)?$""", RegexOption.MULTILINE).findAll(file.readText())
+            .associate { it.groupValues[1] to it.groupValues[2] }
+
+    /** The stand-in host's numbers are the firmware's: a change of kit.c, list.c, app_api_ui.c,
+     * request_queue.h or the font that is not made here too fails this. The record of a queued
+     * request is measured for wasm32, whose layout is the device's 32-bit one. */
+    private fun pinned(root: File, wasi: File) {
+        val standin = File(root, "sdk/check/standin.c")
+        val here = defines(standin)
+        for ((file, there, ours) in PINS) {
+            val theirs = defines(File(root, file))[there] ?: error("$file no longer defines $there")
+            check(here[ours] == theirs) { "standin.c's $ours is ${here[ours]}, $file's $there is $theirs" }
+        }
+        val ascent = Regex("""departure_11_ascent = (\d+)""").find(File(root, "firmware/components/gfx/fonts/departure_11.h").readText())
+        check(ascent != null && here["DEPARTURE_ASCENT"] == ascent.groupValues[1]) { "the font's ascent is not standin.c's" }
+        val record = here["REQUEST_RECORD_BYTES"] ?: error("standin.c has no REQUEST_RECORD_BYTES")
+        val probe = Files.createTempFile("request-record", ".c").toFile()
+        try {
+            probe.writeText("#include \"request_queue.h\"\n_Static_assert(sizeof(queued_request_t) == $record, \"the record\");\n")
+            val clang = File(wasi, "bin/clang").path
+            val command = listOf(clang, "--target=wasm32", "-ffreestanding", "-fsyntax-only",
+                "-I" + File(root, "firmware/components/appstore/include").path, "-I" + File(root, "sdk").path,
+                "-I" + File(root, "sdk/lib").path, probe.path)
+            val process = ProcessBuilder(command).redirectErrorStream(true).start()
+            val said = process.inputStream.bufferedReader().readText()
+            check(process.waitFor() == 0) { "a queued request is not $record bytes on the device:\n$said" }
+        } finally {
+            probe.delete()
+        }
+        println("app-check: the stand-in host's measures are the firmware's (${PINS.size + 2} pinned)")
+    }
 
     @JvmStatic fun main(args: Array<String>) {
         check(AppCheck.text("a \"b\" \\ ?? \n é") == "\"a \\\"b\\\" \\\\ \\?\\? \\n \\303\\251\"")
@@ -119,6 +178,7 @@ object AppCheckTest {
             println("app-check: no wasi-sdk (WASI_SDK_PATH) or no C compiler: the checks themselves were not run")
             return
         }
+        pinned(root, wasi)
         val specimen = File(root, "sdk/check/apps/specimen")
         val said = ArrayList<String>()
         val checker = AppCheck(Sdk(root), wasi) { said += it }
