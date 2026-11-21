@@ -26,7 +26,8 @@ typedef struct {
     bool    back_is_held;
     bool    chorded;   /* this hold of BACK switched: its own short or long press is void */
     bool    long_is_due; /* this hold passed the long press's time: the release is the long BACK */
-    uint8_t swallowed; /* UP and DOWN that went down in a chord, until they go down again */
+    uint8_t swallowed; /* UP and DOWN that went down in a chord, until that press ends */
+    uint8_t swallowed_long; /* of those, the ones whose LONG came: the release ends the press */
 } back_switch_state_t;
 
 /* What one event of one button is. Pure: the caller opens the application. `can_switch` is

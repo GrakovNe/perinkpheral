@@ -804,6 +804,31 @@ static void test_back_switch(void)
     CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_LONG_BACK);
 }
 
+/* A chord that ended does not void the presses a tool injects after it, which have no way down. */
+static void test_back_switch_after_a_chord(void)
+{
+    back_switch_state_t state = {0};
+    /* A quick chord: BACK's SHORT and DOWN's SHORT end it. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_DOWN, true) == BACK_SWITCH_NEXT);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_UP, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_SHORT, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_DOWN, SCENE_PRESS_SHORT, true) == BACK_SWITCH_PASS);
+    /* A long chord: both LONGs came while held, the releases end it. */
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_DOWN, true) == BACK_SWITCH_PREVIOUS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_LONG, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_UP, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_UP, true) == BACK_SWITCH_SWALLOW);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_BACK, SCENE_PRESS_LONG, true) == BACK_SWITCH_PASS);
+    CHECK(back_switch_press(&state, SCENE_BUTTON_UP, SCENE_PRESS_SHORT, true) == BACK_SWITCH_PASS);
+}
+
 static void test_beside(void)
 {
     static probe_t other, notice;
@@ -860,6 +885,7 @@ static void test_beside(void)
 int main(void)
 {
     test_back_switch();
+    test_back_switch_after_a_chord();
     test_beside();
     test_chart();
     test_stack();

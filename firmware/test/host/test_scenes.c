@@ -275,6 +275,36 @@ static void test_confirm(void)
     draw_whole_screen(confirm);
 }
 
+static int notices_seen;
+
+static void record_seen(void)
+{
+    notices_seen++;
+}
+
+/* Each notice and each question is another one to the host, though the scene is the same: a
+ * press is held to the one on the panel when it began. */
+static void test_each_notice_is_another_question(void)
+{
+    scene_t *first_question = scene_confirm("Update", "firmware?", 0, "Update", record_answer);
+    uint32_t first_number = first_question->question;
+    scene_t *second_question = scene_confirm("Factory", "reset?", 0, "Reset", record_answer);
+    CHECK(second_question == first_question);
+    CHECK(first_number != 0 && second_question->question != 0 &&
+          second_question->question != first_number);
+
+    scene_t *first_notice = scene_notify("Time", "is up", NULL, 0, record_seen);
+    uint32_t first_notice_number = first_notice->question;
+    scene_t *second_notice = scene_notify("Meeting", "begins", NULL, 0, record_seen);
+    CHECK(second_notice == first_notice && second_notice->asks_once);
+    CHECK(first_notice_number != 0 && second_notice->question != 0 &&
+          second_notice->question != first_notice_number);
+    notices_seen = 0;
+    CHECK(press(second_notice, SCENE_BUTTON_OK).kind == SCENE_IGNORED);
+    CHECK(notices_seen == 1);
+    draw_whole_screen(second_notice);
+}
+
 static void test_working(void)
 {
     scene_t *working = scene_working("Updating", "in progress");
@@ -469,6 +499,7 @@ int main(void)
     test_header();
     test_menu_order();
     test_confirm();
+    test_each_notice_is_another_question();
     test_working();
     test_storage_error();
     test_boot_splash();
