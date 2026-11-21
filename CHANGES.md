@@ -4,13 +4,21 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
-## next
+## 0.1.79
 
 - A daily refresh that fails is tried again a minute later, so a screen nothing redraws does not
   stay damaged.
 - A press made while the next notification or question was still being drawn no longer answers
   it.
 - After switching applications with BACK held, presses sent by the development tools act again.
+
+## 0.1.78
+
+- A new firmware with no network stored is confirmed only when its setup access point is really
+  up, not when it should have been.
+- A new firmware whose confirmation cannot be written restarts into recovery instead of staying on
+  probation and refusing every update.
+- Recovery gives back what a failed start of an upload took.
 
 ## 0.1.77
 

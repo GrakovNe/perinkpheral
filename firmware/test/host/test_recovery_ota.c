@@ -166,7 +166,8 @@ static void test_failures_keep_recovery_selected(void)
     refuse_begin = true;
     CHECK(recovery_ota_start(&stream, IMAGE_BYTES));
     CHECK(!ota_stream_feed(&stream, image, IMAGE_BYTES));
-    CHECK_STR(trace, "FB");
+    /* The handle ESP-IDF gave before the erase failed is given back. */
+    CHECK_STR(trace, "FBA");
 
     reset();
     refuse_write = true;
