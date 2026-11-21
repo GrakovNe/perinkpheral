@@ -7,8 +7,8 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 ## 0.1.77
 
 - BACK held with UP or DOWN switches applications even when the whole chord is made while the
-  screen refreshes: a button's release is never dropped from the queue of presses, so no hold has
-  to be guessed over.
+  screen refreshes: the queue of presses keeps places for releases and never drops one, so no
+  hold has to be guessed over.
 - Language on the device's page offers the glyph packs again once the device is back on its
   network.
 - A first flash never carries an application whose manifest the device would not read, and an
