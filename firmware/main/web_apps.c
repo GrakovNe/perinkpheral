@@ -99,25 +99,28 @@ static void copy_app_list(void *argument)
     }
 }
 
-/* Missing translations are ordinary. A file that exists but cannot be
- * read or parsed fails the application's entry. */
-static bool translation_of(const char *app_name, json_t **translation)
+/* NULL when there is no translation. One that cannot be read or parsed is
+ * treated as none: the application is listed in English, so that it can
+ * still be set up or removed from the page. */
+static json_t *translation_of(const char *app_name)
 {
-    *translation = NULL;
     appconf_t settings;
     settings_read(&settings);
     if (strcmp(settings.language, "en") == 0) {
-        return true;
+        return NULL;
     }
     char file[APP_FILE_NAME_MAX + 1];
     snprintf(file, sizeof file, "manifest.%s", settings.language);
     if (app_store_file_size(STORAGE_APPS_ROOT, app_name, file) < 0) {
-        return true;
+        return NULL;
     }
-    char *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
-    *translation = text != NULL ? json_parse(text) : NULL;
+    char   *text = app_store_read_translation(STORAGE_APPS_ROOT, app_name, settings.language);
+    json_t *translation = text != NULL ? json_parse(text) : NULL;
     free(text);
-    return *translation != NULL;
+    if (translation == NULL) {
+        ESP_LOGW(TAG, "%s: %s cannot be read, listed in English", app_name, file);
+    }
+    return translation;
 }
 
 /* The labels are translated separately from the option values. */
@@ -271,11 +274,8 @@ static bool add_settings(json_t *app, json_t *manifest, const json_t *translatio
     return true;
 }
 
-/* NULL with `is_skipped` set: this application's translation cannot be
- * read, which is no reason to keep the others off the page. */
-static char *app_list_json(const app_list_entry_t *entry, bool *is_skipped)
+static char *app_list_json(const app_list_entry_t *entry)
 {
-    *is_skipped = false;
     json_t *app = json_new_object();
     if (app == NULL ||
         json_add_string(app, "name", entry->name) == NULL ||
@@ -288,14 +288,9 @@ static char *app_list_json(const app_list_entry_t *entry, bool *is_skipped)
     char *manifest_text = app_store_read_manifest(STORAGE_APPS_ROOT, entry->name);
     json_t *manifest = manifest_text != NULL ? json_parse(manifest_text) : NULL;
     free(manifest_text);
-    json_t *translation = NULL;
-    bool complete = manifest != NULL && add_trusts(app, entry->name, manifest);
-    if (complete && !translation_of(entry->name, &translation)) {
-        ESP_LOGW(TAG, "%s: its translation cannot be read, left out of the list", entry->name);
-        *is_skipped = true;
-        complete = false;
-    }
-    complete = complete && add_settings(app, manifest, translation, entry->name);
+    json_t *translation = manifest != NULL ? translation_of(entry->name) : NULL;
+    bool complete = manifest != NULL && add_trusts(app, entry->name, manifest) &&
+                    add_settings(app, manifest, translation, entry->name);
     json_free(translation);
     json_free(manifest);
     char *text = complete ? json_print(app) : NULL;
@@ -320,23 +315,18 @@ static esp_err_t handle_list(httpd_req_t *request)
 
     httpd_resp_set_type(request, "application/json");
     esp_err_t result = ESP_OK;
-    int       sent = 0;
     for (int i = 0; i < list->count; i++) {
-        bool  is_skipped;
-        char *text = app_list_json(&list->entries[i], &is_skipped);
-        if (text == NULL && is_skipped) {
-            continue;
-        }
+        char *text = app_list_json(&list->entries[i]);
         if (text == NULL) {
             free(list);
-            if (sent == 0) {
+            if (i == 0) {
                 return list_unavailable(request);
             }
             /* No final chunk on failure. The HTTP server closes the
              * connection and the client rejects the truncated response. */
             return ESP_FAIL;
         }
-        result = httpd_resp_send_chunk(request, sent++ == 0 ? "[" : ",", 1);
+        result = httpd_resp_send_chunk(request, i == 0 ? "[" : ",", 1);
         if (result == ESP_OK) {
             result = httpd_resp_sendstr_chunk(request, text);
         }
@@ -345,7 +335,7 @@ static esp_err_t handle_list(httpd_req_t *request)
             break;
         }
     }
-    bool empty = sent == 0;
+    bool empty = list->count == 0;
     free(list);
     if (result == ESP_OK) {
         result = httpd_resp_sendstr_chunk(request, empty ? "[]" : "]");

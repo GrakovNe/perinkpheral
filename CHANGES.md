@@ -11,8 +11,8 @@ the previous release. Notes appear on GitHub, in the flasher and on the device's
 - An application that loops while it loads is stopped once, not given a second 3 seconds.
 - An application that writes files cannot rewrite its manifest's translations or the
   certificate authorities its manifest names.
-- One application whose translation cannot be read is left out of the page's list of
-  installed applications instead of emptying it.
+- An application whose translation cannot be read is listed on the page in English instead
+  of emptying the list of installed applications.
 - A notice posted while a long BACK leaves an application waits for the next press, as
   notices that were showing already did, and does not open over the menu.
 
