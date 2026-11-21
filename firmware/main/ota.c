@@ -14,6 +14,7 @@
 #include "esp_app_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_system.h"
 #include "esp_flash_partitions.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -74,9 +75,12 @@ const char *ota_enter_recovery(bool update)
 
 static bool s_network_stored;
 
+#define CONFIRM_ATTEMPTS_MAX 3
+
 static void probation_task(void *arg)
 {
     (void)arg;
+    int failed_confirmations = 0;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEALTH_CHECK_PERIOD_MS));
         wifi_status_t wifi;
@@ -85,7 +89,8 @@ static void probation_task(void *arg)
             .wifi_off = wifi.phase == WIFI_PHASE_OFF,
             .network_stored = s_network_stored,
             .online = wifi.phase == WIFI_PHASE_ONLINE,
-            .access_point_up = wifi_phase_has_access_point(wifi.phase),
+            /* As it is: a phase that should have one says nothing of one that failed to start. */
+            .access_point_up = wifi.access_point_up,
             .web_server_up = web_server_is_up(),
             .uptime_s = (uint32_t)(esp_timer_get_time() / MICROSECONDS_PER_SECOND),
         };
@@ -113,6 +118,19 @@ static void probation_task(void *arg)
         if (err == ESP_OK) {
             s_on_probation = false;
             vTaskDelete(NULL);
+        }
+        /* The journal is erased before its new record is written: a write that failed can leave
+         * no record to confirm, and probation would last for ever with every update refused.
+         * Recovery is what the bootloader starts with no record; select it if it can still be
+         * said, and restart into it. */
+        if (++failed_confirmations >= CONFIRM_ATTEMPTS_MAX) {
+            ESP_LOGE(TAG, "the image cannot be confirmed: restarting into recovery");
+            const esp_partition_t *factory = esp_partition_find_first(
+                ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
+            if (factory != NULL) {
+                esp_ota_set_boot_partition(factory);
+            }
+            esp_restart();
         }
     }
 }

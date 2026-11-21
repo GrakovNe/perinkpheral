@@ -65,6 +65,7 @@ static struct {
     wifi_phase_t      phase;
     char              address[sizeof "255.255.255.255"];
     bool              is_radio_off;
+    bool              is_access_point_up; /* access_point_up, as others may ask it */
     bool              was_reached;
 } s_wifi;
 
@@ -218,6 +219,9 @@ static void start_access_point(void)
         return;
     }
     s_wifi.access_point_up = true;
+    xSemaphoreTake(s_wifi.lock, portMAX_DELAY);
+    s_wifi.is_access_point_up = true;
+    xSemaphoreGive(s_wifi.lock);
     captive_dns_enable(true);
     ESP_LOGI(TAG, "setup access point \"%s\" is up", s_wifi.access_point_name);
 }
@@ -230,6 +234,9 @@ static void stop_access_point(void)
         return;
     }
     s_wifi.access_point_up = false;
+    xSemaphoreTake(s_wifi.lock, portMAX_DELAY);
+    s_wifi.is_access_point_up = false;
+    xSemaphoreGive(s_wifi.lock);
     captive_dns_enable(false);
     ESP_LOGI(TAG, "setup access point is down");
 }
@@ -453,6 +460,7 @@ void wifi_get_status(wifi_status_t *status)
     status->phase = s_wifi.phase;
     status->is_radio_off = s_wifi.is_radio_off;
     status->was_reached = s_wifi.was_reached;
+    status->access_point_up = s_wifi.is_access_point_up;
     strlcpy(status->address, s_wifi.address, sizeof status->address);
     xSemaphoreGive(s_wifi.lock);
 }

@@ -39,6 +39,7 @@ typedef struct {
     char         address[16];                          /* empty unless online */
     bool         is_radio_off;   /* turned off to save power; the phase is as it was left */
     bool         was_reached;    /* the last attempt to join the network succeeded */
+    bool         access_point_up; /* the setup access point is up, not only meant to be */
 } wifi_status_t;
 
 /* The strings are copied. With Wi-Fi off (WIFI_PHASE_OFF) the driver is
