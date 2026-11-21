@@ -4,10 +4,6 @@
  */
 #include <string.h>
 
-/* Before anything that brings the contract: its BTN_ names are macros, and the
- * buttons' own events are an enum of the same names. */
-#include "buttons.h"
-
 #include "esp_attr.h"
 
 #include "priorities.h"
@@ -218,16 +214,7 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     /* BACK held with UP or DOWN: the neighbour in the menu's order. No scene sees such a press.
      * Not in the menu: it is the list itself, and its UP and DOWN choose a row. */
     static back_switch_state_t s_back_switch;
-    /* The queue of presses is short and drops what does not fit: BACK's release among it. A
-     * hold that is over on the pin is ended here, or the long BACK would never come and UP and
-     * DOWN would switch applications until BACK went down again. */
-    if (s_back_switch.back_is_held && index != BUTTON_BACK_INDEX && press == EVENT_PRESS_DOWN &&
-        !buttons_is_down(BUTTON_BACK_INDEX)) {
-        ESP_LOGW(TAG, "BACK's release was lost: the hold is ended");
-        if (back_switch_release_lost(&s_back_switch)) {
-            wm_button(wm, SCENE_BUTTON_BACK, SCENE_PRESS_LONG);
-        }
-    }
+    /* A hold ends with BACK's release, which the queue never drops (events_post_button). */
     back_switch_t chord = back_switch_press(&s_back_switch, BUTTON_ROLE[index], SCENE_PRESS_OF[press],
                                             wm->current != wm->home);
     if (chord == BACK_SWITCH_PREVIOUS || chord == BACK_SWITCH_NEXT) {

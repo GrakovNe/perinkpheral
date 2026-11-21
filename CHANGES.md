@@ -4,6 +4,16 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.77
+
+- BACK held with UP or DOWN switches applications even when the whole chord is made while the
+  screen refreshes: the queue of presses keeps places for releases and never drops one, so no
+  hold has to be guessed over.
+- Language on the device's page offers the glyph packs again once the device is back on its
+  network.
+- A first flash never carries an application whose manifest the device would not read, and an
+  image built after preinstallation was turned off and on again is not empty.
+
 ## 0.1.75
 
 - The button caps print face down: the face a finger touches is the first layer, flat and
