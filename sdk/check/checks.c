@@ -936,11 +936,6 @@ static void check_network(void)
 {
     checking = NETWORK;
     standin_reset();
-    if (!play(&ON_SCREEN)) {
-        return;
-    }
-    uint64_t nothing_yet = mark(MARK_PICTURE);
-    standin_reset();
     scene_t whole = { .rounds = { { ROUND_WHOLE, 0, 0 } } };
     if (!play(&whole)) {
         return;
@@ -961,25 +956,8 @@ static void check_network(void)
         }
     }
 
-    /* An answer may simply stop: what it showed stays, and the next answer is read from its beginning. */
-    standin_reset();
-    scene_t cut = { .rounds = { { ROUND_CUT, 0, 0 }, { ROUND_WHOLE, 0, 0 } } };
-    if (play(&cut)) {
-        expect(NETWORK, mark(MARK_ROUND_PICTURE) == nothing_yet,
-               "%s: after the answer that stopped it shows another picture than before it - "
-               "only HOST_DATA_LAST makes an answer whole", told(&cut));
-        expect(NETWORK, mark(MARK_ROUND_PICTURE + 1) == answered,
-               "%s: after the whole answer it shows another picture than after a whole answer alone - "
-               "something of the answer that stopped was kept", told(&cut));
-    }
-    standin_reset();
-    scene_t cut_later = { .rounds = { { ROUND_WHOLE, 0, 0 }, { ROUND_CUT, 0, 0 }, { ROUND_WHOLE, 0, 0 } } };
-    if (play(&cut_later)) {
-        expect(NETWORK, mark(MARK_ROUND_PICTURE + 1) == answered,
-               "%s: after the answer that stopped it shows another picture than the whole answer left", told(&cut_later));
-        expect(NETWORK, mark(MARK_ROUND_PICTURE + 2) == answered,
-               "%s: after the last whole answer it shows another picture than after the first", told(&cut_later));
-    }
+    /* An answer stops without HOST_DATA_LAST or HOST_DATA_FAILED only for an instance that is
+     * unloaded then (sdk/host/net.h): it is played off the screen, below. */
 
     /* HOST_DATA_FAILED after pieces invalidates them all: it is a request that failed, no more. */
     standin_reset();
@@ -1049,10 +1027,25 @@ static void check_network(void)
                    "when the answers came, was unloaded and came back", told(&away));
         }
     }
+    /* An answer that did not end whole leaves what a request that failed leaves; one that
+     * stopped, cut off with the instance, leaves nothing. */
+    standin_reset();
+    uint64_t nothing_came = play(&ON_SCREEN) && play(&ON_SCREEN) ? mark(MARK_PICTURE) : 0;
+    standin_reset();
+    scene_t failed_away = { .is_off_screen = true, .rounds = { { ROUND_STATUS, HOST_FAILED_NO_ANSWER, 0 } } };
+    uint64_t failed_seen = play(&ON_SCREEN) && play(&failed_away) && play(&ON_SCREEN) ? mark(MARK_PICTURE) : 0;
     static const round_kind_t AWAY_ENDINGS[] = { ROUND_CUT, ROUND_FAILED_LATE };
     for (size_t index = 0; index < sizeof AWAY_ENDINGS / sizeof AWAY_ENDINGS[0]; index++) {
         standin_reset();
         scene_t away = { .is_off_screen = true, .rounds = { { AWAY_ENDINGS[index], 0, 0 } } };
+        uint64_t expected = AWAY_ENDINGS[index] == ROUND_CUT ? nothing_came : failed_seen;
+        if (expected != 0 && play(&ON_SCREEN) && play(&away) && play(&ON_SCREEN)) {
+            expect(NETWORK, mark(MARK_PICTURE) == expected,
+                   "%s, then on the screen: it shows another picture than %s - only HOST_DATA_LAST makes an "
+                   "answer whole", told(&away),
+                   AWAY_ENDINGS[index] == ROUND_CUT ? "before the answer began" : "after a request that failed");
+        }
+        standin_reset();
         scene_t then = { .is_off_screen = true, .rounds = { { ROUND_WHOLE, 0, 0 } } };
         if (play(&ON_SCREEN) && play(&away) && play(&then) && play(&ON_SCREEN)) {
             expect(NETWORK, mark(MARK_PICTURE) == seen_it_arrive,
