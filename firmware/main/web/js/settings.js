@@ -295,7 +295,10 @@ async function loadGlyphs() {
   const rows = byId("glyph-rows");
   let have, offers;
   /* the packs on offer are the official catalog's, on the internet */
-  if (isOffline()) return sayState(rows, "offline");
+  if (isOffline()) {
+    glyphsAsked = false; /* asked again once the device is back on its network */
+    return sayState(rows, "offline");
+  }
   try {
     [have, offers] = await reading("glyphs", async () => {
       if (stateOf("sources") !== "ready") await loadSources();

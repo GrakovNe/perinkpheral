@@ -97,7 +97,12 @@ class Preinstalled(private val limits: Limits, private val say: (String) -> Unit
             val files = entry.files.map { file ->
                 file.name to read("catalog/$name/${file.name}") { bytes -> refusal(name, file, bytes) }
             }
-            val manifest = Json.parse(files.single { it.first == MANIFEST }.second.toString(Charsets.UTF_8)) as? Map<*, *>
+            val manifestBytes = files.single { it.first == MANIFEST }.second
+            // A larger one the device does not read, and the application is not in its list.
+            if (manifestBytes.size > limits.manifestMax) {
+                throw BuildError("$name: manifest.json is ${manifestBytes.size} bytes; a device reads at most ${limits.manifestMax}")
+            }
+            val manifest = Json.parse(manifestBytes.toString(Charsets.UTF_8)) as? Map<*, *>
                 ?: throw BuildError("$name: manifest.json is not an object")
             if (manifest["name"] != name) throw BuildError("$name: its manifest names it ${manifest["name"]}")
             checkCompatible(Entry(name, manifest["version"] as? String ?: "", (manifest["abi"] as? Long) ?: -1,
@@ -197,7 +202,7 @@ class Preinstalled(private val limits: Limits, private val say: (String) -> Unit
     class Limits(
         val installedMax: Int, val abis: Set<Long>, val moduleMax: Long, val codeHeader: Long, val codeBytes: Long,
         val sectorBytes: Long, val filesBytes: Long, val blockBytes: Long, val spareBytes: Long, val writerMax: Long,
-        val fileNameMax: Int,
+        val fileNameMax: Int, val manifestMax: Long = 8 * 1024,
     ) {
         companion object {
             fun of(root: File): Limits {
@@ -230,6 +235,7 @@ class Preinstalled(private val limits: Limits, private val say: (String) -> Unit
                     spareBytes = define("firmware/components/appstore/include/app_room.h", "APP_ROOM_FILES_SPARE_BYTES"),
                     writerMax = define(limits, "MANIFEST_FILES_WRITER_MAX_BYTES"),
                     fileNameMax = define(limits, "MANIFEST_FILE_NAME_MAX").toInt(),
+                    manifestMax = define("firmware/components/appstore/app_store.c", "MANIFEST_MAX_BYTES"),
                 )
             }
         }
