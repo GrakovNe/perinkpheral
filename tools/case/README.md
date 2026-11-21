@@ -20,7 +20,8 @@ model. The exporter checks all 27 solids: 12 letters in `Logo`, plus the other
 
 The frame and logo share one placement and remain two parts of one object.
 The frame is face down, the back panel outer side down, the base cover top down,
-the bottom bottom down, and the bracket and button caps flange down. The six
+the bottom bottom down, the bracket flange down and the button caps face down:
+the face a finger touches is the first layer, the same as the frame's. The six
 optional TPU feet are in a separate file, washer down. Every object starts at
 Z=0; neighbouring objects are 5 mm apart. The files contain millimetre geometry
 and grouping, with no printer, filament or slicing profiles.

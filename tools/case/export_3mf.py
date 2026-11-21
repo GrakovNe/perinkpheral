@@ -56,7 +56,9 @@ def rotate_for_print(name, point):
         return x, -y * sine - z * cosine, y * cosine - z * sine
     if name == "BackPlate":
         return x, y * sine + z * cosine, -y * cosine + z * sine
-    if name == "Foot":
+    # A cap face down: the face a finger touches is the first layer, as flat as the plate it
+    # lies on and the same as the frame's face; its flange is a 1 mm overhang inside the case.
+    if name == "Foot" or name.startswith("Cap"):
         return x, -y, -z
     return x, y, z
 

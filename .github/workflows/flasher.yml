@@ -28,6 +28,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           repo="${{ github.repository }}"
+          # Our own runners keep the workspace between runs: a site left by the last one
+          # would make every download of a release already there fail.
+          rm -rf site
           mkdir -p site/flash
           echo '<!doctype html><meta charset="utf-8"><title>perINKpheral firmware</title><p>The firmware of <a href="https://perinkpheral.dev/flash">perINKpheral</a>, for its web flasher.</p>' > site/index.html
           echo '[]' > site/flash/index.json

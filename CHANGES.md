@@ -4,6 +4,11 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## 0.1.75
+
+- The button caps print face down: the face a finger touches is the first layer, flat and
+  the same as the frame's face.
+
 ## 0.1.74
 
 - The log no longer reports a lost network when power saving turns the radio off; a joined or
