@@ -44,6 +44,7 @@ const RUSSIAN = {
   "Warnings": "Предупреждения", "Information": "Информация",
   "Queued": "В очереди", "{0} queued.": "{0} в очереди.",
   "Updating {0}…": "Обновляем {0}…", "Installing {0}…": "Устанавливаем {0}…",
+  "Waiting for app installation.": "Ожидание установки приложения.",
   "{0} updated to {1}.": "Приложение {0} обновлено до {1}.",
   /* the menu and the sections */
   "Apps": "Приложения", "Device": "Устройство", "Control": "Управление", "Settings": "Настройки",

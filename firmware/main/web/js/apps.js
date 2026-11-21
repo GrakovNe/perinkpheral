@@ -621,13 +621,14 @@ async function loadRemoved() {
 }
 
 /* The list of sources, as the device keeps it: there with no network too. */
-async function loadSources() {
+async function loadSources(redraw = true) {
   try {
     sources = (await reading("sources", () => ask("/api/sources"))).sources;
   } catch (error) {
-    if (stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
+    if (redraw && stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
     throw error;
   }
+  if (!redraw) return;
   editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true, wraps: true,
                                       input: { placeholder: "https://" } });
 }
@@ -712,17 +713,17 @@ function showKeptCatalog() {
 /* One reading at a time, whoever asks: the start, Refresh, the sources saved. */
 let catalogsReading = null;
 
-function loadCatalogs() {
-  catalogsReading = catalogsReading || readCatalogs().finally(() => { catalogsReading = null; });
+function loadCatalogs(redrawSources = true) {
+  catalogsReading = catalogsReading || readCatalogs(redrawSources).finally(() => { catalogsReading = null; });
   return catalogsReading;
 }
 
-async function readCatalogs() {
+async function readCatalogs(redrawSources = true) {
   if (sourcesSaving) return;
   const started = catalogGeneration;
   const found = [], silent = [];
   try {
-    await loadSources();
+    await loadSources(redrawSources);
   } catch (error) {
     if (started !== catalogGeneration || sourcesSaving) return;
     if (!catalogsRead) loadState.catalog = "failed";
@@ -794,18 +795,24 @@ byId("sources").addEventListener("submit", async event => {
   if (sourcesSaving) return;
   sourcesSaving = true;
   invalidateCatalogs();
+  let saved;
   try {
-    await send(save, "/api/sources", post({ sources: added }), async (url, options) => {
+    saved = await send(save, "/api/sources", post({ sources: added }), async (url, options) => {
       /* An install may retry its POST: keep its source indices until it finishes. */
-      await Promise.all([...pendingAppInstalls.values()].map(job => job.promise));
+      const dismiss = pendingAppInstalls.size ? toast("Waiting for app installation.", "busy passive", true) : null;
+      try {
+        await Promise.all([...pendingAppInstalls.values()].map(job => job.promise));
+      } finally {
+        if (dismiss) dismiss();
+      }
       return ask(url, options);
     });
   } finally {
     sourcesSaving = false;
   }
-  /* Discard any old reading, then fetch the stored list even if saving was refused. */
+  /* Read the stored sources after a refusal too, but keep the rows the user can correct. */
   if (catalogsReading) await catalogsReading.catch(() => {});
-  await loadCatalogs();
+  await loadCatalogs(saved);
 });
 
 byId("refresh-catalogs").addEventListener("click", event => busy(event.target, loadCatalogs));
@@ -833,9 +840,14 @@ byId("app-settings").addEventListener("submit", async event => {
   /* Saved, the form goes: what was typed in it - a secret above all - is not sent again
    * with the next save, to a server changed meanwhile. It opens anew from the device. */
   const generation = appDialogGeneration;
-  const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
+  const name = appInDialog.name;
+  const url = "/api/apps/settings?app=" + encodeURIComponent(name);
   if (await send(event.submitter, url, post(values))) {
-    if (generation === appDialogGeneration) byId("app-dialog").close();
-    loadApps();
+    try {
+      await loadApps();
+    } finally {
+      /* A same-app form reopened during the save still has the old values. */
+      if (generation === appDialogGeneration || appInDialog.name === name) byId("app-dialog").close();
+    }
   }
 });

@@ -164,16 +164,25 @@ async function testQueue() {
   const installing = test.start(0), queued = test.start(1);
   const saving = test.saveSources();
   await flush();
+  const waitingNotice = test.messages.find(message => message.text === "Waiting for app installation.");
+  assert(waitingNotice && waitingNotice.stays && waitingNotice.kind.includes("passive"));
+  assert.equal(waitingNotice.dismissed, false);
   assert.equal(await queued, false);
   assert.equal(test.requests.length, 1, "source indices stay in place while a sent install may retry");
   test.requests[0].reply(503, "Device busy."); await flush();
+  assert.equal(waitingNotice.dismissed, false, "the explanation stays during install retries");
   assert.equal(test.requests.length, 2);
   assert(test.requests[1].url.startsWith("/api/apps/install"));
   test.requests[1].reply(); await installing; await flush();
   assert.equal(test.requests.length, 3);
   assert.equal(test.requests[2].url, "/api/sources", "sources change only after the in-flight install finishes");
+  assert.equal(waitingNotice.dismissed, true, "the explanation ends before the sources POST");
   test.requests[2].reply(); await saving;
   assert.equal(await test.start(1), false);
+  test = harness();
+  const idleSave = test.saveSources(); await flush();
+  assert(!test.messages.some(message => message.text === "Waiting for app installation."), "idle saves do not claim to wait");
+  test.requests[0].reply(); await idleSave;
   console.log("App install queue: sequential individual/bulk, dedupe, errors, permission cancellation and BFCache passed.");
 }
 module.exports = testQueue;

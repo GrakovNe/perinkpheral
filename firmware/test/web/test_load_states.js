@@ -211,9 +211,68 @@ async function testCatalog() {
   assert.equal(kept.has("perinkpheral-catalog"), false, "too large to keep");
 }
 
+async function testSourcesSave() {
+  for (const refusal of ["Invalid source URL.", "Too many sources.", "Failed to fetch", null]) {
+    for (const readFails of [false, true]) {
+      const official = "https://example.test/official", stored = [official, "https://example.test/stored"];
+      let saved = false;
+      const reads = [];
+      const { context, byId, messages } = page({
+        sources: [], offered: [], catalogsRead: false, CATALOG_SOURCES_MAX: 4,
+        drawTiles() {}, loadRemoved() {}, cancelQueuedInstalls() {},
+        fetch: async (url, options) => {
+          if (options && options.method === "POST") {
+            assert.deepEqual(JSON.parse(options.body).sources, ["https://example.test/valid", "typo"]);
+            if (refusal === "Failed to fetch") throw new Error(refusal);
+            saved = !refusal;
+            return { ok: saved, status: saved ? 200 : 400,
+              json: async () => saved ? { ok: "Saved." } : { error: refusal } };
+          }
+          reads.push(url);
+          if (readFails) throw new Error("Device unreachable.");
+          return { ok: true, json: async () => ({ sources: stored }) };
+        },
+        askForApp: async url => { reads.push(url); return { apps: [] }; },
+        editableList: (box, { values }) => {
+          box.replaceChildren(...values.map(value => element("input", { value })));
+          box.values = () => box.children.slice(1).map(row => row.value.trim()).filter(Boolean);
+        },
+      });
+      vm.runInContext(apps.slice(apps.indexOf("async function loadSources("), apps.indexOf("function catalogAuthorIsAllowed(")), context);
+      vm.runInContext(apps.slice(apps.indexOf("function catalogAuthorIsAllowed("), apps.indexOf("/* ---- sources ---- */")), context);
+      vm.runInContext(apps.slice(apps.indexOf("function catalogAddress("), apps.indexOf('byId("open-sources")')), context);
+      vm.runInContext("const pendingAppInstalls = new Map();", context);
+      const submitStart = apps.indexOf('byId("sources").addEventListener');
+      vm.runInContext(apps.slice(submitStart, apps.indexOf('byId("refresh-catalogs").addEventListener', submitStart)), context);
+      const rows = byId("source-rows"), typed = [official, " https://example.test/valid ", "typo", ""];
+      context.editableList(rows, { values: typed });
+      const originalRows = rows.children;
+      byId("save-sources").textContent = "Save";
+      const saving = byId("sources").listeners.submit({ preventDefault() {}, submitter: byId("save-sources") });
+      if (readFails) await assert.rejects(saving, /Device unreachable/);
+      else await saving;
+      assert(reads.includes("/api/sources"), "the stored source list is always fetched after a save");
+      if (refusal) {
+        assert.strictEqual(rows.children, originalRows, "a refused save preserves rows even if the stored-list read fails");
+        assert.deepEqual(rows.children.map(row => row.value), typed, "valid rows, typo, whitespace and blank row survive");
+        assert(messages.some(message => message.kind === "error"));
+      } else if (!readFails) {
+        assert.equal(saved, true);
+        assert.deepEqual(rows.children.map(row => row.value), stored, "successful saves show the stored list");
+      }
+      if (!readFails) {
+        assert.deepEqual(reads, ["/api/sources", "/api/catalog?source=0", "/api/catalog?source=1"],
+          "catalogs use the stored sources even when the edited rows are preserved");
+        assert.equal(context.catalogsRead, true);
+      }
+    }
+  }
+}
+
 module.exports = async function testLoadStates() {
   await testReading();
   await testCatalog();
+  await testSourcesSave();
   console.log("Load states: loading, failed with Refresh, empty, offers kept while read again and between visits passed.");
 };
 if (require.main === module) module.exports().catch(error => { console.error(error); process.exitCode = 1; });
