@@ -243,10 +243,9 @@ static void on_button(wm_t *wm, uint8_t index, event_press_t press, int64_t at_m
     if (!is_home_press && !is_press_for(wm->current, index, press, at_ms)) {
         return;
     }
-    if (is_home_press) {
-        host_notices_note_home_press();
-    }
+    host_notices_note_going_home(is_home_press);
     wm_button(wm, BUTTON_ROLE[index], SCENE_PRESS_OF[press]);
+    host_notices_note_going_home(false);
 }
 
 /* How many times the panel was refreshed since start: lets a tool tell a
