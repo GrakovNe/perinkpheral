@@ -22,6 +22,13 @@ standin_handlers_t standin_handlers;
 
 static standin_t *world;
 
+/* memcpy(), of nothing when the length is 0: an application may pass NULL with it, which the
+ * C library's memcpy() does not take (glibc declares both pointers never null). */
+static void *copy(void *to, const void *from, size_t length)
+{
+    return length > 0 ? memcpy(to, from, length) : to;
+}
+
 /* A handler's time on the device (CLAUDE.md, "What a handler may count on"). */
 #define HANDLER_SECONDS 3
 
@@ -161,7 +168,7 @@ void log_write(int32_t level, const char *text, int32_t length)
     if (length > HOST_LOG_TEXT_MAX) {
         length = HOST_LOG_TEXT_MAX;
     }
-    memcpy(host->last_log, text, (size_t)length);
+    copy(host->last_log, text, (size_t)length);
     host->last_log[length] = '\0';
     host->logs++;
     if (level == HOST_LOG_ERROR) {
@@ -178,7 +185,7 @@ int32_t session_set(const void *data, int32_t length)
     if (data == NULL || length < 0 || length > HOST_SESSION_MAX || host->is_loading || !host->is_session_writable) {
         return HOST_ERR_ARGUMENT;
     }
-    memcpy(host->session, data, (size_t)length);
+    copy(host->session, data, (size_t)length);
     host->session_length = length;
     return HOST_OK;
 }
@@ -193,7 +200,7 @@ int32_t session_get(void *buffer, int32_t capacity)
     if (length > capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(buffer, host->session, (size_t)length);
+    copy(buffer, host->session, (size_t)length);
     return length;
 }
 
@@ -241,7 +248,7 @@ int32_t text_fill(const char *pattern, int32_t pattern_length, const host_text_a
     while (used > 0 && used < HOST_TEXT_MAX && ((uint8_t)filled[used] & 0xC0) == 0x80) {
         used--;
     }
-    memcpy(text, filled, (size_t)used);
+    copy(text, filled, (size_t)used);
     return used;
 }
 
@@ -320,9 +327,9 @@ static int32_t store(const char *key, int32_t key_length, const void *bytes, int
     if (value == NULL) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(value->key, key, (size_t)key_length);
+    copy(value->key, key, (size_t)key_length);
     value->key[key_length] = '\0';
-    memcpy(value->value, bytes, (size_t)length);
+    copy(value->value, bytes, (size_t)length);
     value->length = length;
     value->is_stored = true;
     return HOST_OK;
@@ -375,7 +382,7 @@ int32_t kv_get(const char *key, int32_t key_length, void *bytes, int32_t capacit
     if (length > capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(bytes, found, (size_t)length);
+    copy(bytes, found, (size_t)length);
     return length;
 }
 
@@ -458,7 +465,7 @@ void standin_file_put(const char *name, const void *bytes, int32_t size)
         exit(2);
     }
     strcpy(file->name, name);
-    memcpy(file->bytes, bytes, (size_t)size);
+    copy(file->bytes, bytes, (size_t)size);
     file->size = size;
     file->is_stored = true;
 }
@@ -498,7 +505,7 @@ int32_t file_read(const char *name, int32_t name_length, int32_t offset, void *b
     }
     int32_t left = offset < file->size ? file->size - offset : 0;
     int32_t taken = left < capacity ? left : capacity;
-    memcpy(bytes, file->bytes + offset * (taken > 0), (size_t)taken);
+    copy(bytes, file->bytes + offset * (taken > 0), (size_t)taken);
     return taken;
 }
 
@@ -549,7 +556,7 @@ int32_t file_write(const char *name, int32_t name_length, int32_t offset, const 
     for (int index = 0; file == NULL && index < STANDIN_FILES; index++) {
         if (!host->files[index].is_stored) {
             file = &host->files[index];
-            memcpy(file->name, name, (size_t)name_length);
+            copy(file->name, name, (size_t)name_length);
             file->name[name_length] = '\0';
             file->size = 0;
             file->is_stored = true;
@@ -558,7 +565,7 @@ int32_t file_write(const char *name, int32_t name_length, int32_t offset, const 
     if (file == NULL) {
         return refused_write(HOST_ERR_NO_SPACE, "file_write", name, name_length, length);
     }
-    memcpy(file->bytes + offset, bytes, (size_t)length);
+    copy(file->bytes + offset, bytes, (size_t)length);
     file->size = size;
     host->file_writes++;
     return HOST_OK;
@@ -707,7 +714,7 @@ int32_t time_text(int64_t unix_time, int32_t style, char *text, int32_t capacity
     if (length > capacity) {
         length = capacity;
     }
-    memcpy(text, written, (size_t)length);
+    copy(text, written, (size_t)length);
     return length;
 }
 
@@ -834,7 +841,7 @@ int32_t header_set_text(int32_t side, const char *text, int32_t length)
     if (length > HOST_HEADER_TEXT_MAX) {
         length = HOST_HEADER_TEXT_MAX;
     }
-    memcpy(world->header_text[side], text, (size_t)length);
+    copy(world->header_text[side], text, (size_t)length);
     world->header_text[side][length] = '\0';
     return HOST_OK;
 }
@@ -849,7 +856,7 @@ int32_t header_set_status(int32_t side, int32_t icon, const char *text, int32_t 
     if (length > HOST_STATUS_TEXT_MAX) {
         length = HOST_STATUS_TEXT_MAX;
     }
-    memcpy(world->status_text[side], text, (size_t)length);
+    copy(world->status_text[side], text, (size_t)length);
     world->status_text[side][length] = '\0';
     world->status_icon[side] = icon;
     return HOST_OK;
@@ -909,7 +916,7 @@ int32_t answer_value(int32_t index, char *text, int32_t capacity)
     if (length > capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(text, value, (size_t)length);
+    copy(text, value, (size_t)length);
     return length;
 }
 
@@ -933,7 +940,7 @@ int32_t answer_element(int32_t index, int32_t element, char *text, int32_t capac
     if (length > capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(text, value, (size_t)length);
+    copy(text, value, (size_t)length);
     return length;
 }
 
@@ -954,7 +961,7 @@ int32_t answer_info(host_answer_info_t *response, int32_t capacity)
     /* No headers are stood in for: the status, and every other field absent. */
     host_answer_info_t info = { .status = answer_status, .length = -1 };
     int32_t length = capacity < (int32_t)sizeof info ? capacity : (int32_t)sizeof info;
-    memcpy(response, &info, (size_t)length);
+    copy(response, &info, (size_t)length);
     return length;
 }
 
@@ -1008,10 +1015,10 @@ int32_t http_send(int32_t tag, int32_t method, const char *url, int32_t url_leng
     memset(request, 0, sizeof *request);
     request->tag = tag;
     request->method = method;
-    memcpy(request->url, url, (size_t)url_length);
-    memcpy(request->headers, headers, (size_t)headers_length);
+    copy(request->url, url, (size_t)url_length);
+    copy(request->headers, headers, (size_t)headers_length);
     request->headers_length = headers_length;
-    memcpy(request->body, body, (size_t)body_length);
+    copy(request->body, body, (size_t)body_length);
     request->body_length = body_length;
     return HOST_OK;
 }
@@ -1131,7 +1138,7 @@ static bool fill(const char *written, const standin_poll_t *asked, int32_t item,
         if (length <= 0 || used + length >= capacity) {
             return false;
         }
-        memcpy(url + used, filled, (size_t)length);
+        copy(url + used, filled, (size_t)length);
         used += length;
         at = close + 2;
     }
@@ -1255,7 +1262,7 @@ static int32_t fit(int32_t font, const char *text, int32_t length, int32_t max_w
         length = HOST_TEXT_MAX;
     }
     if (text_width(font, text, length) <= max_width) {
-        memcpy(fitted, text, (size_t)length);
+        copy(fitted, text, (size_t)length);
         return length;
     }
     int32_t room = max_width / advance_of(font) - 3;
@@ -1269,8 +1276,8 @@ static int32_t fit(int32_t font, const char *text, int32_t length, int32_t max_w
     while (kept > 0 && kept < length && ((uint8_t)text[kept] & 0xC0) == 0x80) {
         kept--;
     }
-    memcpy(fitted, text, (size_t)kept);
-    memcpy(fitted + kept, "...", 3);
+    copy(fitted, text, (size_t)kept);
+    copy(fitted + kept, "...", 3);
     return kept + 3;
 }
 
@@ -1336,7 +1343,7 @@ int32_t gfx_fit_text(int32_t font, const char *text, int32_t length, int32_t max
     if (cut_length > capacity) {
         return HOST_ERR_NO_SPACE;
     }
-    memcpy(fitted, cut, (size_t)cut_length);
+    copy(fitted, cut, (size_t)cut_length);
     return cut_length;
 }
 
@@ -2086,7 +2093,7 @@ void standin_data(int32_t request, int32_t item, int32_t status, const void *bod
         int32_t flags = (at == 0 ? HOST_DATA_FIRST : 0) |
                         (ending == STANDIN_WHOLE && at + taken == given ? HOST_DATA_LAST : 0);
         if (taken > 0) {
-            memcpy(buffer, (const uint8_t *)body + at, (size_t)taken);
+            copy(buffer, (const uint8_t *)body + at, (size_t)taken);
         }
         CALL(on_data, request, buffer, taken, flags, status);
         at += taken;
@@ -2143,8 +2150,11 @@ static void fault_line(FILE *said, char *line, size_t size)
     while (line[0] == '\0' && fgets(read, sizeof read, said) != NULL) {
         for (size_t index = 0; index < sizeof TELLING / sizeof TELLING[0]; index++) {
             if (strstr(read, TELLING[index]) != NULL) {
-                read[strcspn(read, "\n")] = '\0';
-                snprintf(line, size, "%s", read);
+                /* Cut to the line's room: copied by hand, as GCC takes a cut snprintf() for a mistake. */
+                size_t length = strcspn(read, "\n");
+                length = length < size - 1 ? length : size - 1;
+                copy(line, read, length);
+                line[length] = '\0';
                 break;
             }
         }
@@ -2193,12 +2203,12 @@ bool standin_try(void (*run)(void *context), void *context)
         perror("standin: no memory");
         exit(2);
     }
-    memcpy(before, standin(), sizeof *before);
+    copy(before, standin(), sizeof *before);
     bool is_whole = standin_live(run, context);
-    memcpy(before->marks, world->marks, sizeof before->marks);
-    memcpy(before->notes, world->notes, sizeof before->notes);
+    copy(before->marks, world->marks, sizeof before->marks);
+    copy(before->notes, world->notes, sizeof before->notes);
     before->note_count = world->note_count;
-    memcpy(world, before, sizeof *world);
+    copy(world, before, sizeof *world);
     free(before);
     return is_whole;
 }
