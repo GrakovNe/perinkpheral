@@ -271,7 +271,7 @@ const uint8_t *standin_file(const char *name, int32_t *size);
 uint32_t standin_timers(void);
 uint32_t standin_alarms(void);
 int32_t standin_timer_left(int32_t id);          /* milliseconds; 0: not set */
-int32_t standin_alarm_left(int32_t id);          /* seconds; 0: not set */
+int64_t standin_alarm_left(int32_t id);          /* seconds; 0: not set */
 bool standin_alarm_due(int32_t id);              /* set, and its time has come */
 
 /* The address poll `poll` asks for item `item` of its list (-1: it has
@@ -311,6 +311,7 @@ void standin_alarm(int32_t id);
 void standin_intent(int32_t intent);     /* when the manifest asks for it */
 void standin_settings(void);
 void standin_updated(void);              /* another package: the alarms of the old one are gone, app_on_updated() */
+void standin_updated_as_loaded(void);    /* app_on_updated() of an instance loaded after they went */
 uint64_t standin_draw(void);             /* app_on_draw(): what the frame was made of */
 uint64_t standin_screen(uint64_t frame); /* the frame with the header and the inversion around it */
 

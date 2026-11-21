@@ -134,6 +134,19 @@ object AppCheckTest {
         Break("drawing", "app_on_draw() fills a rectangle of no size and draws nothing",
             listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    gfx_draw_rect(0, 0, 0, 0, HOST_RECT_FILLED);\n    return;\n"),
             "drew nothing"),
+        Break("drawing", "app_on_draw() faults on a frame it did not ask for, as the header's minute makes",
+            listOf("#include \"host_api.h\"\n" to "#include \"host_api.h\"\n\nstatic int32_t unasked_draws;\n" +
+                    "#define screen_redraw(flags) (unasked_draws = 0, screen_redraw(flags))\n",
+                "void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    if (unasked_draws++ > 0) {\n        static volatile char *nowhere;\n        nowhere[0] = 1;\n    }\n"),
+            "drawing it again"),
+        Break("timers", "app_on_alarm() faults on an alarm set for the last moment there is",
+            listOf("void app_on_focus(void)\n{\n" to "void app_on_focus(void)\n{\n    alarm_set_at(1, HOST_TIME_MAX);\n",
+                "void app_on_updated(void)\n{\n" to "void app_on_updated(void)\n{\n    alarm_set_at(1, HOST_TIME_MAX);\n",
+                "void app_on_alarm(int32_t id)\n{\n" to "void app_on_alarm(int32_t id)\n{\n    if (id == 1) {\n        static volatile char *nowhere;\n        nowhere[0] = 1;\n    }\n"),
+            "stopped in app_on_alarm"),
+        Break("drawing", "app_on_draw() draws only the reason of an answer that came, which is nothing",
+            listOf("void app_on_draw(void)\n{\n" to "void app_on_draw(void)\n{\n    ui_draw_reason(200);\n    return;\n"),
+            "drew nothing"),
         Break("store", "a value larger than the store takes is written",
             listOf("        count++;\n        kv_set(\"count\", 5, &count, sizeof count);" to
                 "        count++;\n        static char large[HOST_KV_TOTAL_MAX];\n        kv_set(\"count\", 5, large, sizeof large);"),
@@ -197,6 +210,9 @@ object AppCheckTest {
         Break("timers", "a countdown of three seconds, over by the time a late tick comes",
             listOf("void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER) {" to
                 "void app_on_timer(int32_t id)\n{\n    if (id == TICK_TIMER && time_uptime_ms() < 3000) {"), ""),
+        Break("timers", "an alarm set again by every instance in app_on_load(), and nothing in app_on_updated()",
+            listOf("void app_on_load(void)\n{\n" to
+                "void app_on_load(void)\n{\n    if (time_now() != 0) {\n        alarm_set_at(1, time_now() + 3600);\n    }\n"), ""),
     )
 
     @JvmStatic fun main(args: Array<String>) {

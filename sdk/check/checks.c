@@ -336,7 +336,7 @@ typedef struct {
 static void give(const delivery_t *delivery)
 {
     if (delivery->is_updated) {
-        standin_updated();
+        standin_updated_as_loaded();
     } else if (delivery->intent != 0) {
         standin_intent(delivery->intent);
     } else if (delivery->alarm >= 0) {
@@ -451,6 +451,8 @@ static void scene_run(void *context)
     }
     if (scene->is_updated) {
         host->marks[MARK_ALARMS_BEFORE] = standin_alarms();
+        /* host_apps.c: the old version's alarms are removed before the new one is loaded. */
+        memset(host->alarms, 0, sizeof host->alarms);
         hand(&(delivery_t){ .alarm = -1, .is_updated = true });
     }
     if (scene->intent != 0) {
@@ -537,8 +539,8 @@ static void scene_run(void *context)
         return;
     }
     host->marks[MARK_PICTURE] = show();
-    if (standin_handlers.on_draw != NULL) {
-        standin_try(draw_now, NULL);
+    if (standin_handlers.on_draw != NULL && !standin_try(draw_now, NULL)) {
+        standin_note("drawing it again: %s", standin_fault());
     }
     /* After the frame: an application that shows pictures in a row sets its timer when one is drawn. */
     host->marks[MARK_TIMERS] = standin_timers();

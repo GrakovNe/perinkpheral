@@ -893,7 +893,7 @@ bool standin_alarm_due(int32_t id)
            : alarm->kind != STANDIN_ALARM_NONE && alarm->due_uptime_ms <= world->uptime_ms;
 }
 
-int32_t standin_alarm_left(int32_t id)
+int64_t standin_alarm_left(int32_t id)
 {
     standin_t *host = standin();
     const standin_alarm_t *alarm = &host->alarms[id];
@@ -906,7 +906,7 @@ int32_t standin_alarm_left(int32_t id)
     } else {
         left = (alarm->due_uptime_ms - host->uptime_ms + MS_PER_SECOND - 1) / MS_PER_SECOND;
     }
-    return left > 0 ? (int32_t)left : 1;
+    return left > 0 ? left : 1;
 }
 
 /* ---- Screen ---- */
@@ -1883,6 +1883,7 @@ int32_t gfx_draw_bitmap_file(int32_t x, int32_t y, int32_t width, int32_t height
     standin_stored_file_t *file = file_of(name, name_length);
     int32_t size = (width + 7) / 8 * height;
     if (file == NULL || offset > file->size - size) {
+        world->draw_calls--; /* nothing is drawn of a file that is not there */
         return HOST_ERR_NOT_FOUND;
     }
     int32_t numbers[] = { x, y, width, height };
@@ -2268,9 +2269,13 @@ int32_t ui_draw_reason(int32_t status)
         return HOST_ERR_NOT_DRAWING;
     }
     mix_number(status);
-    /* An answer came: what is wrong, if anything, is the application's to say. Otherwise the
-     * host drew the reason. */
-    return status >= 200 && status < 300 ? 0 : 1;
+    /* An answer came: what is wrong, if anything, is the application's to say, and nothing is
+     * drawn. Otherwise the host drew the reason. */
+    if (status >= 200 && status < 300) {
+        world->draw_calls--;
+        return 0;
+    }
+    return 1;
 }
 
 int32_t ui_draw_frame(int32_t x, int32_t y, int32_t width, int32_t height, int32_t arrows)
@@ -2570,6 +2575,11 @@ void standin_updated(void)
 {
     /* host/app.h: a new version does not inherit the alarms of the old one. */
     memset(standin()->alarms, 0, sizeof world->alarms);
+    CALL(on_updated);
+}
+
+void standin_updated_as_loaded(void)
+{
     CALL(on_updated);
 }
 
