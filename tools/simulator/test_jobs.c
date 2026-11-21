@@ -28,6 +28,7 @@ static void set_value(const char *key, const char *value)
 
 int main(void)
 {
+    s_log = calloc(LOG_KEPT_BYTES + 1, 1);
     char state[] = "/tmp/perinkpheral-jobs-XXXXXX";
     assert(mkdtemp(state) != NULL);
     s_options.state = state;
@@ -60,8 +61,46 @@ int main(void)
     prepare_job(job);
     assert(job->status == HOST_FAILED_NOT_ALLOWED);
     assert(job->headers == NULL);
+    hand_over(job);
+    assert(strstr(s_log, "a request to a host its manifest does not list") != NULL);
+    assert(strstr(s_log, "redirected") == NULL);
     free_job(job);
     set_value("server", "http://first.example");
+
+    app_poll_t poll = { .header_count = 1 };
+    snprintf(poll.url, sizeof poll.url, "{{server}}/api/{{item}}");
+    snprintf(poll.headers[0].name, sizeof poll.headers[0].name, "Authorization");
+    snprintf(poll.headers[0].value, sizeof poll.headers[0].value, "Bearer {{token}} {{item}}");
+    list_item_t each = { .key = "item", .item = "a/b" };
+    start_poll_request(&poll, 0, &each, 2);
+    set_value("server", "http://changed.example");
+    set_value("token", "new-server-token");
+    job = s_jobs_pending;
+    s_jobs_pending = NULL;
+    prepare_job(job);
+    assert(job->status == 0);
+    assert(strcmp(job->url, "http://changed.example/api/a%2Fb") == 0);
+    assert(strcmp(job->headers, "Authorization: Bearer new-server-token a/b\n") == 0);
+    assert(job->item == 2);
+    free_job(job);
+
+    snprintf(poll.url, sizeof poll.url, "{{missing}}");
+    start_poll_request(&poll, 0, NULL, -1);
+    job = s_jobs_pending;
+    s_jobs_pending = NULL;
+    prepare_job(job);
+    assert(job->status == HOST_FAILED_NOT_READY && job->headers == NULL);
+    free_job(job);
+    snprintf(poll.url, sizeof poll.url, "{{server}}/data");
+    start_poll_request(&poll, 0, NULL, -1);
+    set_value("server", "");
+    job = s_jobs_pending;
+    s_jobs_pending = NULL;
+    prepare_job(job);
+    assert(job->status == HOST_FAILED_NOT_READY && job->headers == NULL);
+    free_job(job);
+    set_value("server", "http://first.example");
+    set_value("token", "rotated");
 
     /* Pipes hold a transmission open while the main loop reloads and replaces its manifest. */
     int requests[2], answers[2];
@@ -109,6 +148,7 @@ int main(void)
     snprintf(path, sizeof path, "%s/store", state);
     rmdir(path);
     rmdir(state);
-    puts("Simulator jobs: current credentials, destination refusal, reload isolation and redirect snapshot passed");
+    free(s_log);
+    puts("Simulator jobs: poll destinations, current credentials, refusal logs, reload isolation and redirect snapshot passed");
     return 0;
 }

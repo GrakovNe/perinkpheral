@@ -51,9 +51,15 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             if (pictures.isDirectory) Pictures.make(pictures, File(made, "pictures.h"))
             Strings(sdk, check).make(appDir, made, isStrict = false)
             into.mkdirs()
-            // What the application no longer has goes too: a header of pictures that were removed.
-            for (name in GENERATED) File(into, name).delete()
-            for (file in made.listFiles().orEmpty()) file.copyTo(File(into, file.name), overwrite = true)
+            // Unchanged headers must not rebuild other applications after a CMake reconfigure.
+            for (name in GENERATED) {
+                val generated = File(made, name)
+                val destination = File(into, name)
+                if (!generated.isFile) destination.delete()
+                else if (!destination.isFile || !generated.readBytes().contentEquals(destination.readBytes())) {
+                    generated.copyTo(destination, overwrite = true)
+                }
+            }
         } finally {
             made.deleteRecursively()
         }
@@ -114,8 +120,10 @@ class AppBuilder(private val sdk: Sdk, private val wasiSdk: File, private val sa
             if (packaged.size > PACKAGE_FILES_MAX) {
                 throw BuildError("${appDir.path}: a package may contain at most $PACKAGE_FILES_MAX files, including generated tables")
             }
-            if (File(outDir, MANIFEST).length() > MANIFEST_MAX_BYTES) {
-                throw BuildError("${appDir.path}: packaged manifest exceeds $MANIFEST_MAX_BYTES bytes")
+            for (name in listOf(MANIFEST) + strings.manifests.keys.map { "manifest.$it" }) {
+                if (File(outDir, name).length() > MANIFEST_MAX_BYTES) {
+                    throw BuildError("${appDir.path}: packaged $name exceeds $MANIFEST_MAX_BYTES bytes")
+                }
             }
             val filesLimit = if (writesFiles) writerFilesMax else filesMax
             if (filesBytes > filesLimit) {

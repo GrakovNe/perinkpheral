@@ -805,11 +805,21 @@ static void prepare_job(job_t *job)
         }
     }
     json_free(root);
+    list_item_t each = { .key = job->each_key, .item = job->each_value };
+    if (job->is_poll) {
+        char url[APP_URL_MAX + 1];
+        if (!text_template_fill_url(job->url, setting_of,
+                                   job->each_key[0] != '\0' ? &each : NULL, url, sizeof url) ||
+            url[0] == '\0') {
+            job->status = HOST_FAILED_NOT_READY;
+            return;
+        }
+        snprintf(job->url, sizeof job->url, "%s", url);
+    }
     if (!job->is_poll && !app_manifest_allows_url(job->manifest, job->url, job_setting, job)) {
         job->status = HOST_FAILED_NOT_ALLOWED;
         return;
     }
-    list_item_t each = { .key = job->each_key, .item = job->each_value };
     for (int i = 0; i < job->header_count; i++) {
         char value[APP_HEADER_VALUE_MAX + 1];
         if (!text_template_fill(job->header_templates[i].value, setting_of,
@@ -848,7 +858,7 @@ static bool accepts_job(const job_t *job)
 static void hand_over(job_t *job)
 {
     if (job->status == HOST_FAILED_NOT_ALLOWED) {
-        say('W', "sim", "%s: redirected to a host its manifest does not list", s_options.app);
+        say('W', "sim", "%s: a request to a host its manifest does not list", s_options.app);
     }
     bool failed = job->status == HOST_FAILED_NO_NETWORK || job->status == HOST_FAILED_NO_ANSWER ||
                   job->status == HOST_FAILED_TIMEOUT;
@@ -942,19 +952,13 @@ static void start_poll_request(const app_poll_t *poll, int number, const list_it
     job->wants_values = poll->pick_count > 0;
     job->pick_count = poll->pick_count;
     memcpy(job->pick, poll->pick, sizeof poll->pick);
-    bool is_ready = text_template_fill_url(poll->url, setting_of, (void *)each, job->url,
-                                           sizeof job->url);
+    /* Poll destinations and credentials must use the same settings at send time. */
+    snprintf(job->url, sizeof job->url, "%s", poll->url);
     job->header_count = poll->header_count;
     memcpy(job->header_templates, poll->headers, sizeof job->header_templates);
     if (each != NULL) {
         snprintf(job->each_key, sizeof job->each_key, "%s", each->key);
         snprintf(job->each_value, sizeof job->each_value, "%s", each->item);
-    }
-    if (!is_ready) {
-        job->status = HOST_FAILED_NOT_READY;
-        hand_over(job);
-        free_job(job);
-        return;
     }
     ask(job);
 }

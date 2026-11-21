@@ -197,6 +197,19 @@ static void test_fixed_numbers_at_the_edges(void)
     CHECK(app_fixed_ratio(7600000000000000001LL, -8000000000000000000LL, 1) == -10);
     CHECK(app_fixed_ratio(INT64_MIN, INT64_MIN, 2) == 100);
     CHECK(app_fixed_ratio(INT64_MAX - 1, INT64_MAX, 9) == 1000000000);
+    CHECK(app_fixed_ratio(INT64_MIN, 1, 0) == INT64_MIN);
+    CHECK(app_fixed_ratio(INT64_MIN, -1, 0) == 0);
+    CHECK(app_fixed_ratio(INT64_MAX, 1, 0) == INT64_MAX);
+    CHECK(app_fixed_ratio(INT64_MIN, 10, 1) == INT64_MIN);
+    CHECK(app_fixed_ratio(INT64_MAX, 10, 1) == INT64_MAX);
+    CHECK(app_fixed_ratio(INT64_MAX, 1, 9) == 0);
+    CHECK(app_fixed_ratio(INT64_MIN, 1, 9) == 0);
+    CHECK(app_fixed_ratio(INT64_MAX, 5, 1) == 0);
+    CHECK(app_fixed_ratio(-INT64_MAX, 5, 1) == 0);
+    CHECK(app_fixed_ratio(3689348814741910323LL, 4, 1) == 0);
+    CHECK(app_fixed_ratio(-3689348814741910323LL, 4, 1) == INT64_MIN);
+    CHECK(app_fixed_ratio(0, INT64_MIN, 9) == 0);
+    CHECK(app_fixed_ratio(1, 0, 2) == 0);
 }
 
 static void test_paces(void)

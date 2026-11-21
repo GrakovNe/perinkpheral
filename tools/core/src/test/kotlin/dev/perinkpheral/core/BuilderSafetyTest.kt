@@ -11,6 +11,12 @@ import java.io.File
 import java.nio.file.Files
 
 object BuilderSafetyTest {
+    private fun cmakeOnPath(path: String?): Boolean =
+        !path.isNullOrEmpty() && path.split(File.pathSeparator).any {
+            val cmake = File(it, "cmake")
+            cmake.isFile && cmake.canExecute()
+        }
+
     @JvmStatic fun main(args: Array<String>) {
         val root = generateSequence(File(System.getProperty("perinkpheral.test.root", System.getProperty("user.dir"))).canonicalFile) { it.parentFile }
             .first { File(it, "sdk/host_api.h").isFile }
@@ -72,6 +78,44 @@ object BuilderSafetyTest {
             File(packageDir, "asset.txt").writeText("data")
             check(AppBuilder.packageFiles(packageDir) == listOf("app.wasm", "asset.txt", "manifest.json"))
 
+            check(!cmakeOnPath(null) && !cmakeOnPath(""))
+            val commands = File(scratch, "commands").apply { mkdirs() }
+            check(!cmakeOnPath(commands.path))
+            val cmakeCommand = File(commands, "cmake").apply { writeText("test fixture") }
+            check(!cmakeOnPath(commands.path))
+            check(cmakeCommand.setExecutable(true))
+            check(cmakeOnPath(commands.path))
+
+            val headerSource = File(scratch, "headers/hello")
+            source.copyRecursively(headerSource)
+            val headerPictures = File(headerSource, "pictures").apply { mkdirs() }
+            File(headerPictures, "dot.txt").writeText("#.\n")
+            val headers = File(scratch, "generated")
+            builder.headers(headerSource, headers)
+            val generated = headers.listFiles()!!.associate { file ->
+                check(file.setLastModified(1_000_000))
+                file.name to (file.readBytes().toList() to file.lastModified())
+            }
+            val unrelatedHeader = File(headers, "keep.h").apply { writeText("keep") }
+            builder.headers(headerSource, headers)
+            for ((name, before) in generated) {
+                val file = File(headers, name)
+                check(before == (file.readBytes().toList() to file.lastModified()))
+            }
+            val headerEnglish = File(headerSource, "strings/en.json")
+            val headerWords = LinkedHashMap(Json.parse(headerEnglish.readText()) as Map<*, *>)
+            headerWords["added"] = "New"
+            headerEnglish.writeText(Json.write(headerWords))
+            builder.headers(headerSource, headers)
+            check("STR_ADDED" in File(headers, "strings.h").readText())
+            check(File(headers, "strings.c").lastModified() != generated.getValue("strings.c").second)
+            check(File(headers, "pictures.h").lastModified() == generated.getValue("pictures.h").second)
+            headerPictures.deleteRecursively()
+            File(headerSource, "strings").deleteRecursively()
+            builder.headers(headerSource, headers)
+            check(listOf("strings.h", "strings.c", "pictures.h").none { File(headers, it).exists() })
+            check(unrelatedHeader.readText() == "keep")
+
             val defaults = File(scratch, "defaults/hello")
             source.copyRecursively(defaults)
             val defaultsFile = File(defaults, "manifest.json")
@@ -96,6 +140,9 @@ object BuilderSafetyTest {
             }
             pbm.writeText("P1\n# comment\n3 1\n0 # white\n1 0\n")
             check(Pictures.show(listOf(pbm)) == "raster:\n.#.\n\n")
+            // After the single separator, even a line break belongs to the raster.
+            pbm.writeBytes("P4\r\n8 1\r".toByteArray() + byteArrayOf(0x0a))
+            check(Pictures.show(listOf(pbm)) == "raster:\n....#.#.\n\n")
 
             System.getenv("WASI_SDK_PATH")?.let { wasi ->
                 val realBuilder = AppBuilder(Sdk(root), File(wasi)) {}
@@ -113,8 +160,8 @@ object BuilderSafetyTest {
                 source.copyRecursively(packageSource)
                 File(packageSource, "strings").deleteRecursively()
                 val data = File(packageSource, "files").apply { mkdirs() }
-                fun refusedPackage(reason: String) {
-                    try { realBuilder.build(packageSource, built); error("invalid package accepted") }
+                fun refusedPackage(reason: String, appDir: File = packageSource) {
+                    try { realBuilder.build(appDir, built); error("invalid package accepted") }
                     catch (error: BuildError) { check(reason in error.message.orEmpty()) { error.message.orEmpty() } }
                     check(!File(built, "app.wasm").exists())
                 }
@@ -134,64 +181,91 @@ object BuilderSafetyTest {
                 val largeManifest = LinkedHashMap(Json.parse(packageManifest.readText()) as Map<*, *>)
                 largeManifest["extra"] = "x".repeat(8192)
                 packageManifest.writeText(Json.pretty(largeManifest))
-                refusedPackage("manifest exceeds 8192")
+                refusedPackage("manifest.json exceeds 8192")
 
-                // Ordinary CMake builds must observe edits to existing generation inputs.
-                val cmakeSource = File(scratch, "cmake/changed").apply { mkdirs() }
-                File(cmakeSource, "manifest.json").writeText("""{"name":"changed","title":"Changed","abi":3}""")
-                val strings = File(cmakeSource, "strings").apply { mkdirs() }
-                val english = File(strings, "en.json").apply { writeText("""{"text":"Before"}""") }
-                val pictures = File(cmakeSource, "pictures").apply { mkdirs() }
-                val picture = File(pictures, "dot.txt").apply { writeText("#.\n") }
-                File(cmakeSource, "main.c").writeText("""
-                    #include "host_api.h"
-                    #include "strings.h"
-                    #include "pictures.h"
-                    void app_on_draw(void) {
-                        gfx_draw_picture(0, 0, PICTURE_DOT, 1);
-                        log_write(1, app_string(STR_TEXT), 6);
+                val translatedSource = File(scratch, "limits/translated").apply { mkdirs() }
+                File(translatedSource, "main.c").writeText("#include \"host_api.h\"\nvoid app_on_load(void) {}\n")
+                val options = (1..8).map { it.toString() + "\"".repeat(22) }
+                val settingKeys = (1..8).map { "setting" + it.toString().padStart(8, '0') }
+                File(translatedSource, "manifest.json").writeText(Json.write(mapOf(
+                    "name" to "translated", "title" to "Translated", "abi" to 3,
+                    "settings" to settingKeys.map { key ->
+                        mapOf("key" to key, "title" to "Choice", "type" to "choice", "options" to options)
+                    })))
+                val translations = File(translatedSource, "strings").apply { mkdirs() }
+                File(translations, "en.json").writeText("{}")
+                val russian = File(translations, "ru.json")
+                russian.writeText(Json.write(mapOf("manifest" to mapOf("title" to "Translated"))))
+                realBuilder.build(translatedSource, built)
+                check(File(built, "manifest.ru").length() in 1..8192)
+                russian.writeText(Json.write(mapOf("manifest" to mapOf(
+                    "settings" to settingKeys.associateWith {
+                        mapOf("title" to "\"".repeat(31), "help" to "\"".repeat(95),
+                            "options" to options.associateWith { "\"".repeat(23) })
+                    }))))
+                refusedPackage("manifest.ru exceeds 8192", translatedSource)
+                check(File(built, "manifest.json").length() <= 8192)
+                check(File(built, "manifest.ru").length() > 8192)
+
+                if (cmakeOnPath(System.getenv("PATH"))) {
+                    // Ordinary CMake builds must observe edits to existing generation inputs.
+                    val cmakeSource = File(scratch, "cmake/changed").apply { mkdirs() }
+                    File(cmakeSource, "manifest.json").writeText("""{"name":"changed","title":"Changed","abi":3}""")
+                    val strings = File(cmakeSource, "strings").apply { mkdirs() }
+                    val english = File(strings, "en.json").apply { writeText("""{"text":"Before"}""") }
+                    val pictures = File(cmakeSource, "pictures").apply { mkdirs() }
+                    val picture = File(pictures, "dot.txt").apply { writeText("#.\n") }
+                    File(cmakeSource, "main.c").writeText("""
+                        #include "host_api.h"
+                        #include "strings.h"
+                        #include "pictures.h"
+                        void app_on_draw(void) {
+                            gfx_draw_picture(0, 0, PICTURE_DOT, 1);
+                            log_write(1, app_string(STR_TEXT), 6);
+                        }
+                    """.trimIndent())
+                    val cmakeSdk = File(scratch, "cmake-sdk")
+                    File(root, "sdk/cmake").copyRecursively(File(cmakeSdk, "sdk/cmake"))
+                    for (name in listOf("lib", "host", "host_api.h")) {
+                        File(root, "sdk/$name").copyRecursively(File(cmakeSdk, "sdk/$name"))
                     }
-                """.trimIndent())
-                val cmakeSdk = File(scratch, "cmake-sdk")
-                File(root, "sdk/cmake").copyRecursively(File(cmakeSdk, "sdk/cmake"))
-                for (name in listOf("lib", "host", "host_api.h")) {
-                    File(root, "sdk/$name").copyRecursively(File(cmakeSdk, "sdk/$name"))
+                    fun quoted(text: String) = "'" + text.replace("'", "'\"'\"'") + "'"
+                    val testTool = File(cmakeSdk, "tools/perinkpheral")
+                    testTool.parentFile.mkdirs()
+                    val java = File(System.getProperty("java.home"), "bin/java").path
+                    val classpath = System.getProperty("java.class.path").split(File.pathSeparator)
+                        .joinToString(File.pathSeparator) { File(it).absolutePath }
+                    testTool.writeText("#!/bin/sh\nexec ${quoted(java)} ${quoted("-Dperinkpheral.test.root=${root.path}")} -cp ${quoted(classpath)} " +
+                        "dev.perinkpheral.core.BuilderSafetyTest \"\$@\"\n")
+                    check(testTool.setExecutable(true))
+                    File(cmakeSource, "CMakeLists.txt").writeText("""
+                        cmake_minimum_required(VERSION 3.20)
+                        include("${cmakeSdk.path}/sdk/cmake/perinkpheral.cmake")
+                        project(changed C)
+                        perinkpheral_app(.)
+                    """.trimIndent())
+                    val cmakeBuild = File(scratch, "cmake-build")
+                    fun cmake(vararg arguments: String) {
+                        val process = ProcessBuilder(listOf("cmake") + arguments).redirectErrorStream(true).start()
+                        val output = process.inputStream.bufferedReader().readText()
+                        check(process.waitFor() == 0) { output }
+                    }
+                    cmake("-S", cmakeSource.path, "-B", cmakeBuild.path)
+                    cmake("--build", cmakeBuild.path, "--target", "changed")
+                    val module = File(cmakeBuild, "modules/changed/app.wasm")
+                    val before = module.readBytes()
+                    // Make can compare generated inputs and objects only to whole seconds.
+                    Thread.sleep(1_100)
+                    english.writeText("""{"text":"After!","added":"New"}""")
+                    picture.writeText(".#\n")
+                    cmake("--build", cmakeBuild.path, "--target", "changed")
+                    check(!before.contentEquals(module.readBytes()))
+                    check("0x41, 0x66, 0x74, 0x65, 0x72, 0x21," in File(cmakeBuild, "generated/changed/strings.c").readText())
+                    check("STR_ADDED" in File(cmakeBuild, "generated/changed/strings.h").readText())
+                    check("0x40" in File(cmakeBuild, "generated/changed/pictures.h").readText())
+                } else {
+                    println("Skipping CMake rebuild checks: cmake is not on PATH")
                 }
-                fun quoted(text: String) = "'" + text.replace("'", "'\"'\"'") + "'"
-                val testTool = File(cmakeSdk, "tools/perinkpheral")
-                testTool.parentFile.mkdirs()
-                val java = File(System.getProperty("java.home"), "bin/java").path
-                val classpath = System.getProperty("java.class.path").split(File.pathSeparator)
-                    .joinToString(File.pathSeparator) { File(it).absolutePath }
-                testTool.writeText("#!/bin/sh\nexec ${quoted(java)} ${quoted("-Dperinkpheral.test.root=${root.path}")} -cp ${quoted(classpath)} " +
-                    "dev.perinkpheral.core.BuilderSafetyTest \"\$@\"\n")
-                check(testTool.setExecutable(true))
-                File(cmakeSource, "CMakeLists.txt").writeText("""
-                    cmake_minimum_required(VERSION 3.20)
-                    include("${cmakeSdk.path}/sdk/cmake/perinkpheral.cmake")
-                    project(changed C)
-                    perinkpheral_app(.)
-                """.trimIndent())
-                val cmakeBuild = File(scratch, "cmake-build")
-                fun cmake(vararg arguments: String) {
-                    val process = ProcessBuilder(listOf("cmake") + arguments).redirectErrorStream(true).start()
-                    val output = process.inputStream.bufferedReader().readText()
-                    check(process.waitFor() == 0) { output }
-                }
-                cmake("-S", cmakeSource.path, "-B", cmakeBuild.path)
-                cmake("--build", cmakeBuild.path, "--target", "changed")
-                val module = File(cmakeBuild, "modules/changed/app.wasm")
-                val before = module.readBytes()
-                english.writeText("""{"text":"After!","added":"New"}""")
-                picture.writeText(".#\n")
-                // Changed within the same second as the first build, a file can look no newer to make.
-                val later = System.currentTimeMillis() + 5_000
-                check(english.setLastModified(later) && picture.setLastModified(later))
-                cmake("--build", cmakeBuild.path, "--target", "changed")
-                check(!before.contentEquals(module.readBytes()))
-                check("0x41, 0x66, 0x74, 0x65, 0x72, 0x21," in File(cmakeBuild, "generated/changed/strings.c").readText())
-                check("STR_ADDED" in File(cmakeBuild, "generated/changed/strings.h").readText())
-                check("0x40" in File(cmakeBuild, "generated/changed/pictures.h").readText())
 
                 val aliases = File(scratch, "aliases").apply { mkdirs() }
                 Files.createSymbolicLink(File(aliases, "renamed").toPath(), source.toPath())

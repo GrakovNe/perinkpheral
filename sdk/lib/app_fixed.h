@@ -29,7 +29,8 @@ bool app_fixed_parse(const char *text, int32_t decimals, int64_t *value);
 int64_t app_fixed_rescale(int64_t value, int32_t from_decimals, int32_t to_decimals);
 
 /* part / whole with `decimals` decimals, rounded half away from zero; 0 if
- * `whole` is 0. A percentage with 2 decimals: app_fixed_ratio(change * 100,
+ * `whole` is 0 or the rounded result does not fit in int64_t.
+ * A percentage with 2 decimals: app_fixed_ratio(change * 100,
  * previous, 2). Both numbers must have the same number of decimals. */
 int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals);
 

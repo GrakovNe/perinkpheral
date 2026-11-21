@@ -165,6 +165,11 @@ int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
     }
     uint64_t dividend = magnitude_of(part), divisor = magnitude_of(whole);
     uint64_t result = dividend / divisor, rest = dividend % divisor;
+    bool is_negative = (part < 0) != (whole < 0);
+    uint64_t limit = (uint64_t)INT64_MAX + is_negative;
+    if (result > limit) {
+        return 0;
+    }
     /* A decimal at a time: rest * 10^decimals would not fit. */
     for (int32_t i = 0; i < decimals; i++) {
         /* Add the remainder ten times without overflowing or discarding bits. */
@@ -178,13 +183,23 @@ int64_t app_fixed_ratio(int64_t part, int64_t whole, int32_t decimals)
                 next_rest += rest;
             }
         }
+        if (result > (limit - digit) / DECIMAL_BASE) {
+            return 0;
+        }
         result = result * DECIMAL_BASE + digit;
         rest = next_rest;
     }
     if (rest >= divisor - rest) {
+        if (result == limit) {
+            return 0;
+        }
         result++;
     }
-    return (part < 0) != (whole < 0) ? -(int64_t)result : (int64_t)result;
+    /* The negative endpoint has no positive signed counterpart to negate. */
+    if (is_negative && result == (uint64_t)INT64_MAX + 1) {
+        return INT64_MIN;
+    }
+    return is_negative ? -(int64_t)result : (int64_t)result;
 }
 
 /* Appends the digits of `number`, at least `width` of them. */
