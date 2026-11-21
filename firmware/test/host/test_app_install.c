@@ -46,7 +46,23 @@ void settings_load_sources(char *text, size_t capacity) { snprintf(text, capacit
 void settings_read(appconf_t *copy) { *copy = config; }
 bool app_code_has_room(const char *name, size_t size) { (void)name; (void)size; return true; }
 void storage_usage(size_t *used, size_t *total) { *used = 0; *total = 640 * 1024; }
-long app_store_files_bytes(const char *root, const char *name) { (void)root; (void)name; return 0; }
+static bool is_data_file(const char *file) {
+    size_t length = strlen(file);
+    return file[0] != '.' && strcmp(file, "manifest.json") != 0 && strcmp(file, "app.wasm") != 0 &&
+           (length < 4 || strcmp(file + length - 4, ".new") != 0);
+}
+long app_store_file_size(const char *root, const char *name, const char *file) {
+    (void)root; (void)name; char path[APP_STORE_PATH_MAX]; file_path(path, file); struct stat found;
+    return stat(path, &found) == 0 ? (long)found.st_size : -1;
+}
+long app_store_files_bytes(const char *root, const char *name) {
+    char folder[APP_STORE_PATH_MAX]; snprintf(folder, sizeof folder, "%s/test", test_root);
+    DIR *directory = opendir(folder); struct dirent *entry; long taken = 0;
+    while (directory != NULL && (entry = readdir(directory)) != NULL)
+        if (is_data_file(entry->d_name)) taken += bytes_in_blocks((double)app_store_file_size(root, name, entry->d_name));
+    if (directory != NULL) closedir(directory);
+    return taken;
+}
 void power_hold_radio(void) { radio_holds++; }
 void power_release_radio(void) { radio_holds--; }
 bool app_store_is_ready(const char *root, const char *name) { (void)root; (void)name; return !marker; }
@@ -92,7 +108,7 @@ bool poller_fetch(const char *url, size_t maximum, poller_take_fn take, void *co
     CHECK(!is_host); CHECK(app_install_app_is_busy("test")); CHECK(!app_install_begin("other")); downloads++;
     if (network_error) { *status = network_error; return false; }
     const char *file = strrchr(url, '/') + 1;
-    const char *bytes = strcmp(file, "app.wasm") == 0 ? module : strcmp(file, "root.pem") == 0 ? new_certificate : new_manifest;
+    const char *bytes = strcmp(file, "app.wasm") == 0 ? module : strcmp(file, "manifest.json") != 0 ? new_certificate : new_manifest;
     if (change_id) present.id = 99;
     if (change_source) strcpy(source_text, "https://changed.example/catalog");
     if (turn_off) config.app_auto_update = 0;
@@ -102,9 +118,10 @@ bool poller_fetch(const char *url, size_t maximum, poller_take_fn take, void *co
     return take(context, (const uint8_t *)bytes, strlen(bytes));
 }
 
+static const char *data_name = "root.pem";
 static json_t *files_for(void) {
     json_t *files = json_new_array();
-    const char *names[] = { "app.wasm", "root.pem", "manifest.json" };
+    const char *names[] = { "app.wasm", data_name, "manifest.json" };
     const char *contents[] = { module, new_certificate, new_manifest };
     for (int i = 0; i < 3; i++) {
         if (contents[i] == NULL) continue;
@@ -155,6 +172,20 @@ int main(void) {
     put_file("root.pem", "old authority"); new_certificate = "new authority";
     new_manifest = "{\"name\":\"test\",\"title\":\"Test\",\"version\":\"1.1.0\",\"abi\":3,\"certificates\":[\"root.pem\"]}";
     CHECK_STR(run(true), "Update requires manual installation."); CHECK(commits == 0); new_certificate = "old authority"; CHECK(run(true) == NULL); CHECK(opens == 0); cleanup();
+    /* A name twice in an entry is refused before anything is downloaded. */
+    reset(NULL); data_name = "manifest.json"; new_certificate = NEW;
+    CHECK_STR(run(false), "Invalid catalog entry."); CHECK(downloads == 0 && commits == 0); data_name = "root.pem"; cleanup();
+    /* An update keeps the files it does not replace, and a writer's quota counts them. */
+    static const char WRITER[] = "{\"name\":\"test\",\"title\":\"Test\",\"version\":\"1.1.0\",\"abi\":3,\"writes_files\":true}";
+    static char kept[HOST_FILES_WRITER_MAX - 2 * MANIFEST_FILE_BLOCK_BYTES + 2]; /* a byte past six blocks */
+    memset(kept, 'k', sizeof kept - 1);
+    reset(OLD); new_manifest = WRITER; new_certificate = "data"; data_name = "new.dat"; put_file("old.dat", kept);
+    CHECK_STR(run(false), "Not enough storage."); CHECK(commits == 0); cleanup();
+    reset(OLD); new_manifest = WRITER; new_certificate = "data"; data_name = "old.dat"; put_file("old.dat", kept);
+    CHECK(run(false) == NULL); CHECK(commits == 1); cleanup();
+    kept[sizeof kept - 2] = '\0'; /* a block less beside the package's: it fits */
+    reset(OLD); new_manifest = WRITER; new_certificate = "data"; data_name = "new.dat"; put_file("old.dat", kept);
+    CHECK(run(false) == NULL); CHECK(commits == 1); data_name = "root.pem"; cleanup();
     CHECK(app_install_network_is_retryable(503)); CHECK(app_install_network_is_retryable(HOST_FAILED_TIMEOUT)); CHECK(!app_install_network_is_retryable(404)); CHECK(!app_install_network_is_retryable(HOST_FAILED_NOT_TRUSTED));
     REPORT();
 }
