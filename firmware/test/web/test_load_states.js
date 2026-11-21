@@ -74,7 +74,7 @@ async function testCatalog() {
   const { context, messages, byId } = page({
     TextEncoder, MANIFEST_AUTHOR_MAX: 63, CATALOG_INSTALLED_MAX: 24, pageLanguage: "en",
     sources: ["https://example.test/catalog"], offered: [], installed: [], removed: [], catalogsRead: false,
-    loadSources: async () => {}, loadRemoved() {}, compatibilityProblem: () => "", localStorage: store,
+    loadSources: async () => {}, loadRemoved() {}, cancelQueuedInstalls() {}, compatibilityProblem: () => "", localStorage: store,
     picture: () => element("div"), markPendingInstall() {}, install() {},
     offerSays: (offer, field) => offer.app[field] || "", appUpdateAvailable: () => false,
     askForApp: async () => { if (!answer) throw new Error("Failed to fetch"); return answer; },
@@ -104,6 +104,11 @@ async function testCatalog() {
   assert.equal(rows().length, 1);
   assert.equal(view.children.length, 1, "the rows and no note");
   assert.equal(buttons()[0].disabled, false);
+
+  answer.apps.push({ name: "bad", version: "1.0.0", abi: 3, firmware: 1 });
+  await context.loadCatalogs();
+  assert.equal(rows().length, 1, "a malformed firmware minimum does not hide valid entries");
+  assert.equal(context.offered[0].app.name, "iss");
 
   answer = null;
   await context.loadCatalogs();
@@ -140,6 +145,36 @@ async function testCatalog() {
   assert.equal(rows().length, 0);
   assert.deepEqual(said(view), ["failed"]);
 
+  /* Live offers must be invalidated too: indices shift when a source is removed. */
+  context.sources = ["https://example.test/official", "https://example.test/a", "https://example.test/b"];
+  context.askForApp = async url => ({ apps: url.endsWith("=1") ?
+    [{ name: "from-a", version: "1", files: [] }] : [] });
+  await context.loadCatalogs();
+  assert.equal(context.offered[0].source, 1);
+  let release;
+  context.askForApp = () => new Promise(resolve => { release = resolve; });
+  const oldReading = context.loadCatalogs();
+  for (let step = 0; step < 5; step++) await Promise.resolve();
+  context.invalidateCatalogs();
+  context.sources = ["https://example.test/official", "https://example.test/b"];
+  release({ apps: [{ name: "stale", version: "1", files: [] }] });
+  await oldReading;
+  assert.equal(context.offered.length, 0, "a stale reading cannot restore old indices");
+  assert.equal(kept.has("perinkpheral-catalog"), false);
+  context.askForApp = async () => { throw new Error("Failed to fetch"); };
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 0, "total failure after saving sources leaves no old offers");
+  assert.equal(context.catalogsRead, false);
+  assert.deepEqual(said(view), ["failed"]);
+
+  context.askForApp = async () => ({ apps: [{ name: "another", version: "1", files: [] }] });
+  await context.loadCatalogs();
+  context.sources = ["https://example.test/changed-elsewhere"];
+  context.askForApp = async () => { throw new Error("Failed to fetch"); };
+  await context.loadCatalogs();
+  assert.equal(context.offered.length, 0, "a changed list returned by the device also invalidates offers");
+  assert.equal(context.catalogsRead, false);
+
   /* What is not this page's writing is not shown. */
   for (const text of ["", "{", "[]", '{"sources":[1],"offers":[]}', '{"sources":[],"offers":[{"source":0}]}',
                       '{"sources":[],"offers":[{"source":"0","app":{"name":"a","version":"1"}}]}',
@@ -156,6 +191,14 @@ async function testCatalog() {
   assert.equal(context.isDrawable({ name: "a", version: "1" }), true);
   assert.equal(context.isDrawable({ name: "a", version: "1", title: 5 }), false);
   assert.equal(context.isDrawable({ name: "a", version: 1 }), false);
+  for (const firmware of [1, true, [], {}]) {
+    assert.equal(context.isDrawable({ name: "a", version: "1", firmware }), false);
+    kept.set("perinkpheral-catalog", JSON.stringify({ sources: ["s"], offers: [
+      { source: 0, app: { name: "a", version: "1", firmware } }] }));
+    assert.equal(context.keptCatalog(store), null, "malformed firmware is not restored from storage");
+  }
+  for (const firmware of [undefined, null, "", "0.1.30"])
+    assert.equal(context.isDrawable({ name: "a", version: "1", firmware }), true);
   assert.equal(context.isDrawable(null), false);
   /* Where an application connects: a host of the user's own list is said to be the user's. */
   context.URL = URL;
@@ -168,9 +211,68 @@ async function testCatalog() {
   assert.equal(kept.has("perinkpheral-catalog"), false, "too large to keep");
 }
 
+async function testSourcesSave() {
+  for (const refusal of ["Invalid source URL.", "Too many sources.", "Failed to fetch", null]) {
+    for (const readFails of [false, true]) {
+      const official = "https://example.test/official", stored = [official, "https://example.test/stored"];
+      let saved = false;
+      const reads = [];
+      const { context, byId, messages } = page({
+        sources: [], offered: [], catalogsRead: false, CATALOG_SOURCES_MAX: 4,
+        drawTiles() {}, loadRemoved() {}, cancelQueuedInstalls() {},
+        fetch: async (url, options) => {
+          if (options && options.method === "POST") {
+            assert.deepEqual(JSON.parse(options.body).sources, ["https://example.test/valid", "typo"]);
+            if (refusal === "Failed to fetch") throw new Error(refusal);
+            saved = !refusal;
+            return { ok: saved, status: saved ? 200 : 400,
+              json: async () => saved ? { ok: "Saved." } : { error: refusal } };
+          }
+          reads.push(url);
+          if (readFails) throw new Error("Device unreachable.");
+          return { ok: true, json: async () => ({ sources: stored }) };
+        },
+        askForApp: async url => { reads.push(url); return { apps: [] }; },
+        editableList: (box, { values }) => {
+          box.replaceChildren(...values.map(value => element("input", { value })));
+          box.values = () => box.children.slice(1).map(row => row.value.trim()).filter(Boolean);
+        },
+      });
+      vm.runInContext(apps.slice(apps.indexOf("async function loadSources("), apps.indexOf("function catalogAuthorIsAllowed(")), context);
+      vm.runInContext(apps.slice(apps.indexOf("function catalogAuthorIsAllowed("), apps.indexOf("/* ---- sources ---- */")), context);
+      vm.runInContext(apps.slice(apps.indexOf("function catalogAddress("), apps.indexOf('byId("open-sources")')), context);
+      vm.runInContext("const pendingAppInstalls = new Map();", context);
+      const submitStart = apps.indexOf('byId("sources").addEventListener');
+      vm.runInContext(apps.slice(submitStart, apps.indexOf('byId("refresh-catalogs").addEventListener', submitStart)), context);
+      const rows = byId("source-rows"), typed = [official, " https://example.test/valid ", "typo", ""];
+      context.editableList(rows, { values: typed });
+      const originalRows = rows.children;
+      byId("save-sources").textContent = "Save";
+      const saving = byId("sources").listeners.submit({ preventDefault() {}, submitter: byId("save-sources") });
+      if (readFails) await assert.rejects(saving, /Device unreachable/);
+      else await saving;
+      assert(reads.includes("/api/sources"), "the stored source list is always fetched after a save");
+      if (refusal) {
+        assert.strictEqual(rows.children, originalRows, "a refused save preserves rows even if the stored-list read fails");
+        assert.deepEqual(rows.children.map(row => row.value), typed, "valid rows, typo, whitespace and blank row survive");
+        assert(messages.some(message => message.kind === "error"));
+      } else if (!readFails) {
+        assert.equal(saved, true);
+        assert.deepEqual(rows.children.map(row => row.value), stored, "successful saves show the stored list");
+      }
+      if (!readFails) {
+        assert.deepEqual(reads, ["/api/sources", "/api/catalog?source=0", "/api/catalog?source=1"],
+          "catalogs use the stored sources even when the edited rows are preserved");
+        assert.equal(context.catalogsRead, true);
+      }
+    }
+  }
+}
+
 module.exports = async function testLoadStates() {
   await testReading();
   await testCatalog();
+  await testSourcesSave();
   console.log("Load states: loading, failed with Refresh, empty, offers kept while read again and between visits passed.");
 };
 if (require.main === module) module.exports().catch(error => { console.error(error); process.exitCode = 1; });

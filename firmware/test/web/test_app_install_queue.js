@@ -18,11 +18,12 @@ function harness() {
     });
     return buttons.get(name);
   }
-  const offers = ["air", "clock", "weather"].map(name => ({ source: 0,
+  const offers = ["air", "clock", "weather"].map(name => ({ source: 0, generation: 0,
     app: { name, title: name, version: "1.2.0", files: [] } }));
   const context = vm.createContext({
+    offered: offers, catalogsRead: true,
     installed: offers.map(offer => ({ name: offer.app.name, version: "1.0.0" })),
-    document: { getElementById: () => button("all") },
+    document: { getElementById: id => button(id === "update-all" ? "all" : id) },
     window: { addEventListener: (event, callback) => { events[event] = callback; } },
     t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, index) => values[index]),
     compatibilityProblem: () => "", offerSays: offer => offer.app.title,
@@ -48,6 +49,11 @@ function harness() {
     return () => { message.dismissed = true; };
   };
   vm.runInContext(apps.slice(apps.indexOf("const appInstallQueue"), apps.indexOf("/* An icon is")), context);
+  vm.runInContext(apps.slice(apps.indexOf("let offeredSources"), apps.indexOf("/* One reading at a time")), context);
+  Object.assign(context, { catalogAddress: line => line, catalogsReading: null, loadCatalogs: async () => {} });
+  const sourcesStart = apps.indexOf('byId("sources").addEventListener');
+  vm.runInContext(apps.slice(sourcesStart, apps.indexOf('byId("refresh-catalogs").addEventListener', sourcesStart)), context);
+  button("source-rows").values = () => ["https://example.test/b"];
   const bulk = apps.indexOf('byId("update-all").addEventListener');
   vm.runInContext(apps.slice(bulk, apps.indexOf('byId("auto-update-apps").addEventListener', bulk)), context);
   return { context, requests, messages, events, offers, button,
@@ -55,6 +61,7 @@ function harness() {
     all: () => button("all").listeners.click(),
     get maximumActive() { return maximumActive; }, get reloads() { return reloads; },
     refusePermission() { confirms = false; },
+    saveSources: () => button("sources").listeners.submit({ preventDefault() {}, submitter: button("save") }),
   };
 }
 
@@ -135,6 +142,47 @@ async function testQueue() {
   test.requests[1].reply(); assert.equal(await resumed, true);
   const idle = { preventDefault() { throw new Error("idle page should not warn"); } };
   test.events.beforeunload(idle);
+  test = harness();
+  const active = test.start(0), staleQueued = test.start(1);
+  test.context.invalidateCatalogs();
+  assert.equal(await staleQueued, false, "a source change cancels unsent installs");
+  assert.equal(await test.start(2), false, "an old tile cannot enqueue another install");
+  assert.equal(test.button("1").disabled, false);
+  test.requests[0].reply(); await active;
+  assert.equal(test.requests.length, 1);
+
+  test = harness();
+  let consent;
+  test.context.confirmed = () => new Promise(resolve => { consent = resolve; });
+  test.offers[0].app.system = true;
+  const waiting = test.start(0);
+  test.context.invalidateCatalogs();
+  consent(true);
+  assert.equal(await waiting, false, "permission for an old offer cannot start an install");
+  assert.equal(test.requests.length, 0);
+  test = harness();
+  const installing = test.start(0), queued = test.start(1);
+  const saving = test.saveSources();
+  await flush();
+  const waitingNotice = test.messages.find(message => message.text === "Waiting for app installation.");
+  assert(waitingNotice && waitingNotice.stays && waitingNotice.kind.includes("passive"));
+  assert.equal(waitingNotice.dismissed, false);
+  assert.equal(await queued, false);
+  assert.equal(test.requests.length, 1, "source indices stay in place while a sent install may retry");
+  test.requests[0].reply(503, "Device busy."); await flush();
+  assert.equal(waitingNotice.dismissed, false, "the explanation stays during install retries");
+  assert.equal(test.requests.length, 2);
+  assert(test.requests[1].url.startsWith("/api/apps/install"));
+  test.requests[1].reply(); await installing; await flush();
+  assert.equal(test.requests.length, 3);
+  assert.equal(test.requests[2].url, "/api/sources", "sources change only after the in-flight install finishes");
+  assert.equal(waitingNotice.dismissed, true, "the explanation ends before the sources POST");
+  test.requests[2].reply(); await saving;
+  assert.equal(await test.start(1), false);
+  test = harness();
+  const idleSave = test.saveSources(); await flush();
+  assert(!test.messages.some(message => message.text === "Waiting for app installation."), "idle saves do not claim to wait");
+  test.requests[0].reply(); await idleSave;
   console.log("App install queue: sequential individual/bulk, dedupe, errors, permission cancellation and BFCache passed.");
 }
 module.exports = testQueue;

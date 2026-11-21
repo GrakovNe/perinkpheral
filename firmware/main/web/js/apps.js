@@ -186,9 +186,10 @@ function settingField(app, setting) {
   return parts;
 }
 
-let appInDialog = null;
+let appInDialog = null, appDialogGeneration = 0;
 
 function openAppSettings(app) {
+  appDialogGeneration++;
   appInDialog = app;
   show("app-dialog-title", app.title);
   byId("app-fields").replaceChildren(...settingFields(app));
@@ -256,7 +257,7 @@ function restoreInstallButton(job) {
 }
 
 function install(button, offer, notifyQueued = true) {
-  if (appInstallClosed) return Promise.resolve(false);
+  if (!isCurrentOffer(offer) || appInstallClosed) return Promise.resolve(false);
   const name = offer.app.name;
   if (pendingAppInstalls.has(name)) return pendingAppInstalls.get(name).promise;
   const have = installed.find(app => app.name === name);
@@ -309,12 +310,16 @@ window.addEventListener("beforeunload", event => {
 });
 window.addEventListener("pagehide", () => {
   appInstallClosed = true;
+  cancelQueuedInstalls();
+});
+
+function cancelQueuedInstalls() {
   for (const job of appInstallQueue.splice(0)) {
     restoreInstallButton(job);
     pendingAppInstalls.delete(job.offer.app.name);
     job.resolve(false);
   }
-});
+}
 
 window.addEventListener("pageshow", event => {
   if (!event.persisted) return;
@@ -332,6 +337,7 @@ function markPendingInstall(button, offer) {
 /* Recheck a queued offer before it starts: another completed action may
  * already have installed it. Permission dialogs also run one at a time. */
 async function performInstall(button, offer) {
+  if (!isCurrentOffer(offer)) return false;
   const have = installed.find(app => app.name === offer.app.name);
   if (have && !appUpdateAvailable(have.version, offer.app.version)) return false;
   const problem = compatibilityProblem(offer.app);
@@ -343,7 +349,7 @@ async function performInstall(button, offer) {
       !await confirmed(t(trusts.length > 1 ? "{0} trusts its own certificate authorities: {1}."
                                            : "{0} trusts its own certificate authority: {1}.",
                          offerSays(offer, "title"), trusts.join(", ")), "Install")) return false;
-  if (appInstallClosed) return false;
+  if (appInstallClosed || !isCurrentOffer(offer)) return false;
   const url = "/api/apps/install?source=" + offer.source + "&app=" + encodeURIComponent(offer.app.name);
   const work = async () => {
     const dismiss = toast(t(have ? "Updating {0}…" : "Installing {0}…", offerSays(offer, "title")), "busy passive", true);
@@ -615,13 +621,14 @@ async function loadRemoved() {
 }
 
 /* The list of sources, as the device keeps it: there with no network too. */
-async function loadSources() {
+async function loadSources(redraw = true) {
   try {
     sources = (await reading("sources", () => ask("/api/sources"))).sources;
   } catch (error) {
-    if (stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
+    if (redraw && stateOf("sources") === "failed") sayState(byId("source-rows"), "failed", loadSources);
     throw error;
   }
+  if (!redraw) return;
   editableList(byId("source-rows"), { values: sources, most: CATALOG_SOURCES_MAX, fixedFirst: true, wraps: true,
                                       input: { placeholder: "https://" } });
 }
@@ -654,7 +661,7 @@ function keepCatalog(store, from, offers) {
 const isText = value => value === undefined || value === null || typeof value === "string";
 function isDrawable(app) {
   return Boolean(app) && typeof app.name === "string" && typeof app.version === "string" &&
-    isText(app.title) && isText(app.description) && isText(app.author) &&
+    isText(app.title) && isText(app.description) && isText(app.author) && isText(app.firmware) &&
     (app.translations === undefined || app.translations === null ||
       (typeof app.translations === "object" && Object.values(app.translations).every(words =>
         words && typeof words === "object" && isText(words.title) && isText(words.description))));
@@ -673,58 +680,77 @@ function keptCatalog(store) {
   }
 }
 
-/* The sources the kept offers came from: other sources, and they are nobody's. */
-let keptSources = null;
+/* Offers belong to the source list that was read, including its indices. */
+let offeredSources = null;
+let catalogGeneration = 0, sourcesSaving = false;
+
+function isCurrentOffer(offer) {
+  return !sourcesSaving && catalogsRead && offer.generation === catalogGeneration;
+}
+
+function invalidateCatalogs() {
+  catalogGeneration++;
+  catalogsRead = false;
+  loadState.catalog = "loading";
+  forgetKeptCatalog();
+  cancelQueuedInstalls();
+  drawTiles();
+}
 
 function forgetKeptCatalog() {
   try { pageStore().removeItem(CATALOG_KEPT); } catch (error) { /* no store */ }
   offered = [];
-  keptSources = null;
+  offeredSources = null;
 }
 
 function showKeptCatalog() {
   const kept = keptCatalog(pageStore());
   if (!kept || catalogsRead) return;
   offered = kept.offers;
-  keptSources = kept.sources;
+  offeredSources = kept.sources;
 }
 
 /* One reading at a time, whoever asks: the start, Refresh, the sources saved. */
 let catalogsReading = null;
 
-function loadCatalogs() {
-  catalogsReading = catalogsReading || readCatalogs().finally(() => { catalogsReading = null; });
+function loadCatalogs(redrawSources = true) {
+  catalogsReading = catalogsReading || readCatalogs(redrawSources).finally(() => { catalogsReading = null; });
   return catalogsReading;
 }
 
-async function readCatalogs() {
+async function readCatalogs(redrawSources = true) {
+  if (sourcesSaving) return;
+  const started = catalogGeneration;
   const found = [], silent = [];
   try {
-    await loadSources();
+    await loadSources(redrawSources);
   } catch (error) {
+    if (started !== catalogGeneration || sourcesSaving) return;
     if (!catalogsRead) loadState.catalog = "failed";
     drawTiles();
     throw error;
   }
-  if (!catalogsRead && keptSources && String(keptSources) !== String(sources)) {
-    offered = [];
-    drawTiles();
-  }
-  for (let source = 0; source < sources.length; source++) {
+  if (started !== catalogGeneration || sourcesSaving) return;
+  if (offeredSources && JSON.stringify(offeredSources) !== JSON.stringify(sources)) invalidateCatalogs();
+  const generation = catalogGeneration, from = sources.slice();
+  for (let source = 0; source < from.length; source++) {
     try {
       const catalog = await askForApp("/api/catalog?source=" + source);
+      if (generation !== catalogGeneration || sourcesSaving) return;
       if (!catalog.apps.every(app => catalogAuthorIsAllowed(app.author, source)))
         throw new Error("Invalid app author.");
       /* The first catalog that has an application is the one it comes from. */
       for (const app of catalog.apps)
-        if (isDrawable(app) && !found.some(offer => offer.app.name === app.name)) found.push({ app, source });
+        if (isDrawable(app) && !found.some(offer => offer.app.name === app.name)) found.push({ app, source, generation });
     } catch (error) {
-      silent.push({ source: sources[source], error });
+      if (generation !== catalogGeneration || sourcesSaving) return;
+      silent.push({ source: from[source], error });
     }
   }
   /* No source answered: what was read before stays, and a catalog never read says it failed. */
   if (found.length || !silent.length) {
     offered = found;
+    offeredSources = from;
     catalogsRead = true;
     loadState.catalog = "ready";
   } else if (!catalogsRead) {
@@ -732,7 +758,7 @@ async function readCatalogs() {
   }
   drawTiles();
   /* Kept only once it was drawn: what cannot be drawn must not come back at the next visit. */
-  if (loadState.catalog === "ready" && offered === found) keepCatalog(pageStore(), sources, found);
+  if (loadState.catalog === "ready" && offered === found) keepCatalog(pageStore(), from, found);
   for (const { source, error } of silent)
     toast(error.status === 503 ? error.message : t("Source unavailable: {0}", source), "error");
   loadRemoved();
@@ -766,11 +792,27 @@ byId("sources").addEventListener("submit", async event => {
   if (!rows.values) return; /* the sources were never read: there is nothing to save */
   const added = rows.values().map(catalogAddress).filter(address => address);
   const save = event.submitter || event.target.querySelector("button:not([type])");
-  if (await send(save, "/api/sources", post({ sources: added }))) {
-    /* A reading under way began from the old list: wait it out, then read from the new one. */
-    if (catalogsReading) await catalogsReading.catch(() => {});
-    loadCatalogs();
+  if (sourcesSaving) return;
+  sourcesSaving = true;
+  invalidateCatalogs();
+  let saved;
+  try {
+    saved = await send(save, "/api/sources", post({ sources: added }), async (url, options) => {
+      /* An install may retry its POST: keep its source indices until it finishes. */
+      const dismiss = pendingAppInstalls.size ? toast("Waiting for app installation.", "busy passive", true) : null;
+      try {
+        await Promise.all([...pendingAppInstalls.values()].map(job => job.promise));
+      } finally {
+        if (dismiss) dismiss();
+      }
+      return ask(url, options);
+    });
+  } finally {
+    sourcesSaving = false;
   }
+  /* Read the stored sources after a refusal too, but keep the rows the user can correct. */
+  if (catalogsReading) await catalogsReading.catch(() => {});
+  await loadCatalogs(saved);
 });
 
 byId("refresh-catalogs").addEventListener("click", event => busy(event.target, loadCatalogs));
@@ -797,9 +839,15 @@ byId("app-settings").addEventListener("submit", async event => {
   }
   /* Saved, the form goes: what was typed in it - a secret above all - is not sent again
    * with the next save, to a server changed meanwhile. It opens anew from the device. */
-  const url = "/api/apps/settings?app=" + encodeURIComponent(appInDialog.name);
+  const generation = appDialogGeneration;
+  const name = appInDialog.name;
+  const url = "/api/apps/settings?app=" + encodeURIComponent(name);
   if (await send(event.submitter, url, post(values))) {
-    byId("app-dialog").close();
-    loadApps();
+    try {
+      await loadApps();
+    } finally {
+      /* A same-app form reopened during the save still has the old values. */
+      if (generation === appDialogGeneration || appInDialog.name === name) byId("app-dialog").close();
+    }
   }
 });

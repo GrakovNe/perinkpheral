@@ -4,6 +4,15 @@ Firmware release notes, newest first. Each successful push to `main` publishes a
 CI uses the matching version section for its notes; otherwise it lists commits since
 the previous release. Notes appear on GitHub, in the flasher and on the device's page.
 
+## next
+
+- Changing catalog sources drops outdated offers and queued installs before source indices can change.
+  Saving explains when it waits for an install; a refused save keeps the edited source rows.
+- Settings fail to load cleanly when memory runs out instead of returning incomplete values.
+- Saving app settings preserves a form opened for another app while that save was pending.
+  A reopened form for the saved app closes after reloading to avoid saving stale values again.
+- A catalog entry with a malformed firmware minimum no longer stops the catalog from rendering.
+
 ## 0.1.78
 
 - A new firmware with no network stored is confirmed only when its setup access point is really

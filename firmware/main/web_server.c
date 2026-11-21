@@ -46,6 +46,7 @@
 #include "settings.h"
 #include "storage.h"
 #include "web_apps.h"
+#include "web_settings_json.h"
 #include "status.h"
 #include "wifi.h"
 #include "units.h"
@@ -686,50 +687,15 @@ static esp_err_t handle_settings(httpd_req_t *request)
 {
     appconf_t settings;
     settings_read(&settings);
-    json_t *json = json_new_object();
-    /* Every setting there is, by its key, as the store has it; a secret is
-     * never read back. */
-    int count;
-    const appconf_field_t *fields = appconf_fields(&count);
-    for (int i = 0; i < count; i++) {
-        const appconf_field_t *field = &fields[i];
-        if ((field->flags & APPCONF_SECRET) != 0) {
-            continue;
-        }
-        if (field->kind == APPCONF_TEXT) {
-            json_add_string(json, field->key, appconf_text(&settings, field));
-        } else if (field->kind == APPCONF_FLAG) {
-            json_add_bool(json, field->key, appconf_number(&settings, field) != 0);
-        } else {
-            json_add_number(json, field->key, appconf_number(&settings, field));
-        }
+    char *order = malloc(MENU_ORDER_MAX);
+    if (order == NULL) {
+        return send_failure(request, STATUS_BUSY, "Not enough memory.");
     }
-    json_add_string(json, "hostname", settings.hostname);
-    {
-        json_t *languages = json_new_array();
-        const appconf_language_t *known = appconf_languages(&count);
-        for (int i = 0; i < count; i++) {
-            json_t *language = json_new_object();
-            json_add_string(language, "code", known[i].code);
-            json_add_string(language, "name", known[i].name);
-            json_array_add(languages, language);
-        }
-        json_add_item(json, "languages", languages);
-    }
-    {
-        /* The order of the device's menu, which the page shows its tiles by. */
-        char *order = malloc(MENU_ORDER_MAX);
-        json_t *names = json_new_array();
-        if (order != NULL) {
-            settings_load_menu_order(order, MENU_ORDER_MAX);
-            char *rest = NULL;
-            for (char *name = strtok_r(order, "\n", &rest); name != NULL;
-                 name = strtok_r(NULL, "\n", &rest)) {
-                json_array_add(names, json_new_string(name));
-            }
-            free(order);
-        }
-        json_add_item(json, "menu_order", names);
+    settings_load_menu_order(order, MENU_ORDER_MAX);
+    json_t *json = web_settings_json(&settings, order);
+    free(order);
+    if (json == NULL) {
+        return send_failure(request, STATUS_BUSY, "Not enough memory.");
     }
     return web_send_json(request, "200 OK", json);
 }

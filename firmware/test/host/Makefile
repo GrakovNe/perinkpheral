@@ -35,7 +35,10 @@ QR      := $(COMP)/qr
 QR_SRCS := $(QR)/qrcodegen/qrcodegen.c $(QR)/wifi_qr.c
 QR_INCS := -I$(QR)/include -I$(QR)/qrcodegen
 TESTS   := test_sdk_lib test_json_tree test_appconf test_gfx test_btn_core test_refresh_policy test_frame_box test_deadline_table test_scrollbar test_wm test_notice_queue test_scenes test_wifi_plan test_ota test_recovery_ota test_recovery_settings test_log_ring test_setup test_json_pick test_catalog test_app_manifest test_app_store test_polls test_request_queue test_app_room
-TESTS   += test_answer_headers
+TESTS   += test_answer_headers test_web_settings_json
+
+test_web_settings_json: test_web_settings_json.c tinytest.h $(MAIN)/web_settings_json.c $(MAIN)/web_settings_json.h $(APPCONF)/appconf.c $(APPSTORE)/json_tree.c
+	$(CC) $(CFLAGS) -I$(MAIN) -I$(APPCONF)/include -o $@ test_web_settings_json.c $(APPCONF)/appconf.c
 
 test_answer_headers: test_answer_headers.c tinytest.h $(APPSYS)/answer_headers.c $(APPSYS)/include/answer_headers.h
 	$(CC) $(CFLAGS) -I$(APPSYS)/include -I$(SDK) -o $@ test_answer_headers.c $(APPSYS)/answer_headers.c
